@@ -4,7 +4,7 @@
 
 
  /* File created by MIDL compiler version 7.00.0500 */
-/* at Thu Feb 18 21:48:38 2010
+/* at Sat Mar 14 12:03:23 2015
  */
 /* Compiler settings for .\WinHTTrackIEBar.idl:
     Oicf, W1, Zp8, env=Win32 (32b run)

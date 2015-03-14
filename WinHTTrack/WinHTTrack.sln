@@ -7,41 +7,41 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WinHTTrack", "WinHTTrack.vc
 		{E76AD871-54C1-45E8-A657-6117ADEFFB46} = {E76AD871-54C1-45E8-A657-6117ADEFFB46}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhttrack", "..\libhttrack\libhttrack.vcproj", "{E76AD871-54C1-45E8-A657-6117ADEFFB46}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhttrack", "..\..\httrack\src\libhttrack.vcproj", "{E76AD871-54C1-45E8-A657-6117ADEFFB46}"
 	ProjectSection(ProjectDependencies) = postProject
 		{8FD826F8-3739-44E6-8CC8-997122E53B8D} = {8FD826F8-3739-44E6-8CC8-997122E53B8D}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "httrack", "..\httrack.vcproj", "{D0E894E7-F64C-4722-9807-9ABB1054D43A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "httrack", "..\..\httrack\src\httrack.vcproj", "{D0E894E7-F64C-4722-9807-9ABB1054D43A}"
 	ProjectSection(ProjectDependencies) = postProject
 		{E76AD871-54C1-45E8-A657-6117ADEFFB46} = {E76AD871-54C1-45E8-A657-6117ADEFFB46}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "webhttrack", "..\webhttrack\webhttrack.vcproj", "{B2A68D1B-3EB3-4B16-B634-8D36AC4266EC}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "webhttrack", "..\..\httrack\src\webhttrack.vcproj", "{B2A68D1B-3EB3-4B16-B634-8D36AC4266EC}"
 	ProjectSection(ProjectDependencies) = postProject
 		{E76AD871-54C1-45E8-A657-6117ADEFFB46} = {E76AD871-54C1-45E8-A657-6117ADEFFB46}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "htsswf", "..\htsswf\htsswf.vcproj", "{A8989022-60C3-4B84-8768-8967DC4DE06E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "htsswf", "..\..\htsswf\htsswf.vcproj", "{A8989022-60C3-4B84-8768-8967DC4DE06E}"
 	ProjectSection(ProjectDependencies) = postProject
 		{E76AD871-54C1-45E8-A657-6117ADEFFB46} = {E76AD871-54C1-45E8-A657-6117ADEFFB46}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WinHTTrackIEBar", "..\WinHTTrackIEBar\WinHTTrackIEBar.vcproj", "{B978BD69-4DF2-4CBB-8843-213EC20538EF}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "proxytrack", "..\proxytrack\proxytrack.vcproj", "{4C31F79A-9DAB-44CE-88D6-0FF961599AAB}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "proxytrack", "..\..\httrack\src\proxy\proxytrack.vcproj", "{4C31F79A-9DAB-44CE-88D6-0FF961599AAB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libtest", "..\libtest\libtest.vcproj", "{76424734-BC12-4472-ABE2-B5C7A4A0B733}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libtest", "..\..\httrack\libtest\libtest.vcproj", "{76424734-BC12-4472-ABE2-B5C7A4A0B733}"
 	ProjectSection(ProjectDependencies) = postProject
 		{E76AD871-54C1-45E8-A657-6117ADEFFB46} = {E76AD871-54C1-45E8-A657-6117ADEFFB46}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "htsjava", "..\htsjava\htsjava.vcproj", "{2F353408-2C6C-4D31-9AC0-08BDC064DF64}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "htsjava", "..\..\httrack\src\htsjava.vcproj", "{2F353408-2C6C-4D31-9AC0-08BDC064DF64}"
 	ProjectSection(ProjectDependencies) = postProject
 		{E76AD871-54C1-45E8-A657-6117ADEFFB46} = {E76AD871-54C1-45E8-A657-6117ADEFFB46}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zlibvc", "..\zlib-1.2.8\contrib\vstudio\vc9\zlibvc.vcproj", "{8FD826F8-3739-44E6-8CC8-997122E53B8D}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "zlibvc", "..\..\zlib-1.2.8\contrib\vstudio\vc9\zlibvc.vcproj", "{8FD826F8-3739-44E6-8CC8-997122E53B8D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

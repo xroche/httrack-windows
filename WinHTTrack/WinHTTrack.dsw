@@ -18,7 +18,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "libhttrack"=..\libhttrack\libhttrack.dsp - Package Owner=<4>
+Project: "libhttrack"=..\..\httrack\src\libhttrack.dsp - Package Owner=<4>
 
 Package=<5>
 {{{

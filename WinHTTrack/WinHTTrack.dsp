@@ -175,15 +175,15 @@ SOURCE=.\HTMLHelp.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\htsinthash.c
+SOURCE=..\..\httrack\src\htsinthash.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\htsinthash.h
+SOURCE=..\..\httrack\src\htsinthash.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\htsmd5.c
+SOURCE=..\..\httrack\src\htsmd5.c
 # End Source File
 # Begin Source File
 
@@ -223,11 +223,11 @@ SOURCE=.\MainTab.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=..\md5.c
+SOURCE=..\..\httrack\src\md5.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\md5.h
+SOURCE=..\..\httrack\src\md5.h
 # End Source File
 # Begin Source File
 
