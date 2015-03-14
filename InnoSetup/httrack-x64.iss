@@ -1,8 +1,8 @@
 ; HTTrack Website Copier - x64 edition
 
 [Setup]
-AppVerName=WinHTTrack Website Copier 3.48-18 (x64)
-AppVersion=3.48.18
+AppVerName=WinHTTrack Website Copier 3.48-21 (x64)
+AppVersion=3.48.21
 AppName=WinHTTrack Website Copier
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
@@ -23,8 +23,8 @@ LicenseFile=O:\HTTrackFiles\setup_license.txt
 AppMutex=WinHTTrack_RUN
 OutputBaseFilename=httrack_x64
 OutputDir=O:\
-SetupIconFile=C:\Dev\WinHTTrack\res\Shell.ico
-UninstallIconFile=C:\Dev\WinHTTrack\res\Shell.ico
+SetupIconFile=C:\Dev\httrack-windows\WinHTTrack\res\Shell.ico
+UninstallIconFile=C:\Dev\httrack-windows\WinHTTrack\res\Shell.ico
 ;DiskSpanning=yes
 ;DiskSize=1048576
 SignedUninstaller=yes
