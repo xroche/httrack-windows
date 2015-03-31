@@ -208,6 +208,27 @@ static void httrackErrorCallback(const char* msg, const char* file, int line) {
 
 BOOL CWinHTTrackApp::InitInstance()
 {
+  /* See <https://msdn.microsoft.com/library/ff919712> */
+#if (defined(_WIN32) && (!defined(_DEBUG)))
+  {
+    /* See KB 2389418
+    "If this parameter is an empty string (""), the call removes the 
+    current directory from the default DLL search order" */
+    BOOL (WINAPI*const k32_SetDllDirectoryA)(LPCSTR) = 
+      (BOOL (WINAPI *)(LPCSTR))
+      GetProcAddress(GetModuleHandle("kernel32.dll"), "SetDllDirectoryA");
+    if (k32_SetDllDirectoryA != NULL && !k32_SetDllDirectoryA("")) {
+      /* Do no choke on NT or 98SE with KernelEx NT API (James Blough) */
+      const DWORD dwVersion = GetVersion();
+      const DWORD dwMajorVersion = (DWORD)(LOBYTE(LOWORD(dwVersion)));
+      const DWORD dwMinorVersion = (DWORD)(HIBYTE(LOWORD(dwVersion)));
+      if (dwMajorVersion >= 5) {
+        assertf(!"SetDllDirectory failed");
+      }
+    }
+  }
+#endif
+
   /* No error messageboxes */
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOALIGNMENTFAULTEXCEPT | SEM_NOGPFAULTERRORBOX);
 
