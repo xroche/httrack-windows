@@ -1,8 +1,8 @@
 ; HTTrack Website Copier - x86 edition
 
 [Setup]
-AppVerName=WinHTTrack Website Copier 3.48-21
-AppVersion=3.48.21
+AppVerName=WinHTTrack Website Copier 3.48-22
+AppVersion=3.48.22
 AppName=WinHTTrack Website Copier
 AppPublisher=HTTrack
 AppPublisherURL=http://www.httrack.com
