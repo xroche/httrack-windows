@@ -779,7 +779,7 @@ BEGIN
             VALUE "FileDescription", "WinHTTrack Website Copier, Copy Websites to Your Computer"
             VALUE "FileVersion", "3.49.2"
             VALUE "InternalName", "WinHTTrack"
-            VALUE "LegalCopyright", "Copyright (C) Xavier Roche and other contributors"
+            VALUE "LegalCopyright", "Copyright (C) 1998-2026 Xavier Roche and other contributors"
             VALUE "LegalTrademarks", "This software is covered by the GNU General Public License version 3"
             VALUE "OriginalFilename", "WinHTTrack.exe"
             VALUE "ProductName", "WinHTTrack Website Copier"

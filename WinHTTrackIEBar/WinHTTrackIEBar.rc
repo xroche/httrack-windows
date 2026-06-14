@@ -72,7 +72,7 @@ BEGIN
             VALUE "FileDescription", "WinHTTrackIEBar Module"
             VALUE "FileVersion", "1, 0, 0, 1"
             VALUE "InternalName", "WinHTTrackIEBar"
-            VALUE "LegalCopyright", "Copyright 1998-2006 Xavier Roche"
+            VALUE "LegalCopyright", "Copyright (C) 1998-2026 Xavier Roche and other contributors"
             VALUE "OriginalFilename", "WinHTTrackIEBar.DLL"
             VALUE "ProductName", "WinHTTrackIEBar Module"
             VALUE "ProductVersion", "1, 0, 0, 1"
