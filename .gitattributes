@@ -1,0 +1,4 @@
+# Normalize C++ sources and headers to LF. Other file types keep their
+# existing line endings (Windows tooling and COM/linker inputs stay CRLF).
+*.cpp text eol=lf
+*.h   text eol=lf
