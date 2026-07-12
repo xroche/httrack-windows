@@ -1,10 +1,8 @@
 # Windows build for WinHTTrack (VS2022 v143 + vcpkg).
 #
-# The COMPILE is gating: the GUI compiles clean, and this keeps it that way.
-# The LINK is not, because it still needs libhttrack.lib built on Windows
-# (engine-side work). So we run the build, then fail only on compile errors and
-# report the link separately. Once the engine ships libhttrack.lib, drop the
-# link tolerance and let the whole build gate.
+# Fully gating now: the engine ships a modern libhttrack.vcxproj, so the GUI both
+# compiles AND links. Build libhttrack from the sibling engine checkout first,
+# then WinHTTrack against it, then check the two binaries agree on the CRT.
 name: windows-build
 
 on:
@@ -43,7 +41,7 @@ jobs:
 
           # A UTF-8-assuming editor rewrites the Latin-1 bytes to U+FFFD and
           # destroys the text. That is silent in review; fail loudly instead.
-          for p in LF_ONLY + CRLF_ONLY + tracked('*.rc'):
+          for p in LF_ONLY + CRLF_ONLY:
               if b'\xef\xbf\xbd' in open(p, 'rb').read():
                   bad.append(f'{p}: contains U+FFFD; a UTF-8 tool mangled the Latin-1 text')
 
@@ -75,7 +73,7 @@ jobs:
         with:
           path: httrack-windows
 
-      # $(HttrackRoot) resolves to ..\httrack, so the engine must be a sibling.
+      # $(HttrackRoot) resolves to ..\httrack, so the engine must be the sibling.
       # coucal is the engine's own submodule.
       - name: Checkout httrack engine (sibling)
         uses: actions/checkout@v4
@@ -91,10 +89,19 @@ jobs:
         shell: pwsh
         run: vcpkg integrate install
 
-      # Runs to completion so we capture both compile and link results; the
-      # gate below decides what actually fails the job.
-      - name: Build
-        continue-on-error: true
+      # WinHTTrack links src\$(Platform)\$(Configuration)\libhttrack.lib, so the
+      # engine has to be built first.
+      - name: Build libhttrack (engine)
+        working-directory: httrack
+        shell: pwsh
+        run: |
+          msbuild src\libhttrack.vcxproj `
+            /m `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=${{ matrix.platform }} `
+            /p:VcpkgEnableManifest=true
+
+      - name: Build WinHTTrack (compile + link)
         working-directory: httrack-windows
         shell: pwsh
         run: |
@@ -105,29 +112,61 @@ jobs:
             /p:VcpkgEnableManifest=true `
             /flp:LogFile=msbuild.log`;Verbosity=normal
 
-      # GATE: any compiler error fails the job. The engine link gap does not.
-      - name: Gate on compile errors
-        working-directory: httrack-windows
+      # The one failure this whole toolchain cannot otherwise catch: if the exe
+      # and the DLL disagree on the CRT, they link cleanly and then crash at
+      # runtime on a cross-heap free. Assert they share the dynamic CRT.
+      - name: Check the exe and libhttrack.dll agree on the CRT
         shell: pwsh
         run: |
-          if (-not (Test-Path msbuild.log)) { throw "msbuild.log missing; the build did not run" }
-          $log = Get-Content msbuild.log -Raw
-          $compileErrors = [regex]::Matches($log, 'error C\d+') | ForEach-Object { $_.Value } | Sort-Object -Unique
-          if ($compileErrors) {
-            Write-Host "::error::WinHTTrack no longer compiles clean: $($compileErrors -join ', ')"
-            [regex]::Matches($log, '(?m)^.*error C\d+.*$') |
-              Select-Object -First 25 | ForEach-Object { Write-Host $_.Value.Trim() }
-            exit 1
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
+
+          $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
+          $dll = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\libhttrack.dll"
+          foreach ($f in @($exe, $dll)) {
+            if (-not (Test-Path $f)) { throw "missing $f" }
           }
-          Write-Host "Compile is clean (0 compiler errors)."
-          if ($log -match "cannot open input file 'libhttrack\.lib'") {
-            Write-Host "::notice::Link is still blocked on libhttrack.lib (engine-side); not gating on it."
-          } elseif ($log -match 'error LNK\d+') {
-            $lnk = [regex]::Matches($log, 'error LNK\d+') | ForEach-Object { $_.Value } | Sort-Object -Unique
-            Write-Host "::warning::Unexpected link errors: $($lnk -join ', ')"
-          } else {
-            Write-Host "::notice::Link succeeded. Time to make the whole build gating."
+
+          function Deps($path) {
+            (& $dumpbin /dependents $path) |
+              Select-String -Pattern '^\s{4}(\S+\.dll)$' |
+              ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
           }
+          # The base CRT DLL only, e.g. vcruntime140.dll. On x64 a C++ module that
+          # uses exceptions ALSO imports vcruntime140_1.dll (EH continuation
+          # metadata); libhttrack is pure C and does not. Comparing the whole
+          # vcruntime set would therefore flag a correct build as a mismatch.
+          function BaseCrt($deps) {
+            @($deps | Where-Object { $_ -match '^vcruntime\d+\.dll$' } | Sort-Object)
+          }
+          $exeDeps = Deps $exe
+          $dllDeps = Deps $dll
+          Write-Host "WinHTTrack.exe  -> $($exeDeps -join ', ')"
+          Write-Host "libhttrack.dll  -> $($dllDeps -join ', ')"
+
+          $fail = @()
+
+          # Both must import the shared vcruntime. A static-CRT (/MT) build imports
+          # none, which is exactly the mismatch that crashes later.
+          foreach ($p in @(@{n='WinHTTrack.exe'; d=$exeDeps}, @{n='libhttrack.dll'; d=$dllDeps})) {
+            if (-not (BaseCrt $p.d)) {
+              $fail += "$($p.n) imports no vcruntime: it was not built with the dynamic CRT (/MD)"
+            }
+            # A Release build must never pull the debug CRT.
+            $dbg = $p.d | Where-Object { $_ -match '^(vcruntime140d|msvcp140d|ucrtbased)\.dll$' }
+            if ($dbg) { $fail += "$($p.n) imports a debug CRT: $($dbg -join ', ')" }
+          }
+
+          # And they must agree on the SAME base vcruntime, not two different ones.
+          $exeRt = BaseCrt $exeDeps
+          $dllRt = BaseCrt $dllDeps
+          if ("$exeRt" -ne "$dllRt") {
+            $fail += "CRT mismatch: exe imports [$exeRt] but libhttrack.dll imports [$dllRt]"
+          }
+
+          if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host "CRT check passed: both share [$exeRt]."
 
       - name: Upload MSBuild log
         if: always()
