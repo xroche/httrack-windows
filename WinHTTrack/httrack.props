@@ -9,7 +9,8 @@
       <AdditionalIncludeDirectories>$(HttrackRoot)\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <!-- Import lib for libhttrack.dll; engine output path is a guess, reconcile in VS (PHASE1 risk #7). -->
+      <!-- Import lib for libhttrack.dll. The path matches the engine OutDir exactly
+           (libhttrack.vcxproj sets $(MSBuildThisFileDirectory)$(Platform)\$(Configuration)). -->
       <AdditionalDependencies>libhttrack.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(HttrackRoot)\src\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>

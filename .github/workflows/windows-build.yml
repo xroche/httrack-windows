@@ -51,8 +51,11 @@ jobs:
 
           for p in CRLF_ONLY:
               data = open(p, 'rb').read()
-              if data and b'\n' in data and b'\r\n' not in data:
-                  bad.append(f'{p}: has LF, must stay CRLF (Windows tooling input)')
+              # Every LF must be part of a CRLF. Checking only "has no CRLF at all"
+              # would wave through a mixed-ending file, which is how a stray sed
+              # insertion slips in.
+              if data.replace(b'\r\n', b'') .count(b'\n'):
+                  bad.append(f'{p}: has a bare LF, must be CRLF throughout (Windows tooling input)')
 
           if bad:
               print('\n'.join(bad))
@@ -167,6 +170,31 @@ jobs:
 
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host "CRT check passed: both share [$exeRt]."
+
+      # Stage a package that actually runs: the exe, the engine DLL, and the
+      # language files the GUI reads at startup (without lang/ the UI has no
+      # strings at all). vcpkg's applocal deploy already dropped OpenSSL and zlib
+      # next to the exe.
+      - name: Stage a runnable package
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          Copy-Item "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\libhttrack.dll" $bin
+          foreach ($d in @('lang', 'html', 'templates')) {
+            Copy-Item "httrack\$d" (Join-Path $bin $d) -Recurse -Force
+          }
+          Write-Host "--- package contents ---"
+          Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - name: Upload the runnable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinHTTrack-${{ matrix.platform }}-${{ matrix.configuration }}
+          path: |
+            httrack-windows/WinHTTrack/bin/${{ matrix.platform }}/${{ matrix.configuration }}/**
+            !**/*.iobj
+            !**/*.ipdb
+            !**/*.exp
 
       - name: Upload MSBuild log
         if: always()
