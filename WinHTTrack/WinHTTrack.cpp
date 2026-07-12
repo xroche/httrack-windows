@@ -217,14 +217,10 @@ BOOL CWinHTTrackApp::InitInstance()
     BOOL (WINAPI*const k32_SetDllDirectoryA)(LPCSTR) = 
       (BOOL (WINAPI *)(LPCSTR))
       GetProcAddress(GetModuleHandle("kernel32.dll"), "SetDllDirectoryA");
+    /* The old GetVersion() gate only existed to tolerate pre-Windows-2000, which
+       the Windows 7 floor rules out; the call is deprecated, so drop it. */
     if (k32_SetDllDirectoryA != NULL && !k32_SetDllDirectoryA("")) {
-      /* Do no choke on NT or 98SE with KernelEx NT API (James Blough) */
-      const DWORD dwVersion = GetVersion();
-      const DWORD dwMajorVersion = (DWORD)(LOBYTE(LOWORD(dwVersion)));
-      const DWORD dwMinorVersion = (DWORD)(HIBYTE(LOWORD(dwVersion)));
-      if (dwMajorVersion >= 5) {
-        assertf(!"SetDllDirectory failed");
-      }
+      assertf(!"SetDllDirectory failed");
     }
   }
 #endif
@@ -641,7 +637,7 @@ void CWinHTTrackApp::OnFileDelete()
       int pos=st.ReverseFind('.');
       CString dir=st.Left(pos)+"\\";
       char msg[1000];
-      sprintf(msg,"%s\r\n%s",LANG_DELETECONF,dir);
+      sprintf(msg,"%s\r\n%s",LANG_DELETECONF,(LPCTSTR)dir);
       if (AfxMessageBox(msg,MB_OKCANCEL)==IDOK) {
         if (remove(st)) {
           AfxMessageBox("Error deleting "+st);
