@@ -395,7 +395,7 @@ int Save_current_profile(int ask) {
       return IDNO;
     int r;
     char msg[256];
-    sprintf(msg,"%s?\r\n%s",LANG_SAVEPROJECT,dialog0->GetName());
+    sprintf(msg,"%s?\r\n%s",LANG_SAVEPROJECT,(LPCTSTR)dialog0->GetName());
     if ((r=AfxMessageBox(msg,MB_YESNOCANCEL)) != IDYES)
       return r;
   }
@@ -1626,7 +1626,7 @@ int inprogress_refresh() {
           }
         } else {
           if (icn) {  // minimisée
-            sprintf(info,"[%s]",lnk);
+            sprintf(info,"[%s]",(LPCTSTR)lnk);
           } else {
             char byteb[256];
             sprintf(byteb, LLintP, SInfo.stat_bytes);
@@ -2304,7 +2304,7 @@ int MyWriteProfileInt(CString path,CString dummy,CString name,int value) {
 }
 int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
   if (fp) {
-    fprintf(fp,"%s=%d\x0d\x0a", name, value);
+    fprintf(fp,"%s=%d\x0d\x0a", (LPCTSTR)name, value);
   }
   return 0;
 }
@@ -2331,7 +2331,7 @@ int MyWriteProfileString(CString path,CString dummy,CString name,CString value) 
 }
 int MyWriteProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
   if (fp) {
-    fprintf(fp,"%s=%s\x0d\x0a", name, profile_code(value.GetBuffer(0)).GetBuffer(0));
+    fprintf(fp,"%s=%s\x0d\x0a", (LPCTSTR)name, profile_code(value.GetBuffer(0)).GetBuffer(0));
   }
   return 0;
 }
@@ -2360,7 +2360,7 @@ int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
   if (fp) {
     char srch[256];
     fseek(fp,0,SEEK_SET);
-    sprintf(srch,"%s=",name);
+    sprintf(srch,"%s=",(LPCTSTR)name);
     while(!feof(fp)) {
       char s[2048]; s[0]='\0';
       linput(fp,s,2000);
@@ -2400,7 +2400,7 @@ CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value
   if (fp) {
     char srch[256];
     fseek(fp,0,SEEK_SET);
-    sprintf(srch,"%s",name);
+    sprintf(srch,"%s",(LPCTSTR)name);
     strcatbuff(srch,"=");
     while(!feof(fp)) {
       char s[32768]; s[0]='\0';

@@ -1,9 +1,11 @@
 // LaunchHelp.cpp : implementation file
 //
 
-#define VIEW_HELP 0
-
 #include "stdafx.h"
+
+/* Must follow the PCH include: anything before it is discarded, so defining
+   this above would silently do nothing. */
+#define VIEW_HELP 0
 #include "LaunchHelp.h"
 #include "DialogHtmlHelp.h"
 #include "process.h"
