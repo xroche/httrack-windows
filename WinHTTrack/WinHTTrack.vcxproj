@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{4707CDEB-E576-4664-98A8-94D99BA190B8}</ProjectGuid>
+    <RootNamespace>WinHTTrack</RootNamespace>
+    <Keyword>MFCProj</Keyword>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <!-- Shared MFC + MBCS + dynamic CRT (decided). PlatformToolset/SDK come from Directory.Build.props. -->
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <UseOfMfc>Dynamic</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <UseOfMfc>Dynamic</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <!-- Engine (libhttrack) include/lib wiring. -->
+  <Import Project="httrack.props" />
+
+  <!-- Project-relative output so a standalone msbuild invocation works without a .sln. -->
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <LinkIncremental Condition="'$(Configuration)'=='Debug'">true</LinkIncremental>
+    <LinkIncremental Condition="'$(Configuration)'=='Release'">false</LinkIncremental>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>StdAfx.h</PrecompiledHeaderFile>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)'=='Release'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x040c</Culture>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>Ws2_32.lib;Winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>Full</Optimization>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <StringPooling>true</StringPooling>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <!-- StdAfx.cpp builds the PCH; every other C++ TU consumes it. -->
+    <ClCompile Include="StdAfx.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="about.cpp" />
+    <ClCompile Include="AddFilter.cpp" />
+    <ClCompile Include="BatchUpdate.cpp" />
+    <ClCompile Include="BuildOptions.cpp" />
+    <ClCompile Include="CatchUrl.cpp" />
+    <ClCompile Include="CrashReport.cpp" />
+    <ClCompile Include="DialogContainer.cpp" />
+    <ClCompile Include="DialogHtmlHelp.cpp" />
+    <ClCompile Include="DirTreeView.cpp" />
+    <ClCompile Include="EasyDropTarget.cpp" />
+    <ClCompile Include="FirstInfo.cpp" />
+    <ClCompile Include="HtmlCtrl.cpp" />
+    <ClCompile Include="HtmlFrm.cpp" />
+    <ClCompile Include="HTMLHelp.cpp" />
+    <ClCompile Include="Infoend.cpp" />
+    <ClCompile Include="InfoUrl.cpp" />
+    <ClCompile Include="inprogress.cpp" />
+    <ClCompile Include="InsertUrl.cpp" />
+    <ClCompile Include="Iplog.cpp" />
+    <ClCompile Include="LaunchHelp.cpp" />
+    <ClCompile Include="MainFrm.cpp" />
+    <ClCompile Include="MainTab.cpp" />
+    <ClCompile Include="MemRegister.cpp" />
+    <ClCompile Include="NewFolder.cpp" />
+    <ClCompile Include="newlang.cpp" />
+    <ClCompile Include="NewProj.cpp" />
+    <ClCompile Include="OptionTab1.cpp" />
+    <ClCompile Include="OptionTab2.cpp" />
+    <ClCompile Include="OptionTab3.cpp" />
+    <ClCompile Include="OptionTab4.cpp" />
+    <ClCompile Include="OptionTab5.cpp" />
+    <ClCompile Include="OptionTab6.cpp" />
+    <ClCompile Include="OptionTab7.cpp" />
+    <ClCompile Include="OptionTab8.cpp" />
+    <ClCompile Include="OptionTab9.cpp" />
+    <ClCompile Include="OptionTab10.cpp" />
+    <ClCompile Include="OptionTab11.cpp" />
+    <ClCompile Include="ProxyId.cpp" />
+    <ClCompile Include="RasLoad.cpp" />
+    <ClCompile Include="Shell.cpp" />
+    <ClCompile Include="splitter.cpp" />
+    <ClCompile Include="trans.cpp" />
+    <ClCompile Include="TreeViewToolTip.cpp" />
+    <ClCompile Include="Wid1.cpp" />
+    <ClCompile Include="WinHTTrack.cpp" />
+    <ClCompile Include="WinHTTrackDoc.cpp" />
+    <ClCompile Include="WinHTTrackView.cpp" />
+    <ClCompile Include="Wizard.cpp" />
+    <ClCompile Include="Wizard2.cpp" />
+    <ClCompile Include="WizLinks.cpp" />
+    <ClCompile Include="WizTab.cpp" />
+    <ClCompile Include="XSHBrowseForFolder.cpp" />
+
+    <!-- C sources: no PCH (they cannot include the C++ StdAfx.h). -->
+    <ClCompile Include="HTTrackInterface.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="$(HttrackRoot)\src\htsmd5.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="$(HttrackRoot)\src\md5.c">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="about.h" />
+    <ClInclude Include="AddFilter.h" />
+    <ClInclude Include="BatchUpdate.h" />
+    <ClInclude Include="BuildOptions.h" />
+    <ClInclude Include="CatchUrl.h" />
+    <ClInclude Include="cpp_lang.h" />
+    <ClInclude Include="CrashReport.h" />
+    <ClInclude Include="DialogContainer.h" />
+    <ClInclude Include="DialogHtmlHelp.h" />
+    <ClInclude Include="DirTreeView.h" />
+    <ClInclude Include="EasyDropTarget.h" />
+    <ClInclude Include="FirstInfo.h" />
+    <ClInclude Include="HtmlCtrl.h" />
+    <ClInclude Include="HtmlFrm.h" />
+    <ClInclude Include="HTMLHelp.h" />
+    <ClInclude Include="htssystem.h" />
+    <ClInclude Include="HTTrackInterface.h" />
+    <ClInclude Include="infoend.h" />
+    <ClInclude Include="InfoUrl.h" />
+    <ClInclude Include="inprogress.h" />
+    <ClInclude Include="InsertUrl.h" />
+    <ClInclude Include="Iplog.h" />
+    <ClInclude Include="LaunchHelp.h" />
+    <ClInclude Include="MainFrm.h" />
+    <ClInclude Include="MainTab.h" />
+    <ClInclude Include="MemRegister.h" />
+    <ClInclude Include="NewFolder.h" />
+    <ClInclude Include="newlang.h" />
+    <ClInclude Include="NewProj.h" />
+    <ClInclude Include="OptionTab1.h" />
+    <ClInclude Include="OptionTab2.h" />
+    <ClInclude Include="OptionTab3.h" />
+    <ClInclude Include="OptionTab4.h" />
+    <ClInclude Include="OptionTab5.h" />
+    <ClInclude Include="OptionTab6.h" />
+    <ClInclude Include="OptionTab7.h" />
+    <ClInclude Include="OptionTab8.h" />
+    <ClInclude Include="OptionTab9.h" />
+    <ClInclude Include="OptionTab10.h" />
+    <ClInclude Include="OptionTab11.h" />
+    <ClInclude Include="ProxyId.h" />
+    <ClInclude Include="RasLoad.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="Shell.h" />
+    <ClInclude Include="splitter.h" />
+    <ClInclude Include="StdAfx.h" />
+    <ClInclude Include="trans.h" />
+    <ClInclude Include="TreeViewToolTip.h" />
+    <ClInclude Include="Wid1.h" />
+    <ClInclude Include="WinHTTrack.h" />
+    <ClInclude Include="WinHTTrackDoc.h" />
+    <ClInclude Include="WinHTTrackView.h" />
+    <ClInclude Include="wizard.h" />
+    <ClInclude Include="wizard2.h" />
+    <ClInclude Include="WizLinks.h" />
+    <ClInclude Include="WizTab.h" />
+    <ClInclude Include="XSHBrowseForFolder.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ResourceCompile Include="WinHTTrack.rc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MSBuild embeds this; the old "1 RT_MANIFEST res\manifest.xml" line was dropped from the .rc. -->
+    <Manifest Include="app.manifest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="res\www.cur" />
+    <Image Include="res\ico00001.ico" />
+    <Image Include="res\icon1.ico" />
+    <Image Include="res\icon2.ico" />
+    <Image Include="res\icon3.ico" />
+    <Image Include="res\icon4.ico" />
+    <Image Include="res\icon5.ico" />
+    <Image Include="res\icon6.ico" />
+    <Image Include="res\idr_main.ico" />
+    <Image Include="res\Shell.ico" />
+    <Image Include="res\mainfram.bmp" />
+    <Image Include="res\Toolbar.bmp" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
