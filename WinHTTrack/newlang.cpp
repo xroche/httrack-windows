@@ -281,7 +281,7 @@ void LANG_LOAD(char* limit_to) {
   }
   
   /* Language Name? */
-  char* hashname;
+  const char* hashname;
   {
     char name[256];
     sprintf(name,"LANGUAGE_%d",selected_lang+1);
@@ -358,7 +358,7 @@ void LANG_LOAD(char* limit_to) {
           if (strnotempty(extkey) && strnotempty(value)) {
             int len;
             char* buff;
-            char* intkey;
+            const char* intkey;
             
             intkey=LANGINTKEY(extkey);
             

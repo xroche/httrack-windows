@@ -186,7 +186,7 @@ UINT RunBackCatchServer( LPVOID pP ) {
       {
         char finalurl[HTS_URLMAXSIZE*2];
         inplace_escape_check_url(dest, sizeof(dest));
-        sprintf(finalurl,"%s"POSTTOK"file:%s",url,dest);
+        sprintf(finalurl,"%s" POSTTOK "file:%s",url,dest);
         SetDlgItemTextCP(_this, IDC_urladr,finalurl);
       }
     }

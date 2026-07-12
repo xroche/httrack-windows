@@ -3,6 +3,8 @@
 
 
 #include "stdafx.h"
+#include <ws2tcpip.h>
+#include <Wspiapi.h>
 #include "mainfrm.h"
 #include "resource.h"
 #include "Shell.h"

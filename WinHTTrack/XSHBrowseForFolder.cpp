@@ -34,7 +34,7 @@
 int XSHBFF_button1 = -1;
 
 // Main routine
-CString XSHBrowseForFolder(HWND hwnd,char* title,char* _path) {
+CString XSHBrowseForFolder(HWND hwnd,const char* title,char* _path) {
   char path[MAX_PATH]; path[0]='\0';
 
   // Remove the last slash bar

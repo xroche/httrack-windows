@@ -870,7 +870,7 @@ TimedMessageBox(
 
 /* From MSDN */
 BOOL InitiateSystemShutdownExWithPriv(
-  LPTSTR lpMessage,
+  LPCTSTR lpMessage,
   DWORD dwTimeout,
   BOOL bForceAppsClosed,
   BOOL bRebootAfterShutdown,

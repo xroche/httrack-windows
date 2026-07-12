@@ -6,6 +6,7 @@
 
 #if _MSC_VER >= 1000
 #pragma once
+#include "resource.h"
 #endif // _MSC_VER >= 1000
 // Wid1.h : header file
 //

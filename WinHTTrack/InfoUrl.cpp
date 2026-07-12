@@ -93,14 +93,14 @@ void CInfoUrl::StopTimer() {
   }
 }
 
-char* ToBool(int i) {
+const char* ToBool(int i) {
   if (i)
     return "yes";
   else
     return "no";
 }
 
-char* ToStatuscode(int statuscode) {
+const char* ToStatuscode(int statuscode) {
   if (statuscode<0) {
     return "unknown status";
   } else {
@@ -111,7 +111,7 @@ char* ToStatuscode(int statuscode) {
   }
 }
 
-char* ToStatus(int i) {
+const char* ToStatus(int i) {
   switch(i) {
   case 0:
     return "ready";
@@ -190,7 +190,7 @@ void CInfoUrl::OnTimer(UINT_PTR nIDEvent)
         sprintf(total,"unknown");
         sprintf(info100,"");
       }
-      sprintf(info,"File: %s\r\nTotal length: %s\r\nBytes downloaded: "LLintP" %s\r\nCurrent state: %s",back[id].url_sav,total,back[id].r.size,info100,ToStatus(back[id].status));
+      sprintf(info,"File: %s\r\nTotal length: %s\r\nBytes downloaded: " LLintP " %s\r\nCurrent state: %s",back[id].url_sav,total,back[id].r.size,info100,ToStatus(back[id].status));
     }
     //
     if (strcmp(old_info,info)) {
@@ -215,7 +215,7 @@ void CInfoUrl::OnTimer(UINT_PTR nIDEvent)
             sprintf(moreinfo+strlen(moreinfo),"HTTP/1.1: %s\r\n",ToBool(backitem->r.req.http11));
             sprintf(moreinfo+strlen(moreinfo),"ChunkMode: %s\r\n",ToBool(backitem->r.is_chunk));
             if (backitem->is_chunk)
-              sprintf(moreinfo+strlen(moreinfo),"CurrentChunkSize: "LLintP"\r\n",backitem->chunk_size);
+              sprintf(moreinfo+strlen(moreinfo),"CurrentChunkSize: " LLintP "\r\n",backitem->chunk_size);
             //
             sprintf(moreinfo+strlen(moreinfo),"TestMode: %s\r\n",ToBool(backitem->testmode));
             sprintf(moreinfo+strlen(moreinfo),"HeadRequest: %s\r\n",ToBool(backitem->head_request));
@@ -224,8 +224,8 @@ void CInfoUrl::OnTimer(UINT_PTR nIDEvent)
             sprintf(moreinfo+strlen(moreinfo),"WriteToDisk: %s\r\n",ToBool(backitem->r.is_write));
             sprintf(moreinfo+strlen(moreinfo),"LocalFile: %s\r\n",ToBool(backitem->r.is_file));
             //
-            sprintf(moreinfo+strlen(moreinfo),"Size: "LLintP"\r\n",backitem->r.size);
-            sprintf(moreinfo+strlen(moreinfo),"TotalSize: "LLintP"\r\n",backitem->r.totalsize);
+            sprintf(moreinfo+strlen(moreinfo),"Size: " LLintP "\r\n",backitem->r.size);
+            sprintf(moreinfo+strlen(moreinfo),"TotalSize: " LLintP "\r\n",backitem->r.totalsize);
         } else
           strcpybuff(moreinfo,"Transfer complete in this buffer, waiting for next file");
       }

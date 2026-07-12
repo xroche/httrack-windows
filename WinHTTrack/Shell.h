@@ -96,7 +96,7 @@ extern HANDLE WhttMutex;
 #define WHTT_UNLOCK() ReleaseMutex(WhttMutex)
 
 /* Location */
-extern char* WhttLocation;
+extern const char* WhttLocation;
 #define WHTT_LOCATION(a) WhttLocation=(a)
 
 #ifndef HTS_DEF_FWSTRUCT_lien_back
