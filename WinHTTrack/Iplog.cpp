@@ -280,9 +280,9 @@ BOOL Ciplog::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -290,7 +290,7 @@ BOOL Ciplog::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* Ciplog::GetTip(int ID)
+const char* Ciplog::GetTip(int ID)
 {
   switch(ID) {
     case IDC_logtype:  return LANG(LANG_E1 /*"View error and warning reports"*/); break;

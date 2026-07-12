@@ -15,7 +15,7 @@ class CCatchUrl : public CDialog
 // Construction
 public:
 	CCatchUrl(CWnd* pParent = NULL);   // standard constructor
-  char* GetTip(int id);
+  const char* GetTip(int id);
 
 // Dialog Data
 	//{{AFX_DATA(CCatchUrl)

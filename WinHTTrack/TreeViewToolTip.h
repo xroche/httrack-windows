@@ -33,7 +33,7 @@ public:
 
 	// Generated message map functions
 protected:
-  char* GetTip(int id);
+  const char* GetTip(int id);
 	//{{AFX_MSG(CTreeViewToolTip)
 		// NOTE - the ClassWizard will add and remove member functions here.
 	//}}AFX_MSG

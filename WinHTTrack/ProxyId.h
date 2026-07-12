@@ -35,7 +35,7 @@ public:
 
 // Implementation
 protected:
-  char* GetTip(int id);
+  const char* GetTip(int id);
 	afx_msg void OnHelpInfo2();
 
 

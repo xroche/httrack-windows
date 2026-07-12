@@ -315,7 +315,7 @@ void CWizTab::OnCancel( ) {
 // char* GetTip(int id);
 // et en generated message map
 // afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
-char* CWizTab::GetTip(int ID)
+const char* CWizTab::GetTip(int ID)
 {
   /*switch(ID) {
   }*/
@@ -331,9 +331,9 @@ BOOL CWizTab::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }

@@ -18,7 +18,7 @@ class COptionTab10 : public CPropertyPage
 public:
 	COptionTab10();
 	~COptionTab10();
-  char* GetTip(int id);
+  const char* GetTip(int id);
   int modify;
   int prox_status;
   char ProxyDetectBuff[16][1024];

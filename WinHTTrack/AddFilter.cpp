@@ -195,9 +195,9 @@ BOOL CAddFilter::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -205,7 +205,7 @@ BOOL CAddFilter::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* CAddFilter::GetTip(int ID)
+const char* CAddFilter::GetTip(int ID)
 {
   switch(ID) {
     case IDC_AFtype: return LANG(LANG_B1); /*"Select a rule for the filter","Choisissez une règle pour le filtre");*/ break;

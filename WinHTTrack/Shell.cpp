@@ -2194,7 +2194,7 @@ void lance(void) {
 
 
 /* interface lang - lang_string="stringlang0\nstringlang1\n..laststring" */
-void SetCombo(CWnd* _this,int id,char* lang_string) {
+void SetCombo(CWnd* _this,int id,const char* lang_string) {
   CComboBox* combo = (CComboBox*) _this->GetDlgItem(id);
   CString st=lang_string;
   st.TrimLeft(); st.TrimRight();

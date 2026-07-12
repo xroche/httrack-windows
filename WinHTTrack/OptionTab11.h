@@ -18,7 +18,7 @@ class COptionTab11 : public CPropertyPage
 public:
 	COptionTab11();
 	~COptionTab11();
-  char* GetTip(int id);
+  const char* GetTip(int id);
   int modify;
 
 // Dialog Data

@@ -18,7 +18,7 @@ class COptionTab5 : public CPropertyPage
 public:
 	COptionTab5();
 	~COptionTab5();
-  char* GetTip(int id);
+  const char* GetTip(int id);
   int depth_status;
 
 

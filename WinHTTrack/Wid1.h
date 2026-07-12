@@ -62,7 +62,7 @@ protected:
   void AfterInitDialog( );
   void AfterChangepathlog();
   int load_after_changes;
-  char* GetTip(int id);
+  const char* GetTip(int id);
   void AddText(CString add_st);
 	// Generated message map functions
 	//{{AFX_MSG(Wid1)

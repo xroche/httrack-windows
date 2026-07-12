@@ -153,9 +153,9 @@ BOOL COptionTab2::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -163,7 +163,7 @@ BOOL COptionTab2::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* COptionTab2::GetTip(int ID)
+const char* COptionTab2::GetTip(int ID)
 {
   switch(ID) {
     case IDC_build:   return LANG(LANG_I3); break; // "Choose local site structure","Choisir la structure de fichiers local"); break;

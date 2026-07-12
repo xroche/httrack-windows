@@ -156,7 +156,7 @@ typedef unsigned long (* t_RasHangUp)(HRASCONN);
 // RAS END //
 
 /* lang extensions */
-void SetCombo(CWnd* _this,int id,char* lang_string);
+void SetCombo(CWnd* _this,int id,const char* lang_string);
 
 
 // HTTrack params - pour le multithread interface/robot

@@ -47,7 +47,7 @@ public:
 // Implementation
 protected:
   BOOL can_click_next;
-  char* GetTip(int id);
+  const char* GetTip(int id);
   void OnHelpInfo2();
   void Changeprojname(CString stl);
 	// Generated message map functions

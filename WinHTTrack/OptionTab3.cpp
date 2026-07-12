@@ -139,9 +139,9 @@ BOOL COptionTab3::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -149,7 +149,7 @@ BOOL COptionTab3::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* COptionTab3::GetTip(int ID)
+const char* COptionTab3::GetTip(int ID)
 {
   switch(ID) {
     case IDC_Cache:   return LANG(LANG_I5); break; // "Use a cache for updates and retries","Utiliser un cache pour les mise à jour et reprises"); break;

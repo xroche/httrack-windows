@@ -515,9 +515,9 @@ BOOL Wid1::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st = GetTip((int) nID);
+      const char* st = GetTip((int) nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -525,7 +525,7 @@ BOOL Wid1::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* Wid1::GetTip(int ID)
+const char* Wid1::GetTip(int ID)
 {
   switch(ID) {
     case IDC_todo:  return LANG(LANG_G9); break; // "Choose an action","Choisissez une action"); break; 

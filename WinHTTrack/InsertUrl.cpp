@@ -117,9 +117,9 @@ BOOL CInsertUrl::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -127,7 +127,7 @@ BOOL CInsertUrl::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* CInsertUrl::GetTip(int ID)
+const char* CInsertUrl::GetTip(int ID)
 {
   switch(ID) {
     case IDC_urladr:    return LANG(LANG_T10); break;

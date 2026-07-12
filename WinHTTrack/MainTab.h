@@ -71,7 +71,7 @@ public:
   // Generated message map functions
 protected:
   
-  char* GetTip(int id);
+  const char* GetTip(int id);
   //{{AFX_MSG(CMainTab)
   afx_msg HCURSOR OnQueryDragIcon();
   afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
