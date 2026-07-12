@@ -51,8 +51,11 @@ jobs:
 
           for p in CRLF_ONLY:
               data = open(p, 'rb').read()
-              if data and b'\n' in data and b'\r\n' not in data:
-                  bad.append(f'{p}: has LF, must stay CRLF (Windows tooling input)')
+              # Every LF must be part of a CRLF. Checking only "has no CRLF at all"
+              # would wave through a mixed-ending file, which is how a stray sed
+              # insertion slips in.
+              if data.replace(b'\r\n', b'') .count(b'\n'):
+                  bad.append(f'{p}: has a bare LF, must be CRLF throughout (Windows tooling input)')
 
           if bad:
               print('\n'.join(bad))
@@ -167,6 +170,69 @@ jobs:
 
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host "CRT check passed: both share [$exeRt]."
+
+      # Stage a package that actually runs. The OpenSSL and zlib DLLs are NOT
+      # beside the exe: the GUI calls neither, so it imports neither, and vcpkg's
+      # applocal deploy only copies what the binary it just linked imports. They
+      # sit next to libhttrack.dll, which does import them. Take the engine's
+      # whole output directory, and assert what has to be there rather than
+      # trusting it -- an artifact that looks complete but cannot load is worse
+      # than a failed build.
+      - name: Stage a runnable package
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          $eng = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}"
+          Copy-Item "$eng\*.dll" $bin
+          foreach ($d in @('lang', 'html', 'templates')) {
+            Copy-Item "httrack\$d" (Join-Path $bin $d) -Recurse -Force
+          }
+
+          # Ask the binaries what they need rather than hardcoding a list. OpenSSL
+          # is libssl-3.dll on x86 but libssl-3-x64.dll on x64, so a fixed list is
+          # wrong on one leg and rots on both.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
+          function Deps($path) {
+            (& $dumpbin /dependents $path) |
+              Select-String -Pattern '^\s{4}(\S+\.dll)$' |
+              ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
+          }
+          # Supplied by Windows itself, or by the VC++ redist (see the README below).
+          $provided = '^(api-ms-win-|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|ucrtbase|vcruntime|msvcp|mfc)'
+          $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\libhttrack.dll") |
+            Where-Object { $_ -notmatch $provided } | Sort-Object -Unique
+          Write-Host "--- must ship: $($needed -join ', ') ---"
+          foreach ($d in $needed) {
+            if (-not (Test-Path (Join-Path $bin $d))) { throw "package is missing $d" }
+          }
+          if (-not (Test-Path (Join-Path $bin 'lang\English.txt'))) {
+            throw "package is missing lang/: the GUI would start with no interface strings"
+          }
+
+          # mfc140/vcruntime140/msvcp140 are NOT shipped here; they come from the
+          # VC++ redist. Say so, so nobody wonders why a clean box will not run it.
+          Set-Content (Join-Path $bin 'README-artifact.txt') @'
+          This is a CI build of WinHTTrack, not an installer.
+
+          It needs the Microsoft Visual C++ 2015-2022 redistributable (x64 or x86 to
+          match), which supplies mfc140.dll, vcruntime140.dll and msvcp140.dll. Those
+          are deliberately not bundled here. Everything else it needs is in this
+          folder: libhttrack.dll, OpenSSL, zlib, and lang/.
+          '@
+          Write-Host "--- package contents ---"
+          Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - name: Upload the runnable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinHTTrack-${{ matrix.platform }}-${{ matrix.configuration }}
+          path: |
+            httrack-windows/WinHTTrack/bin/${{ matrix.platform }}/${{ matrix.configuration }}/**
+            !**/*.iobj
+            !**/*.ipdb
+            !**/*.exp
 
       - name: Upload MSBuild log
         if: always()
