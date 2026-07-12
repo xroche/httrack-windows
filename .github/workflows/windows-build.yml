@@ -1,0 +1,83 @@
+# Windows build bootstrap for WinHTTrack (VS2022 v143 + vcpkg).
+#
+# NON-GATING for now: the build step is allowed to fail. A fully green build
+# still needs two things this workflow cannot provide yet:
+#   1. libhttrack.lib built on Windows (engine-side work, see ENGINE-HANDOFF).
+#   2. The MFC-MBCS libraries on the runner (a separate VS component; the probe
+#      step below reports whether they are present).
+# Until then this proves the toolchain, vcpkg, and engine-header wiring, and
+# uploads the MSBuild log so we can watch the port compile further each run.
+name: windows-build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, Win32]
+        configuration: [Release]
+    steps:
+      - name: Checkout httrack-windows
+        uses: actions/checkout@v4
+        with:
+          path: httrack-windows
+
+      # The vcxproj resolves $(HttrackRoot) to ..\httrack, so the engine must be
+      # the sibling of httrack-windows in the workspace. coucal is its submodule.
+      - name: Checkout httrack engine (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: xroche/httrack
+          path: httrack
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      # Report VS version and whether MFC / MBCS components are installed.
+      # If MBCS is missing, the compile fails at <afxwin.h>, so the probe reports it up front.
+      - name: Probe toolchain
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          & $vswhere -latest -products * -property catalog_productDisplayVersion
+          $comps = & $vswhere -latest -products * -property packages
+          $mfc  = $comps | Select-String -Pattern 'MFC' -SimpleMatch
+          Write-Host "MFC-related components present:"
+          $mfc
+
+      - name: Enable vcpkg MSBuild integration
+        shell: pwsh
+        run: vcpkg integrate install
+
+      # continue-on-error: the link cannot succeed until libhttrack.lib exists.
+      - name: Build WinHTTrack (bootstrap, non-gating)
+        id: build
+        continue-on-error: true
+        working-directory: httrack-windows
+        shell: pwsh
+        run: |
+          msbuild WinHTTrack\WinHTTrack.vcxproj `
+            /m `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=${{ matrix.platform }} `
+            /p:VcpkgEnableManifest=true `
+            /flp:LogFile=msbuild.log`;Verbosity=normal
+
+      - name: Upload MSBuild log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msbuild-${{ matrix.platform }}-${{ matrix.configuration }}
+          path: httrack-windows/msbuild.log
+          if-no-files-found: ignore
