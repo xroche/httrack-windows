@@ -247,7 +247,7 @@ void LANG_LOAD(char* limit_to) {
         linput_cpp(fp,intkey,8000);
         linput_cpp(fp,key,8000);
         if (strnotempty(intkey) && strnotempty(key)) {
-          char* test=LANGINTKEY(key);
+          const char* test=LANGINTKEY(key);
 
           /* Increment for multiple definitions */
           if (strnotempty(test)) {
@@ -260,7 +260,7 @@ void LANG_LOAD(char* limit_to) {
             }  while (strnotempty(test));
           }
 
-          if (!strnotempty(test)) {         // éviter doublons
+          if (!strnotempty(test)) {         // ï¿½viter doublons
             // conv_printf(key,key);
             size_t len;
             char* buff;
@@ -366,7 +366,7 @@ void LANG_LOAD(char* limit_to) {
               
               /* Increment for multiple definitions */
               {
-                char* test=LANGSEL(intkey);
+                const char* test=LANGSEL(intkey);
                 if (strnotempty(test)) {
                   if (loops == 0) {
                     int increment=0;
@@ -577,7 +577,7 @@ void LANG_LOAD(char* limit_to) {
     }
     WORD acp = GetACP();
     if (NewLangFileCP != CP_THREAD_ACP && NewLangFileCP != acp) {
-      char* currName = LANGUAGE_WINDOWSID;
+      const char* currName = LANGUAGE_WINDOWSID;
       LCID thl = GetThreadLocale();
       WORD sid = SORTIDFROMLCID(thl);
       WORD lid = 0;
@@ -642,7 +642,7 @@ void LANG_DELETE() {
   coucal_delete(&NewLangStrKeys);
 }
 
-// sélection de la langue
+// sï¿½lection de la langue
 void LANG_INIT() {
   CWinApp* pApp = AfxGetApp();
   if (pApp) {
@@ -699,24 +699,24 @@ char* LANGSEL(char* lang0,...) {
 }
 */
 
-char* LANGSEL(char* name) {
+const char* LANGSEL(const char* name) {
   intptr_t adr = 0;
   if (NewLangStr)
   if (!coucal_read(NewLangStr,name,&adr))
     adr = NULL;
   if (adr) {
-    return (char*)adr;
+    return (const char*)adr;
   }
   return "";
 }
 
-char* LANGINTKEY(char* name) {
+const char* LANGINTKEY(const char* name) {
   intptr_t adr = 0;
   if (NewLangStrKeys)
   if (!coucal_read(NewLangStrKeys,name,&adr))
     adr=NULL;
   if (adr) {
-    return (char*)adr;
+    return (const char*)adr;
   }
   return "";
 }

@@ -7,8 +7,8 @@ void LANG_INIT();
 int LANG_T(int);
 int QLANG_T(int l);
 //char* LANGSEL(char* lang0,...);
-char* LANGSEL(char* name);
-char* LANGINTKEY(char* name);
+const char* LANGSEL(const char* name);
+const char* LANGINTKEY(const char* name);
 void LANG_DELETE();
 void conv_printf(char* from,char* to);
 #define LANG(A) A
