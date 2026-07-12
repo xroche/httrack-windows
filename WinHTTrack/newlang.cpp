@@ -260,7 +260,7 @@ void LANG_LOAD(char* limit_to) {
             }  while (strnotempty(test));
           }
 
-          if (!strnotempty(test)) {         // ï¿½viter doublons
+          if (!strnotempty(test)) {         // éviter doublons
             // conv_printf(key,key);
             size_t len;
             char* buff;
@@ -642,7 +642,7 @@ void LANG_DELETE() {
   coucal_delete(&NewLangStrKeys);
 }
 
-// sï¿½lection de la langue
+// sélection de la langue
 void LANG_INIT() {
   CWinApp* pApp = AfxGetApp();
   if (pApp) {
