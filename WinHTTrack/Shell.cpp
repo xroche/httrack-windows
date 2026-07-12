@@ -1630,7 +1630,7 @@ int inprogress_refresh() {
           } else {
             char byteb[256];
             sprintf(byteb, LLintP, SInfo.stat_bytes);
-            sprintf(info,LANG(LANG_F18),lnk,byteb);
+            sprintf(info,LANG(LANG_F18),(LPCTSTR)lnk,byteb);
           }
         }
         if (strcmp(info,last_info)) {       /* a changé */
