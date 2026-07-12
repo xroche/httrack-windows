@@ -160,6 +160,11 @@ BOOL COptionTab10::OnInitDialog()
     
     // Launch proxy name search
     int i=0;
+    /* WSAAsyncGetHostByName is deprecated (IPv4-only). This whole block is a
+       1990s LAN heuristic that DNS-probes "proxy", "gateway", "firewall" and
+       friends on first run; it is a candidate for removal rather than a port. */
+#pragma warning(push)
+#pragma warning(disable: 4996)
     WSAAsyncGetHostByName(this->m_hWnd,wm_ProxySearch+i,(ProxyDetectName[i]="proxy")   ,this->ProxyDetectBuff[i],sizeof(this->ProxyDetectBuff[i])); i++;
     WSAAsyncGetHostByName(this->m_hWnd,wm_ProxySearch+i,(ProxyDetectName[i]="www")     ,this->ProxyDetectBuff[i],sizeof(this->ProxyDetectBuff[i])); i++;
     WSAAsyncGetHostByName(this->m_hWnd,wm_ProxySearch+i,(ProxyDetectName[i]="ns")      ,this->ProxyDetectBuff[i],sizeof(this->ProxyDetectBuff[i])); i++;
@@ -169,6 +174,7 @@ BOOL COptionTab10::OnInitDialog()
     WSAAsyncGetHostByName(this->m_hWnd,wm_ProxySearch+i,(ProxyDetectName[i]="gateway") ,this->ProxyDetectBuff[i],sizeof(this->ProxyDetectBuff[i])); i++;
     WSAAsyncGetHostByName(this->m_hWnd,wm_ProxySearch+i,(ProxyDetectName[i]="firewall"),this->ProxyDetectBuff[i],sizeof(this->ProxyDetectBuff[i])); i++;
     WSAAsyncGetHostByName(this->m_hWnd,wm_ProxySearch+i,(ProxyDetectName[i]="cache")   ,this->ProxyDetectBuff[i],sizeof(this->ProxyDetectBuff[i])); i++;
+#pragma warning(pop)
     
   }
   
