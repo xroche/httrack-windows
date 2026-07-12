@@ -188,10 +188,24 @@ jobs:
             Copy-Item "httrack\$d" (Join-Path $bin $d) -Recurse -Force
           }
 
-          # The exe's own imports, minus what Windows itself provides.
-          foreach ($f in @('WinHTTrack.exe', 'libhttrack.dll', 'libssl-3.dll',
-                           'libcrypto-3.dll', 'z.dll')) {
-            if (-not (Test-Path (Join-Path $bin $f))) { throw "package is missing $f" }
+          # Ask the binaries what they need rather than hardcoding a list. OpenSSL
+          # is libssl-3.dll on x86 but libssl-3-x64.dll on x64, so a fixed list is
+          # wrong on one leg and rots on both.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
+          function Deps($path) {
+            (& $dumpbin /dependents $path) |
+              Select-String -Pattern '^\s{4}(\S+\.dll)$' |
+              ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
+          }
+          # Supplied by Windows itself, or by the VC++ redist (see the README below).
+          $provided = '^(api-ms-win-|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|ucrtbase|vcruntime|msvcp|mfc)'
+          $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\libhttrack.dll") |
+            Where-Object { $_ -notmatch $provided } | Sort-Object -Unique
+          Write-Host "--- must ship: $($needed -join ', ') ---"
+          foreach ($d in $needed) {
+            if (-not (Test-Path (Join-Path $bin $d))) { throw "package is missing $d" }
           }
           if (-not (Test-Path (Join-Path $bin 'lang\English.txt'))) {
             throw "package is missing lang/: the GUI would start with no interface strings"
