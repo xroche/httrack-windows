@@ -172,7 +172,7 @@ UINT RunBackCatchServer( LPVOID pP ) {
         structcheck(dest);
       }
       do {
-        sprintf(dest,"%s%s%d",_this->dest_path,"hts-post",i);
+        sprintf(dest,"%s%s%d",(LPCTSTR)_this->dest_path,"hts-post",i);
         i++;
       } while(fexist(dest));
       {
