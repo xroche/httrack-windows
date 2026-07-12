@@ -133,6 +133,13 @@ jobs:
               Select-String -Pattern '^\s{4}(\S+\.dll)$' |
               ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
           }
+          # The base CRT DLL only, e.g. vcruntime140.dll. On x64 a C++ module that
+          # uses exceptions ALSO imports vcruntime140_1.dll (EH continuation
+          # metadata); libhttrack is pure C and does not. Comparing the whole
+          # vcruntime set would therefore flag a correct build as a mismatch.
+          function BaseCrt($deps) {
+            @($deps | Where-Object { $_ -match '^vcruntime\d+\.dll$' } | Sort-Object)
+          }
           $exeDeps = Deps $exe
           $dllDeps = Deps $dll
           Write-Host "WinHTTrack.exe  -> $($exeDeps -join ', ')"
@@ -143,17 +150,17 @@ jobs:
           # Both must import the shared vcruntime. A static-CRT (/MT) build imports
           # none, which is exactly the mismatch that crashes later.
           foreach ($p in @(@{n='WinHTTrack.exe'; d=$exeDeps}, @{n='libhttrack.dll'; d=$dllDeps})) {
-            if (-not ($p.d | Where-Object { $_ -like 'vcruntime140*.dll' })) {
-              $fail += "$($p.n) does not import vcruntime140: it was not built with the dynamic CRT (/MD)"
+            if (-not (BaseCrt $p.d)) {
+              $fail += "$($p.n) imports no vcruntime: it was not built with the dynamic CRT (/MD)"
             }
             # A Release build must never pull the debug CRT.
             $dbg = $p.d | Where-Object { $_ -match '^(vcruntime140d|msvcp140d|ucrtbased)\.dll$' }
             if ($dbg) { $fail += "$($p.n) imports a debug CRT: $($dbg -join ', ')" }
           }
 
-          # And they must agree on the SAME vcruntime, not two different ones.
-          $exeRt = $exeDeps | Where-Object { $_ -like 'vcruntime*' } | Sort-Object
-          $dllRt = $dllDeps | Where-Object { $_ -like 'vcruntime*' } | Sort-Object
+          # And they must agree on the SAME base vcruntime, not two different ones.
+          $exeRt = BaseCrt $exeDeps
+          $dllRt = BaseCrt $dllDeps
           if ("$exeRt" -ne "$dllRt") {
             $fail += "CRT mismatch: exe imports [$exeRt] but libhttrack.dll imports [$dllRt]"
           }
