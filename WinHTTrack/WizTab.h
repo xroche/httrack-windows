@@ -63,7 +63,7 @@ protected:
   void DoInits();
   void ClearInits();
   
-  char* GetTip(int id);
+  const char* GetTip(int id);
   //{{AFX_MSG(CWizTab)
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
 	//}}AFX_MSG

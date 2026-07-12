@@ -36,7 +36,7 @@ public:
 
 // Implementation
 protected:
-  char* GetTip(int id);
+  const char* GetTip(int id);
   void OnHelpInfo2();
   void OnBye();
   UINT_PTR tm;

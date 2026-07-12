@@ -18,7 +18,7 @@ class COptionTab6 : public CPropertyPage
 public:
 	COptionTab6();
 	~COptionTab6();
-  char* GetTip(int id);
+  const char* GetTip(int id);
 
 // Dialog Data
 	//{{AFX_DATA(COptionTab6)

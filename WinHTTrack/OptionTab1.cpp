@@ -114,9 +114,9 @@ BOOL COptionTab1::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -124,7 +124,7 @@ BOOL COptionTab1::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* COptionTab1::GetTip(int ID)
+const char* COptionTab1::GetTip(int ID)
 {
   switch(ID) {
     case IDC_link:    return LANG(LANG_I1); break; // "Get files even in foreign addresses","Récupérer les fichiers même sur les liens extérieurs"); break;

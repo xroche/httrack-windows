@@ -9,17 +9,15 @@
 // #define NTDDI_VERSION 0x05000000 // NTDDI_WIN2K
 
 #ifndef WINVER
-#define WINVER       0x0500 // _WIN32_WINNT_WIN2K
-//#define WINVER       0x0400 // _WIN32_WINNT_NT4
+#define WINVER       0x0601 // _WIN32_WINNT_WIN7
 #endif
 
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0500 // _WIN32_WINNT_WIN2K
-//#define _WIN32_WINNT 0x0400 // _WIN32_WINNT_NT4
+#define _WIN32_WINNT 0x0601 // _WIN32_WINNT_WIN7
 #endif
 
 #ifndef _WIN32_IE
-#define _WIN32_IE 0x0500
+#define _WIN32_IE 0x0601 // IE 8 baseline shipped with Win7
 #endif
 
 #if _MSC_VER >= 1000
@@ -34,6 +32,11 @@
 #ifndef _AFX_NO_AFXCMN_SUPPORT
 #include <afxcmn.h>			// MFC support for Windows Common Controls
 #endif // _AFX_NO_AFXCMN_SUPPORT
+
+// Pull these in with C++ linkage before anything wraps the engine headers in
+// extern "C": Wspiapi.h declares a template, which C linkage rejects (C2894).
+#include <ws2tcpip.h>
+#include <Wspiapi.h>
 
 
 //{{AFX_INSERT_LOCATION}}

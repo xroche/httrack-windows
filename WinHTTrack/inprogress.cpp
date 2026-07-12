@@ -845,9 +845,9 @@ BOOL Cinprogress::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -855,7 +855,7 @@ BOOL Cinprogress::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* Cinprogress::GetTip(int ID)
+const char* Cinprogress::GetTip(int ID)
 {
   switch(ID) {
     //case IDC_STOPALL: return LANG(LANG_H4); break; // "Stop the mirror","Stopper le miroir"); break;

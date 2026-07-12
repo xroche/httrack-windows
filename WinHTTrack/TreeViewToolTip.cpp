@@ -60,9 +60,9 @@ BOOL CTreeViewToolTip::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResu
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -70,7 +70,7 @@ BOOL CTreeViewToolTip::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResu
   }
   return(FALSE);
 }
-char* CTreeViewToolTip::GetTip(int ID)
+const char* CTreeViewToolTip::GetTip(int ID)
 {
   /*
   switch(ID) {

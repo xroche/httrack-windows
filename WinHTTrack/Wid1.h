@@ -6,6 +6,7 @@
 
 #if _MSC_VER >= 1000
 #pragma once
+#include "resource.h"
 #endif // _MSC_VER >= 1000
 // Wid1.h : header file
 //
@@ -62,7 +63,7 @@ protected:
   void AfterInitDialog( );
   void AfterChangepathlog();
   int load_after_changes;
-  char* GetTip(int id);
+  const char* GetTip(int id);
   void AddText(CString add_st);
 	// Generated message map functions
 	//{{AFX_MSG(Wid1)

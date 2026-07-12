@@ -3,6 +3,7 @@
 
 #if _MSC_VER >= 1000
 #pragma once
+#include "resource.h"
 #endif // _MSC_VER >= 1000
 // trans.h : header file
 //
@@ -53,7 +54,7 @@ public:
 
 // Implementation
 protected:
-  char* GetTip(int id);
+  const char* GetTip(int id);
   void OnHelpInfo2();
   void FillProviderList(int fill);
   BOOL isfilled;

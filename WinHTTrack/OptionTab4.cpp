@@ -111,9 +111,9 @@ BOOL COptionTab4::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -121,7 +121,7 @@ BOOL COptionTab4::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* COptionTab4::GetTip(int ID)
+const char* COptionTab4::GetTip(int ID)
 {
   switch(ID) {
     case IDC_connexion: return LANG(LANG_I12); break; // "Maximum number of connections","Nombre maximal de connexions"); break;

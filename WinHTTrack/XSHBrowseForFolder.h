@@ -25,7 +25,7 @@
 #define XSHBrowseForFolder_SETSTRING 1234
 #define XSHBrowseForFolder_OK 1
 
-CString        XSHBrowseForFolder (HWND hwnd,char* title,char* _path);
+CString        XSHBrowseForFolder (HWND hwnd,const char* title,char* _path);
 LRESULT __stdcall XSHBFF_WndProc     (HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 int __stdcall  XSHBFF_CallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpData);
 LPITEMIDLIST   XSHBFF_PathConvert (HWND hwnd,char* _path);

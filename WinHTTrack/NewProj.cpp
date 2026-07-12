@@ -362,9 +362,9 @@ BOOL CNewProj::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -372,7 +372,7 @@ BOOL CNewProj::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* CNewProj::GetTip(int ID)
+const char* CNewProj::GetTip(int ID)
 {
   switch(ID) {
     case IDC_projname:  return LANG(LANG_S1); break;

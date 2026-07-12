@@ -30,7 +30,7 @@ class CInsertUrl : public CDialog
 // Construction
 public:
 	CInsertUrl(CWnd* pParent = NULL);   // standard constructor
-  char* GetTip(int id);
+  const char* GetTip(int id);
   //
   CString dest_path;
   //

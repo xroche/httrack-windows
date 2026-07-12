@@ -96,7 +96,7 @@ extern HANDLE WhttMutex;
 #define WHTT_UNLOCK() ReleaseMutex(WhttMutex)
 
 /* Location */
-extern char* WhttLocation;
+extern const char* WhttLocation;
 #define WHTT_LOCATION(a) WhttLocation=(a)
 
 #ifndef HTS_DEF_FWSTRUCT_lien_back
@@ -156,7 +156,7 @@ typedef unsigned long (* t_RasHangUp)(HRASCONN);
 // RAS END //
 
 /* lang extensions */
-void SetCombo(CWnd* _this,int id,char* lang_string);
+void SetCombo(CWnd* _this,int id,const char* lang_string);
 
 
 // HTTrack params - pour le multithread interface/robot

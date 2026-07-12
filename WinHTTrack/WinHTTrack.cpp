@@ -89,7 +89,7 @@ extern int LibRasUse;
 HANDLE WhttMutex;
 
 /* Location */
-char* WhttLocation="";
+const char* WhttLocation="";
 
 
 // HTTrack main vars

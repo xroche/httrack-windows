@@ -271,7 +271,7 @@ void CMainTab::OnCancel( ) {
 // char* GetTip(int id);
 // et en generated message map
 // afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
-char* CMainTab::GetTip(int ID)
+const char* CMainTab::GetTip(int ID)
 {
   switch(ID) {
     case IDOK:           return LANG(LANG_TIPOK); break;      
@@ -290,9 +290,9 @@ BOOL CMainTab::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st = GetTip((int) nID);
+      const char* st = GetTip((int) nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }

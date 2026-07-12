@@ -26,7 +26,7 @@ public:
 	CDialogHtmlHelp(CWnd* pParent = NULL);   // standard constructor
   Helper_CallBack callback;
   OnSize_CallBack callbackOnSize;
-  char* GetTip(int id);
+  const char* GetTip(int id);
   //
   CString page;
 protected:

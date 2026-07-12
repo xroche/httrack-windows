@@ -73,9 +73,9 @@ BOOL CCatchUrl::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     nID = ::GetDlgCtrlID((HWND)nID);
     if(nID)
     {
-      char* st=GetTip((int)nID);
+      const char* st=GetTip((int)nID);
       if (st != "") {
-        pTTT->lpszText = st;
+        pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
       }
@@ -83,7 +83,7 @@ BOOL CCatchUrl::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
-char* CCatchUrl::GetTip(int ID)
+const char* CCatchUrl::GetTip(int ID)
 {
   switch(ID) {
     case IDC_info: return LANG_V10; break;

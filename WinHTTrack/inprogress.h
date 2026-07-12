@@ -122,7 +122,7 @@ public:
 
 // Implementation
 protected:
-  char* GetTip(int id);
+  const char* GetTip(int id);
   void OnHelpInfo2();
   UINT_PTR timer;
   void StartTimer();

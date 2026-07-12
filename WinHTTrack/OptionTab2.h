@@ -23,7 +23,7 @@ public:
 	~COptionTab2();
 	CBuildOptions      Bopt;
   int modify;
-  char* GetTip(int id);
+  const char* GetTip(int id);
 
 
 // Dialog Data

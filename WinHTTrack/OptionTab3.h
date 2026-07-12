@@ -19,7 +19,7 @@ public:
 	COptionTab3();
 	~COptionTab3();
   int modify;
-  char* GetTip(int id);
+  const char* GetTip(int id);
 
 
 // Dialog Data

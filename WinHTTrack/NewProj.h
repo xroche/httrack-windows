@@ -3,6 +3,7 @@
 
 #if _MSC_VER >= 1000
 #pragma once
+#include "resource.h"
 #endif // _MSC_VER >= 1000
 // NewProj.h : header file
 //
@@ -47,7 +48,7 @@ public:
 // Implementation
 protected:
   BOOL can_click_next;
-  char* GetTip(int id);
+  const char* GetTip(int id);
   void OnHelpInfo2();
   void Changeprojname(CString stl);
 	// Generated message map functions

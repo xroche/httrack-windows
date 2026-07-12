@@ -2545,7 +2545,6 @@ IDC_CURSWWW             CURSOR                  "res\\www.cur"
 // RT_MANIFEST
 //
 
-1                       RT_MANIFEST             "res\\manifest.xml"
 #endif    // French (France) resources
 /////////////////////////////////////////////////////////////////////////////
 

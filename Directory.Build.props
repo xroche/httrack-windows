@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Repo-wide MSBuild config, auto-imported into every project under this dir. -->
+<Project>
+  <PropertyGroup Label="WinHTTrack central config">
+    <!-- Engine repo is the sibling httrack/; override via env or -p to relocate. -->
+    <HttrackRoot Condition="'$(HttrackRoot)'==''">$(MSBuildThisFileDirectory)..\httrack</HttrackRoot>
+
+    <PlatformToolset>v143</PlatformToolset>
+    <WindowsTargetPlatformVersion Condition="'$(WindowsTargetPlatformVersion)'==''">10.0</WindowsTargetPlatformVersion>
+
+    <!-- Dynamic build (decided): OpenSSL/zlib ship as DLLs, so NON-static triplets. -->
+    <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    <VcpkgTriplet Condition="'$(Platform)'=='Win32'">x86-windows</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows</VcpkgTriplet>
+  </PropertyGroup>
+
+  <!-- Windows 7 SP1 floor plus CRT deprecation quieting, applied to every compile. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>WINVER=0x0601;_WIN32_WINNT=0x0601;_WIN32_IE=0x0601;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>

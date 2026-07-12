@@ -9,8 +9,8 @@
 // Lancer aide
 class LaunchHelp {
 public:
-  LaunchHelp::LaunchHelp();
-  LaunchHelp::~LaunchHelp();
+  LaunchHelp();
+  ~LaunchHelp();
   void Help();
   void Help(CString page);
   CDialogHtmlHelp b;

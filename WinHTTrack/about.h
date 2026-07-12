@@ -15,7 +15,7 @@ class Cabout : public CDialog
 // Construction
 public:
 	Cabout(CWnd* pParent = NULL);   // standard constructor
-  char* GetTip(int id);
+  const char* GetTip(int id);
 
 // Dialog Data
 	//{{AFX_DATA(Cabout)
