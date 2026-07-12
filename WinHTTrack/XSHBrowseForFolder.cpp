@@ -182,7 +182,7 @@ int __stdcall XSHBFF_CallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpDat
         int style = WS_CHILD | WS_CLIPSIBLINGS | BS_PUSHBUTTON | WS_TABSTOP | WS_VISIBLE;
         // create button, parent=hwnd
         HWND b = CreateWindow("BUTTON","New folder",style,x,y,w,h,hwnd,NULL,0,NULL);
-        LONG Ladr=NULL;
+        LONG_PTR Ladr=NULL;
         if (b!=NULL) {
           // Send Font notification so that the font be the same as default font
           HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
@@ -192,11 +192,11 @@ int __stdcall XSHBFF_CallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpDat
           // Get the control ID of our button
           XSHBFF_button1 = GetDlgCtrlID(b);
           // Place our function
-          Ladr = SetWindowLong(hwnd,GWL_WNDPROC,(LONG) XSHBFF_WndProc);
+          Ladr = SetWindowLongPtr(hwnd,GWLP_WNDPROC,(LONG_PTR) XSHBFF_WndProc);
         }
         
         // initial selection
-        LONG* Param = (LONG*) lpData;
+        LPARAM* Param = (LPARAM*) lpData;
         if (Param) {
           // Send init dir
           SendMessage(hwnd,BFFM_SETSELECTION,WPARAM(false),Param[0]);  // init dir
