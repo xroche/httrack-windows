@@ -25,6 +25,9 @@
 #endif // _MSC_VER >= 1000
 
 #define VC_EXTRALEAN		// Exclude rarely-used stuff from Windows headers
+// Keep <windows.h> from pulling winsock v1, which would clash with the winsock2
+// headers below. VC_EXTRALEAN happens to imply this today; do not rely on that.
+#define WIN32_LEAN_AND_MEAN
 
 #include <afxwin.h>         // MFC core and standard components
 #include <afxext.h>         // MFC extensions
