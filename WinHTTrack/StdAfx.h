@@ -33,6 +33,11 @@
 #include <afxcmn.h>			// MFC support for Windows Common Controls
 #endif // _AFX_NO_AFXCMN_SUPPORT
 
+// Pull these in with C++ linkage before anything wraps the engine headers in
+// extern "C": Wspiapi.h declares a template, which C linkage rejects (C2894).
+#include <ws2tcpip.h>
+#include <Wspiapi.h>
+
 
 //{{AFX_INSERT_LOCATION}}
 // Microsoft Developer Studio will insert additional declarations immediately before the previous line.

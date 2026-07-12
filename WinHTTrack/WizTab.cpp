@@ -1,8 +1,6 @@
 // Tab Control Principal
 
 #include "stdafx.h"
-#include <ws2tcpip.h>
-#include <Wspiapi.h>
 #include "Shell.h"
 #include "WizTab.h"
 #include "direct.h"
