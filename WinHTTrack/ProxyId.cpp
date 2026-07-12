@@ -119,7 +119,7 @@ BOOL CProxyId::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     if(nID)
     {
       const char* st=GetTip((int)nID);
-      if (st != "") {
+      if (st != NULL && *st) {
         pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
