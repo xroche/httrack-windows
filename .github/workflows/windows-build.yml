@@ -171,18 +171,42 @@ jobs:
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host "CRT check passed: both share [$exeRt]."
 
-      # Stage a package that actually runs: the exe, the engine DLL, and the
-      # language files the GUI reads at startup (without lang/ the UI has no
-      # strings at all). vcpkg's applocal deploy already dropped OpenSSL and zlib
-      # next to the exe.
+      # Stage a package that actually runs. The OpenSSL and zlib DLLs are NOT
+      # beside the exe: the GUI calls neither, so it imports neither, and vcpkg's
+      # applocal deploy only copies what the binary it just linked imports. They
+      # sit next to libhttrack.dll, which does import them. Take the engine's
+      # whole output directory, and assert what has to be there rather than
+      # trusting it -- an artifact that looks complete but cannot load is worse
+      # than a failed build.
       - name: Stage a runnable package
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
-          Copy-Item "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\libhttrack.dll" $bin
+          $eng = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}"
+          Copy-Item "$eng\*.dll" $bin
           foreach ($d in @('lang', 'html', 'templates')) {
             Copy-Item "httrack\$d" (Join-Path $bin $d) -Recurse -Force
           }
+
+          # The exe's own imports, minus what Windows itself provides.
+          foreach ($f in @('WinHTTrack.exe', 'libhttrack.dll', 'libssl-3.dll',
+                           'libcrypto-3.dll', 'z.dll')) {
+            if (-not (Test-Path (Join-Path $bin $f))) { throw "package is missing $f" }
+          }
+          if (-not (Test-Path (Join-Path $bin 'lang\English.txt'))) {
+            throw "package is missing lang/: the GUI would start with no interface strings"
+          }
+
+          # mfc140/vcruntime140/msvcp140 are NOT shipped here; they come from the
+          # VC++ redist. Say so, so nobody wonders why a clean box will not run it.
+          Set-Content (Join-Path $bin 'README-artifact.txt') @'
+          This is a CI build of WinHTTrack, not an installer.
+
+          It needs the Microsoft Visual C++ 2015-2022 redistributable (x64 or x86 to
+          match), which supplies mfc140.dll, vcruntime140.dll and msvcp140.dll. Those
+          are deliberately not bundled here. Everything else it needs is in this
+          folder: libhttrack.dll, OpenSSL, zlib, and lang/.
+          '@
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
