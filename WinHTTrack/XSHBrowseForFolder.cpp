@@ -196,7 +196,7 @@ int __stdcall XSHBFF_CallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpDat
         }
         
         // initial selection
-        LONG* Param = (LONG*) lpData;
+        LPARAM* Param = (LPARAM*) lpData;
         if (Param) {
           // Send init dir
           SendMessage(hwnd,BFFM_SETSELECTION,WPARAM(false),Param[0]);  // init dir
