@@ -85,8 +85,20 @@ jobs:
           path: httrack
           submodules: recursive
 
-      - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v2
+      # Located with vswhere rather than microsoft/setup-msbuild. A repo that
+      # restricts Actions to GitHub-owned ones kills a third-party action as a
+      # startup_failure with no job, no log and no annotation -- nothing tells you
+      # why. vswhere ships on the image, so there is nothing to depend on.
+      - name: Locate MSBuild
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+          if (-not $vs) { throw 'no Visual Studio with MSBuild found' }
+          $dir = Join-Path $vs 'MSBuild\Current\Bin'
+          if (-not (Test-Path (Join-Path $dir 'MSBuild.exe'))) { throw "MSBuild.exe is not in $dir" }
+          $dir | Out-File -Append $env:GITHUB_PATH
+          Write-Host "MSBuild: $dir"
 
       - name: Enable vcpkg MSBuild integration
         shell: pwsh
@@ -169,7 +181,15 @@ jobs:
           }
 
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
-          Write-Host "CRT check passed: both share [$exeRt]."
+
+          # A check nobody has watched fail is not a check. cmd.exe links the old
+          # msvcrt, not vcruntime140, so the very same test must reject it. If this
+          # ever passes, the check has stopped discriminating and the green above
+          # means nothing.
+          if (BaseCrt (Deps "$env:SystemRoot\System32\cmd.exe")) {
+            throw 'negative control failed: cmd.exe looks like it imports vcruntime, so this check no longer proves anything'
+          }
+          Write-Host "CRT check passed: both share [$exeRt]. (negative control: cmd.exe correctly rejected)"
 
       # An invalid embedded manifest does not fail the build: Windows refuses to
       # start the exe with "side-by-side configuration is incorrect", which only
