@@ -315,6 +315,9 @@ jobs:
           $out = (Get-Content "$PWD\version.txt" -Raw).Trim()
           Write-Host "WinHTTrack.exe --version -> exit=$($p.ExitCode), output='$out'"
           if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --version exited $($p.ExitCode): it does not start" }
+          # Without this, an empty APPVER would make [regex]::Escape('') = '' and
+          # `-notmatch ''` false: the version assertion would quietly stop asserting.
+          if ([string]::IsNullOrWhiteSpace($env:APPVER)) { throw 'APPVER is unset: the version check would be vacuous' }
           if ($out -notmatch [regex]::Escape($env:APPVER)) { throw "expected version $env:APPVER, got '$out'" }
           Write-Host "::notice::WinHTTrack $env:APPVER installs and runs."
 

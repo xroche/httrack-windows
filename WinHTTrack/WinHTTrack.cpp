@@ -212,7 +212,9 @@ BOOL CWinHTTrackApp::InitInstance()
      binary actually starts. ExitProcess rather than returning FALSE: MFC would
      still run ExitInstance(), which calls hts_uninit() on an engine we never
      started. Nothing is initialised yet, so there is nothing to unwind. */
-  for (int i = 1; i < __argc; i++) {
+  /* __argv is only populated in an MBCS build, which this is; guard anyway so a
+     future Unicode switch cannot turn this into a null dereference. */
+  for (int i = 1; __argv != NULL && i < __argc; i++) {
     if (strcmp(__argv[i], "--version") == 0) {
       /* A GUI-subsystem process has no console of its own, so borrow the caller's
          -- but only when stdout is not already going somewhere. If it has been
