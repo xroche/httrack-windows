@@ -275,8 +275,13 @@ void LANG_LOAD(char* limit_to) {
       }  // while
       fclose(fp);
     } else {
+      if (WhttSelfTest) {
+        fprintf(stderr, "FATAL: 'lang.def' not found: the installation is incomplete\n");
+        fflush(stderr);
+        ExitProcess(1);
+      }
       AfxMessageBox("FATAL ERROR\r\n'lang.def' file NOT FOUND!\r\nEnsure that the installation was complete!");
-      exit(0);
+      exit(1);
     }
   }
   
@@ -405,8 +410,13 @@ void LANG_LOAD(char* limit_to) {
         }  // while
         fclose(fp);
       } else {
+        if (WhttSelfTest) {
+          fprintf(stderr, "FATAL: 'lang.def' not found: the installation is incomplete\n");
+          fflush(stderr);
+          ExitProcess(1);
+        }
         AfxMessageBox("FATAL ERROR\r\n'lang.def' file NOT FOUND!\r\nEnsure that the installation was complete!");
-        exit(0);
+        exit(1);
       }
     }
     if (err_msg.GetLength()>0) {

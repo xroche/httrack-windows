@@ -206,6 +206,26 @@ static void httrackErrorCallback(const char* msg, const char* file, int line) {
   CrashReportReport(msg, file, line);
 }
 
+/* Set by --selftest. Startup failures must then report on stderr and exit non-zero
+   rather than raise a message box: nobody is there to click it, and a modal dialog
+   would hang a headless run instead of failing it. */
+int WhttSelfTest = 0;
+
+/* A GUI-subsystem process has no console of its own, so borrow the caller's -- but
+   only when stdout is not already going somewhere. If it has been redirected to a
+   pipe or a file that handle is valid, and reopening CONOUT$ would throw the output
+   away. */
+void WhttEnsureConsole(void) {
+  const HANDLE hout = GetStdHandle(STD_OUTPUT_HANDLE);
+  if (hout == NULL || hout == INVALID_HANDLE_VALUE) {
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+      FILE *out = NULL;
+      freopen_s(&out, "CONOUT$", "w", stdout);
+      freopen_s(&out, "CONOUT$", "w", stderr);
+    }
+  }
+}
+
 BOOL CWinHTTrackApp::InitInstance()
 {
   /* Answer --version without bringing up the UI, so a smoke test can prove the
@@ -216,20 +236,16 @@ BOOL CWinHTTrackApp::InitInstance()
      future Unicode switch cannot turn this into a null dereference. */
   for (int i = 1; __argv != NULL && i < __argc; i++) {
     if (strcmp(__argv[i], "--version") == 0) {
-      /* A GUI-subsystem process has no console of its own, so borrow the caller's
-         -- but only when stdout is not already going somewhere. If it has been
-         redirected to a pipe or a file, that handle is valid and reopening
-         CONOUT$ would throw the output away. */
-      const HANDLE hout = GetStdHandle(STD_OUTPUT_HANDLE);
-      if (hout == NULL || hout == INVALID_HANDLE_VALUE) {
-        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-          FILE *out = NULL;
-          freopen_s(&out, "CONOUT$", "w", stdout);
-        }
-      }
+      WhttEnsureConsole();
       printf("WinHTTrack %s\n", HTTRACK_VERSION);
       fflush(stdout);
       ExitProcess(0);
+    } else if (strcmp(__argv[i], "--selftest") == 0) {
+      /* Carry on through the real startup and report from there. --version only
+         proves the binary loads; it says nothing about whether the installation
+         is complete, which is what actually broke. */
+      WhttSelfTest = 1;
+      WhttEnsureConsole();
     }
   }
 
@@ -265,6 +281,14 @@ BOOL CWinHTTrackApp::InitInstance()
   // such as the name of your company or organization.
   SetRegistryKey("WinHTTrack Website Copier");
   LANG_INIT();    // petite init langue
+
+  /* --selftest: everything that depends on the installed data files has now run
+     (lang.def above all). Report and leave before any window appears. */
+  if (WhttSelfTest) {
+    printf("WinHTTrack %s: startup ok\n", HTTRACK_VERSION);
+    fflush(stdout);
+    ExitProcess(0);
+  }
   
   /* INDISPENSABLE pour le drag&drop! */
   InitCommonControls();

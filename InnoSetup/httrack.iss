@@ -73,6 +73,9 @@ Source: "{#EngineDir}\httrack-doc.html"; DestDir: "{app}"; Flags: ignoreversion 
 Source: "{#EngineDir}\history.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#EngineDir}\license.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#EngineDir}\greetings.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#EngineDir}\COPYING"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#EngineDir}\AUTHORS"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#EngineDir}\gpl-fr.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; Sources, kept: HTTrack is GPL and shipping them is how that offer is met. The
 ; excludes are load-bearing -- CI builds inside these trees, so without them the

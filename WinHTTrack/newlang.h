@@ -7,6 +7,11 @@ void LANG_INIT();
 int LANG_T(int);
 int QLANG_T(int l);
 //char* LANGSEL(char* lang0,...);
+/* Set by --selftest (WinHTTrack.cpp): report fatals on stderr and exit non-zero
+   instead of raising a message box nobody can click. */
+extern int WhttSelfTest;
+void WhttEnsureConsole(void);
+
 const char* LANGSEL(const char* name);
 const char* LANGINTKEY(const char* name);
 void LANG_DELETE();
