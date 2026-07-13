@@ -53,6 +53,11 @@
   <PropertyGroup>
     <OutDir>$(MSBuildThisFileDirectory)bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
+    <!-- Supply the manifest ourselves. Left on, MSBuild also feeds its own
+         dpiaware.manifest to mt.exe, which concatenates rather than merges: the
+         exe ends up with two <dpiAware> elements and Windows rejects it with
+         "side-by-side configuration is incorrect". -->
+    <EnableDpiAwareness>false</EnableDpiAwareness>
     <LinkIncremental Condition="'$(Configuration)'=='Debug'">true</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)'=='Release'">false</LinkIncremental>
   </PropertyGroup>
