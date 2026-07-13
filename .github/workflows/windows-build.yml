@@ -8,7 +8,9 @@ name: windows-build
 on:
   push:
     branches: [master]
-    tags: ['v*']
+    # The engine tags releases bare: 3.49.12, 3.49.8-2. Match that, and 'v' too in
+    # case anyone reaches for it. A 'v*'-only filter would silently never fire.
+    tags: ['[0-9]*', 'v*']
   pull_request:
   workflow_dispatch:
 
@@ -343,7 +345,7 @@ jobs:
       # human to approve each request. See SIGNING.md.
       - name: Collect the binaries to sign
         id: collect
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
@@ -362,7 +364,7 @@ jobs:
 
       - name: Upload the unsigned binaries
         id: unsigned-binaries
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-binaries-${{ matrix.platform }}
@@ -370,7 +372,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign the binaries
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -385,7 +387,7 @@ jobs:
           output-artifact-directory: signed
 
       - name: Put the signed binaries back into the package
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
@@ -444,7 +446,7 @@ jobs:
       # and UAC judge. Before the smoke test, so that what runs below is what ships.
       - name: Upload the unsigned installer
         id: unsigned-installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-installer-${{ matrix.platform }}
@@ -452,7 +454,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign the installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -466,7 +468,7 @@ jobs:
           output-artifact-directory: installer
 
       - name: Check the installer really is signed
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
         shell: pwsh
         run: |
           $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
