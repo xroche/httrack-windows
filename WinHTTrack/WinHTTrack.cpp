@@ -208,6 +208,29 @@ static void httrackErrorCallback(const char* msg, const char* file, int line) {
 
 BOOL CWinHTTrackApp::InitInstance()
 {
+  /* Answer --version without bringing up the UI, so a smoke test can prove the
+     binary actually starts. ExitProcess rather than returning FALSE: MFC would
+     still run ExitInstance(), which calls hts_uninit() on an engine we never
+     started. Nothing is initialised yet, so there is nothing to unwind. */
+  for (int i = 1; i < __argc; i++) {
+    if (strcmp(__argv[i], "--version") == 0) {
+      /* A GUI-subsystem process has no console of its own, so borrow the caller's
+         -- but only when stdout is not already going somewhere. If it has been
+         redirected to a pipe or a file, that handle is valid and reopening
+         CONOUT$ would throw the output away. */
+      const HANDLE hout = GetStdHandle(STD_OUTPUT_HANDLE);
+      if (hout == NULL || hout == INVALID_HANDLE_VALUE) {
+        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+          FILE *out = NULL;
+          freopen_s(&out, "CONOUT$", "w", stdout);
+        }
+      }
+      printf("WinHTTrack %s\n", HTTRACK_VERSION);
+      fflush(stdout);
+      ExitProcess(0);
+    }
+  }
+
   /* See <https://msdn.microsoft.com/library/ff919712> */
 #if (defined(_WIN32) && (!defined(_DEBUG)))
   {
