@@ -310,6 +310,36 @@ static BOOL PrintStack(char *const print_buffer,
   return ret;
 }
 
+/* An exception MFC caught and handled -- the program lives, so no crash dialog and no
+   viewer. This exists to locate "Encountered an improper argument.": modern MFC's ENSURE
+   macros throw a CInvalidArgException in release builds where the old MFC only ASSERTed
+   in debug, so a bad argument this code has always passed now surfaces, and the box it
+   raises says nothing about where it came from. The stack trace does. */
+void CrashReportLogException(const char* msg) {
+  static char buffer[8192];
+  const size_t filename_max = 32;
+  CHAR path[MAX_PATH + 1 + filename_max];
+  char *trace = NULL;
+
+  if (PrintStack(buffer, sizeof(buffer))) {
+    trace = buffer;
+  }
+  if (GetTempPath(sizeof(path) - filename_max, path) != 0) {
+    FILE *fp;
+    strcat(path, "WinHTTrack-exception.txt");
+    if ((fp = fopen(path, "ab")) != NULL) {
+      fprintf(fp, "HTTrack " HTTRACK_VERSIONID " caught: %s\r\n",
+              msg != NULL ? msg : "(no description)");
+      if (trace != NULL) {
+        fprintf(fp, "Stack trace:\r\n%s", trace);
+      }
+      fprintf(fp, "\r\n");
+      fflush(fp);
+      fclose(fp);
+    }
+  }
+}
+
 void CrashReportReportEx(const char* msg, const char* file, int line, const char *trace) {
   /* Under --selftest there is no one to dismiss a system-modal box, and no one to
      close the report viewer either: a headless run would hang on them instead of

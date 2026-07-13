@@ -966,6 +966,26 @@ void CWinHTTrackApp::DeleteTabs() {
   m_tabend=NULL;
 }
 
+/* "Encountered an improper argument." and friends land here: MFC catches whatever a
+   window procedure threw, shows a message box, and carries on. The box names neither
+   the call nor the argument. Modern MFC turned many of the old debug-only ASSERTs into
+   ENSURE macros that throw in release too, so arguments this code has always passed
+   are only now being rejected -- and we have no idea which. Record a stack trace, then
+   let MFC do exactly what it did before. */
+LRESULT CWinHTTrackApp::ProcessWndProcException(CException* e, const MSG* pMsg) {
+  TCHAR reason[512];
+  CString what;
+
+  if (e == NULL || !e->GetErrorMessage(reason, _countof(reason))) {
+    _tcscpy_s(reason, _countof(reason), _T("(no description)"));
+  }
+  what.Format("%s [window message 0x%04x]", reason,
+              pMsg != NULL ? (unsigned) pMsg->message : 0u);
+  CrashReportLogException((LPCTSTR) what);
+
+  return CWinApp::ProcessWndProcException(e, pMsg);
+}
+
 int CWinHTTrackApp::ExitInstance() 
 {
   LANG_DELETE();
