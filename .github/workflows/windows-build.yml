@@ -62,6 +62,10 @@ jobs:
               # insertion slips in.
               if data.replace(b'\r\n', b'') .count(b'\n'):
                   bad.append(f'{p}: has a bare LF, must be CRLF throughout (Windows tooling input)')
+              # And a CR with no LF after it, which the check above cannot see: strip the
+              # pairs and any CR still standing is a lone one. A stray perl -pe emits these.
+              if b'\r' in data.replace(b'\r\n', b''):
+                  bad.append(f'{p}: has a lone CR, not part of a CRLF')
 
           if bad:
               print('\n'.join(bad))
@@ -339,6 +343,30 @@ jobs:
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
+      # Signing enforces this: a mismatch fails the signing request on release day, not
+      # the build. Assert it here, where the only cost is a red build.
+      - name: Check the binaries agree on product name and version
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          $hg = Get-Content 'httrack\src\htsglobal.h' -Raw
+          if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
+          $want = $Matches[1]
+          $name = 'HTTrack Website Copier'
+
+          $bad = @()
+          foreach ($f in @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')) {
+            $v = (Get-Item (Join-Path $bin $f)).VersionInfo
+            # Trim: resource compilers pad these fields, and Inno certainly does.
+            $pn = "$($v.ProductName)".Trim()
+            $pv = "$($v.ProductVersion)".Trim()
+            Write-Host "  $f : ProductName='$pn' ProductVersion='$pv'"
+            if ($pn -ne $name) { $bad += "$f names the product '$pn', not '$name'" }
+            if ($pv -ne $want) { $bad += "$f is version '$pv', not '$want'" }
+          }
+          if ($bad) { throw ($bad -join "`n") }
+          Write-Host "::notice::all three binaries report $name $want"
+
       # Code signing, 1 of 2: the payload. SignPath signs an Inno installer as an opaque
       # PE and cannot reach the files inside it, so sign these BEFORE ISCC packages them.
       # Dormant until SIGNPATH_ORGANIZATION_ID exists, then tags only: releases need a
@@ -414,7 +442,10 @@ jobs:
           $hg = Get-Content 'httrack\src\htsglobal.h' -Raw
           if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
           $ver = $Matches[1]
-          Write-Host "version = $ver, arch = $arch"
+          # Inno stamps 0.0.0.0 unless it gets a valid version number, and "3.49-12" is not one.
+          if ($hg -notmatch '#define\s+HTTRACK_VERSIONID\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSIONID' }
+          $verid = $Matches[1]
+          Write-Host "version = $ver ($verid), arch = $arch"
           "APPVER=$ver" | Out-File -Append $env:GITHUB_ENV
           "SETUPARCH=$arch" | Out-File -Append $env:GITHUB_ENV
 
@@ -432,7 +463,7 @@ jobs:
           # ISCC fails if any Source: is missing, so a clean compile also proves the
           # redistributable really is in the package.
           & $iscc /Q `
-            "/DArch=$arch" "/DAppVersion=$ver" `
+            "/DArch=$arch" "/DAppVersion=$ver" "/DAppVersionNumeric=$verid" `
             "/DPayloadDir=$PWD\httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}" `
             "/DEngineDir=$PWD\httrack" `
             "/DGuiDir=$PWD\httrack-windows" `
@@ -441,6 +472,17 @@ jobs:
             "httrack-windows\InnoSetup\httrack.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
           Get-ChildItem "$PWD\installer" | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)" }
+
+          # The installer is a fourth binary, with its own copy of the product name, and it
+          # gets signed too. Inno stamps 0.0.0.0 rather than failing, so assert what it wrote.
+          $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
+          $v = (Get-Item $setup.FullName).VersionInfo
+          # Inno pads these fields with trailing spaces, so trim before comparing.
+          $pn = "$($v.ProductName)".Trim()
+          $pv = "$($v.ProductVersion)".Trim()
+          Write-Host "  $($setup.Name) : ProductName='$pn' ProductVersion='$pv'"
+          if ($pn -ne 'HTTrack Website Copier') { throw "the installer names the product '$pn'" }
+          if ($pv -ne $ver) { throw "the installer is version '$pv', not '$ver'" }
 
       # Code signing, 2 of 2: the wrapper the user downloads, which is what SmartScreen
       # and UAC judge. Before the smoke test, so that what runs below is what ships.
