@@ -213,6 +213,10 @@ jobs:
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
           $eng = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}"
           Copy-Item "$eng\*.dll" $bin
+          # lang.def is a FILE at the engine root, not inside lang\. The GUI reads it
+          # from the app directory at startup and refuses to run without it. The old
+          # installer swept it up with a wildcard; enumerating files by hand lost it.
+          Copy-Item "httrack\lang.def" $bin
           foreach ($d in @('lang', 'html', 'templates')) {
             Copy-Item "httrack\$d" (Join-Path $bin $d) -Recurse -Force
           }
@@ -238,6 +242,9 @@ jobs:
           }
           if (-not (Test-Path (Join-Path $bin 'lang\English.txt'))) {
             throw "package is missing lang/: the GUI would start with no interface strings"
+          }
+          if (-not (Test-Path (Join-Path $bin 'lang.def'))) {
+            throw "package is missing lang.def: the GUI refuses to start without it"
           }
 
           # mfc140/vcruntime140/msvcp140 are NOT shipped here; they come from the
@@ -319,7 +326,20 @@ jobs:
           # `-notmatch ''` false: the version assertion would quietly stop asserting.
           if ([string]::IsNullOrWhiteSpace($env:APPVER)) { throw 'APPVER is unset: the version check would be vacuous' }
           if ($out -notmatch [regex]::Escape($env:APPVER)) { throw "expected version $env:APPVER, got '$out'" }
-          Write-Host "::notice::WinHTTrack $env:APPVER installs and runs."
+          # --version only proves the binary LOADS: it exits before any data file is
+          # touched. That is exactly why a missing lang.def shipped. --selftest runs
+          # the real startup, through LANG_INIT, and exits before showing a window.
+          $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru `
+                 -RedirectStandardOutput "$PWD\selftest.txt" -RedirectStandardError "$PWD\selftest.err"
+          $so = (Get-Content "$PWD\selftest.txt" -Raw -ErrorAction SilentlyContinue)
+          $se = (Get-Content "$PWD\selftest.err" -Raw -ErrorAction SilentlyContinue)
+          Write-Host "WinHTTrack.exe --selftest -> exit=$($p.ExitCode)"
+          if ($so) { Write-Host "  stdout: $($so.Trim())" }
+          if ($se) { Write-Host "  stderr: $($se.Trim())" }
+          if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --selftest exited $($p.ExitCode): the installation is incomplete" }
+          if ("$so" -notmatch 'startup ok') { throw "selftest did not report startup ok" }
+
+          Write-Host "::notice::WinHTTrack $env:APPVER installs, starts and runs."
 
           $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
           $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
