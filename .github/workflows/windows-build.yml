@@ -118,6 +118,18 @@ jobs:
             /p:Platform=${{ matrix.platform }} `
             /p:VcpkgEnableManifest=true
 
+      # The command-line httrack.exe ships with the GUI, as it always did -- the old
+      # installer swept it up with a wildcard, and enumerating files by hand lost it.
+      - name: Build httrack (command line)
+        working-directory: httrack
+        shell: pwsh
+        run: |
+          msbuild src\httrack.vcxproj `
+            /m `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=${{ matrix.platform }} `
+            /p:VcpkgEnableManifest=true
+
       - name: Build WinHTTrack (compile + link)
         working-directory: httrack-windows
         shell: pwsh
@@ -141,7 +153,9 @@ jobs:
 
           $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
           $dll = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\libhttrack.dll"
-          foreach ($f in @($exe, $dll)) {
+          # The CLI links the same DLL, so it carries the same cross-heap risk.
+          $cli = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\httrack.exe"
+          foreach ($f in @($exe, $dll, $cli)) {
             if (-not (Test-Path $f)) { throw "missing $f" }
           }
 
@@ -159,14 +173,17 @@ jobs:
           }
           $exeDeps = Deps $exe
           $dllDeps = Deps $dll
+          $cliDeps = Deps $cli
           Write-Host "WinHTTrack.exe  -> $($exeDeps -join ', ')"
           Write-Host "libhttrack.dll  -> $($dllDeps -join ', ')"
+          Write-Host "httrack.exe     -> $($cliDeps -join ', ')"
 
           $fail = @()
 
-          # Both must import the shared vcruntime. A static-CRT (/MT) build imports
+          # All must import the shared vcruntime. A static-CRT (/MT) build imports
           # none, which is exactly the mismatch that crashes later.
-          foreach ($p in @(@{n='WinHTTrack.exe'; d=$exeDeps}, @{n='libhttrack.dll'; d=$dllDeps})) {
+          foreach ($p in @(@{n='WinHTTrack.exe'; d=$exeDeps}, @{n='libhttrack.dll'; d=$dllDeps},
+                           @{n='httrack.exe'; d=$cliDeps})) {
             if (-not (BaseCrt $p.d)) {
               $fail += "$($p.n) imports no vcruntime: it was not built with the dynamic CRT (/MD)"
             }
@@ -178,8 +195,12 @@ jobs:
           # And they must agree on the SAME base vcruntime, not two different ones.
           $exeRt = BaseCrt $exeDeps
           $dllRt = BaseCrt $dllDeps
+          $cliRt = BaseCrt $cliDeps
           if ("$exeRt" -ne "$dllRt") {
             $fail += "CRT mismatch: exe imports [$exeRt] but libhttrack.dll imports [$dllRt]"
+          }
+          if ("$cliRt" -ne "$dllRt") {
+            $fail += "CRT mismatch: httrack.exe imports [$cliRt] but libhttrack.dll imports [$dllRt]"
           }
 
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
@@ -248,6 +269,8 @@ jobs:
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
           $eng = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}"
           Copy-Item "$eng\*.dll" $bin
+          # The command-line httrack ships with the GUI.
+          Copy-Item "$eng\httrack.exe" $bin
           # Ship the PDBs: dbghelp resolves function and file:line from them at run time, so
           # without them every frame of a user's crash report reads "unknown". The engine's
           # is a bonus and is not ours to fix, so do not red the build over it.
@@ -285,6 +308,9 @@ jobs:
           if (-not (Test-Path (Join-Path $bin 'lang.def'))) {
             throw "package is missing lang.def: the GUI refuses to start without it"
           }
+          if (-not (Test-Path (Join-Path $bin 'httrack.exe'))) {
+            throw "package is missing httrack.exe: the command-line version ships with the GUI"
+          }
           if (-not (Test-Path (Join-Path $bin 'WinHTTrack.pdb'))) {
             throw "package is missing WinHTTrack.pdb: crash reports would name no function"
           }
@@ -301,6 +327,8 @@ jobs:
           match), which supplies mfc140.dll, vcruntime140.dll and msvcp140.dll. Those
           are deliberately not bundled here. Everything else it needs is in this
           folder: libhttrack.dll, OpenSSL, zlib, and lang/.
+
+          httrack.exe is the command-line version, against the same libhttrack.dll.
           '@
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
@@ -398,6 +426,20 @@ jobs:
           # the fallback stack and would still be green with the hook dead.
           if ($trace -notmatch 'throw site\)[\s\S]*WinHTTrack\.cpp:\d+') {
             throw "no file:line on the throw stack: the shipped PDB carries no line info"
+          }
+
+          # The CLI is a separate binary against the same DLL: it can be broken while the
+          # GUI is fine. -#h prints the version and exits 0.
+          $cli = Join-Path $dir 'httrack.exe'
+          if (-not (Test-Path $cli)) { throw "the installer did not lay down httrack.exe" }
+          $p = Start-Process $cli -ArgumentList '-#h' -Wait -PassThru `
+                 -RedirectStandardOutput "$PWD\cli.txt" -RedirectStandardError "$PWD\cli.err"
+          $co = (Get-Content "$PWD\cli.txt" -Raw -ErrorAction SilentlyContinue)
+          $co1 = ("$co".Trim() -split "\r?\n" | Select-Object -First 1)
+          Write-Host "httrack.exe -#h -> exit=$($p.ExitCode), output='$co1'"
+          if ($p.ExitCode -ne 0) { throw "httrack.exe -#h exited $($p.ExitCode)" }
+          if ($co -notmatch [regex]::Escape($env:APPVER)) {
+            throw "httrack.exe reported no version, or the wrong one: expected $env:APPVER"
           }
 
           Write-Host "::notice::WinHTTrack $env:APPVER installs, starts and runs."
