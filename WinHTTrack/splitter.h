@@ -22,6 +22,7 @@ protected:
 public:
   void SetMenuPrefs();
 	afx_msg void Onhide();
+  // Give the active document its path and title; FALSE if there is no active document.
   BOOL SetNewName(CString name);
   BOOL SetSaved();
   BOOL SetCurrentCategory(CString name);

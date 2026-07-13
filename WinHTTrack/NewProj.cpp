@@ -184,7 +184,13 @@ LRESULT CNewProj::OnWizardNext() {
   if (st.GetLength() > MAX_PATH) {
     return -1;
   }
-  this_CSplitterFrame->SetNewName(stp+st+".whtt");
+  const CString whtt = stp + st + ".whtt";
+  // Each half was checked against MAX_PATH, their concatenation never was, and MFC
+  // rejects a document path that long.
+  if (whtt.GetLength() >= MAX_PATH) {
+    return -1;
+  }
+  this_CSplitterFrame->SetNewName(whtt);
   //GetDlgItemText(IDC_projpath,st);
   //this_CSplitterFrame->GetActiveDocument()->SetPathName(st);
 

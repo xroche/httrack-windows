@@ -248,6 +248,10 @@ jobs:
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
           $eng = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}"
           Copy-Item "$eng\*.dll" $bin
+          # Ship the PDBs: dbghelp resolves function and file:line from them at run time, so
+          # without them every frame of a user's crash report reads "unknown". The engine's
+          # is a bonus and is not ours to fix, so do not red the build over it.
+          Copy-Item "$eng\*.pdb" $bin -ErrorAction SilentlyContinue
           # lang.def is a FILE at the engine root, not inside lang\. The GUI reads it
           # from the app directory at startup and refuses to run without it. The old
           # installer swept it up with a wildcard; enumerating files by hand lost it.
@@ -280,6 +284,12 @@ jobs:
           }
           if (-not (Test-Path (Join-Path $bin 'lang.def'))) {
             throw "package is missing lang.def: the GUI refuses to start without it"
+          }
+          if (-not (Test-Path (Join-Path $bin 'WinHTTrack.pdb'))) {
+            throw "package is missing WinHTTrack.pdb: crash reports would name no function"
+          }
+          if (-not (Test-Path (Join-Path $bin 'libhttrack.pdb'))) {
+            Write-Host "::warning::no libhttrack.pdb: engine frames will not resolve"
           }
 
           # mfc140/vcruntime140/msvcp140 are NOT shipped here; they come from the
@@ -364,6 +374,8 @@ jobs:
           # --version only proves the binary LOADS: it exits before any data file is
           # touched. That is exactly why a missing lang.def shipped. --selftest runs
           # the real startup, through LANG_INIT, and exits before showing a window.
+          $report = Join-Path $env:TEMP 'WinHTTrack-exception.txt'
+          Remove-Item $report -ErrorAction SilentlyContinue
           $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru `
                  -RedirectStandardOutput "$PWD\selftest.txt" -RedirectStandardError "$PWD\selftest.err"
           $so = (Get-Content "$PWD\selftest.txt" -Raw -ErrorAction SilentlyContinue)
@@ -373,6 +385,20 @@ jobs:
           if ($se) { Write-Host "  stderr: $($se.Trim())" }
           if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --selftest exited $($p.ExitCode): the installation is incomplete" }
           if ("$so" -notmatch 'startup ok') { throw "selftest did not report startup ok" }
+
+          # --selftest throws one exception on purpose. A crash report that resolves nothing
+          # is indistinguishable from a working one until someone needs it, so assert the
+          # whole chain here: first-chance hook -> shipped PDB -> function, file and line.
+          if (-not (Test-Path $report)) { throw "no crash report written: the first-chance hook never ran" }
+          $trace = Get-Content $report -Raw
+          Write-Host "--- crash report ---`n$trace"
+          if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
+          # Anchored past the "throw site" header on purpose: CrashReportLogException is
+          # itself called from WinHTTrack.cpp, so an unanchored match would be satisfied by
+          # the fallback stack and would still be green with the hook dead.
+          if ($trace -notmatch 'throw site\)[\s\S]*WinHTTrack\.cpp:\d+') {
+            throw "no file:line on the throw stack: the shipped PDB carries no line info"
+          }
 
           Write-Host "::notice::WinHTTrack $env:APPVER installs, starts and runs."
 

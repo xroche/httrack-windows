@@ -64,8 +64,9 @@ Name: "quicklaunchicon"; Description: "Create a &quick launch icon"; GroupDescri
 [Files]
 ; The program: exe, libhttrack.dll, the OpenSSL/zlib DLLs it imports, and lang/ and
 ; templates/. This is the same staged directory CI publishes, so what gets tested is
-; what gets shipped.
-Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.pdb,*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt"; Flags: recursesubdirs ignoreversion
+; what gets shipped. The PDBs ship too: without them a crash report names no function and
+; no line, and we already ship the sources they point into.
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt"; Flags: recursesubdirs ignoreversion
 
 ; Documentation that actually exists. The old script also listed readme, copying and
 ; file_id.diz, none of which are in the tree any more.

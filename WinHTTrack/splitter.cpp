@@ -312,12 +312,19 @@ BOOL CSplitterFrame::SetSaved() {
   return 1;
 }
 
-// Nommer le document
-BOOL CSplitterFrame::SetNewName(CString name) {
-  GetActiveDocument()->SetPathName(name);
-  int pos=max(name.ReverseFind('\\'),name.ReverseFind('/'))+1;
-  GetActiveDocument()->SetTitle(name.Mid(pos));
-  GetActiveDocument()->SetModifiedFlag();
+// Name the document. Deliberately not inlined: each MFC call below can throw, and LTCG
+// would fold them into the caller and report every one of them as the same source line.
+__declspec(noinline) BOOL CSplitterFrame::SetNewName(CString name) {
+  CDocument *const doc = GetActiveDocument();
+  if (doc == NULL) {
+    return 0;
+  }
+  // bAddToMRU=FALSE: MFC's recent-file list throws on this not-yet-created path, and
+  // nothing reads it back -- ID_FILE_MRU_FILE1 is greyed and its handler is empty.
+  doc->SetPathName(name, FALSE);
+  const int pos = max(name.ReverseFind('\\'), name.ReverseFind('/')) + 1;
+  doc->SetTitle(name.Mid(pos));
+  doc->SetModifiedFlag();
   return 1;
 }
 

@@ -285,6 +285,18 @@ BOOL CWinHTTrackApp::InitInstance()
   /* --selftest: everything that depends on the installed data files has now run
      (lang.def above all). Report and leave before any window appears. */
   if (WhttSelfTest) {
+    /* Exercise the crash reporter for real: a Release PDB built without line info, or a
+       first-chance hook that never registered, both still produce a plausible-looking
+       report that names nothing. Only throwing proves the chain resolves. */
+    TRY {
+      AfxThrowInvalidArgException();
+    } CATCH_ALL(e) {
+      TCHAR reason[256];
+      if (!e->GetErrorMessage(reason, _countof(reason))) {
+        _tcscpy_s(reason, _countof(reason), _T("(no description)"));
+      }
+      CrashReportLogException(reason);
+    } END_CATCH_ALL
     printf("WinHTTrack %s: startup ok\n", HTTRACK_VERSION);
     fflush(stdout);
     ExitProcess(0);
