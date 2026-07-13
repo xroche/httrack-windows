@@ -381,6 +381,16 @@ jobs:
           [ "$pass" -ge 40 ] || { echo "::error::only $pass tests actually ran and passed ($skip skipped)"; exit 1; }
           [ "$fail" -eq 0 ]  || { echo "::error::failing tests:$failed"; exit 1; }
 
+      # A 25-line tail cannot tell a real Windows bug from a POSIX assumption in the
+      # test. Keep every test's whole output.
+      - name: Upload the test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-tests-${{ matrix.platform }}-${{ matrix.configuration }}
+          path: httrack/tests/*.log
+          if-no-files-found: warn
+
       # Code signing, 1 of 2: the payload. SignPath signs an Inno installer as an opaque
       # PE and cannot reach the files inside it, so sign these BEFORE ISCC packages them.
       # Dormant until SIGNPATH_ORGANIZATION_ID exists, then tags only: releases need a
