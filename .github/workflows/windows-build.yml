@@ -337,17 +337,10 @@ jobs:
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
-      # --- Code signing, 1 of 2: the binaries --------------------------------------
-      #
-      # SignPath signs an Inno Setup installer only as an opaque PE: unlike an MSI, it
-      # cannot reach the files packed inside one. So the payload must be signed BEFORE
-      # ISCC packages it, and the installer signed afterwards in a second request.
-      # See SIGNING.md.
-      #
-      # Dormant until SIGNPATH_ORGANIZATION_ID is set as a repository variable, and
-      # then only on a version tag: SignPath's release policy needs a human to approve
-      # every request, so signing each master push would mean approving each one. A
-      # pull request never signs -- a fork PR has no secrets and could not anyway.
+      # Code signing, 1 of 2: the payload. SignPath signs an Inno installer as an opaque
+      # PE and cannot reach the files inside it, so sign these BEFORE ISCC packages them.
+      # Dormant until SIGNPATH_ORGANIZATION_ID exists, then tags only: releases need a
+      # human to approve each request. See SIGNING.md.
       - name: Collect the binaries to sign
         id: collect
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
@@ -355,10 +348,8 @@ jobs:
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
           New-Item -ItemType Directory -Force unsigned | Out-Null
-          # Everything we build from source and ship, OpenSSL and zlib included: they
-          # come from vcpkg source builds, not vendor binaries. A package where one DLL
-          # is unsigned is one an allow-by-publisher policy (WDAC, AppLocker DLL rules)
-          # will load halfway and then refuse.
+          # OpenSSL and zlib included: vcpkg builds them from source, and an allow-by-
+          # publisher policy (WDAC, AppLocker) loads a half-signed package then refuses.
           Copy-Item "$bin\*.exe", "$bin\*.dll" unsigned
           foreach ($f in @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')) {
             if (-not (Test-Path (Join-Path 'unsigned' $f))) { throw "nothing to sign: $f is missing" }
@@ -385,8 +376,7 @@ jobs:
           artifact-configuration-slug: binaries
           github-artifact-id: ${{ steps.unsigned-binaries.outputs.artifact-id }}
           wait-for-completion: true
-          # A release signing request waits on a human clicking approve in SignPath's
-          # web UI. Give that a working morning before the job gives up.
+          # Waits on a human clicking approve in SignPath's UI: give that a morning.
           wait-for-completion-timeout-in-seconds: 14400
           output-artifact-directory: signed
 
@@ -395,9 +385,8 @@ jobs:
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
-          # Assert before overwriting. A signing request that silently returned the
-          # files unsigned would otherwise sail on and ship an unsigned installer that
-          # every later step still calls signed.
+          # Assert before overwriting: a request that came back unsigned would otherwise
+          # sail on and ship an unsigned installer every later step still calls signed.
           foreach ($f in Get-ChildItem 'signed\*' -Include *.exe, *.dll) {
             $sig = Get-AuthenticodeSignature $f.FullName
             Write-Host "  $($f.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
@@ -447,12 +436,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
           Get-ChildItem "$PWD\installer" | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)" }
 
-      # --- Code signing, 2 of 2: the installer --------------------------------------
-      #
-      # The payload ISCC just packaged is already signed; this signs the wrapper the
-      # user actually downloads and double-clicks, which is the file SmartScreen and
-      # the UAC prompt judge. It lands before the smoke test on purpose: what gets
-      # installed and run below is then the exact file that gets published.
+      # Code signing, 2 of 2: the wrapper the user downloads, which is what SmartScreen
+      # and UAC judge. Before the smoke test, so that what runs below is what ships.
       - name: Upload the unsigned installer
         id: unsigned-installer
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
@@ -486,10 +471,8 @@ jobs:
           Write-Host "  signer:    $($sig.SignerCertificate.Subject)"
           Write-Host "  timestamp: $($sig.TimeStamperCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "the installer is $($sig.Status), not Valid" }
-          # An Authenticode signature outlives its certificate only if it is timestamped,
-          # and SignPath applies the timestamp for us -- which means nothing here proves
-          # it happened. Assert it: a missing countersignature is invisible until the
-          # certificate expires and every installer ever shipped goes bad at once.
+          # SignPath timestamps for us, so nothing here proves it did. A missing counter-
+          # signature stays invisible until the cert expires and every installer goes bad.
           if (-not $sig.TimeStamperCertificate) { throw "the signature carries no RFC 3161 timestamp" }
           Write-Host "::notice::$($setup.Name) is signed by $($sig.SignerCertificate.Subject)"
 
