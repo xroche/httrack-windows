@@ -215,6 +215,12 @@ void LANG_LOAD(char* limit_to) {
     NewLangStr=coucal_new(NewLangStrSz);
     NewLangStrKeys=coucal_new(NewLangStrKeysSz);
     if ((NewLangStr==NULL) || (NewLangStrKeys==NULL)) {
+      /* Last modal on the --selftest path: it would hang a headless run. */
+      if (WhttSelfTest) {
+        fprintf(stderr, "FATAL: cannot allocate the language tables\n");
+        fflush(stderr);
+        ExitProcess(1);
+      }
       AfxMessageBox("Error in lang.h: not enough memory");
     } else {
       coucal_value_is_malloc(NewLangStr,1);
@@ -410,12 +416,14 @@ void LANG_LOAD(char* limit_to) {
         }  // while
         fclose(fp);
       } else {
+        /* This branch is the per-language file, not lang.def: say which one. */
         if (WhttSelfTest) {
-          fprintf(stderr, "FATAL: 'lang.def' not found: the installation is incomplete\n");
+          fprintf(stderr, "FATAL: cannot open %s: the installation is incomplete\n",
+                  (const char*)LPCTSTR(lbasename));
           fflush(stderr);
           ExitProcess(1);
         }
-        AfxMessageBox("FATAL ERROR\r\n'lang.def' file NOT FOUND!\r\nEnsure that the installation was complete!");
+        AfxMessageBox("FATAL ERROR\r\n" + lbasename + " NOT FOUND!\r\nEnsure that the installation was complete!");
         exit(1);
       }
     }

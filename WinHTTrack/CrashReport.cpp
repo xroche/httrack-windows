@@ -45,6 +45,9 @@ Please visit our Website: http://www.httrack.com
 
 #include "htsglobal.h"
 
+/* Defined in WinHTTrack.cpp; set by --selftest. */
+extern int WhttSelfTest;
+
 static BOOL ShowFile(const CHAR *const filename) {
   //Load Shell helper
   const HRESULT hr = CoInitialize(NULL);
@@ -308,6 +311,15 @@ static BOOL PrintStack(char *const print_buffer,
 }
 
 void CrashReportReportEx(const char* msg, const char* file, int line, const char *trace) {
+  /* Under --selftest there is no one to dismiss a system-modal box, and no one to
+     close the report viewer either: a headless run would hang on them instead of
+     failing. Report and die. Exit 2 to distinguish a crash from a plain refusal to
+     start (1). */
+  if (WhttSelfTest) {
+    fprintf(stderr, "FATAL: %s (%s:%d)\n", msg != NULL ? msg : "crash", file, line);
+    fflush(stderr);
+    ExitProcess(2);
+  }
   // Produce audit file
   const size_t filename_max = 32;
   CHAR path[MAX_PATH + 1 + filename_max];
