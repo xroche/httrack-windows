@@ -8,11 +8,15 @@ name: windows-build
 on:
   push:
     branches: [master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+  # SignPath's GitHub app fetches the artifact and the run's metadata from GitHub's
+  # own API rather than trusting the build script, so it has to be able to read them.
+  actions: read
 
 jobs:
   # Cheap guard for the rules .gitattributes cannot enforce on its own.
@@ -333,6 +337,75 @@ jobs:
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
+      # --- Code signing, 1 of 2: the binaries --------------------------------------
+      #
+      # SignPath signs an Inno Setup installer only as an opaque PE: unlike an MSI, it
+      # cannot reach the files packed inside one. So the payload must be signed BEFORE
+      # ISCC packages it, and the installer signed afterwards in a second request.
+      # See SIGNING.md.
+      #
+      # Dormant until SIGNPATH_ORGANIZATION_ID is set as a repository variable, and
+      # then only on a version tag: SignPath's release policy needs a human to approve
+      # every request, so signing each master push would mean approving each one. A
+      # pull request never signs -- a fork PR has no secrets and could not anyway.
+      - name: Collect the binaries to sign
+        id: collect
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          New-Item -ItemType Directory -Force unsigned | Out-Null
+          # Everything we build from source and ship, OpenSSL and zlib included: they
+          # come from vcpkg source builds, not vendor binaries. A package where one DLL
+          # is unsigned is one an allow-by-publisher policy (WDAC, AppLocker DLL rules)
+          # will load halfway and then refuse.
+          Copy-Item "$bin\*.exe", "$bin\*.dll" unsigned
+          foreach ($f in @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')) {
+            if (-not (Test-Path (Join-Path 'unsigned' $f))) { throw "nothing to sign: $f is missing" }
+          }
+          Get-ChildItem unsigned | ForEach-Object { Write-Host "  will sign $($_.Name)" }
+
+      - name: Upload the unsigned binaries
+        id: unsigned-binaries
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-binaries-${{ matrix.platform }}
+          path: unsigned/*
+          if-no-files-found: error
+
+      - name: Sign the binaries
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: winhttrack
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: binaries
+          github-artifact-id: ${{ steps.unsigned-binaries.outputs.artifact-id }}
+          wait-for-completion: true
+          # A release signing request waits on a human clicking approve in SignPath's
+          # web UI. Give that a working morning before the job gives up.
+          wait-for-completion-timeout-in-seconds: 14400
+          output-artifact-directory: signed
+
+      - name: Put the signed binaries back into the package
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          # Assert before overwriting. A signing request that silently returned the
+          # files unsigned would otherwise sail on and ship an unsigned installer that
+          # every later step still calls signed.
+          foreach ($f in Get-ChildItem 'signed\*' -Include *.exe, *.dll) {
+            $sig = Get-AuthenticodeSignature $f.FullName
+            Write-Host "  $($f.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { throw "$($f.Name) came back $($sig.Status), not Valid" }
+          }
+          Copy-Item 'signed\*' $bin -Force
+          Write-Host "::notice::signed $((Get-ChildItem 'signed\*').Count) binaries"
+
       # Build the installer, install it, and run the thing. Until now nothing had
       # ever executed: the manifest bug that stopped the exe from starting got
       # through a fully green build, because a compiler cannot tell you whether
@@ -373,6 +446,52 @@ jobs:
             "httrack-windows\InnoSetup\httrack.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
           Get-ChildItem "$PWD\installer" | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)" }
+
+      # --- Code signing, 2 of 2: the installer --------------------------------------
+      #
+      # The payload ISCC just packaged is already signed; this signs the wrapper the
+      # user actually downloads and double-clicks, which is the file SmartScreen and
+      # the UAC prompt judge. It lands before the smoke test on purpose: what gets
+      # installed and run below is then the exact file that gets published.
+      - name: Upload the unsigned installer
+        id: unsigned-installer
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer-${{ matrix.platform }}
+          path: installer/*.exe
+          if-no-files-found: error
+
+      - name: Sign the installer
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: winhttrack
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 14400
+          output-artifact-directory: installer
+
+      - name: Check the installer really is signed
+        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
+          $sig = Get-AuthenticodeSignature $setup.FullName
+          Write-Host "$($setup.Name): $($sig.Status)"
+          Write-Host "  signer:    $($sig.SignerCertificate.Subject)"
+          Write-Host "  timestamp: $($sig.TimeStamperCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "the installer is $($sig.Status), not Valid" }
+          # An Authenticode signature outlives its certificate only if it is timestamped,
+          # and SignPath applies the timestamp for us -- which means nothing here proves
+          # it happened. Assert it: a missing countersignature is invisible until the
+          # certificate expires and every installer ever shipped goes bad at once.
+          if (-not $sig.TimeStamperCertificate) { throw "the signature carries no RFC 3161 timestamp" }
+          Write-Host "::notice::$($setup.Name) is signed by $($sig.SignerCertificate.Subject)"
 
       - name: Install it, run it, uninstall it
         shell: pwsh
