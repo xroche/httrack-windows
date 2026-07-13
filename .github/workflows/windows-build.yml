@@ -357,9 +357,12 @@ jobs:
           $bad = @()
           foreach ($f in @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')) {
             $v = (Get-Item (Join-Path $bin $f)).VersionInfo
-            Write-Host "  $f : ProductName='$($v.ProductName)' ProductVersion='$($v.ProductVersion)'"
-            if ($v.ProductName -ne $name) { $bad += "$f names the product '$($v.ProductName)', not '$name'" }
-            if ($v.ProductVersion -ne $want) { $bad += "$f is version '$($v.ProductVersion)', not '$want'" }
+            # Trim: resource compilers pad these fields, and Inno certainly does.
+            $pn = "$($v.ProductName)".Trim()
+            $pv = "$($v.ProductVersion)".Trim()
+            Write-Host "  $f : ProductName='$pn' ProductVersion='$pv'"
+            if ($pn -ne $name) { $bad += "$f names the product '$pn', not '$name'" }
+            if ($pv -ne $want) { $bad += "$f is version '$pv', not '$want'" }
           }
           if ($bad) { throw ($bad -join "`n") }
           Write-Host "::notice::all three binaries report $name $want"
@@ -474,9 +477,12 @@ jobs:
           # gets signed too. Inno stamps 0.0.0.0 rather than failing, so assert what it wrote.
           $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
           $v = (Get-Item $setup.FullName).VersionInfo
-          Write-Host "  $($setup.Name) : ProductName='$($v.ProductName)' ProductVersion='$($v.ProductVersion)'"
-          if ($v.ProductName -ne 'HTTrack Website Copier') { throw "the installer names the product '$($v.ProductName)'" }
-          if ($v.ProductVersion -ne $ver) { throw "the installer is version '$($v.ProductVersion)', not '$ver'" }
+          # Inno pads these fields with trailing spaces, so trim before comparing.
+          $pn = "$($v.ProductName)".Trim()
+          $pv = "$($v.ProductVersion)".Trim()
+          Write-Host "  $($setup.Name) : ProductName='$pn' ProductVersion='$pv'"
+          if ($pn -ne 'HTTrack Website Copier') { throw "the installer names the product '$pn'" }
+          if ($pv -ne $ver) { throw "the installer is version '$pv', not '$ver'" }
 
       # Code signing, 2 of 2: the wrapper the user downloads, which is what SmartScreen
       # and UAC judge. Before the smoke test, so that what runs below is what ships.
