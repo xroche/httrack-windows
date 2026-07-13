@@ -97,7 +97,9 @@ jobs:
           if (-not $vs) { throw 'no Visual Studio with MSBuild found' }
           $dir = Join-Path $vs 'MSBuild\Current\Bin'
           if (-not (Test-Path (Join-Path $dir 'MSBuild.exe'))) { throw "MSBuild.exe is not in $dir" }
-          $dir | Out-File -Append $env:GITHUB_PATH
+          # Add-Content, not Out-File: the latter writes UTF-16LE under Windows
+          # PowerShell and would corrupt GITHUB_PATH if this step's shell ever changed.
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
           Write-Host "MSBuild: $dir"
 
       - name: Enable vcpkg MSBuild integration
@@ -133,7 +135,7 @@ jobs:
       - name: Check the exe and libhttrack.dll agree on the CRT
         shell: pwsh
         run: |
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
           $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
           $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
 
@@ -182,14 +184,27 @@ jobs:
 
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
 
-          # A check nobody has watched fail is not a check. cmd.exe links the old
-          # msvcrt, not vcruntime140, so the very same test must reject it. If this
-          # ever passes, the check has stopped discriminating and the green above
-          # means nothing.
-          if (BaseCrt (Deps "$env:SystemRoot\System32\cmd.exe")) {
-            throw 'negative control failed: cmd.exe looks like it imports vcruntime, so this check no longer proves anything'
+          # A check nobody has watched fail is not a check. Two controls, because the
+          # step makes two distinct claims.
+          #
+          # The filter: cmd.exe links the old msvcrt, not vcruntime140, so the same
+          # test must reject it. Assert the parse produced SOMETHING first -- an empty
+          # dependency list is falsy, and would otherwise sail through as "rejected",
+          # which is the control passing for the wrong reason.
+          $ctl = Deps "$env:SystemRoot\System32\cmd.exe"
+          if (-not $ctl) { throw 'negative control is vacuous: dumpbin returned no dependents at all for cmd.exe' }
+          if (BaseCrt $ctl) { throw 'negative control failed: cmd.exe appears to import vcruntime, so the filter no longer discriminates' }
+
+          # The comparison: the half that actually guards against the cross-heap crash,
+          # and the half cmd.exe never exercises. Two different runtimes must compare
+          # unequal, and vcruntime140_1 must not be mistaken for a different runtime.
+          if ("$(BaseCrt @('vcruntime140.dll'))" -eq "$(BaseCrt @('vcruntime150.dll'))") {
+            throw 'the CRT comparison no longer distinguishes two different runtimes'
           }
-          Write-Host "CRT check passed: both share [$exeRt]. (negative control: cmd.exe correctly rejected)"
+          if ("$(BaseCrt @('vcruntime140.dll','vcruntime140_1.dll'))" -ne "$(BaseCrt @('vcruntime140.dll'))") {
+            throw 'vcruntime140_1 is being counted as a separate runtime again: a correct x64 build would read as a mismatch'
+          }
+          Write-Host "CRT check passed: both share [$exeRt]. (controls: filter rejects cmd.exe; comparison discriminates)"
 
       # An invalid embedded manifest does not fail the build: Windows refuses to
       # start the exe with "side-by-side configuration is incorrect", which only
@@ -240,7 +255,7 @@ jobs:
           # Ask the binaries what they need rather than hardcoding a list. OpenSSL
           # is libssl-3.dll on x86 but libssl-3-x64.dll on x64, so a fixed list is
           # wrong on one leg and rots on both.
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
           $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
           $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
           function Deps($path) {
