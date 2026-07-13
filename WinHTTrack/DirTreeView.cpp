@@ -307,12 +307,21 @@ CString CDirTreeView::GetItemPath(HTREEITEM position) {
     return "";
 }
 
+HTREEITEM CDirTreeView::FindSibling(HTREEITEM first,const CString& lname) {
+  CTreeCtrl& tree=GetTreeCtrl();
+  for(HTREEITEM it=first ; it!=NULL ; it=tree.GetNextSiblingItem(it)) {
+    CString name=GetItemName(it);
+    name.MakeLower();
+    if (name==lname)
+      return it;
+  }
+  return NULL;
+}
+
 HTREEITEM CDirTreeView::GetPathItem(CString path,BOOL open,BOOL nofail,BOOL nohide,HTREEITEM rootposition) {
   CTreeCtrl& tree=GetTreeCtrl();
   if (!tree) return NULL;   /* error */
-  //
-  HTREEITEM return_value=NULL;
-  //
+
   CString left="",right="";
   int pos=path.Find('\\');
   if (pos<0)
@@ -324,50 +333,45 @@ HTREEITEM CDirTreeView::GetPathItem(CString path,BOOL open,BOOL nofail,BOOL nohi
 
   if (!nohide)
     tree.ModifyStyle(WS_VISIBLE,0);
-  
-  HTREEITEM position;
-  if (!rootposition) {
-    rootposition=tree.GetRootItem();
-    /* position initiale */
-    position=rootposition;
-  } else {
-    // Ouvrir?
-    if (open) {
-      if (tree.ItemHasChildren(rootposition)) {        /* si enfants */
-        if (!(tree.GetItemState(rootposition,TVIF_STATE) & TVIS_EXPANDED)) {    /* si non ouvert */
-          /*tree.SetItemState(rootposition,TVIF_STATE,
-            tree.GetItemState(rootposition,TVIF_STATE) | TVIS_EXPANDED);
-            */
-          tree.Expand(rootposition,TVE_EXPAND);
-          RefreshDir(rootposition,TRUE);
-        }
-      }
-      
-    }
 
-    /* position initiale */
-    position=tree.GetChildItem(rootposition);
+  const BOOL at_root=(rootposition==NULL);
+  HTREEITEM first;
+  if (at_root) {
+    rootposition=tree.GetRootItem();
+    first=rootposition;
+  } else {
+    // The mask has to be a TVIS_* bit: with TVIF_STATE this test was always true, so every
+    // lookup re-expanded and re-read the whole directory -- the FIXME in NewProj. No
+    // ItemHasChildren guard: a directory left empty has no children and no expanded state,
+    // and is precisely the one that must still be read.
+    if (open && !(tree.GetItemState(rootposition,TVIS_EXPANDED) & TVIS_EXPANDED)) {
+      tree.Expand(rootposition,TVE_EXPAND);
+      // Expanding a hidden tree raises no TVN_ITEMEXPANDING, so read the directory here.
+      RefreshDir(rootposition,TRUE);
+    }
+    first=tree.GetChildItem(rootposition);
   }
 
   left.MakeLower();
-  while(position) {
-    CString st=GetItemName(position);
-    st.MakeLower();
-    if (st==left) {
-      if (right.GetLength())
-        position=GetPathItem(right,open,nofail,TRUE,position);
-      else
-        return_value=position;      // trouvé
-      position=NULL;
-    }
-    if (position)
-      position=tree.GetNextSiblingItem(position);
+  HTREEITEM found=FindSibling(first,left);
+  if (found==NULL && open && !at_root) {
+    // Created since we last read this directory -- a project folder we just made, say.
+    // Re-read it once before reporting the path missing.
+    RefreshDir(rootposition,TRUE);
+    found=FindSibling(tree.GetChildItem(rootposition),left);
   }
 
-  // liste visible
+  HTREEITEM return_value=NULL;
+  if (found!=NULL) {
+    // Keep what the recursion found: assigning it and dropping it left every nested lookup
+    // returning the top-level ancestor, so nothing ever scrolled to the item asked for.
+    return_value = right.GetLength()
+      ? GetPathItem(right,open,nofail,TRUE,found)
+      : found;
+  }
+
   if (!nohide) {
     tree.ModifyStyle(0,WS_VISIBLE);
-    //RedrawWindow();
     tree.GetParent()->RedrawWindow();
   }
   if (return_value)
@@ -421,6 +425,10 @@ BOOL CDirTreeView::RefreshDir(HTREEITEM position,BOOL nohide) {
 
   CWaitCursor wait;
   CString path=GetItemPath(position);
+  // GetItemPath only appends the separator when the item has children, and an emptied
+  // directory has none -- without this the glob below would enumerate the PARENT.
+  if (path.GetLength() && path.Right(1)!="\\")
+    path+="\\";
   CString backup_visibles="\n";
 
   // Pour FindFirstFile/FindNextFile

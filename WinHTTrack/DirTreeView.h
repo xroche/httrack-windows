@@ -49,6 +49,9 @@ public:
 
 protected:
   BOOL RefreshDir(HTREEITEM position,BOOL nohide=FALSE);
+  // First item in the sibling chain from first whose name is lname (must be lowercase);
+  // NULL if none matches.
+  HTREEITEM FindSibling(HTREEITEM first,const CString& lname);
   void RestoreVisibles(HTREEITEM position,CString& backup_visibles);
   void RefreshPos(HTREEITEM position);
   CString GetItemPath(HTREEITEM position);
