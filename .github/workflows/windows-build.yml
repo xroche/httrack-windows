@@ -75,6 +75,13 @@ jobs:
         platform: [x64, Win32]
         configuration: [Release]
     steps:
+      # The engine's test scripts are #!/bin/bash and the engine has no .gitattributes,
+      # so an autocrlf checkout would rewrite them and bash would die on $'\r'. Files
+      # land exactly as stored either way, which is what the Windows tooling wants too.
+      - name: Check out with the line endings the repos actually store
+        shell: pwsh
+        run: git config --global core.autocrlf false
+
       - name: Checkout httrack-windows
         uses: actions/checkout@v4
         with:
@@ -336,6 +343,43 @@ jobs:
           '@
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      # The engine ships ~90 tests and not one of them has ever run on Windows -- they
+      # only run under `make check` on Linux/macOS. These are the offline ones: no
+      # network, no server, just httrack.exe driven from PATH. They are the engine's
+      # tests, but ours is the binary that ships, and this code has never been executed
+      # on this platform.
+      - name: Run the engine test suite (offline tests)
+        shell: bash
+        working-directory: httrack/tests
+        run: |
+          set -u
+          bin="$(cygpath -u "$GITHUB_WORKSPACE")/httrack-windows/WinHTTrack/bin/${{ matrix.platform }}/${{ matrix.configuration }}"
+          export PATH="$bin:$PATH"
+          command -v httrack >/dev/null || { echo "::error::httrack.exe is not on PATH ($bin)"; exit 1; }
+          echo "httrack: $(command -v httrack)"
+
+          pass=0; fail=0; skip=0; failed=""
+          for t in 00_runnable.test 01_engine-*.test 01_zlib-*.test; do
+            rc=0
+            bash "$t" >"$t.log" 2>&1 || rc=$?
+            case "$rc" in
+              0)  pass=$((pass+1)); echo "PASS $t" ;;
+              77) skip=$((skip+1)); echo "SKIP $t -- $(tail -n 1 "$t.log")" ;;
+              *)  fail=$((fail+1)); failed="$failed $t"
+                  echo "FAIL $t (exit $rc)"
+                  sed 's/^/      /' "$t.log" | tail -n 25 ;;
+            esac
+          done
+          total=$((pass + fail + skip))
+          echo "--- ran=$total pass=$pass fail=$fail skip=$skip ---"
+
+          # A skipped test is not a passing test. Every gate in these scripts exits 77 --
+          # no python3, no HTTPS, no codec -- so a suite that quietly degrades to
+          # "everything skipped" would otherwise report success having tested nothing.
+          [ "$total" -ge 45 ] || { echo "::error::only $total tests were discovered: the glob found nothing"; exit 1; }
+          [ "$pass" -ge 40 ] || { echo "::error::only $pass tests actually ran and passed ($skip skipped)"; exit 1; }
+          [ "$fail" -eq 0 ]  || { echo "::error::failing tests:$failed"; exit 1; }
 
       # Code signing, 1 of 2: the payload. SignPath signs an Inno installer as an opaque
       # PE and cannot reach the files inside it, so sign these BEFORE ISCC packages them.
