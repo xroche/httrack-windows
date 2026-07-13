@@ -310,11 +310,7 @@ static BOOL PrintStack(char *const print_buffer,
   return ret;
 }
 
-/* An exception MFC caught and handled -- the program lives, so no crash dialog and no
-   viewer. This exists to locate "Encountered an improper argument.": modern MFC's ENSURE
-   macros throw a CInvalidArgException in release builds where the old MFC only ASSERTed
-   in debug, so a bad argument this code has always passed now surfaces, and the box it
-   raises says nothing about where it came from. The stack trace does. */
+// An exception MFC caught and handled: log where it came from, no dialog, keep running.
 void CrashReportLogException(const char* msg) {
   static char buffer[8192];
   const size_t filename_max = 32;

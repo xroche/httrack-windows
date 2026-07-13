@@ -58,8 +58,7 @@ private:
 	public:
 	virtual BOOL InitInstance();
 	virtual int ExitInstance();
-	// MFC catches exceptions thrown inside a window procedure and shows a box that
-	// says nothing about where they came from. Log a stack trace before it does.
+	// Log a stack trace for exceptions MFC catches in a window procedure.
 	virtual LRESULT ProcessWndProcException(CException* e, const MSG* pMsg);
 	//}}AFX_VIRTUAL
 

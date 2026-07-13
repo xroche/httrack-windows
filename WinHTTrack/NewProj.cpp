@@ -141,20 +141,12 @@ LRESULT CNewProj::OnWizardNext() {
   char tempo[8192];
 
   GetDlgItemText(IDC_projpath,stp);
-  /* stp, not st: st is still empty here, so this guard never fired. */
+  // stp, not st: st is still empty here, so this guard never fired
   if (stp.GetLength() > MAX_PATH) {
     return -1;
   }
   strcpybuff(tempo,stp);
-  /* An empty base path -- a new project on a fresh install, before DefaultValues\BasePath
-     exists -- made strlen() zero and indexed tempo[-1], reading and then writing one byte
-     off the front of the buffer. */
-  {
-    const size_t len = strlen(tempo);
-    if (len > 0 && (tempo[len-1]=='/' || tempo[len-1]=='\\')) {
-      tempo[len-1]='\0';
-    }
-  }
+  StripTrailingSlash(tempo);   // an empty base path made this index tempo[-1]
   stp=tempo;
 
   // ecrire
@@ -283,14 +275,7 @@ void CNewProj::OnChangeprojpath()
 
   tempo[0] = '\0';
   strcatbuff(tempo, st);
-  /* Empty field: strlen() is 0 and this indexed tempo[-1]. */
-  {
-    const size_t len = strlen(tempo);
-    if (len > 0 && (tempo[len-1]=='/' || tempo[len-1]=='\\')) {
-      tempo[len-1]='\0';
-      //SetDlgItemTextCP(this, IDC_projpath,tempo);
-    }
-  }
+  StripTrailingSlash(tempo);
   strcatbuff(tempo,"\\");
 
   TStamp t_start = mtime_local();
@@ -598,13 +583,8 @@ BOOL CNewProj::OnKillActive( ) {
     return FALSE;
   }
   strcpybuff(tempo,st);
-  /* Empty field: strlen() is 0 and this indexed tempo[-1]. */
-  {
-    const size_t len = strlen(tempo);
-    if (len > 0 && (tempo[len-1]=='/' || tempo[len-1]=='\\')) {
-      tempo[len-1]='\0';
-      SetDlgItemTextCP(this, IDC_projpath,tempo);
-    }
+  if (StripTrailingSlash(tempo)) {
+    SetDlgItemTextCP(this, IDC_projpath,tempo);
   }
 
   UpdateData(TRUE);         // DoDataExchange
