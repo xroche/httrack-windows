@@ -1,9 +1,10 @@
 # Security Policy
 
 This repository holds the Windows GUI (WinHTTrack). The crawler engine lives in
-[xroche/httrack](https://github.com/xroche/httrack) and has its own
-[security policy](https://github.com/xroche/httrack/blob/master/SECURITY.md); a bug in
-the engine is best reported there. When in doubt, report here and we will route it.
+[xroche/httrack](https://github.com/xroche/httrack), which keeps its own
+[security policy](https://github.com/xroche/httrack/blob/master/SECURITY.md), so report a
+bug in the engine there. If you cannot tell which one you are looking at, report it here
+and we will route it.
 
 ## Reporting
 
@@ -16,10 +17,10 @@ steps or project settings, a sample page or server response, or a small proof of
 concept), and what an attacker gains. We'll acknowledge it and keep you posted. Please
 allow time for a release before disclosing publicly.
 
-Distribution problems count: a WinHTTrack installer that is signed but should not have
-been, a signed binary that does not match the source it claims to be built from, or a
-download that does not match what CI produced. See [SIGNING.md](SIGNING.md) for how
-releases are signed and how to verify one.
+How we ship the software counts too. Tell us about an installer that carries a signature
+it should never have been given, or a binary whose contents do not match the source it
+claims to come from. [SIGNING.md](SIGNING.md) explains how we sign a release and how you
+can check one yourself.
 
 ## Supported versions
 
