@@ -242,7 +242,11 @@ static BOOL PrintStack_(char *const print_buffer,
     const char *module = "";
     int line = 0;
 
-    const DWORD64 dwAddr = Stack[i];
+    /* A return address points just PAST the call, which is often the next source line --
+       that is how SetPathName got reported as the line below it. Step back into the call.
+       Only a walked frame 0 is a live PC; a captured stack is return addresses throughout. */
+    const DWORD64 dwAddr =
+      (frames == NULL && i == 0) ? Stack[i] : Stack[i] - 1;
 
     if (sym.fun.SymGetModuleInfo64 != NULL
       && sym.fun.SymGetModuleInfo64(hProcess, dwAddr, &pIHModule)) {

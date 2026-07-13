@@ -319,7 +319,9 @@ __declspec(noinline) BOOL CSplitterFrame::SetNewName(CString name) {
   if (doc == NULL) {
     return 0;
   }
-  doc->SetPathName(name);
+  // bAddToMRU=FALSE: MFC's recent-file list throws on this not-yet-created path, and
+  // nothing reads it back -- ID_FILE_MRU_FILE1 is greyed and its handler is empty.
+  doc->SetPathName(name, FALSE);
   const int pos = max(name.ReverseFind('\\'), name.ReverseFind('/')) + 1;
   doc->SetTitle(name.Mid(pos));
   doc->SetModifiedFlag();
