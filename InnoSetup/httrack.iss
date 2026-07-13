@@ -19,6 +19,9 @@
 #ifndef Arch
   #error Arch must be set (x64 or x86)
 #endif
+#ifndef AppVersionNumeric
+  #error AppVersionNumeric must be set (dotted, e.g. 3.49.12)
+#endif
 #ifndef AppVersion
   #error AppVersion must be set
 #endif
@@ -27,7 +30,9 @@
 AppName=WinHTTrack Website Copier
 AppVersion={#AppVersion}
 AppVerName=WinHTTrack Website Copier {#AppVersion}
-VersionInfoProductName=WinHTTrack Website Copier
+VersionInfoProductName=HTTrack Website Copier
+VersionInfoVersion={#AppVersionNumeric}
+VersionInfoProductVersion={#AppVersion}
 AppPublisher=HTTrack
 AppPublisherURL=https://www.httrack.com
 AppSupportURL=https://forum.httrack.com

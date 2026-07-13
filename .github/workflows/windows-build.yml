@@ -339,6 +339,30 @@ jobs:
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
+      # Code signing enforces file metadata: every binary in a release must name the same
+      # product and the same product version. A mismatch fails the signing request, on
+      # release day, long after the build went green. Assert it here instead, where the
+      # only cost is a red build. httrack.exe and libhttrack.dll had no version resource
+      # at all until the engine grew one, which is exactly the case this would have missed.
+      - name: Check the binaries agree on product name and version
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          $hg = Get-Content 'httrack\src\htsglobal.h' -Raw
+          if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
+          $want = $Matches[1]
+          $name = 'HTTrack Website Copier'
+
+          $bad = @()
+          foreach ($f in @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')) {
+            $v = (Get-Item (Join-Path $bin $f)).VersionInfo
+            Write-Host "  $f : ProductName='$($v.ProductName)' ProductVersion='$($v.ProductVersion)'"
+            if ($v.ProductName -ne $name) { $bad += "$f names the product '$($v.ProductName)', not '$name'" }
+            if ($v.ProductVersion -ne $want) { $bad += "$f is version '$($v.ProductVersion)', not '$want'" }
+          }
+          if ($bad) { throw ($bad -join "`n") }
+          Write-Host "::notice::all three binaries report $name $want"
+
       # Code signing, 1 of 2: the payload. SignPath signs an Inno installer as an opaque
       # PE and cannot reach the files inside it, so sign these BEFORE ISCC packages them.
       # Dormant until SIGNPATH_ORGANIZATION_ID exists, then tags only: releases need a
@@ -414,7 +438,12 @@ jobs:
           $hg = Get-Content 'httrack\src\htsglobal.h' -Raw
           if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
           $ver = $Matches[1]
-          Write-Host "version = $ver, arch = $arch"
+          # Inno stamps 0.0.0.0 into the installer's own version resource when AppVersion
+          # is not a valid version number, and "3.49-12" is not one. It needs the dotted
+          # form too. Code signing enforces that attribute, so 0.0.0.0 fails the release.
+          if ($hg -notmatch '#define\s+HTTRACK_VERSIONID\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSIONID' }
+          $verid = $Matches[1]
+          Write-Host "version = $ver ($verid), arch = $arch"
           "APPVER=$ver" | Out-File -Append $env:GITHUB_ENV
           "SETUPARCH=$arch" | Out-File -Append $env:GITHUB_ENV
 
@@ -432,7 +461,7 @@ jobs:
           # ISCC fails if any Source: is missing, so a clean compile also proves the
           # redistributable really is in the package.
           & $iscc /Q `
-            "/DArch=$arch" "/DAppVersion=$ver" `
+            "/DArch=$arch" "/DAppVersion=$ver" "/DAppVersionNumeric=$verid" `
             "/DPayloadDir=$PWD\httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}" `
             "/DEngineDir=$PWD\httrack" `
             "/DGuiDir=$PWD\httrack-windows" `
