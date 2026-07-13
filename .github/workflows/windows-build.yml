@@ -36,7 +36,7 @@ jobs:
           LF_ONLY = tracked('*.cpp', '*.h')
           CRLF_ONLY = tracked('*.rc', '*.rc2', '*.def', '*.idl', '*.rgs', '*.sln',
                               '*.vcproj', '*.vcxproj', '*.props', '*.manifest',
-                              '*.dsp', '*.dsw')
+                              '*.dsp', '*.dsw', '*.iss')
           bad = []
 
           # A UTF-8-assuming editor rewrites the Latin-1 bytes to U+FFFD and
@@ -252,6 +252,87 @@ jobs:
           '@
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      # Build the installer, install it, and run the thing. Until now nothing had
+      # ever executed: the manifest bug that stopped the exe from starting got
+      # through a fully green build, because a compiler cannot tell you whether
+      # Windows will load the binary. --version answers that in one exit code.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $arch = if ('${{ matrix.platform }}' -eq 'x64') { 'x64' } else { 'x86' }
+
+          # Single source of truth for the version: the engine's own header.
+          $hg = Get-Content 'httrack\src\htsglobal.h' -Raw
+          if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
+          $ver = $Matches[1]
+          Write-Host "version = $ver, arch = $arch"
+          "APPVER=$ver" | Out-File -Append $env:GITHUB_ENV
+          "SETUPARCH=$arch" | Out-File -Append $env:GITHUB_ENV
+
+          # The VC++ runtime, bundled so a clean machine can actually start the app.
+          # vs/17 is the VS2022 line (14.4x). NOT vs/18: the 14.5x redistributable
+          # refuses to install on Windows 7, which is still our floor.
+          $redist = "$PWD\vc_redist.$arch.exe"
+          Invoke-WebRequest "https://aka.ms/vs/17/release/vc_redist.$arch.exe" -OutFile $redist
+          if ((Get-Item $redist).Length -lt 1MB) { throw 'vc_redist download looks wrong' }
+
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          if (-not (Test-Path $iscc)) { throw 'Inno Setup is not available' }
+
+          # ISCC fails if any Source: is missing, so a clean compile also proves the
+          # redistributable really is in the package.
+          & $iscc /Q `
+            "/DArch=$arch" "/DAppVersion=$ver" `
+            "/DPayloadDir=$PWD\httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}" `
+            "/DEngineDir=$PWD\httrack" `
+            "/DGuiDir=$PWD\httrack-windows" `
+            "/DRedistFile=$redist" `
+            "/DOutDir=$PWD\installer" `
+            "httrack-windows\InnoSetup\httrack.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+          Get-ChildItem "$PWD\installer" | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)" }
+
+      - name: Install it, run it, uninstall it
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
+          $dir = 'C:\WinHTTrackTest'
+
+          $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+            '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\install.log"
+          if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
+
+          $exe = "$dir\WinHTTrack.exe"
+          if (-not (Test-Path $exe)) { throw "installer did not place WinHTTrack.exe" }
+
+          # THE test. A non-zero exit here means the binary does not start: a bad
+          # manifest, a DLL that will not resolve, a broken install. All of which
+          # a green compile happily allows.
+          $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru `
+                 -RedirectStandardOutput "$PWD\version.txt"
+          $out = (Get-Content "$PWD\version.txt" -Raw).Trim()
+          Write-Host "WinHTTrack.exe --version -> exit=$($p.ExitCode), output='$out'"
+          if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --version exited $($p.ExitCode): it does not start" }
+          # Without this, an empty APPVER would make [regex]::Escape('') = '' and
+          # `-notmatch ''` false: the version assertion would quietly stop asserting.
+          if ([string]::IsNullOrWhiteSpace($env:APPVER)) { throw 'APPVER is unset: the version check would be vacuous' }
+          if ($out -notmatch [regex]::Escape($env:APPVER)) { throw "expected version $env:APPVER, got '$out'" }
+          Write-Host "::notice::WinHTTrack $env:APPVER installs and runs."
+
+          $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
+          $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
+          if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
+          Start-Sleep -Seconds 3
+          if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: httrack-setup-${{ matrix.platform }}
+          path: installer/*.exe
+          if-no-files-found: error
 
       - name: Upload the runnable build
         uses: actions/upload-artifact@v4
