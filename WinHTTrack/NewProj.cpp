@@ -141,12 +141,12 @@ LRESULT CNewProj::OnWizardNext() {
   char tempo[8192];
 
   GetDlgItemText(IDC_projpath,stp);
-  if (st.GetLength() > MAX_PATH) {
+  // stp, not st: st is still empty here, so this guard never fired
+  if (stp.GetLength() > MAX_PATH) {
     return -1;
   }
   strcpybuff(tempo,stp);
-  if ((tempo[strlen(tempo)-1]=='/') || (tempo[strlen(tempo)-1]=='\\'))
-    tempo[strlen(tempo)-1]='\0';
+  StripTrailingSlash(tempo);   // an empty base path made this index tempo[-1]
   stp=tempo;
 
   // ecrire
@@ -275,10 +275,7 @@ void CNewProj::OnChangeprojpath()
 
   tempo[0] = '\0';
   strcatbuff(tempo, st);
-  if ((tempo[strlen(tempo)-1]=='/') || (tempo[strlen(tempo)-1]=='\\')) {
-    tempo[strlen(tempo)-1]='\0';
-    //SetDlgItemTextCP(this, IDC_projpath,tempo);
-  }
+  StripTrailingSlash(tempo);
   strcatbuff(tempo,"\\");
 
   TStamp t_start = mtime_local();
@@ -586,8 +583,7 @@ BOOL CNewProj::OnKillActive( ) {
     return FALSE;
   }
   strcpybuff(tempo,st);
-  if ((tempo[strlen(tempo)-1]=='/') || (tempo[strlen(tempo)-1]=='\\')) {
-    tempo[strlen(tempo)-1]='\0';
+  if (StripTrailingSlash(tempo)) {
     SetDlgItemTextCP(this, IDC_projpath,tempo);
   }
 

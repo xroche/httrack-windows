@@ -58,6 +58,8 @@ private:
 	public:
 	virtual BOOL InitInstance();
 	virtual int ExitInstance();
+	// Log a stack trace for exceptions MFC catches in a window procedure.
+	virtual LRESULT ProcessWndProcException(CException* e, const MSG* pMsg);
 	//}}AFX_VIRTUAL
 
 // Implementation

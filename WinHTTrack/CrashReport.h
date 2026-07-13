@@ -41,3 +41,6 @@ void CrashReportReport(const char* msg, const char* file, int line);
 // Report a crash, with msg as additional message, and file:line information
 // also include an optional trace, or no trace if trace is NULL
 void CrashReportReportEx(const char* msg, const char* file, int line, const char *trace);
+
+// Append a caught, non-fatal exception and a stack trace to %TEMP%\WinHTTrack-exception.txt.
+void CrashReportLogException(const char* msg);

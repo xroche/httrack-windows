@@ -966,6 +966,21 @@ void CWinHTTrackApp::DeleteTabs() {
   m_tabend=NULL;
 }
 
+// MFC's box for a thrown exception names neither the call nor the argument; a trace does.
+LRESULT CWinHTTrackApp::ProcessWndProcException(CException* e, const MSG* pMsg) {
+  TCHAR reason[512];
+  CString what;
+
+  if (e == NULL || !e->GetErrorMessage(reason, _countof(reason))) {
+    _tcscpy_s(reason, _countof(reason), _T("(no description)"));
+  }
+  what.Format("%s [window message 0x%04x]", reason,
+              pMsg != NULL ? (unsigned) pMsg->message : 0u);
+  CrashReportLogException((LPCTSTR) what);
+
+  return CWinApp::ProcessWndProcException(e, pMsg);
+}
+
 int CWinHTTrackApp::ExitInstance() 
 {
   LANG_DELETE();

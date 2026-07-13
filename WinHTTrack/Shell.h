@@ -99,6 +99,16 @@ extern HANDLE WhttMutex;
 extern const char* WhttLocation;
 #define WHTT_LOCATION(a) WhttLocation=(a)
 
+// Drop a trailing '/' or '\\', reporting whether there was one. Empty-string safe.
+inline bool StripTrailingSlash(char* s) {
+  const size_t len = (s != NULL) ? strlen(s) : 0;
+  if (len > 0 && (s[len-1] == '/' || s[len-1] == '\\')) {
+    s[len-1] = '\0';
+    return true;
+  }
+  return false;
+}
+
 #ifndef HTS_DEF_FWSTRUCT_lien_back
 #define HTS_DEF_FWSTRUCT_lien_back
 typedef struct lien_back lien_back;
