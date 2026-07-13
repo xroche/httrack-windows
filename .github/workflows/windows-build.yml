@@ -348,11 +348,15 @@ jobs:
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
           New-Item -ItemType Directory -Force unsigned | Out-Null
-          # OpenSSL and zlib included: vcpkg builds them from source, and an allow-by-
-          # publisher policy (WDAC, AppLocker) loads a half-signed package then refuses.
-          Copy-Item "$bin\*.exe", "$bin\*.dll" unsigned
-          foreach ($f in @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')) {
-            if (-not (Test-Path (Join-Path 'unsigned' $f))) { throw "nothing to sign: $f is missing" }
+          # Ours only. SignPath's code of conduct: "upstream OSS projects' binaries must
+          # not be signed using your subscription, but may be included in signed packages".
+          # So OpenSSL and zlib ship unsigned inside the signed installer, even though we
+          # do build them from source -- the rule is about who maintains the sources.
+          $ours = @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')
+          foreach ($f in $ours) {
+            $p = Join-Path $bin $f
+            if (-not (Test-Path $p)) { throw "nothing to sign: $f is missing" }
+            Copy-Item $p unsigned
           }
           Get-ChildItem unsigned | ForEach-Object { Write-Host "  will sign $($_.Name)" }
 
