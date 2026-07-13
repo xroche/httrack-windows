@@ -92,8 +92,10 @@ static BOOL ShowFile(const CHAR *const filename) {
   return SUCCEEDED(success);
 }
 
-static BOOL PrintStack_(char *const print_buffer, 
-                        const size_t print_buffer_size) {
+static BOOL PrintStack_(char *const print_buffer,
+                        const size_t print_buffer_size,
+                        const DWORD64 *const frames,
+                        const SIZE_T frame_count) {
   HMODULE kernel32 = LoadLibraryA("Kernel32");
   if (kernel32 == NULL)
     return FALSE;
@@ -185,29 +187,37 @@ static BOOL PrintStack_(char *const print_buffer,
   //
   // Dbghelp is is singlethreaded, so acquire a lock.
   //
-  // Note that the code assumes that 
-  // SymInitialize( GetCurrentProcess(), NULL, TRUE ) has 
+  // Note that the code assumes that
+  // SymInitialize( GetCurrentProcess(), NULL, TRUE ) has
   // already been called.
   //
-  while(StackCount < sizeof(Stack) / sizeof(Stack[0])
-    && sym.fun.StackWalk64 != NULL
-    && sym.fun.StackWalk64(MachineType,
-                           GetCurrentProcess(),
-                           GetCurrentThread(),
-                           &StackFrame,
-                           MachineType == IMAGE_FILE_MACHINE_I386 
-                           ? NULL
-                           : &Context,
-                           NULL,
-                           sym.fun.SymFunctionTableAccess64,
-                           sym.fun.SymGetModuleBase64,
-                           NULL)
-    && StackFrame.AddrPC.Offset != 0
-    && StackFrame.AddrReturn.Offset != 0
-    && StackFrame.AddrPC.Offset != StackFrame.AddrReturn.Offset
-    )
-  {
-    Stack[StackCount++] = StackFrame.AddrPC.Offset;
+  if (frames != NULL) {
+    // Frames captured elsewhere (the throw site): the live stack is not the interesting one.
+    StackCount = frame_count < sizeof(Stack) / sizeof(Stack[0])
+      ? frame_count
+      : sizeof(Stack) / sizeof(Stack[0]);
+    memcpy(Stack, frames, StackCount * sizeof(Stack[0]));
+  } else {
+    while(StackCount < sizeof(Stack) / sizeof(Stack[0])
+      && sym.fun.StackWalk64 != NULL
+      && sym.fun.StackWalk64(MachineType,
+                             GetCurrentProcess(),
+                             GetCurrentThread(),
+                             &StackFrame,
+                             MachineType == IMAGE_FILE_MACHINE_I386
+                             ? NULL
+                             : &Context,
+                             NULL,
+                             sym.fun.SymFunctionTableAccess64,
+                             sym.fun.SymGetModuleBase64,
+                             NULL)
+      && StackFrame.AddrPC.Offset != 0
+      && StackFrame.AddrReturn.Offset != 0
+      && StackFrame.AddrPC.Offset != StackFrame.AddrReturn.Offset
+      )
+    {
+      Stack[StackCount++] = StackFrame.AddrPC.Offset;
+    }
   }
 
   // Now print information
@@ -239,6 +249,16 @@ static BOOL PrintStack_(char *const print_buffer,
       module = pIHModule.ModuleName;
     }
 
+    // Offset within the module: keeps a frame resolvable offline when no PDB is around.
+    char rva[32];
+    rva[0] = '\0';
+    if (sym.fun.SymGetModuleBase64 != NULL) {
+      const DWORD64 base = sym.fun.SymGetModuleBase64(hProcess, dwAddr);
+      if (base != 0) {
+        sprintf(rva, "+0x%llx", (unsigned long long) (dwAddr - base));
+      }
+    }
+
     DWORD64 displacement;
     if (sym.fun.SymFromAddr != NULL
       && sym.fun.SymFromAddr(hProcess, dwAddr, &displacement, pSymbol)) {
@@ -261,8 +281,8 @@ static BOOL PrintStack_(char *const print_buffer,
     char lines[32];
     sprintf(lines, "%d", line);
 
-    if (print_buffer_size - print_buffer_offs 
-      < strlen(function) + strlen(file) + strlen(lines) + strlen(module) + 8)
+    if (print_buffer_size - print_buffer_offs
+      < strlen(function) + strlen(file) + strlen(lines) + strlen(module) + strlen(rva) + 8)
       break;
 
 #undef ADD_STR
@@ -281,6 +301,7 @@ static BOOL PrintStack_(char *const print_buffer,
     if (module != NULL && module[0] != '\0') {
       ADD_STR(" [");
       ADD_STR(module);
+      ADD_STR(rva);
       ADD_STR("]");
     }
     ADD_STR("\r\n");
@@ -302,12 +323,37 @@ static void PrintStackInit() {
   InitializeCriticalSection(&DbgHelpLock);
 }
 
-static BOOL PrintStack(char *const print_buffer, 
-                       const size_t print_buffer_size) {
+static BOOL PrintStack(char *const print_buffer,
+                       const size_t print_buffer_size,
+                       const DWORD64 *const frames,
+                       const SIZE_T frame_count) {
   EnterCriticalSection( &DbgHelpLock );
-  BOOL ret = PrintStack_(print_buffer, print_buffer_size);
+  BOOL ret = PrintStack_(print_buffer, print_buffer_size, frames, frame_count);
   LeaveCriticalSection( &DbgHelpLock );
   return ret;
+}
+
+/* The SEH code MSVC raises every C++ throw with. */
+#define EXCEPTION_MSVC_CXX 0xE06D7363
+
+/* Stack of the last C++ throw on this thread, held until someone reports the exception. */
+static __declspec(thread) DWORD64 ThrowStack[62];
+static __declspec(thread) USHORT ThrowStackCount;
+
+// A handler only ever sees the catch site: MFC has unwound the frames that threw by the
+// time it hands us the exception. First chance is the last moment they still exist.
+static LONG CALLBACK FirstChanceHandler(PEXCEPTION_POINTERS ptrs) {
+  if (ptrs->ExceptionRecord->ExceptionCode == EXCEPTION_MSVC_CXX) {
+    PVOID frames[sizeof(ThrowStack) / sizeof(ThrowStack[0])];
+    // Addresses only: this runs on every throw, so symbols wait until we actually report.
+    const USHORT count =
+      CaptureStackBackTrace(0, sizeof(frames) / sizeof(frames[0]), frames, NULL);
+    for(USHORT i = 0 ; i < count ; i++) {
+      ThrowStack[i] = (DWORD64) frames[i];
+    }
+    ThrowStackCount = count;
+  }
+  return EXCEPTION_CONTINUE_SEARCH;
 }
 
 // An exception MFC caught and handled: log where it came from, no dialog, keep running.
@@ -317,9 +363,12 @@ void CrashReportLogException(const char* msg) {
   CHAR path[MAX_PATH + 1 + filename_max];
   char *trace = NULL;
 
-  if (PrintStack(buffer, sizeof(buffer))) {
+  const BOOL thrown = ThrowStackCount != 0;
+  if (PrintStack(buffer, sizeof(buffer),
+                 thrown ? ThrowStack : NULL, ThrowStackCount)) {
     trace = buffer;
   }
+  ThrowStackCount = 0;    // consumed; never blame a later exception on this one
   if (GetTempPath(sizeof(path) - filename_max, path) != 0) {
     FILE *fp;
     strcat(path, "WinHTTrack-exception.txt");
@@ -327,7 +376,8 @@ void CrashReportLogException(const char* msg) {
       fprintf(fp, "HTTrack " HTTRACK_VERSIONID " caught: %s\r\n",
               msg != NULL ? msg : "(no description)");
       if (trace != NULL) {
-        fprintf(fp, "Stack trace:\r\n%s", trace);
+        fprintf(fp, "Stack trace (%s):\r\n%s",
+                thrown ? "throw site" : "handler", trace);
       }
       fprintf(fp, "\r\n");
       fflush(fp);
@@ -380,7 +430,7 @@ void CrashReportReportEx(const char* msg, const char* file, int line, const char
 void CrashReportReport(const char* msg, const char* file, int line) {
   static char buffer[2048];
   char *trace = NULL;
-  if (PrintStack(buffer, sizeof(buffer))) {
+  if (PrintStack(buffer, sizeof(buffer), NULL, 0)) {
     trace = buffer;
   }
   CrashReportReportEx(msg, file, line, trace);
@@ -422,4 +472,5 @@ static BOOL GlobalExceptionHandlerInit() {
 void CrashReportInit() {
   PrintStackInit();
   GlobalExceptionHandlerInit();
+  AddVectoredExceptionHandler(1, FirstChanceHandler);
 }

@@ -101,6 +101,12 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <StringPooling>true</StringPooling>
       <WholeProgramOptimization>true</WholeProgramOptimization>
+      <!-- Without this, /DEBUG yields a PDB with public symbols only: crash reports from a
+           release build then have no file:line, which is the half that matters. -->
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <!-- /O2 implies /Oy on x86, and x86 stack capture follows the EBP chain: omit the
+           frame pointer and a crash report from a 32-bit user truncates to noise. -->
+      <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

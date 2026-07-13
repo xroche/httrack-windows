@@ -43,4 +43,6 @@ void CrashReportReport(const char* msg, const char* file, int line);
 void CrashReportReportEx(const char* msg, const char* file, int line, const char *trace);
 
 // Append a caught, non-fatal exception and a stack trace to %TEMP%\WinHTTrack-exception.txt.
+// The trace is the one captured where the exception was thrown, not where it was caught;
+// CrashReportInit() must have run, or the throw site is lost and the caller's is used.
 void CrashReportLogException(const char* msg);
