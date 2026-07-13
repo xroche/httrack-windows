@@ -171,6 +171,35 @@ jobs:
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host "CRT check passed: both share [$exeRt]."
 
+      # An invalid embedded manifest does not fail the build: Windows refuses to
+      # start the exe with "side-by-side configuration is incorrect", which only
+      # shows up on a user's machine. That shipped once, because mt.exe merges
+      # manifest inputs by concatenation and MSBuild was quietly adding its own
+      # dpiaware.manifest next to ours, leaving two <dpiAware> elements.
+      - name: Validate the embedded manifest
+        shell: pwsh
+        run: |
+          $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
+          $mt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\mt.exe" |
+                Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $mt) { throw "mt.exe not found" }
+          & $mt.FullName -nologo -inputresource:"$exe;#1" -out:embedded.manifest
+          if ($LASTEXITCODE -ne 0) { throw "the exe has no embedded manifest" }
+
+          $txt = Get-Content embedded.manifest -Raw
+          try { [xml]$null = $txt } catch { throw "embedded manifest is not well-formed XML: $_" }
+
+          # windowsSettings takes each element at most once; a repeat is what makes
+          # the loader reject the whole side-by-side configuration.
+          $names = [regex]::Matches($txt, '<(dpiAware|dpiAwareness|longPathAware|heapType)\b') |
+                   ForEach-Object { $_.Groups[1].Value }
+          $dupes = $names | Group-Object | Where-Object { $_.Count -gt 1 }
+          if ($dupes) {
+            Write-Host $txt
+            throw "embedded manifest repeats: $($dupes.Name -join ', ') -- Windows will refuse to start the app"
+          }
+          Write-Host "Embedded manifest OK: $($names -join ', ')"
+
       # Stage a package that actually runs. The OpenSSL and zlib DLLs are NOT
       # beside the exe: the GUI calls neither, so it imports neither, and vcpkg's
       # applocal deploy only copies what the binary it just linked imports. They
