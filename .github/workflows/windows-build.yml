@@ -356,6 +356,16 @@ jobs:
           set -u
           bin="$(cygpath -u "$GITHUB_WORKSPACE")/httrack-windows/WinHTTrack/bin/${{ matrix.platform }}/${{ matrix.configuration }}"
           export PATH="$bin:$PATH"
+
+          # httrack.exe is a native binary, so MSYS rewrites any argument shaped like a
+          # POSIX path -- including URL paths it has no way to recognise as such. It turned
+          #  into . Switch the rewriting
+          # off, and hand the tests a temp dir that is already a Windows path, so nothing
+          # needs translating in either direction.
+          export MSYS_NO_PATHCONV=1
+          export MSYS2_ARG_CONV_EXCL='*'
+          export TMPDIR="$(cygpath -m "${RUNNER_TEMP}")"
+          echo "TMPDIR=$TMPDIR"
           command -v httrack >/dev/null || { echo "::error::httrack.exe is not on PATH ($bin)"; exit 1; }
           echo "httrack: $(command -v httrack)"
 
