@@ -291,9 +291,13 @@ BOOL CWinHTTrackApp::InitInstance()
     {
       static const WCHAR wide[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
       BOOL lost = FALSE;
+      /* lpUsedDefaultChar must be NULL when the code page is CP_UTF8, or the call fails
+         outright -- and a UTF-8 ANSI codepage ("Beta: Use Unicode UTF-8") is precisely a
+         configuration this check has to keep working in, not skip. */
+      BOOL *const plost = (GetACP() == CP_UTF8) ? NULL : &lost;
       char ansi[16];
       const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, ansi, sizeof(ansi),
-                                        NULL, &lost);
+                                        NULL, plost);
       if (n > 0 && !lost) {   /* skip where the ANSI codepage cannot hold it at all */
         char *got = strdupt_utf8(ansi);   /* freet() nulls it, so not const */
         if (got == NULL || strcmp(got, "caf\xc3\xa9") != 0) {
