@@ -295,7 +295,7 @@ BOOL CWinHTTrackApp::InitInstance()
       const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, ansi, sizeof(ansi),
                                         NULL, &lost);
       if (n > 0 && !lost) {   /* skip where the ANSI codepage cannot hold it at all */
-        char *const got = strdupt_utf8(ansi);
+        char *got = strdupt_utf8(ansi);   /* freet() nulls it, so not const */
         if (got == NULL || strcmp(got, "caf\xc3\xa9") != 0) {
           fprintf(stderr, "FATAL: MBCS->UTF-8 gave '%s', expected caf\xc3\xa9\n",
                   got != NULL ? got : "(null)");
