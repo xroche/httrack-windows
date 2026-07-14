@@ -358,10 +358,10 @@ jobs:
           export PATH="$bin:$PATH"
 
           # httrack.exe is a native binary, so MSYS rewrites any argument shaped like a
-          # POSIX path -- including URL paths it has no way to recognise as such. It turned
-          #  into . Switch the rewriting
-          # off, and hand the tests a temp dir that is already a Windows path, so nothing
-          # needs translating in either direction.
+          # POSIX path -- and a URL path is shaped exactly like one. The mime self-test was
+          # handed "/a/b.html" and the engine received "C:/Program Files/Git/a/b.html".
+          # Switch the rewriting off, and hand the tests a temp dir that is already a Windows
+          # path, so nothing needs translating in either direction.
           export MSYS_NO_PATHCONV=1
           export MSYS2_ARG_CONV_EXCL='*'
           export TMPDIR="$(cygpath -m "${RUNNER_TEMP}")"
