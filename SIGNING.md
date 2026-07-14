@@ -15,20 +15,27 @@ installer. That is expected, and many other open-source projects sign the same w
 
 ## What is signed
 
-Everything this project's CI builds and ships:
+The code we maintain ourselves, and the installer that carries it:
 
 | File | What it is |
 | --- | --- |
 | `WinHTTrack.exe` | the GUI |
 | `httrack.exe` | the command-line version |
 | `libhttrack.dll` | the engine, built from [xroche/httrack](https://github.com/xroche/httrack) |
-| `libssl-*.dll`, `libcrypto-*.dll`, `z.dll` | OpenSSL and zlib, which vcpkg compiles from source during the build |
 | `httrack_*_*.exe` | the Inno Setup installer |
 
-The uninstaller that Inno Setup embeds (`unins000.exe`) stays unsigned. Inno can only sign
-it by calling out to a `signtool`-style helper while it compiles, and SignPath's submission
-API does not work that way. The installer you actually download and double-click is signed,
-and that is the file Windows judges.
+Two things inside that installer stay unsigned, on purpose.
+
+The OpenSSL and zlib DLLs (`libssl-*.dll`, `libcrypto-*.dll`, `z.dll`) belong to their own
+upstream projects. We compile them from source during the build, but we do not maintain
+their code, and SignPath's code of conduct is clear that a project signs only binaries
+built from source its own team maintains. Upstream libraries may travel unsigned inside a
+signed package, so that is how they travel here.
+
+The uninstaller that Inno Setup embeds (`unins000.exe`) is the other one. Inno can only
+sign it by calling out to a `signtool`-style helper while it compiles, and SignPath's
+submission API does not work that way. The installer you actually download and double-click
+is signed, and that is the file Windows judges.
 
 ## Team roles
 
@@ -65,6 +72,15 @@ executable and cannot reach the files packed inside it:
 
 Before either certificate is used, a human approves the request in SignPath's web
 interface.
+
+## Privacy policy
+
+This program will not transfer any information to other networked systems unless
+specifically requested by the user or the person installing or operating it.
+
+Copying a website is exactly such a request: when you give HTTrack a URL, it contacts that
+site, and the sites it links to if you tell it to follow them. It sends nothing anywhere
+else, and it reports nothing back to us. HTTrack obeys `robots.txt` by default.
 
 ## Verifying a signature
 
