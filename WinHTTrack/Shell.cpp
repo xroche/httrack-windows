@@ -1700,6 +1700,44 @@ static void StripControls(char* chaine)
   }
 }
 
+/* The engine reads every char* as UTF-8 on Windows -- its own main() runs the command line
+   through hts_argv_utf8() before using it. MFC hands us the ANSI codepage instead, so an
+   accented path or a non-Latin URL reached the engine as invalid UTF-8. Convert, and keep
+   the engine's allocator: these strings are released with freet(). */
+char *strdupt_utf8(const char *const s) {
+  const int wlen = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
+  WCHAR *wide;
+  int len;
+  char *utf8;
+
+  if (wlen <= 0)
+    return strdupt(s);
+  wide = (WCHAR *) malloct(wlen * sizeof(WCHAR));
+  if (wide == NULL)
+    return strdupt(s);
+  if (MultiByteToWideChar(CP_ACP, 0, s, -1, wide, wlen) != wlen) {
+    freet(wide);
+    return strdupt(s);
+  }
+  len = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+  if (len <= 0) {
+    freet(wide);
+    return strdupt(s);
+  }
+  utf8 = (char *) malloct(len);
+  if (utf8 == NULL) {
+    freet(wide);
+    return strdupt(s);
+  }
+  if (WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, len, NULL, NULL) != len) {
+    freet(utf8);
+    freet(wide);
+    return strdupt(s);
+  }
+  freet(wide);
+  return utf8;
+}
+
 #if SHELL_MULTITHREAD
 
 static int __cdecl ExcFilter_(DWORD dwExceptCode, PEXCEPTION_POINTERS pExceptPtrs) {
@@ -2012,7 +2050,7 @@ void lance(void) {
   argv = (char**) malloct(argvAlloc * sizeof(char*));
   argv[0] = strdupt("winhttrack");
   for(int i = 0; i < args.GetSize(); i++) {
-    argv[i + 1] = strdupt((const char*) args[i]);
+    argv[i + 1] = strdupt_utf8((const char*) args[i]);
 
     // For debugging only
     ShellOptions->LINE_back += ' ';

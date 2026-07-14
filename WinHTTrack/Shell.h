@@ -99,6 +99,11 @@ extern HANDLE WhttMutex;
 extern const char* WhttLocation;
 #define WHTT_LOCATION(a) WhttLocation=(a)
 
+// Duplicate an MBCS (ANSI codepage) string as UTF-8, which is what the engine reads every
+// char* as on Windows. Caller frees with freet(). Returns the bytes unchanged if the
+// conversion fails, never NULL for a non-NULL argument.
+char *strdupt_utf8(const char *const s);
+
 // Drop a trailing '/' or '\\', reporting whether there was one. Empty-string safe.
 inline bool StripTrailingSlash(char* s) {
   const size_t len = (s != NULL) ? strlen(s) : 0;
