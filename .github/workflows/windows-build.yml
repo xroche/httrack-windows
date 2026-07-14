@@ -391,6 +391,31 @@ jobs:
           [ "$pass" -ge 40 ] || { echo "::error::only $pass tests actually ran and passed ($skip skipped)"; exit 1; }
           [ "$fail" -eq 0 ]  || { echo "::error::failing tests:$failed"; exit 1; }
 
+      # The cache tests pipe stderr to /dev/null and print one word, so a failure says
+      # "FAIL" and nothing else. Run the two self-tests verbatim and keep everything they
+      # say: the engine side needs the assertion, not the verdict.
+      - name: Cache self-tests, verbatim
+        if: always()
+        shell: bash
+        working-directory: httrack/tests
+        run: |
+          bin="$(cygpath -u "$GITHUB_WORKSPACE")/httrack-windows/WinHTTrack/bin/${{ matrix.platform }}/${{ matrix.configuration }}"
+          export PATH="$bin:$PATH"
+          export MSYS_NO_PATHCONV=1
+          export MSYS2_ARG_CONV_EXCL='*'
+          export TMPDIR="$(cygpath -m "${RUNNER_TEMP}")"
+          command -v httrack >/dev/null || exit 0
+          for t in cache cache-corrupt; do
+            d="$TMPDIR/selftest-$t"
+            mkdir -p "$d"
+            echo "===== httrack -#test=$t $d"
+            httrack "-#test=$t" "$d" 2>&1 || echo "(exit $?)"
+            echo
+          done
+          echo "===== httrack -#test=sniff 'image/svg+xml' with a BOM"
+          printf '\xef\xbb\xbf  <?xml version="1.0"?>' > "$TMPDIR/bom.txt"
+          httrack "-#test=sniff" 'image/svg+xml' "text:$(cat "$TMPDIR/bom.txt")" 2>&1 || echo "(exit $?)"
+
       # A 25-line tail cannot tell a real Windows bug from a POSIX assumption in the
       # test. Keep every test's whole output.
       - name: Upload the test logs
