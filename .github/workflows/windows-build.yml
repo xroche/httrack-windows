@@ -407,6 +407,10 @@ jobs:
               77) skip=$((skip+1)); echo "SKIP $t -- $(tail -n 1 "$t.log")" ;;
               *)  fail=$((fail+1)); failed="$failed $t"
                   echo "FAIL $t (exit $rc)"
+                  # Several of these assert with `test "$(httrack ...)" == "..." || exit 1`,
+                  # which says nothing at all on failure. Re-run under a trace so the log
+                  # holds the call that failed and what it actually printed.
+                  bash -x "$t" >>"$t.log" 2>&1 || true
                   sed 's/^/      /' "$t.log" | tail -n 25 ;;
             esac
           done
