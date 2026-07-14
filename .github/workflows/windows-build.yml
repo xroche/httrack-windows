@@ -445,6 +445,12 @@ jobs:
             httrack "-#test=$t" "$d" 2>&1 || echo "(exit $?)"
             echo
           done
+          # filterbounds prints nothing at all and the test just sees an empty string.
+          # An exit code tells us whether it died: 0xC00000FD is a stack overflow, and this
+          # self-test drives the matcher deep on purpose.
+          echo "===== httrack -#test=filterbounds"
+          httrack "-#test=filterbounds"; echo "exit=$? (139/0xC00000FD would be a stack overflow)"
+
           echo "===== httrack -#test=sniff 'image/svg+xml' with a BOM"
           printf '\xef\xbb\xbf  <?xml version="1.0"?>' > "$TMPDIR/bom.txt"
           httrack "-#test=sniff" 'image/svg+xml' "text:$(cat "$TMPDIR/bom.txt")" 2>&1 || echo "(exit $?)"
