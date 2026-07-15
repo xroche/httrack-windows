@@ -2855,7 +2855,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option5.m_maxtime =  MyGetProfileString(path,strSection, "MaxTime");
   maintab->m_option4.m_timeout =  MyGetProfileString(path,strSection, "TimeOut");
   maintab->m_option4.m_rate    =  MyGetProfileString(path,strSection, "RateOut");
-  maintab->m_option6.m_user    =  MyGetProfileString(path,strSection, "UserID","Mozilla/4.5 (compatible; HTTrack 3.0x; Windows 98)");
+  maintab->m_option6.m_user    =  MyGetProfileString(path,strSection, "UserID","Mozilla/5.0 (compatible; HTTrack; +https://www.httrack.com/)");
   maintab->m_option6.m_footer  =  MyGetProfileString(path,strSection, "Footer",HTS_DEFAULT_FOOTER);
   maintab->m_option6.m_accept_language =
                                   MyGetProfileString(path,strSection, "AcceptLanguage", default_lang);
