@@ -1700,10 +1700,7 @@ static void StripControls(char* chaine)
   }
 }
 
-/* The engine reads every char* as UTF-8 on Windows -- its own main() runs the command line
-   through hts_argv_utf8() before using it. MFC hands us the ANSI codepage instead, so an
-   accented path or a non-Latin URL reached the engine as invalid UTF-8. Convert, and keep
-   the engine's allocator: these strings are released with freet(). */
+// The engine reads char* as UTF-8 on Windows; MFC hands us the ANSI codepage. Contract in Shell.h.
 char *strdupt_utf8(const char *const s) {
   const int wlen = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
   WCHAR *wide;

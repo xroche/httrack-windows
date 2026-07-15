@@ -285,15 +285,11 @@ BOOL CWinHTTrackApp::InitInstance()
   /* --selftest: everything that depends on the installed data files has now run
      (lang.def above all). Report and leave before any window appears. */
   if (WhttSelfTest) {
-    /* The engine reads char* as UTF-8; MFC hands us the ANSI codepage. Nothing else can
-       test that conversion -- it is only reachable by typing into a dialog. Build the ANSI
-       form the way MFC would, and check what the engine would receive. */
+    // Only reachable by typing into a dialog, so test the MBCS->UTF-8 conversion here instead.
     {
       static const WCHAR wide[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
       BOOL lost = FALSE;
-      /* lpUsedDefaultChar must be NULL when the code page is CP_UTF8, or the call fails
-         outright -- and a UTF-8 ANSI codepage ("Beta: Use Unicode UTF-8") is precisely a
-         configuration this check has to keep working in, not skip. */
+      // WideCharToMultiByte rejects a non-NULL lpUsedDefaultChar when the code page is CP_UTF8.
       BOOL *const plost = (GetACP() == CP_UTF8) ? NULL : &lost;
       char ansi[16];
       const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, ansi, sizeof(ansi),
