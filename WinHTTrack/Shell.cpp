@@ -130,6 +130,7 @@ httrackp *global_opt = NULL;
 // htslib.c
 extern "C" {
   HTSEXT_API void qsec2str(char *st,TStamp t);
+  HTSEXT_API char *hts_convertStringSystemToUTF8(const char *s, size_t size);
 }
 
 // construction index général
@@ -1702,37 +1703,11 @@ static void StripControls(char* chaine)
 
 // The engine reads char* as UTF-8 on Windows; MFC hands us the ANSI codepage. Contract in Shell.h.
 char *strdupt_utf8(const char *const s) {
-  const int wlen = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
-  WCHAR *wide;
-  int len;
-  char *utf8;
-
-  if (wlen <= 0)
-    return strdupt(s);
-  wide = (WCHAR *) malloct(wlen * sizeof(WCHAR));
-  if (wide == NULL)
-    return strdupt(s);
-  if (MultiByteToWideChar(CP_ACP, 0, s, -1, wide, wlen) != wlen) {
-    freet(wide);
-    return strdupt(s);
-  }
-  len = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
-  if (len <= 0) {
-    freet(wide);
-    return strdupt(s);
-  }
-  utf8 = (char *) malloct(len);
-  if (utf8 == NULL) {
-    freet(wide);
-    return strdupt(s);
-  }
-  if (WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, len, NULL, NULL) != len) {
-    freet(utf8);
-    freet(wide);
-    return strdupt(s);
-  }
-  freet(wide);
-  return utf8;
+  // Delegate to the engine's own converter (htscharset.c) instead of repeating the
+  // CP_ACP -> UTF-8 dance. GetACP() there matches CP_ACP here. Never returns NULL, so an
+  // argv[] entry is always non-NULL and freet()-able (same libc heap under /MD).
+  char *const utf8 = hts_convertStringSystemToUTF8(s, strlen(s));
+  return utf8 != NULL ? utf8 : strdupt(s);
 }
 
 #if SHELL_MULTITHREAD
