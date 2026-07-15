@@ -285,6 +285,27 @@ BOOL CWinHTTrackApp::InitInstance()
   /* --selftest: everything that depends on the installed data files has now run
      (lang.def above all). Report and leave before any window appears. */
   if (WhttSelfTest) {
+    // Only reachable by typing into a dialog, so test the MBCS->UTF-8 conversion here instead.
+    {
+      static const WCHAR wide[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
+      BOOL lost = FALSE;
+      // WideCharToMultiByte rejects a non-NULL lpUsedDefaultChar when the code page is CP_UTF8.
+      BOOL *const plost = (GetACP() == CP_UTF8) ? NULL : &lost;
+      char ansi[16];
+      const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, ansi, sizeof(ansi),
+                                        NULL, plost);
+      if (n > 0 && !lost) {   /* skip where the ANSI codepage cannot hold it at all */
+        char *got = strdupt_utf8(ansi);   /* freet() nulls it, so not const */
+        if (got == NULL || strcmp(got, "caf\xc3\xa9") != 0) {
+          fprintf(stderr, "FATAL: MBCS->UTF-8 gave '%s', expected caf\xc3\xa9\n",
+                  got != NULL ? got : "(null)");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        freet(got);
+        printf("MBCS->UTF-8 ok\n");
+      }
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */

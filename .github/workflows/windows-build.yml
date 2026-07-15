@@ -563,6 +563,12 @@ jobs:
           if ($se) { Write-Host "  stderr: $($se.Trim())" }
           if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --selftest exited $($p.ExitCode): the installation is incomplete" }
           if ("$so" -notmatch 'startup ok') { throw "selftest did not report startup ok" }
+          # The MBCS->UTF-8 conversion the engine depends on is only reachable by typing into
+          # a dialog. --selftest exercises it; assert it actually RAN, or the check silently
+          # skips (its ANSI-codepage guard) and proves nothing.
+          if ("$so" -notmatch 'MBCS->UTF-8 ok') {
+            throw "selftest did not exercise the MBCS->UTF-8 conversion"
+          }
 
           # --selftest throws one exception on purpose. A crash report that resolves nothing
           # is indistinguishable from a working one until someone needs it, so assert the
