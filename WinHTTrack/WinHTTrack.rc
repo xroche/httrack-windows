@@ -632,6 +632,8 @@ BEGIN
     CONTROL         "URL hacks (join similar URLs)",IDC_urlhack,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,95,237,9
     CONTROL         "Tolerant requests (for servers)",IDC_toler,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,110,244,9
     CONTROL         "Force old HTTP/1.0 requests (no 1.1)",IDC_http10,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,125,237,9
+    LTEXT           "Load cookies from file:",IDC_STATIC_cookiesfile,16,144,120,8
+    EDITTEXT        IDC_cookiesfile,140,142,116,12,ES_AUTOHSCROLL
 END
 
 IDD_OPTION9 DIALOGEX 0, 0, 325, 143

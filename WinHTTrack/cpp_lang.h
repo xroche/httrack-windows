@@ -470,6 +470,8 @@
    .rc captions and other languages show these keys empty (no crash). */
 #define LANG_PROXYTYPE LANGSEL("LANG_PROXYTYPE")
 #define LANG_PROXYTYPETIP LANGSEL("LANG_PROXYTYPETIP")
+#define LANG_COOKIEFILE LANGSEL("LANG_COOKIEFILE")
+#define LANG_COOKIEFILETIP LANGSEL("LANG_COOKIEFILETIP")
 
 #endif
 

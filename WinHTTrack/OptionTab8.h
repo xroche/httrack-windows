@@ -32,6 +32,7 @@ public:
 	BOOL	m_toler;
 	BOOL	m_updhack;
 	BOOL	m_urlhack;
+	CString	m_cookiesfile;
 	//}}AFX_DATA
 
 

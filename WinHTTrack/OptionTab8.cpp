@@ -34,6 +34,7 @@ COptionTab8::COptionTab8() : CPropertyPage(COptionTab8::IDD)
 	m_toler = FALSE;
 	m_updhack = FALSE;
 	m_urlhack = FALSE;
+	m_cookiesfile = _T("");
 	//}}AFX_DATA_INIT
 }
 
@@ -53,6 +54,7 @@ void COptionTab8::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_toler, m_toler);
 	DDX_Check(pDX, IDC_updhack, m_updhack);
 	DDX_Check(pDX, IDC_urlhack, m_urlhack);
+	DDX_Text(pDX, IDC_cookiesfile, m_cookiesfile);
 	//}}AFX_DATA_MAP
 }
 
@@ -104,6 +106,7 @@ BOOL COptionTab8::OnInitDialog()
     SetDlgItemTextCP(this, IDC_toler,LANG(LANG_I62));
     SetDlgItemTextCP(this, IDC_updhack,LANG(LANG_I62b));
     SetDlgItemTextCP(this, IDC_urlhack,LANG(LANG_I62b2));
+    SetDlgItemTextCP(this, IDC_STATIC_cookiesfile,LANG(LANG_COOKIEFILE));
     SetCombo(this,IDC_checktype,LISTDEF_7);
     SetCombo(this,IDC_robots,LISTDEF_8);
   }  
@@ -160,6 +163,7 @@ const char* COptionTab8::GetTip(int ID)
     case IDC_toler:     return LANG(LANG_I1i); break;
     case IDC_updhack:   return LANG(LANG_I1k); break;
     case IDC_urlhack:   return LANG(LANG_I1k2); break;
+    case IDC_cookiesfile: return LANG(LANG_COOKIEFILETIP); break;
   }
   return "";
 }

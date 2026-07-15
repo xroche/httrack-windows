@@ -632,6 +632,7 @@ void compute_options() {
   if (maintab->m_option8.m_updhack)  ShellOptions->updhack = "%s";    // update hack
   if (maintab->m_option8.m_urlhack)  ShellOptions->urlhack = "%u";    // URL hack
   else                               ShellOptions->urlhack = "%u0";
+  ShellOptions->cookiesfile = maintab->m_option8.m_cookiesfile;
   
   // store all in cache,logtype
   if(maintab->m_option9.m_Cache2!=0) ShellOptions->Cache2 = "k";
@@ -2001,6 +2002,12 @@ void lance(void) {
     args.Add("-P");
     args.Add(ShellOptions->proxyscheme + ShellOptions->proxy + ":" + ShellOptions->port);
   }
+
+  // preload extra cookies from a Netscape cookies.txt (--cookies-file)
+  if (ShellOptions->cookiesfile.GetLength() != 0) {
+    args.Add("--cookies-file");
+    args.Add(ShellOptions->cookiesfile);
+  }
   
   // mode spider, mettre après options
   if (ShellOptions->choixdeb[0]=='!') {
@@ -2513,6 +2520,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "TolerantRequests",maintab->m_option8.m_toler);
     MyWriteProfileInt(path,strSection, "UpdateHack",maintab->m_option8.m_updhack);
     MyWriteProfileInt(path,strSection, "URLHack",maintab->m_option8.m_urlhack);
+    MyWriteProfileString(path,strSection, "CookiesFile",maintab->m_option8.m_cookiesfile);
     MyWriteProfileInt(path,strSection, "StoreAllInCache",maintab->m_option9.m_Cache2);
     MyWriteProfileInt(path,strSection, "LogType",maintab->m_option9.m_logtype);
     MyWriteProfileInt(path,strSection, "UseHTTPProxyForFTP",maintab->m_option10.m_ftpprox);
@@ -2693,6 +2701,8 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "UpdateHack", n);
     n=maintab->m_option8.IsDlgButtonChecked(IDC_urlhack);
     MyWriteProfileInt(path,strSection, "URLHack", n);
+    maintab->m_option8.GetDlgItemText(IDC_cookiesfile,st);
+    MyWriteProfileString(path,strSection, "CookiesFile", st);
     // 9
     maintab->m_option9.GetDlgItemText(IDC_Cache2,st);
     MyWriteProfileString(path,strSection, "StoreAllInCache", st);
@@ -2834,6 +2844,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option8.m_toler      = MyGetProfileInt(path,strSection, "TolerantRequests",0);
   maintab->m_option8.m_updhack    = MyGetProfileInt(path,strSection, "UpdateHack",1);
   maintab->m_option8.m_urlhack    = MyGetProfileInt(path,strSection, "URLHack",1);
+  maintab->m_option8.m_cookiesfile = MyGetProfileString(path,strSection, "CookiesFile");
   maintab->m_option8.m_http10     = MyGetProfileInt(path,strSection, "HTTP10",0);
   maintab->m_option9.m_Cache2     = MyGetProfileInt(path,strSection, "StoreAllInCache",0);
   maintab->m_option9.m_logtype    = MyGetProfileInt(path,strSection, "LogType",0);
