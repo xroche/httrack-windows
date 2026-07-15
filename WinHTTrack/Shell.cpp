@@ -688,6 +688,7 @@ void compute_options() {
   else if (maintab->m_option3.m_travel3==1) ShellOptions->filtre += "K";
   else if (maintab->m_option3.m_travel3==2) ShellOptions->filtre += "K3";
   else if (maintab->m_option3.m_travel3==3) ShellOptions->filtre += "K4";
+  ShellOptions->stripquery = maintab->m_option3.m_stripquery;
 
   if (maintab->m_option9.m_logf) ShellOptions->log = "f2"; else ShellOptions->log = "Q"; 
   
@@ -2023,6 +2024,12 @@ void lance(void) {
   if (ShellOptions->keepwww.GetLength() != 0)        args.Add(ShellOptions->keepwww);
   if (ShellOptions->keepslashes.GetLength() != 0)    args.Add(ShellOptions->keepslashes);
   if (ShellOptions->keepqueryorder.GetLength() != 0) args.Add(ShellOptions->keepqueryorder);
+
+  // drop selected query keys from the dedup naming (--strip-query)
+  if (ShellOptions->stripquery.GetLength() != 0) {
+    args.Add("--strip-query");
+    args.Add(ShellOptions->stripquery);
+  }
   
   // mode spider, mettre après options
   if (ShellOptions->choixdeb[0]=='!') {
@@ -2550,6 +2557,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "Travel",maintab->m_option3.m_travel);
     MyWriteProfileInt(path,strSection, "GlobalTravel",maintab->m_option3.m_travel2);
     MyWriteProfileInt(path,strSection, "RewriteLinks",maintab->m_option3.m_travel3);
+    MyWriteProfileString(path,strSection, "StripQuery",maintab->m_option3.m_stripquery);
     MyWriteProfileString(path,strSection, "BuildString",maintab->m_option2.Bopt.m_BuildString);
     
     // champs
@@ -2656,6 +2664,8 @@ void Write_profile(CString path,int load_path) {
       MyWriteProfileInt(path,strSection, "GlobalTravel", n);
     if ((n=maintab->m_option3.m_ctl_travel3.GetCurSel()) != CB_ERR)
       MyWriteProfileInt(path,strSection, "RewriteLinks", n);
+    maintab->m_option3.GetDlgItemText(IDC_stripquery,st);
+    MyWriteProfileString(path,strSection, "StripQuery", st);
     //
     maintab->m_option8.GetDlgItemText(IDC_robots,st);
     MyWriteProfileString(path,strSection, "FollowRobotsTxt", st);
@@ -2886,6 +2896,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option3.m_travel  = MyGetProfileInt(path,strSection, "Travel",1);
   maintab->m_option3.m_travel2 = MyGetProfileInt(path,strSection, "GlobalTravel",0);
   maintab->m_option3.m_travel3 = MyGetProfileInt(path,strSection, "RewriteLinks",0);
+  maintab->m_option3.m_stripquery = MyGetProfileString(path,strSection, "StripQuery");
   maintab->m_option2.Bopt.m_BuildString = MyGetProfileString(path,strSection, "BuildString","%h%p/%n%q.%t");
   
   // champs

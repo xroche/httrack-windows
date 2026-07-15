@@ -496,6 +496,8 @@ BEGIN
     COMBOBOX        IDC_travel2,165,75,130,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Rewrite links: internal / external",IDC_STATIC_travel3,16,92,129,8
     COMBOBOX        IDC_travel3,16,100,139,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Strip query keys:",IDC_STATIC_stripquery,165,92,150,8
+    EDITTEXT        IDC_stripquery,165,102,150,12,ES_AUTOHSCROLL
     CONTROL         "Activate Debugging Mode (winhttrack.log)",IDC_windebug,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,120,242,10
 END

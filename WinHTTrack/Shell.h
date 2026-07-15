@@ -205,7 +205,8 @@ public:
     toler, updhack, urlhack, http10, waittime, maxtime, maxrate, 
     maxconn, maxlinks, hh, mm, ss, buff_filtres, buff_MIME, 
     _RasString, accept_language, other_headers, default_referer,
-    cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder;
+    cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder,
+    stripquery;
   CString LINE_back;
   RASDIALPARAMS _dial;
 };
