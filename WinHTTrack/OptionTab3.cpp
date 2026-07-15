@@ -32,6 +32,7 @@ COptionTab3::COptionTab3() : CPropertyPage(COptionTab3::IDD)
 	m_windebug = FALSE;
 	m_cache = FALSE;
 	m_travel3 = -1;
+	m_stripquery = _T("");
 	//}}AFX_DATA_INIT
 }
 
@@ -53,6 +54,7 @@ void COptionTab3::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_windebug, m_windebug);
 	DDX_Check(pDX, IDC_Cache, m_cache);
 	DDX_CBIndex(pDX, IDC_travel3, m_travel3);
+	DDX_Text(pDX, IDC_stripquery, m_stripquery);
 	//}}AFX_DATA_MAP
 }
 
@@ -82,6 +84,8 @@ BOOL COptionTab3::OnInitDialog()
     GetDlgItem(IDC_STATIC_primf)   ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_STATIC_travel)  ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_STATIC_travel2) ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_stripquery)     ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_STATIC_stripquery)->ModifyStyle(0,WS_DISABLED);
   } else {
     GetDlgItem(IDC_Cache)   ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_filter)  ->ModifyStyle(WS_DISABLED,0);
@@ -92,6 +96,8 @@ BOOL COptionTab3::OnInitDialog()
     GetDlgItem(IDC_STATIC_travel)  ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_STATIC_travel2) ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_STATIC_travel3) ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_stripquery)     ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_STATIC_stripquery)->ModifyStyle(WS_DISABLED,0);
   }
   
   // Patcher l'interface pour les Français ;-)
@@ -102,6 +108,7 @@ BOOL COptionTab3::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_travel2,LANG(LANG_I40b)); // "Mode de parcours");
     SetDlgItemTextCP(this, IDC_STATIC_warning,LANG(LANG_I40c));
     SetDlgItemTextCP(this, IDC_STATIC_travel3,LANG(LANG_I40e));
+    SetDlgItemTextCP(this, IDC_STATIC_stripquery,LANG(LANG_STRIPQUERY));
     SetDlgItemTextCP(this, IDC_windebug,LANG_I40d);  // Activate debug mode (winhttrack.log)
     SetCombo(this,IDC_filter,LISTDEF_4);
     SetCombo(this,IDC_travel,LISTDEF_5);
@@ -158,6 +165,7 @@ const char* COptionTab3::GetTip(int ID)
     case IDC_travel2:  return LANG(LANG_I11b); break; // "Select the travel direction in the site","Sélection de la direction du miroir"); break;
     case IDC_travel3:  return LANG(LANG_I11c); break;
     case IDC_windebug: return LANG_I1h; break;
+    case IDC_stripquery: return LANG(LANG_STRIPQUERYTIP); break;
   }
   return "";
 }

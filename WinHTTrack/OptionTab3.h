@@ -35,6 +35,7 @@ public:
 	BOOL	m_windebug;
 	BOOL	m_cache;
 	int		m_travel3;
+	CString	m_stripquery;
 	//}}AFX_DATA
 
 

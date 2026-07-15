@@ -195,7 +195,7 @@ BOOL LaunchMirror();
 /* Class */
 class CShellOptions {
 public:
-  CString url, filelist, proxy, proxyftp, port, depth, 
+  CString url, filelist, proxy, proxyscheme, proxyftp, port, depth, 
     extdepth, get, where, meth, maxfile, max, frag, 
     conn, tog, cache, robots, choixdeb, build, filtre, htmlfirst, 
     index, index2, index_mail, dos, time, rate, hostquit, ka, 
@@ -204,7 +204,9 @@ public:
     cookies, checktype, parsejava, Cache2, logtype, norecatch, 
     toler, updhack, urlhack, http10, waittime, maxtime, maxrate, 
     maxconn, maxlinks, hh, mm, ss, buff_filtres, buff_MIME, 
-    _RasString, accept_language, other_headers, default_referer;
+    _RasString, accept_language, other_headers, default_referer,
+    cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder,
+    stripquery;
   CString LINE_back;
   RASDIALPARAMS _dial;
 };

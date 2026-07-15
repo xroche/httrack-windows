@@ -425,22 +425,24 @@ BEGIN
     EDITTEXT        IDC_STATIC_bo1,7,43,232,84,ES_MULTILINE | ES_READONLY | NOT WS_BORDER
 END
 
-IDD_ProxyId DIALOG  0, 0, 266, 129
+IDD_ProxyId DIALOG  0, 0, 266, 145
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Proxy settings"
 FONT 8, "MS Sans Serif"
 BEGIN
-    EDITTEXT        IDC_proxadr,104,8,141,12,ES_AUTOHSCROLL
-    EDITTEXT        IDC_proxport,104,24,28,12,ES_AUTOHSCROLL | ES_NUMBER
-    EDITTEXT        IDC_proxlogin,104,56,56,12,ES_AUTOHSCROLL
-    EDITTEXT        IDC_proxpass,104,72,56,12,ES_PASSWORD | ES_AUTOHSCROLL
-    DEFPUSHBUTTON   "OK",IDOK,208,104,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,8,104,50,14
-    LTEXT           "Proxy address:",IDC_STATIC_adr,8,8,83,10
-    LTEXT           "Proxy port:",IDC_STATIC_port,8,24,83,10
-    LTEXT           "Login:",IDC_STATIC_login,16,56,83,10
-    LTEXT           "Password:",IDC_STATIC_pass,16,72,83,10
-    GROUPBOX        "Authentication (only if needed)",IDC_STATIC_auth,8,40,248,48
+    COMBOBOX        IDC_proxytype,104,8,90,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_proxadr,104,24,141,12,ES_AUTOHSCROLL
+    EDITTEXT        IDC_proxport,104,40,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    EDITTEXT        IDC_proxlogin,104,72,56,12,ES_AUTOHSCROLL
+    EDITTEXT        IDC_proxpass,104,88,56,12,ES_PASSWORD | ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,208,120,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,8,120,50,14
+    LTEXT           "Proxy type:",IDC_STATIC_ptype,8,10,90,10
+    LTEXT           "Proxy address:",IDC_STATIC_adr,8,26,90,10
+    LTEXT           "Proxy port:",IDC_STATIC_port,8,42,90,10
+    LTEXT           "Login:",IDC_STATIC_login,16,72,83,10
+    LTEXT           "Password:",IDC_STATIC_pass,16,88,83,10
+    GROUPBOX        "Authentication (only if needed)",IDC_STATIC_auth,8,56,248,48
 END
 
 IDD_NewProj DIALOG  0, 0, 322, 181
@@ -494,6 +496,8 @@ BEGIN
     COMBOBOX        IDC_travel2,165,75,130,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Rewrite links: internal / external",IDC_STATIC_travel3,16,92,129,8
     COMBOBOX        IDC_travel3,16,100,139,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Strip query keys (e.g. sid,ref):",IDC_STATIC_stripquery,165,92,150,8
+    EDITTEXT        IDC_stripquery,165,102,150,12,ES_AUTOHSCROLL
     CONTROL         "Activate Debugging Mode (winhttrack.log)",IDC_windebug,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,120,242,10
 END
@@ -516,6 +520,8 @@ BEGIN
     EDITTEXT        IDC_rate,130,95,32,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "B/s",IDC_STATIC,170,95,17,8
     CONTROL         "Remove host if low",IDC_rems,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,109,183,10
+    LTEXT           "Pause between files (s):",IDC_STATIC_pausefiles,16,124,110,8
+    EDITTEXT        IDC_pausefiles,130,122,45,12,ES_AUTOHSCROLL
 END
 
 IDD_OPTION5 DIALOGEX 0, 0, 260, 198
@@ -569,7 +575,7 @@ BEGIN
     EDITTEXT        IDC_accept_language,115,54,180,12,ES_AUTOHSCROLL
 END
 
-IDD_OPTION1 DIALOG  0, 0, 325, 105
+IDD_OPTION1 DIALOG  0, 0, 325, 150
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Links"
 FONT 8, "MS Sans Serif"
@@ -581,6 +587,9 @@ BEGIN
     CONTROL         "Test validity of all links (even external ones)",IDC_testall,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,64,309,10
     CONTROL         "Get HTML files first!",IDC_htmlfirst,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,85,309,10
+    CONTROL         "Keep the www. prefix (do not merge www.host with host)",IDC_keepwww,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,101,309,10
+    CONTROL         "Keep double slashes in URLs",IDC_keepslashes,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,117,309,10
+    CONTROL         "Keep the original query-string order",IDC_keepqueryorder,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,133,309,10
 END
 
 IDD_OPTION2 DIALOG  0, 0, 296, 150
@@ -630,6 +639,9 @@ BEGIN
     CONTROL         "URL hacks (join similar URLs)",IDC_urlhack,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,95,237,9
     CONTROL         "Tolerant requests (for servers)",IDC_toler,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,110,244,9
     CONTROL         "Force old HTTP/1.0 requests (no 1.1)",IDC_http10,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,125,237,9
+    LTEXT           "Load cookies from file:",IDC_STATIC_cookiesfile,16,144,120,8
+    EDITTEXT        IDC_cookiesfile,140,142,96,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "...",IDC_cookiesfilebrowse,240,142,16,12
 END
 
 IDD_OPTION9 DIALOGEX 0, 0, 325, 143

@@ -34,6 +34,7 @@ COptionTab8::COptionTab8() : CPropertyPage(COptionTab8::IDD)
 	m_toler = FALSE;
 	m_updhack = FALSE;
 	m_urlhack = FALSE;
+	m_cookiesfile = _T("");
 	//}}AFX_DATA_INIT
 }
 
@@ -53,18 +54,30 @@ void COptionTab8::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_toler, m_toler);
 	DDX_Check(pDX, IDC_updhack, m_updhack);
 	DDX_Check(pDX, IDC_urlhack, m_urlhack);
+	DDX_Text(pDX, IDC_cookiesfile, m_cookiesfile);
 	//}}AFX_DATA_MAP
 }
 
 
 BEGIN_MESSAGE_MAP(COptionTab8, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab8)
+	ON_BN_CLICKED(IDC_cookiesfilebrowse, OnCookiesFileBrowse)
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab8 message handlers
+
+void COptionTab8::OnCookiesFileBrowse()
+{
+  // writable buffer: CFileDialog rewrites the '|' separators in place
+  char szFilter[] = "Cookies file (cookies.txt, *.txt)|*.txt|All files (*.*)|*.*||";
+  CFileDialog dial(TRUE, "txt", NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, szFilter);
+  if (dial.DoModal() == IDOK)
+    SetDlgItemTextCP(this, IDC_cookiesfile, dial.GetPathName());
+}
+
 BOOL COptionTab8::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
@@ -104,6 +117,7 @@ BOOL COptionTab8::OnInitDialog()
     SetDlgItemTextCP(this, IDC_toler,LANG(LANG_I62));
     SetDlgItemTextCP(this, IDC_updhack,LANG(LANG_I62b));
     SetDlgItemTextCP(this, IDC_urlhack,LANG(LANG_I62b2));
+    SetDlgItemTextCP(this, IDC_STATIC_cookiesfile,LANG(LANG_COOKIEFILE));
     SetCombo(this,IDC_checktype,LISTDEF_7);
     SetCombo(this,IDC_robots,LISTDEF_8);
   }  
@@ -160,6 +174,7 @@ const char* COptionTab8::GetTip(int ID)
     case IDC_toler:     return LANG(LANG_I1i); break;
     case IDC_updhack:   return LANG(LANG_I1k); break;
     case IDC_urlhack:   return LANG(LANG_I1k2); break;
+    case IDC_cookiesfile: return LANG(LANG_COOKIEFILETIP); break;
   }
   return "";
 }

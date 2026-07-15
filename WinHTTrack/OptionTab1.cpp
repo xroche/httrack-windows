@@ -30,6 +30,9 @@ COptionTab1::COptionTab1() : CPropertyPage(COptionTab1::IDD)
 	m_parseall = FALSE;
 	m_testall = FALSE;
 	m_htmlfirst = FALSE;
+	m_keepwww = FALSE;
+	m_keepslashes = FALSE;
+	m_keepqueryorder = FALSE;
 	//}}AFX_DATA_INIT
 }
 
@@ -45,6 +48,9 @@ void COptionTab1::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_parseall, m_parseall);
 	DDX_Check(pDX, IDC_testall, m_testall);
 	DDX_Check(pDX, IDC_htmlfirst, m_htmlfirst);
+	DDX_Check(pDX, IDC_keepwww, m_keepwww);
+	DDX_Check(pDX, IDC_keepslashes, m_keepslashes);
+	DDX_Check(pDX, IDC_keepqueryorder, m_keepqueryorder);
 	//}}AFX_DATA_MAP
 }
 
@@ -69,11 +75,17 @@ BOOL COptionTab1::OnInitDialog()
     GetDlgItem(IDC_link)     ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_testall)  ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_htmlfirst)->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_keepwww)  ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_keepslashes)->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_keepqueryorder)->ModifyStyle(0,WS_DISABLED);
   } else {
     GetDlgItem(IDC_parseall) ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_link)     ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_testall)  ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_htmlfirst)->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_keepwww)  ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_keepslashes)->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_keepqueryorder)->ModifyStyle(WS_DISABLED,0);
   }
 
   // Patcher l'interface pour les Français ;-)
@@ -83,6 +95,9 @@ BOOL COptionTab1::OnInitDialog()
     SetDlgItemTextCP(this, IDC_testall,LANG(LANG_I32)); // "Tester tous les liens (même ceux interdits)");
     SetDlgItemTextCP(this, IDC_parseall,LANG(LANG_I32b));
     SetDlgItemTextCP(this, IDC_htmlfirst,LANG(LANG_I32c));
+    SetDlgItemTextCP(this, IDC_keepwww,LANG(LANG_KEEPWWW));
+    SetDlgItemTextCP(this, IDC_keepslashes,LANG(LANG_KEEPSLASHES));
+    SetDlgItemTextCP(this, IDC_keepqueryorder,LANG(LANG_KEEPQUERYORDER));
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -131,6 +146,9 @@ const char* COptionTab1::GetTip(int ID)
     case IDC_testall: return LANG(LANG_I2); break; // "Test all links in pages","Tester tous les liens dans les pages"); break;
     case IDC_parseall: return LANG(LANG_I2b); break;
     case IDC_htmlfirst: return LANG(LANG_I2c); break;
+    case IDC_keepwww:   return LANG(LANG_KEEPWWWTIP); break;
+    case IDC_keepslashes: return LANG(LANG_KEEPSLASHESTIP); break;
+    case IDC_keepqueryorder: return LANG(LANG_KEEPQUERYORDERTIP); break;
   }
   return "";
 }

@@ -506,6 +506,18 @@
 #define IDC_mime8                       1306
 #define IDC_other_headers               1306
 #define IDC_default_referer             1308
+#define IDC_proxytype                   1309
+#define IDC_STATIC_ptype                1310
+#define IDC_cookiesfile                 1311
+#define IDC_STATIC_cookiesfile          1312
+#define IDC_pausefiles                  1313
+#define IDC_STATIC_pausefiles           1314
+#define IDC_keepwww                     1315
+#define IDC_keepslashes                 1316
+#define IDC_keepqueryorder              1317
+#define IDC_stripquery                  1318
+#define IDC_STATIC_stripquery           1319
+#define IDC_cookiesfilebrowse           1320
 #define ID_MENUITEM32771                32771
 #define ID_MENUITEM32772                32772
 #define ID_EXIT                         32772
@@ -577,7 +589,7 @@
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        247
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1309
+#define _APS_NEXT_CONTROL_VALUE         1321
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif

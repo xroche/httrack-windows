@@ -588,6 +588,7 @@ void compute_options() {
   
   // proxy
   ShellOptions->proxy = maintab->m_option10.m_proxy;
+  ShellOptions->proxyscheme = (maintab->m_option10.m_proxytype == 1) ? "socks5://" : "";
   ShellOptions->port = maintab->m_option10.m_port;
   if (maintab->m_option10.m_ftpprox) 
     ShellOptions->proxyftp = "%f";
@@ -617,6 +618,9 @@ void compute_options() {
   if(maintab->m_option2.m_hidepwd) ShellOptions->hidepwd = "%x"; else ShellOptions->hidepwd = ""; 
   if(maintab->m_option2.m_hidequery) ShellOptions->hidequery = "%q0"; else ShellOptions->hidequery = ""; 
   
+  ShellOptions->keepwww = maintab->m_option1.m_keepwww ? "--keep-www-prefix" : "";
+  ShellOptions->keepslashes = maintab->m_option1.m_keepslashes ? "--keep-double-slashes" : "";
+  ShellOptions->keepqueryorder = maintab->m_option1.m_keepqueryorder ? "--keep-query-order" : "";
   ShellOptions->robots = "";
   if(maintab->m_option8.m_robots==0) ShellOptions->robots = "s0"; 
   else if(maintab->m_option8.m_robots==1) ShellOptions->robots = "s1"; 
@@ -632,6 +636,8 @@ void compute_options() {
   if (maintab->m_option8.m_updhack)  ShellOptions->updhack = "%s";    // update hack
   if (maintab->m_option8.m_urlhack)  ShellOptions->urlhack = "%u";    // URL hack
   else                               ShellOptions->urlhack = "%u0";
+  ShellOptions->cookiesfile = maintab->m_option8.m_cookiesfile;
+  ShellOptions->pausefiles = maintab->m_option4.m_pausefiles;
   
   // store all in cache,logtype
   if(maintab->m_option9.m_Cache2!=0) ShellOptions->Cache2 = "k";
@@ -683,6 +689,7 @@ void compute_options() {
   else if (maintab->m_option3.m_travel3==1) ShellOptions->filtre += "K";
   else if (maintab->m_option3.m_travel3==2) ShellOptions->filtre += "K3";
   else if (maintab->m_option3.m_travel3==3) ShellOptions->filtre += "K4";
+  ShellOptions->stripquery = maintab->m_option3.m_stripquery;
 
   if (maintab->m_option9.m_logf) ShellOptions->log = "f2"; else ShellOptions->log = "Q"; 
   
@@ -1973,7 +1980,30 @@ void lance(void) {
 
   if ((int)ShellOptions->proxy.GetLength()>0) {
     args.Add("-P");
-    args.Add(ShellOptions->proxy + ":" + ShellOptions->port);
+    args.Add(ShellOptions->proxyscheme + ShellOptions->proxy + ":" + ShellOptions->port);
+  }
+
+  // preload extra cookies from a Netscape cookies.txt (--cookies-file)
+  if (ShellOptions->cookiesfile.GetLength() != 0) {
+    args.Add("--cookies-file");
+    args.Add(ShellOptions->cookiesfile);
+  }
+
+  // random pause between files, MIN[:MAX] seconds (--pause)
+  if (ShellOptions->pausefiles.GetLength() != 0) {
+    args.Add("--pause");
+    args.Add(ShellOptions->pausefiles);
+  }
+
+  // URL-hack opt-outs (only meaningful with -%u url hacks on)
+  if (ShellOptions->keepwww.GetLength() != 0)        args.Add(ShellOptions->keepwww);
+  if (ShellOptions->keepslashes.GetLength() != 0)    args.Add(ShellOptions->keepslashes);
+  if (ShellOptions->keepqueryorder.GetLength() != 0) args.Add(ShellOptions->keepqueryorder);
+
+  // drop selected query keys from the dedup naming (--strip-query)
+  if (ShellOptions->stripquery.GetLength() != 0) {
+    args.Add("--strip-query");
+    args.Add(ShellOptions->stripquery);
   }
   
   // mode spider, mettre après options
@@ -2460,6 +2490,9 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "Test",maintab->m_option1.m_testall);
     MyWriteProfileInt(path,strSection, "ParseAll",maintab->m_option1.m_parseall);
     MyWriteProfileInt(path,strSection, "HTMLFirst",maintab->m_option1.m_htmlfirst);
+    MyWriteProfileInt(path,strSection, "KeepWww",maintab->m_option1.m_keepwww);
+    MyWriteProfileInt(path,strSection, "KeepSlashes",maintab->m_option1.m_keepslashes);
+    MyWriteProfileInt(path,strSection, "KeepQueryOrder",maintab->m_option1.m_keepqueryorder);
     MyWriteProfileInt(path,strSection, "Cache",maintab->m_option3.m_cache);
     MyWriteProfileInt(path,strSection, "NoRecatch",maintab->m_option9.m_norecatch);
     MyWriteProfileInt(path,strSection, "Dos",
@@ -2487,6 +2520,8 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "TolerantRequests",maintab->m_option8.m_toler);
     MyWriteProfileInt(path,strSection, "UpdateHack",maintab->m_option8.m_updhack);
     MyWriteProfileInt(path,strSection, "URLHack",maintab->m_option8.m_urlhack);
+    MyWriteProfileString(path,strSection, "CookiesFile",maintab->m_option8.m_cookiesfile);
+    MyWriteProfileString(path,strSection, "PauseFiles",maintab->m_option4.m_pausefiles);
     MyWriteProfileInt(path,strSection, "StoreAllInCache",maintab->m_option9.m_Cache2);
     MyWriteProfileInt(path,strSection, "LogType",maintab->m_option9.m_logtype);
     MyWriteProfileInt(path,strSection, "UseHTTPProxyForFTP",maintab->m_option10.m_ftpprox);
@@ -2497,6 +2532,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "Travel",maintab->m_option3.m_travel);
     MyWriteProfileInt(path,strSection, "GlobalTravel",maintab->m_option3.m_travel2);
     MyWriteProfileInt(path,strSection, "RewriteLinks",maintab->m_option3.m_travel3);
+    MyWriteProfileString(path,strSection, "StripQuery",maintab->m_option3.m_stripquery);
     MyWriteProfileString(path,strSection, "BuildString",maintab->m_option2.Bopt.m_BuildString);
     
     // champs
@@ -2520,6 +2556,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileString(path,strSection, "WildCardFilters",maintab->m_option7.m_url2);
     MyWriteProfileString(path,strSection, "Proxy",maintab->m_option10.m_proxy);
     MyWriteProfileString(path,strSection, "Port",maintab->m_option10.m_port);
+    MyWriteProfileInt(path,strSection, "ProxyType",maintab->m_option10.m_proxytype);
     MyWriteProfileString(path,strSection, "Depth",maintab->m_option5.m_depth);
     MyWriteProfileString(path,strSection, "ExtDepth",maintab->m_option5.m_depth2);
     MyWriteProfileString(path,strSection, "MaxConn",maintab->m_option5.m_maxconn);    
@@ -2555,6 +2592,12 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection,"ParseAll", n);
     n=maintab->m_option1.IsDlgButtonChecked(IDC_htmlfirst);
     MyWriteProfileInt(path,strSection,"HTMLFirst", n);
+    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepwww);
+    MyWriteProfileInt(path,strSection,"KeepWww", n);
+    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepslashes);
+    MyWriteProfileInt(path,strSection,"KeepSlashes", n);
+    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepqueryorder);
+    MyWriteProfileInt(path,strSection,"KeepQueryOrder", n);
     // 2
     n=maintab->m_option3.IsDlgButtonChecked(IDC_Cache);
     MyWriteProfileInt(path,strSection,"Cache", n);
@@ -2596,6 +2639,8 @@ void Write_profile(CString path,int load_path) {
       MyWriteProfileInt(path,strSection, "GlobalTravel", n);
     if ((n=maintab->m_option3.m_ctl_travel3.GetCurSel()) != CB_ERR)
       MyWriteProfileInt(path,strSection, "RewriteLinks", n);
+    maintab->m_option3.GetDlgItemText(IDC_stripquery,st);
+    MyWriteProfileString(path,strSection, "StripQuery", st);
     //
     maintab->m_option8.GetDlgItemText(IDC_robots,st);
     MyWriteProfileString(path,strSection, "FollowRobotsTxt", st);
@@ -2666,6 +2711,10 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "UpdateHack", n);
     n=maintab->m_option8.IsDlgButtonChecked(IDC_urlhack);
     MyWriteProfileInt(path,strSection, "URLHack", n);
+    maintab->m_option8.GetDlgItemText(IDC_cookiesfile,st);
+    MyWriteProfileString(path,strSection, "CookiesFile", st);
+    maintab->m_option4.GetDlgItemText(IDC_pausefiles,st);
+    MyWriteProfileString(path,strSection, "PauseFiles", st);
     // 9
     maintab->m_option9.GetDlgItemText(IDC_Cache2,st);
     MyWriteProfileString(path,strSection, "StoreAllInCache", st);
@@ -2676,6 +2725,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileString(path,strSection,"Proxy",st);
     maintab->m_option10.GetDlgItemText(IDC_proxport,st);
     MyWriteProfileString(path,strSection,"Port",st);
+    MyWriteProfileInt(path,strSection,"ProxyType", maintab->m_option10.m_proxytype);
     n=maintab->m_option10.IsDlgButtonChecked(IDC_ftpprox);
     MyWriteProfileInt(path,strSection,"UseHTTPProxyForFTP", n);
     
@@ -2783,6 +2833,9 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option1.m_testall   = MyGetProfileInt(path,strSection, "Test",0);
   maintab->m_option1.m_parseall  = MyGetProfileInt(path,strSection, "ParseAll",1);
   maintab->m_option1.m_htmlfirst = MyGetProfileInt(path,strSection, "HTMLFirst",0);
+  maintab->m_option1.m_keepwww   = MyGetProfileInt(path,strSection, "KeepWww",0);
+  maintab->m_option1.m_keepslashes = MyGetProfileInt(path,strSection, "KeepSlashes",0);
+  maintab->m_option1.m_keepqueryorder = MyGetProfileInt(path,strSection, "KeepQueryOrder",0);
   maintab->m_option3.m_cache     = MyGetProfileInt(path,strSection, "Cache",1);
   maintab->m_option9.m_norecatch = MyGetProfileInt(path,strSection, "NoRecatch",0);
   maintab->m_option2.m_dos       = (MyGetProfileInt(path,strSection, "Dos",0) & 1);
@@ -2806,6 +2859,8 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option8.m_toler      = MyGetProfileInt(path,strSection, "TolerantRequests",0);
   maintab->m_option8.m_updhack    = MyGetProfileInt(path,strSection, "UpdateHack",1);
   maintab->m_option8.m_urlhack    = MyGetProfileInt(path,strSection, "URLHack",1);
+  maintab->m_option8.m_cookiesfile = MyGetProfileString(path,strSection, "CookiesFile");
+  maintab->m_option4.m_pausefiles = MyGetProfileString(path,strSection, "PauseFiles");
   maintab->m_option8.m_http10     = MyGetProfileInt(path,strSection, "HTTP10",0);
   maintab->m_option9.m_Cache2     = MyGetProfileInt(path,strSection, "StoreAllInCache",0);
   maintab->m_option9.m_logtype    = MyGetProfileInt(path,strSection, "LogType",0);
@@ -2816,6 +2871,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option3.m_travel  = MyGetProfileInt(path,strSection, "Travel",1);
   maintab->m_option3.m_travel2 = MyGetProfileInt(path,strSection, "GlobalTravel",0);
   maintab->m_option3.m_travel3 = MyGetProfileInt(path,strSection, "RewriteLinks",0);
+  maintab->m_option3.m_stripquery = MyGetProfileString(path,strSection, "StripQuery");
   maintab->m_option2.Bopt.m_BuildString = MyGetProfileString(path,strSection, "BuildString","%h%p/%n%q.%t");
   
   // champs
@@ -2830,7 +2886,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option5.m_maxtime =  MyGetProfileString(path,strSection, "MaxTime");
   maintab->m_option4.m_timeout =  MyGetProfileString(path,strSection, "TimeOut");
   maintab->m_option4.m_rate    =  MyGetProfileString(path,strSection, "RateOut");
-  maintab->m_option6.m_user    =  MyGetProfileString(path,strSection, "UserID","Mozilla/4.5 (compatible; HTTrack 3.0x; Windows 98)");
+  maintab->m_option6.m_user    =  MyGetProfileString(path,strSection, "UserID","Mozilla/5.0 (compatible; HTTrack; +https://www.httrack.com/)");
   maintab->m_option6.m_footer  =  MyGetProfileString(path,strSection, "Footer",HTS_DEFAULT_FOOTER);
   maintab->m_option6.m_accept_language =
                                   MyGetProfileString(path,strSection, "AcceptLanguage", default_lang);
@@ -2848,6 +2904,7 @@ void Read_profile(CString path,int load_path) {
   // 10
   maintab->m_option10.m_proxy   = MyGetProfileString(path,strSection, "Proxy");
   maintab->m_option10.m_port    = MyGetProfileString(path,strSection, "Port");
+  maintab->m_option10.m_proxytype = MyGetProfileInt(path,strSection, "ProxyType",0);
   maintab->m_option10.m_ftpprox = MyGetProfileInt(path,strSection, "UseHTTPProxyForFTP",1);
   //
   maintab->m_option5.m_depth    = MyGetProfileString(path,strSection, "Depth");

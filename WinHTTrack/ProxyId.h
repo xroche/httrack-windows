@@ -19,10 +19,12 @@ public:
 // Dialog Data
 	//{{AFX_DATA(CProxyId)
 	enum { IDD = IDD_ProxyId };
+	CComboBox	m_ctl_proxytype;
 	CString	m_proxadr;
 	CString	m_proxlogin;
 	CString	m_proxpass;
 	CString	m_proxport;
+	int	m_proxytype;
 	//}}AFX_DATA
 
 

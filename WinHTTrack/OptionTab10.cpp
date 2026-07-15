@@ -44,6 +44,7 @@ COptionTab10::COptionTab10() : CPropertyPage(COptionTab10::IDD)
 	m_port = _T("");
 	m_ftpprox = FALSE;
 	//}}AFX_DATA_INIT
+  m_proxytype = 0;
 }
 
 COptionTab10::~COptionTab10()
@@ -206,7 +207,9 @@ void COptionTab10::Onproxyconfigure()
     proxy.m_proxlogin=user_pass;
     proxy.m_proxpass=a+1;
   }
+  proxy.m_proxytype = m_proxytype;
   if (proxy.DoModal() == IDOK) {
+    m_proxytype = proxy.m_proxytype;
     if (proxy.m_proxlogin.GetLength()==0) {
       SetDlgItemTextCP(this, IDC_prox,proxy.m_proxadr);
       m_ctl_pwdhide.SetCheck(0);
