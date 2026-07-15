@@ -31,6 +31,7 @@ public:
 	BOOL	m_rems;
 	CString	m_rate;
 	BOOL	m_ka;
+	CString	m_pausefiles;
 	//}}AFX_DATA
 
 

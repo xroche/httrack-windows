@@ -518,6 +518,8 @@ BEGIN
     EDITTEXT        IDC_rate,130,95,32,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "B/s",IDC_STATIC,170,95,17,8
     CONTROL         "Remove host if low",IDC_rems,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,109,183,10
+    LTEXT           "Pause between files:",IDC_STATIC_pausefiles,16,124,110,8
+    EDITTEXT        IDC_pausefiles,130,122,45,12,ES_AUTOHSCROLL
 END
 
 IDD_OPTION5 DIALOGEX 0, 0, 260, 198

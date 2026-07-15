@@ -33,6 +33,7 @@ COptionTab4::COptionTab4() : CPropertyPage(COptionTab4::IDD)
 	m_rems = FALSE;
 	m_rate = _T("");
 	m_ka = FALSE;
+	m_pausefiles = _T("");
 	//}}AFX_DATA_INIT
 }
 
@@ -51,6 +52,7 @@ void COptionTab4::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_rems, m_rems);
 	DDX_Text(pDX, IDC_rate, m_rate);
 	DDX_Check(pDX, IDC_ka, m_ka);
+	DDX_Text(pDX, IDC_pausefiles, m_pausefiles);
 	//}}AFX_DATA_MAP
 }
 
@@ -79,6 +81,7 @@ BOOL COptionTab4::OnInitDialog()
     SetDlgItemTextCP(this, IDC_rems,LANG(LANG_I47)); // "Abandon hote si lent");
     SetDlgItemTextCP(this, IDC_ka,LANG(LANG_I47e));
     SetDlgItemTextCP(this, IDC_STATIC_timeout,LANG_I47d); // TimeOut(s)
+    SetDlgItemTextCP(this, IDC_STATIC_pausefiles,LANG(LANG_PAUSEFILES));
   }
 	
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -131,6 +134,7 @@ const char* COptionTab4::GetTip(int ID)
     case IDC_rate:    return LANG(LANG_I15); break; // "Minimum transfer rate tolerated","Taux de transfert minimal toléré"); break;
     case IDC_rems:    return LANG(LANG_I16); break; // "Cancel all links from a host if it is too slow","Annuler tous les liens sur un domaine en cas de transfert trop lent"); break;
     case IDC_ka:      return LANG(LANG_I47f); break;
+    case IDC_pausefiles: return LANG(LANG_PAUSEFILESTIP); break;
   }
   return "";
 }
