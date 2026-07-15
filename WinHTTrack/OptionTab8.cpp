@@ -61,12 +61,23 @@ void COptionTab8::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(COptionTab8, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab8)
+	ON_BN_CLICKED(IDC_cookiesfilebrowse, OnCookiesFileBrowse)
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab8 message handlers
+
+void COptionTab8::OnCookiesFileBrowse()
+{
+  // writable buffer: CFileDialog rewrites the '|' separators in place
+  char szFilter[] = "Cookies file (cookies.txt, *.txt)|*.txt|All files (*.*)|*.*||";
+  CFileDialog dial(TRUE, "txt", NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, szFilter);
+  if (dial.DoModal() == IDOK)
+    SetDlgItemTextCP(this, IDC_cookiesfile, dial.GetPathName());
+}
+
 BOOL COptionTab8::OnInitDialog() 
 {
 	CDialog::OnInitDialog();

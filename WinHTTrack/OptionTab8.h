@@ -48,6 +48,7 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(COptionTab8)
 	virtual BOOL OnInitDialog();
+	afx_msg void OnCookiesFileBrowse();
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
   DECLARE_MESSAGE_MAP()

@@ -496,7 +496,7 @@ BEGIN
     COMBOBOX        IDC_travel2,165,75,130,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Rewrite links: internal / external",IDC_STATIC_travel3,16,92,129,8
     COMBOBOX        IDC_travel3,16,100,139,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Strip query keys:",IDC_STATIC_stripquery,165,92,150,8
+    LTEXT           "Strip query keys (e.g. sid,ref):",IDC_STATIC_stripquery,165,92,150,8
     EDITTEXT        IDC_stripquery,165,102,150,12,ES_AUTOHSCROLL
     CONTROL         "Activate Debugging Mode (winhttrack.log)",IDC_windebug,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,120,242,10
@@ -520,7 +520,7 @@ BEGIN
     EDITTEXT        IDC_rate,130,95,32,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "B/s",IDC_STATIC,170,95,17,8
     CONTROL         "Remove host if low",IDC_rems,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,109,183,10
-    LTEXT           "Pause between files:",IDC_STATIC_pausefiles,16,124,110,8
+    LTEXT           "Pause between files (s):",IDC_STATIC_pausefiles,16,124,110,8
     EDITTEXT        IDC_pausefiles,130,122,45,12,ES_AUTOHSCROLL
 END
 
@@ -640,7 +640,8 @@ BEGIN
     CONTROL         "Tolerant requests (for servers)",IDC_toler,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,110,244,9
     CONTROL         "Force old HTTP/1.0 requests (no 1.1)",IDC_http10,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,125,237,9
     LTEXT           "Load cookies from file:",IDC_STATIC_cookiesfile,16,144,120,8
-    EDITTEXT        IDC_cookiesfile,140,142,116,12,ES_AUTOHSCROLL
+    EDITTEXT        IDC_cookiesfile,140,142,96,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "...",IDC_cookiesfilebrowse,240,142,16,12
 END
 
 IDD_OPTION9 DIALOGEX 0, 0, 325, 143
