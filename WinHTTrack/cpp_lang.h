@@ -464,6 +464,13 @@
 #define LISTDEF_10 LANGSEL("LISTDEF_10")
 #define LISTDEF_11 LANGSEL("LISTDEF_11")
 
+/* Strings for options exposed from the engine (post 3.49-2).
+   The English/translated values live in the engine's lang.def + lang/*.txt;
+   see the hand-over note. Until those ship, English users fall back to the
+   .rc captions and other languages show these keys empty (no crash). */
+#define LANG_PROXYTYPE LANGSEL("LANG_PROXYTYPE")
+#define LANG_PROXYTYPETIP LANGSEL("LANG_PROXYTYPETIP")
+
 #endif
 
 

@@ -28,6 +28,7 @@ CProxyId::CProxyId(CWnd* pParent /*=NULL*/)
 	m_proxlogin = _T("");
 	m_proxpass = _T("");
 	m_proxport = _T("");
+	m_proxytype = 0;
 	//}}AFX_DATA_INIT
 }
 
@@ -40,6 +41,8 @@ void CProxyId::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_proxlogin, m_proxlogin);
 	DDX_Text(pDX, IDC_proxpass, m_proxpass);
 	DDX_Text(pDX, IDC_proxport, m_proxport);
+	DDX_Control(pDX, IDC_proxytype, m_ctl_proxytype);
+	DDX_CBIndex(pDX, IDC_proxytype, m_proxytype);
 	//}}AFX_DATA_MAP
 }
 
@@ -61,9 +64,16 @@ BOOL CProxyId::OnInitDialog()
   SetIcon(httrack_icon,true);
   EnableToolTips(true);     // TOOL TIPS
   SetForegroundWindow();   // yop en premier plan!
+
+  /* Proxy protocol selector (HTTP or SOCKS5). Index maps to m_proxytype;
+     the scheme is prepended to the -P argument by the shell. */
+  m_ctl_proxytype.AddString("HTTP");
+  m_ctl_proxytype.AddString("SOCKS5");
+  m_ctl_proxytype.SetCurSel(m_proxytype == 1 ? 1 : 0);
 	
   if (LANG_T(-1)) {    // Patcher en français
     SetWindowTextCP(this,  LANG(LANG_R1));
+    SetDlgItemTextCP(this, IDC_STATIC_ptype,LANG(LANG_PROXYTYPE));
     SetDlgItemTextCP(this, IDC_STATIC_adr,LANG(LANG_R2));
     SetDlgItemTextCP(this, IDC_STATIC_port,LANG(LANG_R3));
     SetDlgItemTextCP(this, IDC_STATIC_auth,LANG(LANG_R4));
@@ -131,6 +141,7 @@ BOOL CProxyId::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 const char* CProxyId::GetTip(int ID)
 {
   switch(ID) {
+    case IDC_proxytype:  return LANG(LANG_PROXYTYPETIP); break;
     case IDC_proxadr:    return LANG(LANG_R10); break;
     case IDC_proxport:   return LANG(LANG_R11); break;
     case IDC_proxlogin:  return LANG(LANG_R12); break;

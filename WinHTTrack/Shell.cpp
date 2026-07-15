@@ -587,6 +587,7 @@ void compute_options() {
   
   // proxy
   ShellOptions->proxy = maintab->m_option10.m_proxy;
+  ShellOptions->proxyscheme = (maintab->m_option10.m_proxytype == 1) ? "socks5://" : "";
   ShellOptions->port = maintab->m_option10.m_port;
   if (maintab->m_option10.m_ftpprox) 
     ShellOptions->proxyftp = "%f";
@@ -1998,7 +1999,7 @@ void lance(void) {
 
   if ((int)ShellOptions->proxy.GetLength()>0) {
     args.Add("-P");
-    args.Add(ShellOptions->proxy + ":" + ShellOptions->port);
+    args.Add(ShellOptions->proxyscheme + ShellOptions->proxy + ":" + ShellOptions->port);
   }
   
   // mode spider, mettre après options
@@ -2545,6 +2546,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileString(path,strSection, "WildCardFilters",maintab->m_option7.m_url2);
     MyWriteProfileString(path,strSection, "Proxy",maintab->m_option10.m_proxy);
     MyWriteProfileString(path,strSection, "Port",maintab->m_option10.m_port);
+    MyWriteProfileInt(path,strSection, "ProxyType",maintab->m_option10.m_proxytype);
     MyWriteProfileString(path,strSection, "Depth",maintab->m_option5.m_depth);
     MyWriteProfileString(path,strSection, "ExtDepth",maintab->m_option5.m_depth2);
     MyWriteProfileString(path,strSection, "MaxConn",maintab->m_option5.m_maxconn);    
@@ -2701,6 +2703,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileString(path,strSection,"Proxy",st);
     maintab->m_option10.GetDlgItemText(IDC_proxport,st);
     MyWriteProfileString(path,strSection,"Port",st);
+    MyWriteProfileInt(path,strSection,"ProxyType", maintab->m_option10.m_proxytype);
     n=maintab->m_option10.IsDlgButtonChecked(IDC_ftpprox);
     MyWriteProfileInt(path,strSection,"UseHTTPProxyForFTP", n);
     
@@ -2873,6 +2876,7 @@ void Read_profile(CString path,int load_path) {
   // 10
   maintab->m_option10.m_proxy   = MyGetProfileString(path,strSection, "Proxy");
   maintab->m_option10.m_port    = MyGetProfileString(path,strSection, "Port");
+  maintab->m_option10.m_proxytype = MyGetProfileInt(path,strSection, "ProxyType",0);
   maintab->m_option10.m_ftpprox = MyGetProfileInt(path,strSection, "UseHTTPProxyForFTP",1);
   //
   maintab->m_option5.m_depth    = MyGetProfileString(path,strSection, "Depth");

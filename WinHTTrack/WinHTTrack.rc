@@ -425,22 +425,24 @@ BEGIN
     EDITTEXT        IDC_STATIC_bo1,7,43,232,84,ES_MULTILINE | ES_READONLY | NOT WS_BORDER
 END
 
-IDD_ProxyId DIALOG  0, 0, 266, 129
+IDD_ProxyId DIALOG  0, 0, 266, 145
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Proxy settings"
 FONT 8, "MS Sans Serif"
 BEGIN
-    EDITTEXT        IDC_proxadr,104,8,141,12,ES_AUTOHSCROLL
-    EDITTEXT        IDC_proxport,104,24,28,12,ES_AUTOHSCROLL | ES_NUMBER
-    EDITTEXT        IDC_proxlogin,104,56,56,12,ES_AUTOHSCROLL
-    EDITTEXT        IDC_proxpass,104,72,56,12,ES_PASSWORD | ES_AUTOHSCROLL
-    DEFPUSHBUTTON   "OK",IDOK,208,104,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,8,104,50,14
-    LTEXT           "Proxy address:",IDC_STATIC_adr,8,8,83,10
-    LTEXT           "Proxy port:",IDC_STATIC_port,8,24,83,10
-    LTEXT           "Login:",IDC_STATIC_login,16,56,83,10
-    LTEXT           "Password:",IDC_STATIC_pass,16,72,83,10
-    GROUPBOX        "Authentication (only if needed)",IDC_STATIC_auth,8,40,248,48
+    COMBOBOX        IDC_proxytype,104,8,90,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_proxadr,104,24,141,12,ES_AUTOHSCROLL
+    EDITTEXT        IDC_proxport,104,40,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    EDITTEXT        IDC_proxlogin,104,72,56,12,ES_AUTOHSCROLL
+    EDITTEXT        IDC_proxpass,104,88,56,12,ES_PASSWORD | ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,208,120,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,8,120,50,14
+    LTEXT           "Proxy type:",IDC_STATIC_ptype,8,10,90,10
+    LTEXT           "Proxy address:",IDC_STATIC_adr,8,26,90,10
+    LTEXT           "Proxy port:",IDC_STATIC_port,8,42,90,10
+    LTEXT           "Login:",IDC_STATIC_login,16,72,83,10
+    LTEXT           "Password:",IDC_STATIC_pass,16,88,83,10
+    GROUPBOX        "Authentication (only if needed)",IDC_STATIC_auth,8,56,248,48
 END
 
 IDD_NewProj DIALOG  0, 0, 322, 181
