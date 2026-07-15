@@ -573,7 +573,7 @@ BEGIN
     EDITTEXT        IDC_accept_language,115,54,180,12,ES_AUTOHSCROLL
 END
 
-IDD_OPTION1 DIALOG  0, 0, 325, 105
+IDD_OPTION1 DIALOG  0, 0, 325, 150
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Links"
 FONT 8, "MS Sans Serif"
@@ -585,6 +585,9 @@ BEGIN
     CONTROL         "Test validity of all links (even external ones)",IDC_testall,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,64,309,10
     CONTROL         "Get HTML files first!",IDC_htmlfirst,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,85,309,10
+    CONTROL         "Keep the www. prefix (do not merge www.host with host)",IDC_keepwww,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,101,309,10
+    CONTROL         "Keep double slashes in URLs",IDC_keepslashes,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,117,309,10
+    CONTROL         "Keep the original query-string order",IDC_keepqueryorder,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,133,309,10
 END
 
 IDD_OPTION2 DIALOG  0, 0, 296, 150

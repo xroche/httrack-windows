@@ -617,6 +617,9 @@ void compute_options() {
   if(maintab->m_option2.m_hidepwd) ShellOptions->hidepwd = "%x"; else ShellOptions->hidepwd = ""; 
   if(maintab->m_option2.m_hidequery) ShellOptions->hidequery = "%q0"; else ShellOptions->hidequery = ""; 
   
+  ShellOptions->keepwww = maintab->m_option1.m_keepwww ? "--keep-www-prefix" : "";
+  ShellOptions->keepslashes = maintab->m_option1.m_keepslashes ? "--keep-double-slashes" : "";
+  ShellOptions->keepqueryorder = maintab->m_option1.m_keepqueryorder ? "--keep-query-order" : "";
   ShellOptions->robots = "";
   if(maintab->m_option8.m_robots==0) ShellOptions->robots = "s0"; 
   else if(maintab->m_option8.m_robots==1) ShellOptions->robots = "s1"; 
@@ -2015,6 +2018,11 @@ void lance(void) {
     args.Add("--pause");
     args.Add(ShellOptions->pausefiles);
   }
+
+  // URL-hack opt-outs (only meaningful with -%u url hacks on)
+  if (ShellOptions->keepwww.GetLength() != 0)        args.Add(ShellOptions->keepwww);
+  if (ShellOptions->keepslashes.GetLength() != 0)    args.Add(ShellOptions->keepslashes);
+  if (ShellOptions->keepqueryorder.GetLength() != 0) args.Add(ShellOptions->keepqueryorder);
   
   // mode spider, mettre après options
   if (ShellOptions->choixdeb[0]=='!') {
@@ -2500,6 +2508,9 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "Test",maintab->m_option1.m_testall);
     MyWriteProfileInt(path,strSection, "ParseAll",maintab->m_option1.m_parseall);
     MyWriteProfileInt(path,strSection, "HTMLFirst",maintab->m_option1.m_htmlfirst);
+    MyWriteProfileInt(path,strSection, "KeepWww",maintab->m_option1.m_keepwww);
+    MyWriteProfileInt(path,strSection, "KeepSlashes",maintab->m_option1.m_keepslashes);
+    MyWriteProfileInt(path,strSection, "KeepQueryOrder",maintab->m_option1.m_keepqueryorder);
     MyWriteProfileInt(path,strSection, "Cache",maintab->m_option3.m_cache);
     MyWriteProfileInt(path,strSection, "NoRecatch",maintab->m_option9.m_norecatch);
     MyWriteProfileInt(path,strSection, "Dos",
@@ -2598,6 +2609,12 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection,"ParseAll", n);
     n=maintab->m_option1.IsDlgButtonChecked(IDC_htmlfirst);
     MyWriteProfileInt(path,strSection,"HTMLFirst", n);
+    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepwww);
+    MyWriteProfileInt(path,strSection,"KeepWww", n);
+    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepslashes);
+    MyWriteProfileInt(path,strSection,"KeepSlashes", n);
+    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepqueryorder);
+    MyWriteProfileInt(path,strSection,"KeepQueryOrder", n);
     // 2
     n=maintab->m_option3.IsDlgButtonChecked(IDC_Cache);
     MyWriteProfileInt(path,strSection,"Cache", n);
@@ -2831,6 +2848,9 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option1.m_testall   = MyGetProfileInt(path,strSection, "Test",0);
   maintab->m_option1.m_parseall  = MyGetProfileInt(path,strSection, "ParseAll",1);
   maintab->m_option1.m_htmlfirst = MyGetProfileInt(path,strSection, "HTMLFirst",0);
+  maintab->m_option1.m_keepwww   = MyGetProfileInt(path,strSection, "KeepWww",0);
+  maintab->m_option1.m_keepslashes = MyGetProfileInt(path,strSection, "KeepSlashes",0);
+  maintab->m_option1.m_keepqueryorder = MyGetProfileInt(path,strSection, "KeepQueryOrder",0);
   maintab->m_option3.m_cache     = MyGetProfileInt(path,strSection, "Cache",1);
   maintab->m_option9.m_norecatch = MyGetProfileInt(path,strSection, "NoRecatch",0);
   maintab->m_option2.m_dos       = (MyGetProfileInt(path,strSection, "Dos",0) & 1);

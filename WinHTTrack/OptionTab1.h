@@ -28,6 +28,9 @@ public:
 	BOOL	m_parseall;
 	BOOL	m_testall;
 	BOOL	m_htmlfirst;
+	BOOL	m_keepwww;
+	BOOL	m_keepslashes;
+	BOOL	m_keepqueryorder;
 	//}}AFX_DATA
 
 

@@ -512,6 +512,9 @@
 #define IDC_STATIC_cookiesfile          1312
 #define IDC_pausefiles                  1313
 #define IDC_STATIC_pausefiles           1314
+#define IDC_keepwww                     1315
+#define IDC_keepslashes                 1316
+#define IDC_keepqueryorder              1317
 #define ID_MENUITEM32771                32771
 #define ID_MENUITEM32772                32772
 #define ID_EXIT                         32772
@@ -583,7 +586,7 @@
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        247
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1315
+#define _APS_NEXT_CONTROL_VALUE         1318
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif
