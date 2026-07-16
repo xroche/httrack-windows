@@ -588,7 +588,11 @@ void compute_options() {
   
   // proxy
   ShellOptions->proxy = maintab->m_option10.m_proxy;
-  ShellOptions->proxyscheme = (maintab->m_option10.m_proxytype == 1) ? "socks5://" : "";
+  switch(maintab->m_option10.m_proxytype) {
+    case 1:  ShellOptions->proxyscheme = "socks5://"; break;
+    case 2:  ShellOptions->proxyscheme = "connect://"; break;
+    default: ShellOptions->proxyscheme = ""; break;
+  }
   ShellOptions->port = maintab->m_option10.m_port;
   if (maintab->m_option10.m_ftpprox) 
     ShellOptions->proxyftp = "%f";

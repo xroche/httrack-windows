@@ -65,11 +65,12 @@ BOOL CProxyId::OnInitDialog()
   EnableToolTips(true);     // TOOL TIPS
   SetForegroundWindow();   // yop en premier plan!
 
-  /* Proxy protocol selector (HTTP or SOCKS5). Index maps to m_proxytype;
-     the scheme is prepended to the -P argument by the shell. */
+  /* Proxy protocol selector. Index maps to m_proxytype; the scheme is
+     prepended to the -P argument by the shell. */
   m_ctl_proxytype.AddString("HTTP");
   m_ctl_proxytype.AddString("SOCKS5");
-  m_ctl_proxytype.SetCurSel(m_proxytype == 1 ? 1 : 0);
+  m_ctl_proxytype.AddString("HTTP (CONNECT tunnel)");
+  m_ctl_proxytype.SetCurSel((m_proxytype >= 0 && m_proxytype < m_ctl_proxytype.GetCount()) ? m_proxytype : 0);
 	
   if (LANG_T(-1)) {    // Patcher en français
     SetWindowTextCP(this,  LANG(LANG_R1));
