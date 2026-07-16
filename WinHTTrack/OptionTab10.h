@@ -21,7 +21,7 @@ public:
   const char* GetTip(int id);
   int modify;
   int prox_status;
-  int m_proxytype;   /* 0 = HTTP proxy, 1 = SOCKS5 proxy */
+  int m_proxytype;   /* 0 = HTTP proxy, 1 = SOCKS5 proxy, 2 = HTTP CONNECT tunnel */
   char ProxyDetectBuff[16][1024];
   CString ProxyDetectName[16];
 
