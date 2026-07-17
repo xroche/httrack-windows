@@ -432,15 +432,18 @@ BOOL CWinHTTrackApp::InitInstance()
   {
     // enable file manager drag/drop and DDE Execute open
     EnableShellOpen();
-    RegisterShellFileTypes();
 
     CWinApp* pApp = AfxGetApp();
 
-    // register "New File" handler
+    // Portable runs always associate; an installed one obeys the setup's file-types task.
     if (pApp->GetProfileInt("Interface","SetupRun",0) != 1
       || pApp->GetProfileInt("Interface","SetupHasRegistered",0) == 1) {
         HKEY phkResult;
         DWORD creResult;
+
+      RegisterShellFileTypes();
+
+      // register "New File" handler
       if (RegCreateKeyEx(HKEY_CLASSES_ROOT,".whtt",0,NULL,REG_OPTION_NON_VOLATILE,KEY_ALL_ACCESS,NULL,&phkResult,&creResult)==ERROR_SUCCESS) {
         RegCloseKey(phkResult);
         if (RegCreateKeyEx(HKEY_CLASSES_ROOT,".whtt\\ShellNew",0,NULL,REG_OPTION_NON_VOLATILE,KEY_ALL_ACCESS,NULL,&phkResult,&creResult)==ERROR_SUCCESS) {

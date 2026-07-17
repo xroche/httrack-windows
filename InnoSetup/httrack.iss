@@ -64,7 +64,7 @@ SignedUninstaller=no
 #endif
 
 [Tasks]
-Name: "regfiles"; Description: "Register WinHTTrack file types and program setup"; GroupDescription: "Setup:"
+Name: "regfiles"; Description: "Associate the .whtt project file type with WinHTTrack, and add ""New > WinHTTrack Project"" to the Explorer menu"; GroupDescription: "Setup:"
 Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "Additional icons:"
 Name: "quicklaunchicon"; Description: "Create a &quick launch icon"; GroupDescription: "Additional icons:"; Flags: unchecked
 
