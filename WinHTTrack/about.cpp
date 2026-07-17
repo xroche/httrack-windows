@@ -100,17 +100,8 @@ BOOL Cabout::OnInitDialog()
     //LANG_T(min(old_lang,i-1));
   }
 
-  /* sel */
-  int i;
-  int max=m_ctl_lang.GetCount();
-  m_ctl_lang.SetCurSel(-1);
-  for(i=0;i<max;i++) {
-    CString st;
-    m_ctl_lang.GetLBText(i,st);
-    if (strcmp(st,LANGUAGE_NAME)==0) {
-      m_ctl_lang.SetCurSel(i);
-    }
-  }
+  /* sel: items were added in language-index order above */
+  m_ctl_lang.SetCurSel(LANG_T(-1));
   
   EnableToolTips(true);     // TOOL TIPS
   setlang();
