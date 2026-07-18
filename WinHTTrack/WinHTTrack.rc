@@ -337,21 +337,21 @@ BEGIN
     LTEXT           "",IDC_question,7,7,183,72
 END
 
-IDD_wizard_lnk DIALOG  0, 0, 218, 118
+IDD_wizard_lnk DIALOG  0, 0, 320, 132
 STYLE DS_SETFONT | WS_CAPTION | WS_SYSMENU
 CAPTION "Link detected.."
 FONT 8, "MS Sans Serif"
 BEGIN
-    CONTROL         "Ignore this link",IDC_ch1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,20,40,90,10
-    CONTROL         "Ignore links in this subdir",IDC_ch2,"Button",BS_AUTORADIOBUTTON,20,50,95,10
-    CONTROL         "Ignore all domain",IDC_ch3,"Button",BS_AUTORADIOBUTTON,20,60,91,10
-    CONTROL         "Get this page only",IDC_ch4,"Button",BS_AUTORADIOBUTTON,116,40,87,10
-    CONTROL         "Mirror this link",IDC_ch5,"Button",BS_AUTORADIOBUTTON,116,50,88,10
-    CONTROL         "Mirror the whole domain",IDC_ch6,"Button",BS_AUTORADIOBUTTON,116,60,87,10
-    PUSHBUTTON      "Skip All",IDskipall,7,96,50,14
-    DEFPUSHBUTTON   "Ok",IDOK,160,96,50,14
-    GROUPBOX        "Link:",IDC_STATIC,14,30,190,56
-    LTEXT           "",IDC_URL,20,7,190,17
+    EDITTEXT        IDC_URL,7,7,306,32,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | NOT WS_TABSTOP
+    GROUPBOX        "Choose a rule",IDC_STATIC_rule,7,46,306,56
+    CONTROL         "Ignore this link",IDC_ch1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,14,58,140,10
+    CONTROL         "Ignore links in this subdir",IDC_ch2,"Button",BS_AUTORADIOBUTTON,14,70,140,10
+    CONTROL         "Ignore all domain",IDC_ch3,"Button",BS_AUTORADIOBUTTON,14,82,140,10
+    CONTROL         "Get this page only",IDC_ch4,"Button",BS_AUTORADIOBUTTON,162,58,145,10
+    CONTROL         "Mirror this link",IDC_ch5,"Button",BS_AUTORADIOBUTTON,162,70,145,10
+    CONTROL         "Mirror the whole domain",IDC_ch6,"Button",BS_AUTORADIOBUTTON,162,82,145,10
+    PUSHBUTTON      "Skip All",IDskipall,7,110,50,14
+    DEFPUSHBUTTON   "Ok",IDOK,263,110,50,14
 END
 
 IDD_ABOUT DIALOG  0, 0, 235, 204
@@ -925,14 +925,15 @@ BEGIN
     IDD_wizard_lnk, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 210
-        VERTGUIDE, 20
+        RIGHTMARGIN, 313
+        VERTGUIDE, 14
+        VERTGUIDE, 162
         TOPMARGIN, 7
-        BOTTOMMARGIN, 110
-        HORZGUIDE, 30
-        HORZGUIDE, 40
-        HORZGUIDE, 50
-        HORZGUIDE, 60
+        BOTTOMMARGIN, 124
+        HORZGUIDE, 46
+        HORZGUIDE, 58
+        HORZGUIDE, 70
+        HORZGUIDE, 82
     END
 
     IDD_ABOUT, DIALOG
