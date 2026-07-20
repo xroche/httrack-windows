@@ -99,14 +99,18 @@ jobs:
 
       - name: Record engine provenance
         shell: pwsh
+        # Via env, not ${{ }} interpolation: a value containing $(...) would otherwise run.
+        env:
+          ENGINE_REF: ${{ vars.HTTRACK_ENGINE_REF }}
+          GH_REF: ${{ github.ref }}
         run: |
           $sha = (git -C httrack rev-parse HEAD).Trim()
-          Write-Host "::notice::engine $sha (HTTRACK_ENGINE_REF='${{ vars.HTTRACK_ENGINE_REF }}')"
+          Write-Host "::notice::engine $sha (HTTRACK_ENGINE_REF='$env:ENGINE_REF')"
           "ENGINE_SHA=$sha" | Out-File -Append $env:GITHUB_ENV
           # Two thirds of what we sign is built from the engine tree, so a tag that floats
-          # cannot say what it shipped. Pin HTTRACK_ENGINE_REF to a SHA before tagging.
-          if ('${{ github.ref }}' -like 'refs/tags/*' -and -not '${{ vars.HTTRACK_ENGINE_REF }}') {
-            throw 'Tagged build with no HTTRACK_ENGINE_REF: refusing to sign an unpinned engine'
+          # cannot say what it shipped. A branch name is not a pin, so require a full SHA.
+          if ($env:GH_REF -like 'refs/tags/*' -and $env:ENGINE_REF -notmatch '^[0-9a-f]{40}$') {
+            throw "Tagged build needs HTTRACK_ENGINE_REF pinned to a 40-hex SHA (got '$env:ENGINE_REF')"
           }
 
       # Located with vswhere rather than microsoft/setup-msbuild. A repo that
@@ -128,7 +132,15 @@ jobs:
 
       - name: Enable vcpkg MSBuild integration
         shell: pwsh
-        run: vcpkg integrate install
+        run: |
+          # The runner's preinstalled C:\vcpkg is a checkout frozen at image-build time and
+          # never fetches, so our pinned baseline has to be pulled in or resolution fails.
+          $baseline = (Get-Content httrack-windows/WinHTTrack/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          git -C C:\vcpkg fetch --depth 1 origin $baseline
+          git -C C:\vcpkg cat-file -e "${baseline}:versions/baseline.json"
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg baseline $baseline is still unreachable after fetch" }
+          Write-Host "vcpkg baseline $baseline reachable"
+          vcpkg integrate install
 
       # WinHTTrack links src\$(Platform)\$(Configuration)\libhttrack.lib, so the
       # engine has to be built first.
@@ -433,21 +445,21 @@ jobs:
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
-          # Assert before overwriting: a request that came back unsigned would otherwise
-          # sail on and ship an unsigned installer every later step still calls signed.
-          # Name the expected set -- validating only what came back passes happily when
-          # SignPath returns two of three, leaving the third unsigned inside the installer.
+          # Enumerate once, recursively: SignPath may return a nested layout, and a flat
+          # glob would then copy nothing while every later step still calls these signed.
+          $files = @(Get-ChildItem 'signed' -Recurse -Include *.exe, *.dll -File)
+          # Assert the expected set by name. Validating only what came back passes happily
+          # when SignPath returns two of three, leaving the third unsigned in the installer.
           $expected = @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')
-          $got = @(Get-ChildItem 'signed\*' -Include *.exe, *.dll | ForEach-Object { $_.Name })
-          $missing = $expected | Where-Object { $_ -notin $got }
+          $missing = $expected | Where-Object { $_ -notin $files.Name }
           if ($missing) { throw "SignPath did not return: $($missing -join ', ')" }
-          foreach ($f in Get-ChildItem 'signed\*' -Include *.exe, *.dll) {
+          foreach ($f in $files) {
             $sig = Get-AuthenticodeSignature $f.FullName
             Write-Host "  $($f.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
             if ($sig.Status -ne 'Valid') { throw "$($f.Name) came back $($sig.Status), not Valid" }
           }
-          Copy-Item 'signed\*' $bin -Force
-          Write-Host "::notice::signed $((Get-ChildItem 'signed\*').Count) binaries"
+          $files | Copy-Item -Destination $bin -Force
+          Write-Host "::notice::signed $($files.Count) binaries"
 
       # Build the installer, install it, and run the thing. Until now nothing had
       # ever executed: the manifest bug that stopped the exe from starting got
