@@ -1051,9 +1051,18 @@ int __cdecl httrackengine_start(t_hts_callbackarg *carg, httrackp *opt) {   // a
     if (ShellOptions->_RasString.GetLength()>0) {    // sélection provider
       if (!LibRas->RasDial(NULL,NULL,&ShellOptions->_dial,NULL,NULL,&conn)) {
         RASCONNSTATUS status;
+        // RasGetConnectStatus can fail without touching rasconnstate: bail rather than poll on garbage.
+        const DWORD pollMs = 250;
+        const DWORD timeoutMs = 180000;   // slow modem handshakes are legitimate
+        DWORD waited = 0;
         do {
+          memset(&status, 0, sizeof(status));
           status.dwSize = sizeof(status);
-          LibRas->RasGetConnectStatus(conn,&status);
+          if (LibRas->RasGetConnectStatus(conn,&status) != 0) {
+            strcpybuff(connected_err,LANG(LANG_F3 /*"Could not connect to provider"*/));
+            connected=-1;
+            break;
+          }
           switch(status.rasconnstate) {
           case RASCS_Connected : 
             connected=1;
@@ -1062,6 +1071,14 @@ int __cdecl httrackengine_start(t_hts_callbackarg *carg, httrackp *opt) {   // a
             strcpybuff(connected_err,LANG(LANG_F3 /*"Could not connect to provider"*/));
             connected=-1;
             break;
+          }
+          if (connected==0) {
+            Sleep(pollMs);
+            waited += pollMs;
+            if (waited >= timeoutMs) {
+              strcpybuff(connected_err,LANG(LANG_F3 /*"Could not connect to provider"*/));
+              connected=-1;
+            }
           }
         } while(connected==0);
       } else {

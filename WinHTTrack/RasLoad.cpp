@@ -10,8 +10,22 @@ Purpose:	Dynamically loaded RAS.
 #include "stdafx.h"
 #include "RasLoad.h"
 
+// Absolute System32 path: an unqualified name searches the app directory first, so a
+// planted rasapi32.dll would win. (LOAD_LIBRARY_SEARCH_SYSTEM32 needs KB2533623 on Win7.)
+static HINSTANCE LoadSystemRas()
+{
+	TCHAR path[MAX_PATH];
+	const UINT len = GetSystemDirectory( path, MAX_PATH );
+	static const TCHAR dll[] = _T("\\rasapi32.dll");
+	// 0 means failure; len excludes the NUL that _countof(dll) counts
+	if ( len == 0 || len >= MAX_PATH - _countof(dll) )
+		return NULL;
+	_tcscat_s( path, MAX_PATH, dll );
+	return LoadLibrary( path );
+}
+
 CDynamicRAS::CDynamicRAS()
-	: m_hInst( LoadLibrary( _T("rasapi32") ) )
+	: m_hInst( LoadSystemRas() )
 	, pRasEnumConnections( NULL )
 	, pRasHangUp( NULL )
 	, pRasGetConnectStatus( NULL )
