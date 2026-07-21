@@ -70,7 +70,6 @@ extern CWizTab* this_intCWizTab;
 // Pour la fin
 char end_mirror_msg[8192]="";
 
-extern t_StatsBuffer StatsBuffer[NStatsBuffer];
 
 
 /////////////////////////////////////////////////////////////////////////////

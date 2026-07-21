@@ -209,6 +209,9 @@ BOOL LaunchMirror();
 
 #define NStatsBuffer                    14
 
+// Defined in Shell.cpp; the Transfers dialog snapshots it under WHTT_LOCK.
+extern t_StatsBuffer StatsBuffer[NStatsBuffer];
+
 /* Class */
 class CShellOptions {
 public:
