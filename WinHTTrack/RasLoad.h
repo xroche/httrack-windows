@@ -26,19 +26,20 @@ public:
 
 	inline bool IsRASLoaded() const { return m_hInst ? true : false; }
 
-	inline DWORD RasEnumConnections( LPRASCONN lprasconn, LPDWORD lpcb, LPDWORD lpcConnections) { ASSERT( pRasEnumConnections ); return pRasEnumConnections( lprasconn, lpcb, lpcConnections ); }
-	inline DWORD RasHangUp( HRASCONN hrasconn ) { ASSERT( pRasHangUp ); return pRasHangUp( hrasconn ); }
-	inline DWORD RasGetConnectStatus( HRASCONN hrasconn , LPRASCONNSTATUS lprasconnstatus ) { ASSERT( pRasGetConnectStatus ); return pRasGetConnectStatus( hrasconn , lprasconnstatus ); }
-	inline DWORD RasDial( LPRASDIALEXTENSIONS lpRasDialExtensions, LPTSTR lpszPhonebook, LPRASDIALPARAMS lpRasDialParams, DWORD dwNotifierType, LPVOID lpvNotifier, LPHRASCONN lphRasConn) { 
-    ASSERT( pRasDial ); 
+	// ASSERT compiles out in Release, so a missing export became a NULL call: guard for real.
+	inline DWORD RasEnumConnections( LPRASCONN lprasconn, LPDWORD lpcb, LPDWORD lpcConnections) { if (!pRasEnumConnections) return ERROR_PROC_NOT_FOUND; return pRasEnumConnections( lprasconn, lpcb, lpcConnections ); }
+	inline DWORD RasHangUp( HRASCONN hrasconn ) { if (!pRasHangUp) return ERROR_PROC_NOT_FOUND; return pRasHangUp( hrasconn ); }
+	inline DWORD RasGetConnectStatus( HRASCONN hrasconn , LPRASCONNSTATUS lprasconnstatus ) { if (!pRasGetConnectStatus) return ERROR_PROC_NOT_FOUND; return pRasGetConnectStatus( hrasconn , lprasconnstatus ); }
+	inline DWORD RasDial( LPRASDIALEXTENSIONS lpRasDialExtensions, LPTSTR lpszPhonebook, LPRASDIALPARAMS lpRasDialParams, DWORD dwNotifierType, LPVOID lpvNotifier, LPHRASCONN lphRasConn) {
+    if (!pRasDial) return ERROR_PROC_NOT_FOUND;
     return pRasDial(lpRasDialExtensions, lpszPhonebook, lpRasDialParams, dwNotifierType, lpvNotifier, lphRasConn);
   }
   inline DWORD RasEnumEntries (LPTSTR reserved, LPTSTR lpszPhonebook, LPRASENTRYNAME lprasentryname, LPDWORD lpcb, LPDWORD lpcEntries) {
-    ASSERT( pRasEnumEntries ); 
+    if (!pRasEnumEntries) return ERROR_PROC_NOT_FOUND;
     return pRasEnumEntries(reserved, lpszPhonebook, lprasentryname, lpcb, lpcEntries);
   }
   inline DWORD RasGetEntryDialParams (LPTSTR lpszPhonebook, LPRASDIALPARAMS lprasdialparams, LPBOOL lpfPassword) {
-    ASSERT( pRasGetEntryDialParams ); 
+    if (!pRasGetEntryDialParams) return ERROR_PROC_NOT_FOUND;
     return pRasGetEntryDialParams(lpszPhonebook, lprasdialparams, lpfPassword);
   }
 
