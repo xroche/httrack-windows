@@ -1,0 +1,58 @@
+name: native dependency watch
+
+# Weekly, no build: opens/updates one issue when the pinned baseline drifts from
+# vcpkg master or when the pinned OpenSSL gains an advisory. The hard gate lives in
+# windows-build.yml; this only warns, so it is allowed to be noisy.
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compare pinned baseline against vcpkg master
+        id: drift
+        run: |
+          set -euo pipefail
+          BASE=$(python3 -c 'import json;print(json.load(open("WinHTTrack/vcpkg.json"))["builtin-baseline"])')
+          for ref in "$BASE" master; do
+            curl -sSf "https://raw.githubusercontent.com/microsoft/vcpkg/$ref/versions/baseline.json" -o "bl-$ref.json"
+          done
+          python3 - "$BASE" <<'EOF' | tee drift.txt
+          import json, sys
+          pin = json.load(open(f"bl-{sys.argv[1]}.json"))["default"]
+          head = json.load(open("bl-master.json"))["default"]
+          for p in ("openssl", "zlib", "brotli", "zstd"):
+              a = pin.get(p, {}).get("baseline")
+              b = head.get(p, {}).get("baseline")
+              print(f"{p}: pinned {a}, upstream {b}" + ("" if a == b else "   <-- DRIFT"))
+          EOF
+          echo "OPENSSL=$(python3 -c 'import json;print(json.load(open("bl-'"$BASE"'.json"))["default"]["openssl"]["baseline"])')" >> "$GITHUB_ENV"
+          grep -q DRIFT drift.txt && echo "drift=yes" >> "$GITHUB_OUTPUT" || true
+
+      - name: Check the pinned OpenSSL against the advisory feed
+        id: cve
+        continue-on-error: true
+        run: python3 tools/check-native-deps.py --openssl-version "$OPENSSL" --min-severity moderate
+
+      - name: Open or update the tracking issue
+        if: steps.drift.outputs.drift == 'yes' || steps.cve.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          title="Native dependency drift"
+          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file drift.txt
+          else
+            gh issue create --title "$title" --body-file drift.txt --label security
+          fi
