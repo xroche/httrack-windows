@@ -393,6 +393,30 @@ jobs:
           if ($bad) { throw ($bad -join "`n") }
           Write-Host "::notice::all three binaries report $name $want"
 
+      # vcpkg is invisible to Dependabot alerts, CodeQL and the dependency graph, so
+      # this is the only thing between a stale OpenSSL and a signed installer. Advisory
+      # on branches, fatal on tags. The engine tree is what ships (the GUI imports
+      # neither library); the GUI tree is scanned too and cross-checked against its pin.
+      - name: Check shipped native dependencies for advisories
+        shell: pwsh
+        continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          ACCEPTED: ${{ vars.SECURITY_ACCEPTED_CVES }}
+        run: |
+          $expectArg = @()
+          $baseline = (Get-Content httrack-windows/WinHTTrack/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          if ($baseline) {
+            $url = "https://raw.githubusercontent.com/microsoft/vcpkg/$baseline/versions/baseline.json"
+            $expect = (Invoke-RestMethod $url).default.openssl.baseline
+            Write-Host "GUI pin resolves openssl to $expect"
+            $expectArg = @('--expect-openssl', $expect)
+          }
+          # Engine tree first: its DLLs are the ones the installer ships.
+          python httrack-windows/tools/check-native-deps.py `
+            --installed httrack/src/vcpkg_installed httrack-windows/WinHTTrack/vcpkg_installed `
+            --min-severity moderate --accept "$env:ACCEPTED" @expectArg
+          if ($LASTEXITCODE -ne 0) { throw 'native dependency check failed' }
+
       # Code signing, 1 of 2: the payload. SignPath signs an Inno installer as an opaque
       # PE and cannot reach the files inside it, so sign these BEFORE ISCC packages them.
       # Dormant until SIGNPATH_ORGANIZATION_ID exists, then tags only: releases need a
