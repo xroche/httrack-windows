@@ -169,15 +169,15 @@ void CSplitterFrame::CheckRestore() {
 
 
 BOOL CSplitterFrame::Create( LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD dwStyle , const RECT& rect , CMDIFrameWnd* pParentWnd , CCreateContext* pContext ) {
-  /* recréer control tabs */
+  /* recrÃ©er control tabs */
   this_app->NewTabs();
 
-  // Enlever bordure fenêtre, et mettre en plein écran (pas de fenêtre dans la fenêtre!!)
+  // Enlever bordure fenÃªtre, et mettre en plein Ã©cran (pas de fenÃªtre dans la fenÃªtre!!)
   dwStyle&=(~(WS_MINIMIZEBOX|WS_BORDER|WS_CAPTION|WS_OVERLAPPED|WS_OVERLAPPEDWINDOW));
   dwStyle|=(WS_MAXIMIZE);
   int r=CMDIChildWnd::Create(lpszClassName,lpszWindowName,dwStyle ,rect ,pParentWnd ,pContext );
   if (r) {
-    // Mettre en maximisé
+    // Mettre en maximisÃ©
     WINDOWPLACEMENT pl;
     RECT rc;
     rc.top=0;
@@ -199,7 +199,7 @@ BOOL CSplitterFrame::Create( LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWOR
   icnd.uCallbackMessage=wm_IcnRest;  // notre callback
   icnd.hIcon=AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 
-  // Retourner résultat
+  // Retourner rÃ©sultat
   return r;
 }
 
@@ -311,7 +311,7 @@ BOOL CSplitterFrame::SetNewView(int row, int col, CRuntimeClass* pViewClass) {
   m_wndSplitter.DeleteView(row, col);                // delete old view
 
   /* */
-  /* recréer control tabs */
+  /* recrÃ©er control tabs */
   this_app->NewTabs();
   /* */
 
@@ -334,7 +334,7 @@ BOOL CSplitterFrame::SetNewView(int row, int col, CRuntimeClass* pViewClass) {
 }
 
 BOOL CSplitterFrame::SetSaved() {
-  GetActiveDocument()->SetModifiedFlag(FALSE);      // Document sauvé
+  GetActiveDocument()->SetModifiedFlag(FALSE);      // Document sauvÃ©
   return 1;
 }
 
@@ -394,7 +394,7 @@ void CSplitterFrame::EnableSaveEntries(BOOL state) {
 }
 
 void CSplitterFrame::SetMenuPrefs() {
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     CMenu* menu = GetParent()->GetParent()->GetMenu();
     if (menu) {
       ModifyMenuCP(menu, 0,MF_BYPOSITION,0,LANG(LANG_P1));

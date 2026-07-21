@@ -79,7 +79,7 @@ CMainTab::~CMainTab()
 void CMainTab::AddControlPages()
 {
   m_hIcon = httrack_icon;
-  m_psh.dwFlags |= PSP_USEHICON;  // utiliser icône
+  m_psh.dwFlags |= PSP_USEHICON;  // utiliser icÃ´ne
   m_psh.dwFlags &= ~PSH_HASHELP;  // pas de bouton help
   m_psh.hIcon = m_hIcon;
   //m_psh.pszIcon = "test";
@@ -154,17 +154,17 @@ BOOL CMainTab::OnInitDialog()
     }
   }
 */  
-  // Chargement des préférences
+  // Chargement des prÃ©fÃ©rences
   LoadPrefs();
   
-  // Appliquer préférences
+  // Appliquer prÃ©fÃ©rences
   Apply();
   
   int r = CPropertySheet::OnInitDialog();
   //SetActivePage(GetPageCount()-1);
   SetActivePage(0);
 
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   return r;
 }
 HCURSOR CMainTab::OnQueryDragIcon()
@@ -183,7 +183,7 @@ void CMainTab::OnSysCommand(UINT nID, LPARAM lParam)
 {
   /*if ((nID & 0xFFF0) == IDM_ABOUTBOX)
   {
-    SetActivePage(GetPageCount()-1);    // Afficher informations sur le programme et affichant la dernière page des control TAB
+    SetActivePage(GetPageCount()-1);    // Afficher informations sur le programme et affichant la derniÃ¨re page des control TAB
  	}
   else
   {
@@ -193,7 +193,7 @@ void CMainTab::OnSysCommand(UINT nID, LPARAM lParam)
   */
 }
 
-// L'utilisateur a appuyé sur "Apply"
+// L'utilisateur a appuyÃ© sur "Apply"
 void CMainTab::OnApplyNow()
 {
   EnableWindow(false);
@@ -202,15 +202,15 @@ void CMainTab::OnApplyNow()
   EnableWindow(true);
 }
 
-// Sauver et appliquer les préférences
+// Sauver et appliquer les prÃ©fÃ©rences
 void CMainTab::ApplyAndSave() {
   CWaitCursor wait;      // Afficher curseur sablier
-  bool err=false;  // Erreur lors de l'écriture des paramètres
+  bool err=false;  // Erreur lors de l'Ã©criture des paramÃ¨tres
   
-  // Appliquer les préférences
+  // Appliquer les prÃ©fÃ©rences
   Apply();
   
-  // Sauver préférences
+  // Sauver prÃ©fÃ©rences
   CWinApp* pApp = AfxGetApp();
   //if (!pApp->WriteProfileInt("Driver", "DriverId",numero_driver))          // No du driver
   //  err=true;
@@ -219,12 +219,12 @@ void CMainTab::ApplyAndSave() {
     AfxMessageBox(LANG(LANG_DIAL2));
 }
 
-// Appliquer préférences
+// Appliquer prÃ©fÃ©rences
 void CMainTab::Apply() {
-  // Appliquer préférences
+  // Appliquer prÃ©fÃ©rences
 }
 
-// Chargement des préférences
+// Chargement des prÃ©fÃ©rences
 void CMainTab::LoadPrefs() {
   CWinApp* pApp = AfxGetApp();
   //n = pApp->GetProfileInt("Driver", "DriverId",0);   // No du driver
@@ -272,11 +272,11 @@ BOOL CMainTab::OnHelpInfo(HELPINFO* dummy)
 /*
 // Capturer OK et Cancel
 void CMainTab::OnOK( ) {
-  // Sauver et appliquer préférences
+  // Sauver et appliquer prÃ©fÃ©rences
   ApplyAndSave();
 }
 void CMainTab::OnCancel( ) {
-  // Recharger préférences
+  // Recharger prÃ©fÃ©rences
   LoadPrefs();
 }
 */

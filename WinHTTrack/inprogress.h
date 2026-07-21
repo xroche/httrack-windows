@@ -54,7 +54,7 @@ public:
   void StatsBuffer_info(int id);
   void StopTimer();
 
-  CWnd* element[5][NStatsBuffer];    // ici 10=NStatsBuffer -- les éléments (status nom slide bouton)
+  CWnd* element[5][NStatsBuffer];    // ici 10=NStatsBuffer -- les Ã©lÃ©ments (status nom slide bouton)
 	//Cinprogress(CWnd* pParent = NULL);   // standard constructor
   CWinThread * BackAffLog;
   Ciplog form;

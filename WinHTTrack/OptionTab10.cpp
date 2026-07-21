@@ -59,7 +59,7 @@ IMPLEMENT_DYNCREATE(COptionTab10, CPropertyPage)
 COptionTab10::COptionTab10() : CPropertyPage(COptionTab10::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT10); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -136,13 +136,13 @@ BOOL COptionTab10::OnInitDialog()
     OnPwdhide();
   }
 
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetDlgItemTextCP(this, IDC_proxyconfigure,LANG(LANG_I47b)); // "Configurer"
     SetDlgItemTextCP(this, IDC_ftpprox,LANG(LANG_I47c));
     SetDlgItemTextCP(this, IDC_PWDHIDE,LANG_HIDEPWD);  /* Hide password */
   }  
 
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_prox           ) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_portprox       ) ->ModifyStyle(0,WS_DISABLED);

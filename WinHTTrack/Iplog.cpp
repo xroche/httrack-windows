@@ -161,12 +161,12 @@ void Ciplog::AffLogRefresh() {
           case 10: {
             *a='\0';
             if (filter & 1) {
-              if (strstr(startline,"Debug:")) {       // éliminer débug
+              if (strstr(startline,"Debug:")) {       // Ã©liminer dÃ©bug
                 a=startline;
               }
             }
             if (filter & 2) {
-              if (strstr(startline,"Info:")) {       // éliminer info
+              if (strstr(startline,"Info:")) {       // Ã©liminer info
                 a=startline;
               }
             }
@@ -190,7 +190,7 @@ void Ciplog::AffLogRefresh() {
       *a='\0';
     }
     if (strlen(dat)>0) {
-      // avant d'écrire on sauvegarde la position (bah oui.. c chiant)
+      // avant d'Ã©crire on sauvegarde la position (bah oui.. c chiant)
       txt += dat;
       int lh = m_ctl_iplog.GetScrollPos(SB_HORZ);
       int lv = m_ctl_iplog.GetScrollPos(SB_VERT);
@@ -230,8 +230,8 @@ BOOL Ciplog::OnInitDialog()
   ///m_ctl_iplog.ModifyStyleEx(0,WS_EX_CLIENTEDGE|WS_EX_DLGMODALFRAME);
   //m_ctl_iplog.SetReadOnly(FALSE);     // en blanc
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemTextCP(this, ,"");
     SetDlgItemTextCP(this, IDC_STATIC_type,LANG(LANG_E4)); // "Type d'infos:");
     SetDlgItemTextCP(this, IDC_logtype,LANG(LANG_E5)); // "Erreurs");
@@ -241,7 +241,7 @@ BOOL Ciplog::OnInitDialog()
     SetCombo(this,IDC_HIDEINFO,LISTDEF_2);
   }
 
-  // démarrer timer
+  // dÃ©marrer timer
   StartTimer();
 
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -377,7 +377,7 @@ void Ciplog::OnSelchangeHideinfo()
 {
   int r=m_ctl_hideinfo.GetCurSel();
   switch(r) {
-  case CB_ERR : break;  // pas de sélection
+  case CB_ERR : break;  // pas de sÃ©lection
   default:
     type_filter=r;
   break;

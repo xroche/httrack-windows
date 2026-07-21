@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab2, CPropertyPage)
 COptionTab2::COptionTab2() : CPropertyPage(COptionTab2::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT2); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -111,10 +111,10 @@ BOOL COptionTab2::OnInitDialog()
 	CPropertyPage::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 	
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemTextCP(this, ,"");
-    SetDlgItemTextCP(this, IDC_STATIC_buildopt,LANG(LANG_I33)); // "Type de structure (manière dont les liens sont sauvés)");
+    SetDlgItemTextCP(this, IDC_STATIC_buildopt,LANG(LANG_I33)); // "Type de structure (maniÃ¨re dont les liens sont sauvÃ©s)");
     SetDlgItemTextCP(this, IDC_dos,LANG(LANG_I37)); // "Noms DOS");
     SetDlgItemTextCP(this, IDC_iso9660,LANG(LANG_I37b)); // "Noms DOS");
     SetDlgItemTextCP(this, IDC_errpage,LANG(LANG_I38)); // "Pas de page d'erreur");
@@ -126,7 +126,7 @@ BOOL COptionTab2::OnInitDialog()
     SetCombo(this,IDC_build,LISTDEF_3);
   }
 
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_build)   ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_buildopt)->ModifyStyle(0,WS_DISABLED);
@@ -193,10 +193,10 @@ const char* COptionTab2::GetTip(int ID)
 {
   switch(ID) {
     case IDC_build:   return LANG(LANG_I3); break; // "Choose local site structure","Choisir la structure de fichiers local"); break;
-    case IDC_buildopt:return LANG(LANG_I4); break; // "Set user-defined structure on disk","Définir la structure du site sur disque"); break;
-    case IDC_dos:     return LANG(LANG_I8); break; // "Generate ONLY 8-3 filenames","Générer uniquement des fichiers courts 8-3"); break;
-    case IDC_iso9660: return LANG(LANG_I8b); break; // "Generate ONLY ISO9660 filenames","Générer uniquement des fichiers courts 8-3"); break;
-    case IDC_errpage: return LANG(LANG_I9); break; // "Do not write html error pages","Ne pas générer les fichiers d'erreur html"); break;
+    case IDC_buildopt:return LANG(LANG_I4); break; // "Set user-defined structure on disk","DÃ©finir la structure du site sur disque"); break;
+    case IDC_dos:     return LANG(LANG_I8); break; // "Generate ONLY 8-3 filenames","GÃ©nÃ©rer uniquement des fichiers courts 8-3"); break;
+    case IDC_iso9660: return LANG(LANG_I8b); break; // "Generate ONLY ISO9660 filenames","GÃ©nÃ©rer uniquement des fichiers courts 8-3"); break;
+    case IDC_errpage: return LANG(LANG_I9); break; // "Do not write html error pages","Ne pas gÃ©nÃ©rer les fichiers d'erreur html"); break;
     case IDC_external: return LANG(LANG_I29); break; // extern
     case IDC_nopurge: return LANG(LANG_I1a); break; // erase old files
     case IDC_hidepwd: return LANG(LANG_I30); break;

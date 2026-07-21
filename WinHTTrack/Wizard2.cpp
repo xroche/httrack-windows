@@ -81,8 +81,8 @@ BOOL wizard2::OnInitDialog()
   tm=SetTimer(WM_TIMER,1000,NULL);
   SetForegroundWindow();   // yop en premier plan!
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemText(,"");
     SetWindowTextCP(this, LANG(LANG_N1)); // "Question du wizard");
     SetDlgItemTextCP(this, IDCANCEL,LANG(LANG_N2)); // "NON");

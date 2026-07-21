@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab11, CPropertyPage)
 COptionTab11::COptionTab11() : CPropertyPage(COptionTab11::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT11); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -113,7 +113,7 @@ BOOL COptionTab11::OnInitDialog()
 	
   EnableToolTips(true);     // TOOL TIPS
 
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetDlgItemTextCP(this, IDC_STATIC_asso,LANG_W1);
     SetDlgItemTextCP(this, IDC_STATIC_filetype,LANG_W2);
     SetDlgItemTextCP(this, IDC_STATIC_mime,LANG_W3);
@@ -121,7 +121,7 @@ BOOL COptionTab11::OnInitDialog()
 
   SetWindowTextCP(this, LANG_IOPT11);
 
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_ext1           ) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_ext2           ) ->ModifyStyle(0,WS_DISABLED);

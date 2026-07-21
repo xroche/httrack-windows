@@ -46,7 +46,7 @@ Please visit our Website: http://www.httrack.com
 // See WinHTTrack.cpp for the implementation of this class
 //
 
-// En-tête pour l'affichage des tabs
+// En-tÃªte pour l'affichage des tabs
 #include "NewProj.h"
 #include "Wid1.h"
 #include "trans.h"
@@ -60,7 +60,7 @@ class CWinHTTrackApp : public CWinApp
 public:
 	CWinHTTrackApp();
 	~CWinHTTrackApp();
-  void NewTabs();       /* recréer control tabs */
+  void NewTabs();       /* recrÃ©er control tabs */
   //
   CFirstInfo*        m_tab0;
   CNewProj*          m_tab1;

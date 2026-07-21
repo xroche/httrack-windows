@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab9, CPropertyPage)
 COptionTab9::COptionTab9() : CPropertyPage(COptionTab9::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT9); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -95,7 +95,7 @@ BOOL COptionTab9::OnInitDialog()
 	CDialog::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetDlgItemTextCP(this, IDC_index,LANG(LANG_I35)); // "Faire un index");
     SetDlgItemTextCP(this, IDC_index2,LANG(LANG_I35b));
     SetDlgItemTextCP(this, IDC_index_mail,LANG(LANG_I35c));
@@ -105,7 +105,7 @@ BOOL COptionTab9::OnInitDialog()
     SetCombo(this,IDC_logtype,LISTDEF_9);
   }  
 
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_norecatch)->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_index)   ->ModifyStyle(0,WS_DISABLED);
@@ -169,10 +169,10 @@ const char* COptionTab9::GetTip(int ID)
 {
   switch(ID) {
     case IDC_norecatch: return LANG(LANG_I5b); break;
-    case IDC_index:   return LANG(LANG_I6); break; // "Create a start page","Générer une page de départ"); break;
-    case IDC_index2:   return LANG(LANG_I6b); break; // "Create a start page","Générer une page de départ"); break;
+    case IDC_index:   return LANG(LANG_I6); break; // "Create a start page","GÃ©nÃ©rer une page de dÃ©part"); break;
+    case IDC_index2:   return LANG(LANG_I6b); break; // "Create a start page","GÃ©nÃ©rer une page de dÃ©part"); break;
     case IDC_index_mail:return LANG(LANG_I6c); break;
-    case IDC_logf:    return LANG(LANG_I7); break; // "Create log files for error and info report","Générer des fichiers d'audit pour les erreurs et les messages"); break;
+    case IDC_logf:    return LANG(LANG_I7); break; // "Create log files for error and info report","GÃ©nÃ©rer des fichiers d'audit pour les erreurs et les messages"); break;
     case IDC_Cache2:  return LANG(LANG_I1e); break;
     case IDC_logtype: return LANG(LANG_I1f); break;
   }

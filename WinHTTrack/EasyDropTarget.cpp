@@ -264,7 +264,7 @@ CString CEasyDropTarget::DoImportFile(HDROP hDropInfo)
     int size;
     size=DragQueryFile(hDropInfo,i,NULL,0);    // buffer size
     if (size>0) {
-      size+=16;    // marge de sécurité
+      size+=16;    // marge de sÃ©curitÃ©
       buff=(char*) calloc(size,1);
       if (buff) {
         if (DragQueryFile(hDropInfo,i,buff,size)>0) {    // ok copied

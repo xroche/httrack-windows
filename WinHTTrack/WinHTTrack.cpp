@@ -935,8 +935,8 @@ void CWinHTTrackApp::FwOnViewTransfers() {
 
 CDocument* CWinHTTrackApp::OpenDocumentFile( LPCTSTR lpszFileName)
 {
-  // Eviter deux fenêtres (un seul document)
-  // Le CMultui..->CSingleDoc.. est trop complexe à changer (à cause du splitter-wnd)
+  // Eviter deux fenÃªtres (un seul document)
+  // Le CMultui..->CSingleDoc.. est trop complexe Ã  changer (Ã  cause du splitter-wnd)
   int count=1;
 
   { /* Check if a document exists, and if exists if empty or not, and if name is different */
@@ -979,7 +979,7 @@ CDocument* CWinHTTrackApp::OpenDocumentFile( LPCTSTR lpszFileName)
 
   // Ouvrir nouveau?
   //if (count)
-  //  return;       // ne rien faire, car limité à 1 document
+  //  return;       // ne rien faire, car limitÃ© Ã  1 document
   //count++;
 
   /* Ouvrir */
@@ -1016,7 +1016,7 @@ void CWinHTTrackApp::NewTabs() {
 
 void CWinHTTrackApp::DeleteTabs() {
   if (m_tab0)
-  if (m_tab0->GetSafeHwnd())       /* a déja été détruit par CWinApp */
+  if (m_tab0->GetSafeHwnd())       /* a dÃ©ja Ã©tÃ© dÃ©truit par CWinApp */
     delete m_tab0;
   if (m_tab1)
   if (m_tab1->GetSafeHwnd())

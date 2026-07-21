@@ -71,7 +71,7 @@ extern CSplitterFrame* this_CSplitterFrame;
 extern CWizTab* this_CWizTab;
 extern CWizTab* this_intCWizTab2;
 
-/* Objet lui même */
+/* Objet lui mÃªme */
 Cinfoend* this_Cinfoend=NULL;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -127,8 +127,8 @@ BOOL Cinfoend::OnInitDialog()
   EnableToolTips(true);     // TOOL TIPS
   //SetForegroundWindow();   // yop en premier plan!
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemTextCP(this, ,"");
     //SetWindowTextCP(this, LANG(LANG_D6) /*"Fin du miroir"*/);
     SetDlgItemTextCP(this, IDlog,LANG(LANG_D7) /*"Voir fichier d'audit"*/);
@@ -156,7 +156,7 @@ void Cinfoend::Onlog()
   if (strlen(pathlog)>0)
   if ((pathlog[strlen(pathlog)-1]!='/') && (pathlog[strlen(pathlog)-1]!='\\'))
     strcatbuff(pathlog,"/");
-  // fichier log existe ou on est télécommandé par un !
+  // fichier log existe ou on est tÃ©lÃ©commandÃ© par un !
   if ( (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-err.txt")))
     || (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-log.txt"))) ) {
     strcpybuff(form.pathlog,pathlog);
@@ -271,14 +271,14 @@ void Cinfoend::OnBye()
 
 BOOL Cinfoend::OnQueryCancel( ) {
   //if (AfxMessageBox(LANG(LANG_J1),MB_OKCANCEL)==IDOK) {
-  /* Envoyer un WM_CLOSE à notre fenêtre principale */
+  /* Envoyer un WM_CLOSE Ã  notre fenÃªtre principale */
   GetMainWindow()->SendMessage(WM_CLOSE,0,0);
   //}
   return FALSE;
 }
 
 BOOL Cinfoend::OnSetActive( ) {
-  // détruire ICI sinon crash!!!!
+  // dÃ©truire ICI sinon crash!!!!
   WHTT_LOCATION("Infoend");
   if (this_intCWizTab2) {
     this_intCWizTab2->DestroyWindow();

@@ -109,7 +109,7 @@ void CWizTab::DoInits() {
   } else {
     m_tabprogress=this_app->m_tabprogress;
   }
-  // Lecture du profile par défaut
+  // Lecture du profile par dÃ©faut
   maintab = new CMainTab("WinHTTrack");
   //if (!is_inProgress)   // sinon buggue
   Read_profile("",0);
@@ -128,12 +128,12 @@ void CWizTab::ClearInits() {
 void CWizTab::AddControlPages()
 {
   m_hIcon = httrack_icon;
-  m_psh.dwFlags |= PSP_USEHICON;  // utiliser icône
+  m_psh.dwFlags |= PSP_USEHICON;  // utiliser icÃ´ne
   m_psh.dwFlags &= ~PSH_HASHELP;  // pas de bouton help
   m_psh.hIcon = m_hIcon;
   //m_psh.pszIcon = "test";
 
-  // objet lui même
+  // objet lui mÃªme
   if (!is_inProgress)
     this_intCWizTab=this;
   else
@@ -155,7 +155,7 @@ void CWizTab::AddControlPages()
     AddPage(m_tab3);
   }
 
-  /* uniquement pour calibrer la page, retiré lors de initdialog */
+  /* uniquement pour calibrer la page, retirÃ© lors de initdialog */
   if (is_inProgress)
     AddPage(m_tabprogress);
 
@@ -242,11 +242,11 @@ BOOL CWizTab::OnInitDialog()
     }
   }
 */  
-  // Chargement des préférences
+  // Chargement des prÃ©fÃ©rences
   if (!is_inProgress)
     LoadPrefs();
   
-  // Appliquer préférences
+  // Appliquer prÃ©fÃ©rences
   Apply();
   
   int r = CPropertySheet::OnInitDialog();
@@ -260,7 +260,7 @@ BOOL CWizTab::OnInitDialog()
   return r;
 }
 
-// L'utilisateur a appuyé sur "Apply"
+// L'utilisateur a appuyÃ© sur "Apply"
 void CWizTab::OnApplyNow()
 {
   EnableWindow(false);
@@ -269,27 +269,27 @@ void CWizTab::OnApplyNow()
   EnableWindow(true);
 }
 
-// Sauver et appliquer les préférences
+// Sauver et appliquer les prÃ©fÃ©rences
 void CWizTab::ApplyAndSave() {
   CWaitCursor wait;      // Afficher curseur sablier
-  bool err=false;  // Erreur lors de l'écriture des paramètres
+  bool err=false;  // Erreur lors de l'Ã©criture des paramÃ¨tres
   
-  // Appliquer les préférences
+  // Appliquer les prÃ©fÃ©rences
   Apply();
   
-  // Sauver préférences
+  // Sauver prÃ©fÃ©rences
   CWinApp* pApp = AfxGetApp();
  
   if (err)
     AfxMessageBox(LANG(LANG_DIAL2));
 }
 
-// Appliquer préférences
+// Appliquer prÃ©fÃ©rences
 void CWizTab::Apply() {
-  // Appliquer préférences
+  // Appliquer prÃ©fÃ©rences
 }
 
-// Chargement des préférences
+// Chargement des prÃ©fÃ©rences
 void CWizTab::LoadPrefs() {
   CWinApp* pApp = AfxGetApp();
   //n = pApp->GetProfileInt("Driver", "DriverId",0);   // No du driver
@@ -317,11 +317,11 @@ BOOL CWizTab::OnHelpInfo(HELPINFO* dummy)
 /*
 // Capturer OK et Cancel
 void CWizTab::OnOK( ) {
-  // Sauver et appliquer préférences
+  // Sauver et appliquer prÃ©fÃ©rences
   ApplyAndSave();
 }
 void CWizTab::OnCancel( ) {
-  // Recharger préférences
+  // Recharger prÃ©fÃ©rences
   LoadPrefs();
 }
 */

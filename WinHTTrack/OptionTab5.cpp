@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab5, CPropertyPage)
 COptionTab5::COptionTab5() : CPropertyPage(COptionTab5::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT5); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -106,8 +106,8 @@ BOOL COptionTab5::OnInitDialog()
 	
   depth_status=-1;
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetDlgItemTextCP(this, IDC_STATIC_limits,LANG(LANG_I42)); // "Limites");
     SetDlgItemTextCP(this, IDC_STATIC_fillim,LANG(LANG_I49)); // "Limite en taille");
     SetDlgItemTextCP(this, IDC_STATIC_autre,LANG(LANG_I50)); // "Autres:");

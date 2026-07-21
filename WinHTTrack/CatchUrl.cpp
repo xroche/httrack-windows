@@ -127,8 +127,8 @@ BOOL CCatchUrl::OnInitDialog()
 	CDialog::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetWindowTextCP(this, LANG(LANG_V1));
     SetDlgItemTextCP(this, IDC_STATIC_info,LANG_V2);
     SetDlgItemTextCP(this, IDC_STATIC_info2,LANG_V3);

@@ -93,8 +93,8 @@ BOOL CBuildOptions::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 	
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetWindowTextCP(this, LANG(LANG_Q1)); // struct
     SetDlgItemTextCP(this, IDOK,LANG(LANG_OK ));
     SetDlgItemTextCP(this, IDC_STATIC_options,LANG_O2);

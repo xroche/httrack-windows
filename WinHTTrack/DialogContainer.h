@@ -33,7 +33,7 @@ Please visit our Website: http://www.httrack.com
 // DialogContainer.h : header file
 //
 
-// Includes pour objet encapsulé
+// Includes pour objet encapsulÃ©
 #include "WizTab.h"
 
 /////////////////////////////////////////////////////////////////////////////

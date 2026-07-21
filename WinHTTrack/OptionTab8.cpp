@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab8, CPropertyPage)
 COptionTab8::COptionTab8() : CPropertyPage(COptionTab8::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT8); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -109,7 +109,7 @@ BOOL COptionTab8::OnInitDialog()
 	CDialog::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_cookies)          ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_checktype)        ->ModifyStyle(0,WS_DISABLED);
@@ -134,7 +134,7 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_STATIC_spider)    ->ModifyStyle(WS_DISABLED,0);
   }
 
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetDlgItemTextCP(this, IDC_robots,LANG(LANG_I55));
     SetDlgItemTextCP(this, IDC_cookies,LANG(LANG_I58));
     SetDlgItemTextCP(this, IDC_STATIC_checktype,LANG(LANG_I59));
