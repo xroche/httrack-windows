@@ -182,8 +182,6 @@ Cinprogress* inprogress=NULL;
 
 // nbre de slides
 t_StatsBuffer StatsBuffer[NStatsBuffer];
-void* StatsBufferback=NULL;
-int StatsBufferback_max=0;
 InpInfo SInfo;
 
 #if USE_RAS
@@ -1316,8 +1314,6 @@ int __cdecl httrackengine_loop(t_hts_callbackarg *carg, httrackp *opt,
         int l;            // idem
         int M=32;         // idem
         
-        StatsBufferback=(void*) back;
-        StatsBufferback_max=back_max;
         {
           int i;
           for(i=0;i<NStatsBuffer;i++) {
@@ -1400,6 +1396,27 @@ int __cdecl httrackengine_loop(t_hts_callbackarg *carg, httrackp *opt,
                   //
                   s[0]='\0';
                   strcpybuff(StatsBuffer[index].url_sav,back[i].url_sav);   // pour cancel
+                  strcpybuff(StatsBuffer[index].url_adr,back[i].url_adr);
+                  strcpybuff(StatsBuffer[index].url_fil,back[i].url_fil);
+                  StatsBuffer[index].location[0]='\0';
+                  strncatbuff(StatsBuffer[index].location,back[i].location_buffer,HTS_URLMAXSIZE*2-1);
+                  StatsBuffer[index].contenttype[0]='\0';
+                  strncatbuff(StatsBuffer[index].contenttype,back[i].r.contenttype,HTS_MIMETYPE_SIZE-1);
+                  StatsBuffer[index].msg[0]='\0';
+                  strncatbuff(StatsBuffer[index].msg,back[i].r.msg,79);
+                  StatsBuffer[index].status=back[i].status;
+                  StatsBuffer[index].r_size=back[i].r.size;
+                  StatsBuffer[index].r_totalsize=back[i].r.totalsize;
+                  StatsBuffer[index].statuscode=back[i].r.statuscode;
+                  StatsBuffer[index].http11=back[i].r.req.http11;
+                  StatsBuffer[index].is_chunk=back[i].r.is_chunk;
+                  StatsBuffer[index].lien_chunk=back[i].is_chunk;
+                  StatsBuffer[index].chunk_size=back[i].chunk_size;
+                  StatsBuffer[index].testmode=back[i].testmode;
+                  StatsBuffer[index].head_request=back[i].head_request;
+                  StatsBuffer[index].notmodified=back[i].r.notmodified;
+                  StatsBuffer[index].is_write=back[i].r.is_write;
+                  StatsBuffer[index].is_file=back[i].r.is_file;
                   if (strcmp(back[i].url_adr,"file://"))
                     strcatbuff(s,back[i].url_adr);
                   else

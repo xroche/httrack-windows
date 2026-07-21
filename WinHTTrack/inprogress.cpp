@@ -70,7 +70,6 @@ extern CWizTab* this_intCWizTab;
 // Pour la fin
 char end_mirror_msg[8192]="";
 
-extern t_StatsBuffer StatsBuffer[NStatsBuffer];
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -801,7 +800,7 @@ void Cinprogress::StatsBuffer_info(int id) {
     if (SInfo.stat_time>0) {
       if (StatsBuffer[id].etat[0]) {
         CInfoUrl box;
-        box.id=StatsBuffer[id].back;
+        box.id=id;
         _Cinprogress_inst=&box;
         WHTT_UNLOCK();
         {
