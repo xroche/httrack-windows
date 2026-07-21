@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab3, CPropertyPage)
 COptionTab3::COptionTab3() : CPropertyPage(COptionTab3::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT3); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -99,7 +99,7 @@ BOOL COptionTab3::OnInitDialog()
 	CPropertyPage::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 	
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_Cache)   ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_filter)  ->ModifyStyle(0,WS_DISABLED);
@@ -126,8 +126,8 @@ BOOL COptionTab3::OnInitDialog()
     GetDlgItem(IDC_STATIC_stripquery)->ModifyStyle(WS_DISABLED,0);
   }
   
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetDlgItemTextCP(this, IDC_Cache,LANG(LANG_I34)); // "Utiliser un cache");
     SetDlgItemTextCP(this, IDC_STATIC_primf,LANG(LANG_I39)); // "Filtre primaire");
     SetDlgItemTextCP(this, IDC_STATIC_travel,LANG(LANG_I40)); // "Mode de parcours");
@@ -185,10 +185,10 @@ BOOL COptionTab3::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 const char* COptionTab3::GetTip(int ID)
 {
   switch(ID) {
-    case IDC_Cache:   return LANG(LANG_I5); break; // "Use a cache for updates and retries","Utiliser un cache pour les mise à jour et reprises"); break;
-    case IDC_filter:  return LANG(LANG_I10); break; // "Select file types to be saved on disk","Sélection des types de fichier à sauver"); break;
-    case IDC_travel:  return LANG(LANG_I11); break; // "Select the travel direction in the site","Sélection de la direction du miroir"); break;
-    case IDC_travel2:  return LANG(LANG_I11b); break; // "Select the travel direction in the site","Sélection de la direction du miroir"); break;
+    case IDC_Cache:   return LANG(LANG_I5); break; // "Use a cache for updates and retries","Utiliser un cache pour les mise Ã  jour et reprises"); break;
+    case IDC_filter:  return LANG(LANG_I10); break; // "Select file types to be saved on disk","SÃ©lection des types de fichier Ã  sauver"); break;
+    case IDC_travel:  return LANG(LANG_I11); break; // "Select the travel direction in the site","SÃ©lection de la direction du miroir"); break;
+    case IDC_travel2:  return LANG(LANG_I11b); break; // "Select the travel direction in the site","SÃ©lection de la direction du miroir"); break;
     case IDC_travel3:  return LANG(LANG_I11c); break;
     case IDC_windebug: return LANG_I1h; break;
     case IDC_stripquery: return LANG(LANG_STRIPQUERYTIP); break;

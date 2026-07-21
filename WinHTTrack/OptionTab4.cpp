@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab4, CPropertyPage)
 COptionTab4::COptionTab4() : CPropertyPage(COptionTab4::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT4); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -97,9 +97,9 @@ BOOL COptionTab4::OnInitDialog()
 	CPropertyPage::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 	
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
-    SetDlgItemTextCP(this, IDC_STATIC_flowc,LANG(LANG_I41)); // "Contrôle du flux");
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
+    SetDlgItemTextCP(this, IDC_STATIC_flowc,LANG(LANG_I41)); // "ContrÃ´le du flux");
     SetDlgItemTextCP(this, IDC_STATIC_mc,LANG(LANG_I44)); // "N# connexions");
     SetDlgItemTextCP(this, IDC_remt,LANG(LANG_I45)); // "Abandon hote si erreur");
     SetDlgItemTextCP(this, IDC_STATIC_retr,LANG(LANG_I48)); // "Essais");
@@ -157,7 +157,7 @@ const char* COptionTab4::GetTip(int ID)
     case IDC_timeout: return LANG(LANG_I13); break; // "Maximum idle time for a file","Temps mort maximal pour un fichier"); break;
     case IDC_remt:    return LANG(LANG_I14); break; // "Cancel all links from a host if a timeout occurs","Annuler tous les liens sur un domaine en cas de temps mort"); break;
     case IDC_retry:   return LANG(LANG_I17); break; // "Maximum number of retries if a non-fatal error occurs","Nombre maximum d'essais en cas d'erreur non fatale"); break;
-    case IDC_rate:    return LANG(LANG_I15); break; // "Minimum transfer rate tolerated","Taux de transfert minimal toléré"); break;
+    case IDC_rate:    return LANG(LANG_I15); break; // "Minimum transfer rate tolerated","Taux de transfert minimal tolÃ©rÃ©"); break;
     case IDC_rems:    return LANG(LANG_I16); break; // "Cancel all links from a host if it is too slow","Annuler tous les liens sur un domaine en cas de transfert trop lent"); break;
     case IDC_ka:      return LANG(LANG_I47f); break;
     case IDC_pausefiles: return LANG(LANG_PAUSEFILESTIP); break;

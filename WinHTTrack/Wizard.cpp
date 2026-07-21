@@ -79,11 +79,11 @@ BOOL wizard::OnInitDialog()
   SetIcon(httrack_icon,true);  
   SetForegroundWindow();   // yop en premier plan!
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemText(,"");
     SetWindowTextCP(this, LANG(LANG_L1) /*"Question du wizard"*/);
-    SetDlgItemTextCP(this, IDC_STATIC_answer,LANG(LANG_L2) /*"Votre réponse:"*/);
+    SetDlgItemTextCP(this, IDC_STATIC_answer,LANG(LANG_L2) /*"Votre rÃ©ponse:"*/);
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control

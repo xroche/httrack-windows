@@ -42,7 +42,7 @@ Please visit our Website: http://www.httrack.com
 #include "htsdefines.h"
 
 //
-// connecté via HTTrack? (défini dans projet)
+// connectÃ© via HTTrack? (dÃ©fini dans projet)
 #define USE_RAS 1
 //
 
@@ -204,7 +204,7 @@ void Build_TopIndex(BOOL check_empty=TRUE);
 
 void InitRAS();
 
-// Gestion répertoires
+// Gestion rÃ©pertoires
 int CheckDirInfo(CString path);
 BOOL RemoveEmptyDir(CString path);
 

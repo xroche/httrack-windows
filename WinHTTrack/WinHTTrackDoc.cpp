@@ -176,7 +176,7 @@ BOOL CWinHTTrackDoc::OnOpenDocument(LPCTSTR lpszPathName)
   if (CFile::GetStatus(lpszPathName,status)) {
     CString PathName=lpszPathName;
 
-    /* si répertoire, convertir d'abord en .whtt */
+    /* si rÃ©pertoire, convertir d'abord en .whtt */
     if (status.m_attribute & 0x10 ) {       /* directory = 0x10 */
       PathName+=".whtt";
     }

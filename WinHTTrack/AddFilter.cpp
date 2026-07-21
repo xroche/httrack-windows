@@ -100,12 +100,12 @@ BOOL CAddFilter::OnInitDialog()
   SetIcon(httrack_icon,true);  
   EnableToolTips(true);     // TOOL TIPS	
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemTextCP(this, ,"");
     SetWindowTextCP(this, LANG(LANG_B5) /*"Ajouter un filtre"*/);
-    SetDlgItemTextCP(this, IDC_STATIC_rule,LANG(LANG_B6) /*"Choisir une règle:"*/);
-    SetDlgItemTextCP(this, IDC_affkeyword,LANG(LANG_B7) /*"Entrer un mot clé:"*/);
+    SetDlgItemTextCP(this, IDC_STATIC_rule,LANG(LANG_B6) /*"Choisir une rÃ¨gle:"*/);
+    SetDlgItemTextCP(this, IDC_affkeyword,LANG(LANG_B7) /*"Entrer un mot clÃ©:"*/);
     SetDlgItemTextCP(this, IDCANCEL,LANG(LANG_CANCEL) /*"Annuler"*/);
     SetDlgItemTextCP(this, IDOK,LANG(LANG_B8) /*"Ajouter"*/);
     SetCombo(this,IDC_AFtype,LISTDEF_1);
@@ -122,7 +122,7 @@ void CAddFilter::OnSelchangeAFtype()
   strcpybuff(hlp,LANG(LANG_B22)); //  "Example: ");
   r=m_ctl_aftype.GetCurSel();
   switch(r) {
-  case CB_ERR : break;  // pas de sélection
+  case CB_ERR : break;  // pas de sÃ©lection
   case 0:
     strcatbuff(hlp,LANG(LANG_B23)); // "gif\x0d\x0aWill detect all gif files (or GIF files)");
     break;
@@ -236,10 +236,10 @@ BOOL CAddFilter::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 const char* CAddFilter::GetTip(int ID)
 {
   switch(ID) {
-    case IDC_AFtype: return LANG(LANG_B1); /*"Select a rule for the filter","Choisissez une règle pour le filtre");*/ break;
-    case IDC_AFext:  return LANG(LANG_B2); /*"Enter here keywords for the filter","Entrez ici un mot clé pour le filtre");*/ break;
+    case IDC_AFtype: return LANG(LANG_B1); /*"Select a rule for the filter","Choisissez une rÃ¨gle pour le filtre");*/ break;
+    case IDC_AFext:  return LANG(LANG_B2); /*"Enter here keywords for the filter","Entrez ici un mot clÃ© pour le filtre");*/ break;
     case IDCANCEL:   return LANG(LANG_B3); /*"Cancel","Annuler");*/ break;
-    case IDOK:       return LANG(LANG_B4); /*"Add this filter","Ajouter cette règle");*/ break;
+    case IDOK:       return LANG(LANG_B4); /*"Add this filter","Ajouter cette rÃ¨gle");*/ break;
     //case : return ""; break;
   }
   return "";

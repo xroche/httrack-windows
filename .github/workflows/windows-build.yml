@@ -26,9 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # Byte-exact on purpose. The sources are ISO-8859-1 (accented French
-      # comments), and grep-family tools treat them as binary and silently match
-      # nothing, so a shell-based guard here would never fire.
+      # Byte-exact on purpose: sources are UTF-8, the .rc/tooling inputs stay
+      # Latin-1, and a shell guard can't tell them apart. Python decodes strictly.
       - name: Encoding and line endings
         run: |
           python3 - <<'EOF'
@@ -39,17 +38,24 @@ jobs:
                                    capture_output=True, text=True, check=True).stdout
               return [p for p in out.splitlines() if p]
 
+          SOURCE = tracked('*.cpp', '*.h', '*.c')
           LF_ONLY = tracked('*.cpp', '*.h')
           CRLF_ONLY = tracked('*.rc', '*.rc2', '*.def', '*.idl', '*.rgs', '*.sln',
                               '*.vcproj', '*.vcxproj', '*.props', '*.manifest',
                               '*.dsp', '*.dsw', '*.iss')
           bad = []
 
-          # A UTF-8-assuming editor rewrites the Latin-1 bytes to U+FFFD and
-          # destroys the text. That is silent in review; fail loudly instead.
-          for p in LF_ONLY + CRLF_ONLY:
+          # Sources are UTF-8: a Latin-1 regression (a raw 0xe9) fails this decode.
+          for p in SOURCE:
+              try:
+                  open(p, 'rb').read().decode('utf-8')
+              except UnicodeDecodeError as e:
+                  bad.append(f'{p}: not valid UTF-8 ({e})')
+
+          # U+FFFD is valid UTF-8 but means a tool mangled the text; fail loudly.
+          for p in SOURCE + CRLF_ONLY:
               if b'\xef\xbf\xbd' in open(p, 'rb').read():
-                  bad.append(f'{p}: contains U+FFFD; a UTF-8 tool mangled the Latin-1 text')
+                  bad.append(f'{p}: contains U+FFFD; a UTF-8 tool mangled the text')
 
           for p in LF_ONLY:
               if b'\r' in open(p, 'rb').read():
@@ -70,7 +76,7 @@ jobs:
           if bad:
               print('\n'.join(bad))
               sys.exit(1)
-          print(f'OK: {len(LF_ONLY)} LF sources, {len(CRLF_ONLY)} CRLF tooling files, no mojibake.')
+          print(f'OK: {len(SOURCE)} UTF-8 sources, {len(CRLF_ONLY)} Latin-1 CRLF tooling files.')
           EOF
 
   build:

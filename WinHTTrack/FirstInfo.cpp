@@ -98,7 +98,7 @@ BOOL CFirstInfo::OnSetActive( ) {
 
 BOOL CFirstInfo::OnQueryCancel( ) {
   //  if (AfxMessageBox(LANG(LANG_J1),MB_OKCANCEL)==IDOK) {
-  /* Envoyer un WM_CLOSE à notre fenêtre principale */
+  /* Envoyer un WM_CLOSE Ã  notre fenÃªtre principale */
   GetMainWindow()->SendMessage(WM_CLOSE,0,0);
   //  }
   return FALSE;
@@ -116,8 +116,8 @@ BOOL CFirstInfo::OnInitDialog()
   wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1; 
   m_splash.SetWindowPlacement(&wp);
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemText(,"");
     
     SetDlgItemTextCP(this,IDC_STATIC_welcome, LANG_Y1);

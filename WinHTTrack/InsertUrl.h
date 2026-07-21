@@ -33,8 +33,8 @@ Please visit our Website: http://www.httrack.com
 // InsertUrl.h : header file
 //
 
-// Attention, définition existante également dans htslib.h
-// (à modifier avec celle-ci)
+// Attention, dÃ©finition existante Ã©galement dans htslib.h
+// (Ã  modifier avec celle-ci)
 #define POSTTOK "?>post"
 
 /* Externe C */

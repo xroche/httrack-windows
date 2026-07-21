@@ -68,7 +68,7 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 // Refresh
-//extern int INFILLMEM_LOCKED;     // refresh mémoire en cours
+//extern int INFILLMEM_LOCKED;     // refresh mÃ©moire en cours
 extern InpInfo SInfo;
 int inprogress_refresh();
 
@@ -405,7 +405,7 @@ void Cinprogress::OnDestroy()
   if (form.m_hWnd)
     form.EndDialog(IDOK);       // terminer!
   this_CSplitterFrame->CheckRestore();
-  //Sleep(150);             // évite les problèmes d'accès à m_hWnd juste avant le destroy
+  //Sleep(150);             // Ã©vite les problÃ¨mes d'accÃ¨s Ã  m_hWnd juste avant le destroy
   CPropertyPage::OnDestroy();
 }
 
@@ -454,7 +454,7 @@ BOOL Cinprogress::OnInitDialog()
   element[1][12]=&m_nm12;
   element[1][13]=&m_nm13;
 
-  // rajouté
+  // rajoutÃ©
   element[4][0]=&m_nn0;
   element[4][1]=&m_nn1;
   element[4][2]=&m_nn2;
@@ -506,10 +506,10 @@ BOOL Cinprogress::OnInitDialog()
     m->CheckMenuItem(ID_FILE_PAUSE,MF_UNCHECKED);
   }
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemTextCP(this, ,"");
-    SetDlgItemTextCP(this, IDC_STATIC_bytes,LANG(LANG_H8) /*"Octets sauvés:"*/);
+    SetDlgItemTextCP(this, IDC_STATIC_bytes,LANG(LANG_H8) /*"Octets sauvÃ©s:"*/);
     SetDlgItemTextCP(this, IDC_STATIC_scanned,LANG(LANG_H9) /*"Liens parcourus:"*/);
     SetDlgItemTextCP(this, IDC_STATIC_time,LANG(LANG_H10) /*"Temps:"*/);
     SetDlgItemTextCP(this, IDC_STATIC_sockets,LANG(LANG_H11) /*"Connexions:"*/);
@@ -586,12 +586,12 @@ void Cinprogress::OniplogErr() {
 
 void Cinprogress::Oniplog(int mode)  {
 	char catbuff[CATBUFF_SIZE];
-  if (!BackAffLog) {  // pas encore lancé
+  if (!BackAffLog) {  // pas encore lancÃ©
     strcpybuff(pathlog,dialog0->GetPath());
     if (strlen(pathlog)>0)
     if ((pathlog[strlen(pathlog)-1]!='/') && (pathlog[strlen(pathlog)-1]!='\\'))
       strcatbuff(pathlog,"/");
-    // fichier log existe ou on est télécommandé par un !
+    // fichier log existe ou on est tÃ©lÃ©commandÃ© par un !
     if ( (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-err.txt")))
       || (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-log.txt")))
       || (ShellOptions != NULL && ShellOptions->choixdeb[0]=='!') ) {
@@ -655,7 +655,7 @@ void Cinprogress::OnModifyOpt()
 
     opt->log = opt->errlog = NULL;
 
-    // dévalider champs (non modifiés)
+    // dÃ©valider champs (non modifiÃ©s)
     opt->maxsite = -1;
     opt->maxfile_nonhtml = -1;
     opt->maxfile_html = -1;
@@ -884,7 +884,7 @@ const char* Cinprogress::GetTip(int ID)
 {
   switch(ID) {
     //case IDC_STOPALL: return LANG(LANG_H4); break; // "Stop the mirror","Stopper le miroir"); break;
-    //case IDC_hide:    return LANG(LANG_H5); break; // "Hide this window behind the system tray","Cacher la fenêtre dans la barre système"); break;
+    //case IDC_hide:    return LANG(LANG_H5); break; // "Hide this window behind the system tray","Cacher la fenÃªtre dans la barre systÃ¨me"); break;
     case IDC_sk0:     return LANG(LANG_H6); break; // "Click to skip a link or interrupt parsing","Clic pour sauter un lien ou interrompre"); break;
     case IDC_sk1: case IDC_sk2: case IDC_sk3: case IDC_sk4:
     case IDC_sk5: case IDC_sk6: case IDC_sk7: case IDC_sk8: case IDC_sk9:
@@ -954,7 +954,7 @@ LRESULT Cinprogress::DragDropText(WPARAM wParam,LPARAM lParam) {
             hts_resetaddurl(global_opt);
             AfxMessageBox(LANG(LANG_DIAL13));
           }
-          hts_setpause(global_opt, pause);      // remettre pause éventuelle
+          hts_setpause(global_opt, pause);      // remettre pause Ã©ventuelle
         }
         CEasyDropTarget::ReleaseStringToArray(tab);
         tab=NULL;
@@ -970,8 +970,8 @@ void Cinprogress::OnTimer(UINT_PTR nIDEvent)
   WHTT_LOCK();
   if (!termine) {
     if (SInfo.refresh) {
-      hts_is_parsing(global_opt, 0);        // refresh demandé si en mode parsing
-      // while(INFILLMEM_LOCKED) Sleep(10);    // attendre au cas où
+      hts_is_parsing(global_opt, 0);        // refresh demandÃ© si en mode parsing
+      // while(INFILLMEM_LOCKED) Sleep(10);    // attendre au cas oÃ¹
       if (!termine)
         inprogress_refresh();        // on refresh!
     }

@@ -90,13 +90,13 @@ BOOL WizLinks::OnInitDialog()
   tm=SetTimer(WM_TIMER,1000,NULL);
   SetForegroundWindow();   // yop en premier plan!
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemTextCP(this, ,"");
-    SetWindowTextCP(this, LANG(LANG_M1)); // "Un lien a été détecté");
-    SetDlgItemTextCP(this, IDC_STATIC_rule,LANG(LANG_M2)); // "Choisir une règle:");
+    SetWindowTextCP(this, LANG(LANG_M1)); // "Un lien a Ã©tÃ© dÃ©tectÃ©");
+    SetDlgItemTextCP(this, IDC_STATIC_rule,LANG(LANG_M2)); // "Choisir une rÃ¨gle:");
     SetDlgItemTextCP(this, IDC_ch1,LANG(LANG_M3)); // "Ignorer ce lien");
-    SetDlgItemTextCP(this, IDC_ch2,LANG(LANG_M4)); // "Ignorer répertoire");
+    SetDlgItemTextCP(this, IDC_ch2,LANG(LANG_M4)); // "Ignorer rÃ©pertoire");
     SetDlgItemTextCP(this, IDC_ch3,LANG(LANG_M5)); // "Ignorer domaine");
     SetDlgItemTextCP(this, IDC_ch4,LANG(LANG_M6)); // "Prendre cette page uniquement");
     SetDlgItemTextCP(this, IDC_ch5,LANG(LANG_M7)); // "Miroir du site");

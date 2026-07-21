@@ -92,8 +92,8 @@ BOOL CInfoUrl::OnInitDialog()
   SetIcon(httrack_icon,true);  
   SetForegroundWindow();   // yop en premier plan!
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetWindowTextCP(this, LANG_X1);
     SetDlgItemTextCP(this, IDC_Freeze,LANG_X2);
     SetDlgItemTextCP(this, IDC_STATIC_moreinfos,LANG_X3);

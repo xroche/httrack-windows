@@ -98,7 +98,7 @@ BOOL CProxyId::OnInitDialog()
   m_ctl_proxytype.AddString("HTTP (CONNECT tunnel)");
   m_ctl_proxytype.SetCurSel((m_proxytype >= 0 && m_proxytype < m_ctl_proxytype.GetCount()) ? m_proxytype : 0);
 	
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetWindowTextCP(this,  LANG(LANG_R1));
     SetDlgItemTextCP(this, IDC_STATIC_ptype,LANG(LANG_PROXYTYPE));
     SetDlgItemTextCP(this, IDC_STATIC_adr,LANG(LANG_R2));

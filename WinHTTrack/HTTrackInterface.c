@@ -44,7 +44,7 @@ Please visit our Website: http://www.httrack.com
 #include "htsopt.h"
 #include "HTTrackInterface.h"
 
-// Lecture d'une ligne (peut être unicode à priori)
+// Lecture d'une ligne (peut Ãªtre unicode Ã  priori)
 int linput(FILE* fp,char* s,int max) {
   int c;
   int j=0;
@@ -54,7 +54,7 @@ int linput(FILE* fp,char* s,int max) {
       switch(c) {
         case 13: break;  // sauter CR
         case 10: c=-1; break;
-        case 9: case 12: break;  // sauter ces caractères
+        case 9: case 12: break;  // sauter ces caractÃ¨res
         default: s[j++]=(char) c; break;
       }
     }
@@ -74,7 +74,7 @@ int linput_trim(FILE* fp,char* s,int max) {
       // sauter espaces et tabs en fin
       while( (rlen>0) && ((ls[max(rlen-1,0)]==' ') || (ls[max(rlen-1,0)]=='\t')) )
         ls[--rlen]='\0';
-      // sauter espaces en début
+      // sauter espaces en dÃ©but
       a=ls;
       while((rlen>0) && ((*a==' ') || (*a=='\t'))) {
         a++;
@@ -106,7 +106,7 @@ int linput_cpp(FILE* fp,char* s,int max) {
   return rlen;
 }
 
-// idem avec les car spéciaux
+// idem avec les car spÃ©ciaux
 void rawlinput(FILE* fp,char* s,int max) {
   int c;
   int j=0;

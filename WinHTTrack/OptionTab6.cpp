@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab6, CPropertyPage)
 COptionTab6::COptionTab6() : CPropertyPage(COptionTab6::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT6); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -91,9 +91,9 @@ BOOL COptionTab6::OnInitDialog()
 	CPropertyPage::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 	
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
-    SetDlgItemTextCP(this, IDC_STATIC_browsid,LANG(LANG_I43)); // "Identité");
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
+    SetDlgItemTextCP(this, IDC_STATIC_browsid,LANG(LANG_I43)); // "IdentitÃ©");
     SetDlgItemTextCP(this, IDC_STATIC_footer,LANG(LANG_I43b));
     SetDlgItemTextCP(this, IDC_STATIC_accept_language,LANG(LANG_I43c));
     SetDlgItemTextCP(this, IDC_STATIC_other_headers,LANG(LANG_I43d));
@@ -143,7 +143,7 @@ BOOL COptionTab6::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 const char* COptionTab6::GetTip(int ID)
 {
   switch(ID) {
-    case IDC_user: return LANG(LANG_I23); break; // "Browser identity","Identité du browser"); break;
+    case IDC_user: return LANG(LANG_I23); break; // "Browser identity","IdentitÃ© du browser"); break;
     case IDC_footer: return LANG(LANG_I23b); break;
     case IDC_accept_language: return LANG(LANG_I23c); break;
     case IDC_other_headers: return LANG(LANG_I23d); break;

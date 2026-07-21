@@ -199,19 +199,19 @@ BOOL Ctrans::OnInitDialog()
   SetIcon(httrack_icon,true);  
 	EnableToolTips(true);     // TOOL TIPS
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     //SetDlgItemTextCP(this, ,"");
-    SetWindowTextCP(this, LANG(LANG_J9) /*"Démarrer.."*/);
-    SetDlgItemTextCP(this, IDC_select_start,LANG(LANG_J10) /*"Vous pouvez démarrer le miroir en pressant la touche DEMARRER,\nou définir avant les options de connexion"*/);
+    SetWindowTextCP(this, LANG(LANG_J9) /*"DÃ©marrer.."*/);
+    SetDlgItemTextCP(this, IDC_select_start,LANG(LANG_J10) /*"Vous pouvez dÃ©marrer le miroir en pressant la touche DEMARRER,\nou dÃ©finir avant les options de connexion"*/);
     SetDlgItemTextCP(this, IDC_select_save,LANG(LANG_J10b));
     SetDlgItemTextCP(this, IDC_STATIC_delay,LANG(LANG_J11) /*"Retarder"*/);
-    SetDlgItemTextCP(this, IDC_wait,LANG(LANG_J12) /*"Attendre avant de commencer jusqu'à: (hh/mm/ss)"*/);
+    SetDlgItemTextCP(this, IDC_wait,LANG(LANG_J12) /*"Attendre avant de commencer jusqu'Ã : (hh/mm/ss)"*/);
     //SetDlgItemTextCP(this, IDC_avant,LANG(LANG_BACK) /*"<- AVANT"*/);
     SetDlgItemTextCP(this, IDCANCEL,LANG(LANG_QUIT) /*"Quitter"*/);
     SetDlgItemTextCP(this, IDOK,LANG(LANG_J13) /*"DEMARRER!"*/);
     SetDlgItemTextCP(this, IDC_STATIC_ras,LANG(LANG_J14) /*"Connexion provider"*/);
-    SetDlgItemTextCP(this, IDC_cnx,LANG(LANG_J15) /*"Connecter à ce provider"*/);
+    SetDlgItemTextCP(this, IDC_cnx,LANG(LANG_J15) /*"Connecter Ã  ce provider"*/);
     SetDlgItemTextCP(this, IDC_rasdisc,LANG_J16);
   }
 
@@ -247,7 +247,7 @@ void Ctrans::FillProviderList(int fill)
         GetDlgItem(IDC_STATIC_ras)->ModifyStyle(WS_DISABLED,0);
         GetDlgItem(IDC_STATIC_ras)->RedrawWindow();
         m_ctlrasid.ResetContent();
-        m_ctlrasid.InsertString(-1,LANG(LANG_J2 /*"do not connect to a provider (already connected)","pas de connexion à un provider (déja connecté)"*/));
+        m_ctlrasid.InsertString(-1,LANG(LANG_J2 /*"do not connect to a provider (already connected)","pas de connexion Ã  un provider (dÃ©ja connectÃ©)"*/));
         for(i=0;i<(int) ent;i++) {
           m_ctlrasid.InsertString(-1,adr[i].szEntryName);
         }
@@ -310,8 +310,8 @@ const char* Ctrans::GetTip(int ID)
     case IDC_hh: case IDC_mm: case IDC_ss: 
       return LANG(LANG_J3); break; // "Schedule the mirror","Programmer un miroir"); break;
     case IDCANCEL:  return LANG(LANG_J4); break; // "Quit WinHTTrack","Quitter WinHTTrack"); break;
-    case IDC_avant: return LANG(LANG_J5); break; // "Back to the start page","Retour à la première page"); break;
-    case IDOK:      return LANG(LANG_J6); break; // "Click to start!","Clic pour démarrer!"); break;
+    case IDC_avant: return LANG(LANG_J5); break; // "Back to the start page","Retour Ã  la premiÃ¨re page"); break;
+    case IDOK:      return LANG(LANG_J6); break; // "Click to start!","Clic pour dÃ©marrer!"); break;
     case IDC_rasdisc: return LANG_J17; break;
     //case : return ""; break;
   }
@@ -360,13 +360,13 @@ BOOL Ctrans::OnWizardFinish( )
 	// TODO: Add extra validation here
   int r = m_ctlrasid.GetCurSel();
   strcpybuff(RasString,"");
-  if ((r!=CB_ERR) && (r != 0)) {    // sélection provider
+  if ((r!=CB_ERR) && (r != 0)) {    // sÃ©lection provider
     if (m_ctlrasid.GetLBText(r,RasString) != CB_ERR) {
       if (strlen(RasString)>0) {
         //
 #if USE_RAS
         if (LibRasUse) {
-          if (strlen(RasString)>0) {    // sélection provider
+          if (strlen(RasString)>0) {    // sÃ©lection provider
             BOOL ifpass;
             dial.dwSize = sizeof(dial);
             strcpybuff(dial.szEntryName,RasString);
@@ -377,11 +377,11 @@ BOOL Ctrans::OnWizardFinish( )
             strcpybuff(dial.szDomain,"");
             if (!LibRas->RasGetEntryDialParams(NULL,&dial,&ifpass)) {
               if (!ifpass) {    // pas de pass
-                AfxMessageBox(LANG(LANG_J7 /*"No saved password for this connection!","Pas de mot de passe sauvé pour cette connexion!"*/));
+                AfxMessageBox(LANG(LANG_J7 /*"No saved password for this connection!","Pas de mot de passe sauvÃ© pour cette connexion!"*/));
                 return 0;    // cancel
               }
             } else {
-              AfxMessageBox(LANG(LANG_J8 /*"Can not get RAS setup","Impossible d'obtenir les paramètres de connexion"*/));
+              AfxMessageBox(LANG(LANG_J8 /*"Can not get RAS setup","Impossible d'obtenir les paramÃ¨tres de connexion"*/));
               return 0;    // cancel
             }
           }
@@ -396,7 +396,7 @@ BOOL Ctrans::OnWizardFinish( )
   UpdateData(TRUE);         // DoDataExchange
   compute_options() ;
 
-  // Index "top" si nécessaire!
+  // Index "top" si nÃ©cessaire!
   if (maintab->m_option3.m_windebug) {
     fp_debug=fopen("winhttrack.log","wb");
   } else {

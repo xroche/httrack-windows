@@ -29,7 +29,7 @@ Please visit our Website: http://www.httrack.com
 
 // Tab Control Principal
 
-// En-tête pour l'affichage des tabs
+// En-tÃªte pour l'affichage des tabs
 #include "OptionTab1.h"
 #include "OptionTab2.h"
 #include "OptionTab3.h"
@@ -58,7 +58,7 @@ protected:
   
   // Attributes
 public:
-  // Déclaration des classes-dialog pour les différents Tab Control
+  // DÃ©claration des classes-dialog pour les diffÃ©rents Tab Control
   COptionTab1        m_option1;
   COptionTab2        m_option2;
   COptionTab3        m_option3;

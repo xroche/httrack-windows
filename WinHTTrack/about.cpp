@@ -114,13 +114,13 @@ BOOL Cabout::OnInitDialog()
     int curr_lng=LANG_T(-1);
     QLANG_T(0);
     strcpybuff(lang_str,"LANGUAGE_NAME");
-    LANG_LOAD(lang_str);    // 0 english 1 français..
+    LANG_LOAD(lang_str);    // 0 english 1 franÃ§ais..
     while(strlen(lang_str)) {
       m_ctl_lang.AddString(lang_str);
       i++;
       QLANG_T(i);
       strcpybuff(lang_str,"LANGUAGE_NAME");
-      LANG_LOAD(lang_str);    // 0 english 1 français..
+      LANG_LOAD(lang_str);    // 0 english 1 franÃ§ais..
     }
     QLANG_T(curr_lng);
     //LANG_T(min(old_lang,i-1));
@@ -186,9 +186,9 @@ void Cabout::OnSelchangelang()
 
       QLANG_T(i);
       strcpybuff(lang_str,"LANGUAGE_NAME");
-      LANG_LOAD(lang_str);    // 0 english 1 français..
+      LANG_LOAD(lang_str);    // 0 english 1 franÃ§ais..
 
-      //LANG_T(i);    // 0 english 1 français..
+      //LANG_T(i);    // 0 english 1 franÃ§ais..
       if (strcmp(st,lang_str)==0) {
         LANG_T(i);
         setlang();
@@ -198,7 +198,7 @@ void Cabout::OnSelchangelang()
       }
     }
     /* error */
-    LANG_T(0);    // 0 english 1 français..
+    LANG_T(0);    // 0 english 1 franÃ§ais..
   }
   setlang();
 }

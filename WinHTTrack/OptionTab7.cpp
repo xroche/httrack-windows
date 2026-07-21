@@ -53,7 +53,7 @@ IMPLEMENT_DYNCREATE(COptionTab7, CPropertyPage)
 COptionTab7::COptionTab7() : CPropertyPage(COptionTab7::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT7); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -121,11 +121,11 @@ static void NewFilter(int i,char* s,size_t ssize) {  // 0: forbid 1: accept
       while(strlen(q)>0) {
         while ((*q==' ') || (*q==',')) q++;
         strcpybuff(t,"");
-        {  // prochain (séparé par des ,)
+        {  // prochain (sÃ©parÃ© par des ,)
           char *a,*b;
           a=strchr(q,' ');
           b=strchr(q,',');
-          if (a && b) {  // départager
+          if (a && b) {  // dÃ©partager
             if ( b < a)
               a=b;
           } else if (b) a=b;
@@ -247,7 +247,7 @@ BOOL COptionTab7::OnInitDialog()
 	CPropertyPage::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_ADD1) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_ADD2) ->ModifyStyle(0,WS_DISABLED);
@@ -262,8 +262,8 @@ BOOL COptionTab7::OnInitDialog()
     GetDlgItem(IDC_STATIC_tip) ->ModifyStyle(WS_DISABLED,0);
   }
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     SetWindowTextCP(this, LANG(LANG_B9)); // "Filtres");
     SetDlgItemTextCP(this, IDC_STATIC_finfo,LANG(LANG_B10)); // "Vous pouvez exclure ou accepter plusieurs URLs ou liens, en utilisant les jokers\nVous pouvez utiliser les virgules ou les espaces entre les filtres\nExemple: +*.zip,-www.*.com,-www.*.edu/cgi-bin/*.cgi");
     SetDlgItemTextCP(this, IDC_ADD1,LANG(LANG_B11)); // "Exclure lien(s)..");

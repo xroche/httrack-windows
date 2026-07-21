@@ -45,7 +45,7 @@ IMPLEMENT_DYNCREATE(COptionTab1, CPropertyPage)
 COptionTab1::COptionTab1() : CPropertyPage(COptionTab1::IDD)
 {
   // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
     m_psp.pszTitle=LANG(LANG_IOPT1); // titre
     m_psp.dwFlags|=PSP_USETITLE;
   }
@@ -95,7 +95,7 @@ BOOL COptionTab1::OnInitDialog()
   CPropertyPage::OnInitDialog();
   EnableToolTips(true);     // TOOL TIPS
 	
-  // mode modif à la volée
+  // mode modif Ã  la volÃ©e
   if (modify==1) {
     GetDlgItem(IDC_parseall) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_link)     ->ModifyStyle(0,WS_DISABLED);
@@ -114,11 +114,11 @@ BOOL COptionTab1::OnInitDialog()
     GetDlgItem(IDC_keepqueryorder)->ModifyStyle(WS_DISABLED,0);
   }
 
-  // Patcher l'interface pour les Français ;-)
-  if (LANG_T(-1)) {    // Patcher en français
-    //SetWindowTextCP(this, LANG(LANG_I30)); // "Options (les champs laissés vides seront fixés sur les valeurs par défaut)");
-    SetDlgItemTextCP(this, IDC_link,LANG(LANG_I31)); // "Capturer les fichiers non html proches (ex: fichiers ZIP situés à l'extérieur)");
-    SetDlgItemTextCP(this, IDC_testall,LANG(LANG_I32)); // "Tester tous les liens (même ceux interdits)");
+  // Patcher l'interface pour les FranÃ§ais ;-)
+  if (LANG_T(-1)) {    // Patcher en franÃ§ais
+    //SetWindowTextCP(this, LANG(LANG_I30)); // "Options (les champs laissÃ©s vides seront fixÃ©s sur les valeurs par dÃ©faut)");
+    SetDlgItemTextCP(this, IDC_link,LANG(LANG_I31)); // "Capturer les fichiers non html proches (ex: fichiers ZIP situÃ©s Ã  l'extÃ©rieur)");
+    SetDlgItemTextCP(this, IDC_testall,LANG(LANG_I32)); // "Tester tous les liens (mÃªme ceux interdits)");
     SetDlgItemTextCP(this, IDC_parseall,LANG(LANG_I32b));
     SetDlgItemTextCP(this, IDC_htmlfirst,LANG(LANG_I32c));
     SetDlgItemTextCP(this, IDC_keepwww,LANG(LANG_KEEPWWW));
@@ -168,7 +168,7 @@ BOOL COptionTab1::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 const char* COptionTab1::GetTip(int ID)
 {
   switch(ID) {
-    case IDC_link:    return LANG(LANG_I1); break; // "Get files even in foreign addresses","Récupérer les fichiers même sur les liens extérieurs"); break;
+    case IDC_link:    return LANG(LANG_I1); break; // "Get files even in foreign addresses","RÃ©cupÃ©rer les fichiers mÃªme sur les liens extÃ©rieurs"); break;
     case IDC_testall: return LANG(LANG_I2); break; // "Test all links in pages","Tester tous les liens dans les pages"); break;
     case IDC_parseall: return LANG(LANG_I2b); break;
     case IDC_htmlfirst: return LANG(LANG_I2c); break;

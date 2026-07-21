@@ -24,7 +24,7 @@ would dishonor our work and waste the many hours we have spent on it.
 
 Please visit our Website: http://www.httrack.com
 */
-// Définition de la plate-forme utilisée
+// DÃ©finition de la plate-forme utilisÃ©e
 
 // Sun Solaris .......... 0 
 // Windows/95 ........... 1 
@@ -37,6 +37,6 @@ Please visit our Website: http://www.httrack.com
 //#define HTS_ANALYSTE 2
 
 
-// Fin de la définition
+// Fin de la dÃ©finition
 
 

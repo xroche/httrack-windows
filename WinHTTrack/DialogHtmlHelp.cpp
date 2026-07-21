@@ -110,7 +110,7 @@ BOOL CDialogHtmlHelp::OnInitDialog()
     strcatbuff(home,"index.html");
   }
 
-  // créer
+  // crÃ©er
   if (m_page.CreateFromStatic(IDC_HTMLVIEW, this)) {
     m_page.SetToolBar(false);
     m_page.SetMenuBar(false);
@@ -271,7 +271,7 @@ const char* CDialogHtmlHelp::GetTip(int ID)
 {
   switch(ID) {
     case IDCANCEL:   return LANG(LANG_B3); /*"Cancel","Annuler");*/ break;
-    case IDOK:       return LANG(LANG_B4); /*"Add this filter","Ajouter cette règle");*/ break;
+    case IDOK:       return LANG(LANG_B4); /*"Add this filter","Ajouter cette rÃ¨gle");*/ break;
   }
   return "";
 }

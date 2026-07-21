@@ -24,8 +24,8 @@ would dishonor our work and waste the many hours we have spent on it.
 
 Please visit our Website: http://www.httrack.com
 */
-// Classe de sauvegarde de clés (identifiées par leur nom)
-// à la manière de la base de registre (mais en plus basique)
+// Classe de sauvegarde de clÃ©s (identifiÃ©es par leur nom)
+// Ã  la maniÃ¨re de la base de registre (mais en plus basique)
 
 #if !defined(MEMREGISTER_LIB_JHGFHIV25489654156HJRZDSCIOUJ5648654651)
 #define MEMREGISTER_LIB_JHGFHIV25489654156HJRZDSCIOUJ5648654651

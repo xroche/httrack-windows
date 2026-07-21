@@ -29,7 +29,7 @@ Please visit our Website: http://www.httrack.com
 
 // Tab Control Principal
 
-// En-tête pour l'affichage des tabs
+// En-tÃªte pour l'affichage des tabs
 #include "NewProj.h"
 #include "Wid1.h"
 #include "trans.h"
@@ -55,7 +55,7 @@ protected:
   
   // Attributes
 public:
-  // Déclaration des classes-dialog pour les différents Tab Control
+  // DÃ©claration des classes-dialog pour les diffÃ©rents Tab Control
   CFirstInfo*        m_tab0;
   CNewProj*          m_tab1;
   Wid1*              m_tab2;
