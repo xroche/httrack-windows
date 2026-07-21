@@ -1748,6 +1748,9 @@ bool ShellOpen(LPCSTR file, int nShowCmd) {
 // EXCEPTION_CONTINUE_EXECUTION would restart the faulting instruction forever; unwind to the -100 path instead.
 static int __cdecl ExcFilter_(DWORD dwExceptCode, PEXCEPTION_POINTERS pExceptPtrs) {
   switch(dwExceptCode) {
+    case EXCEPTION_STACK_OVERFLOW:
+      // Symbol-walking here would re-fault on the exhausted stack; just unwind to -100.
+      return EXCEPTION_EXECUTE_HANDLER;
     case EXCEPTION_ACCESS_VIOLATION:
     case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
     case EXCEPTION_DATATYPE_MISALIGNMENT:
@@ -1755,8 +1758,7 @@ static int __cdecl ExcFilter_(DWORD dwExceptCode, PEXCEPTION_POINTERS pExceptPtr
     case EXCEPTION_IN_PAGE_ERROR:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
-    case EXCEPTION_STACK_OVERFLOW:
-      // Handling it here bypasses the top-level filter, so report from inside the filter, before the unwind.
+      // Handling it here bypasses the top-level filter, so report before the unwind.
       CrashReportLogException("Engine thread crashed");
       return EXCEPTION_EXECUTE_HANDLER;
     default:
