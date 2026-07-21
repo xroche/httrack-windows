@@ -47,6 +47,7 @@ void CAddFilter::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_AFext, m_afquery);
 	DDX_CBIndex(pDX, IDC_AFtype, m_aftype);
 	//}}AFX_DATA_MAP
+  DDV_MaxChars(pDX, m_afquery, 1024);
   m_ctl_ok.ModifyStyle(0,WS_DISABLED);
 }
 
@@ -68,6 +69,7 @@ END_MESSAGE_MAP()
 BOOL CAddFilter::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+  m_ctl_afext.SetLimitText(1024);   // the filter builder works in fixed buffers
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);  
   EnableToolTips(true);     // TOOL TIPS	

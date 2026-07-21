@@ -52,6 +52,7 @@ void CInsertUrl::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_urlpass, m_urlpass);
 	DDX_Text(pDX, IDC_urladr, m_urladr);
 	//}}AFX_DATA_MAP
+  DDV_MaxChars(pDX, m_urladr, 2000);
 }
 
 
@@ -71,6 +72,7 @@ END_MESSAGE_MAP()
 BOOL CInsertUrl::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+  GetDlgItem(IDC_urladr)->SendMessage(EM_SETLIMITTEXT, 2000, 0);
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);
   EnableToolTips(true);     // TOOL TIPS
@@ -184,9 +186,11 @@ UINT RunBackCatchServer( LPVOID pP ) {
       }
       // former URL!
       {
-        char finalurl[HTS_URLMAXSIZE*2];
+        char finalurl[HTS_URLMAXSIZE*4+16];
         inplace_escape_check_url(dest, sizeof(dest));
-        sprintf(finalurl,"%s" POSTTOK "file:%s",url,dest);
+        /* Both sources are HTS_URLMAXSIZE*2 and the token is 11 bytes; snprintf is the belt. */
+        _snprintf(finalurl,sizeof(finalurl)-1,"%s" POSTTOK "file:%s",url,dest);
+        finalurl[sizeof(finalurl)-1]='\0';
         SetDlgItemTextCP(_this, IDC_urladr,finalurl);
       }
     }
