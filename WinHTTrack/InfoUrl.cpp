@@ -89,7 +89,6 @@ void CInfoUrl::StopTimer() {
   if (timer) {
     KillTimer(timer);
     timer=0;
-    StatsBufferback=NULL;
   }
 }
 
@@ -143,7 +142,7 @@ const char* ToStatus(int i) {
   }
 }
 
-void CInfoUrl::OnTimer(UINT_PTR nIDEvent) 
+void CInfoUrl::OnTimer(UINT_PTR nIDEvent)
 {
   static char old_info[8192]="";
   //
@@ -151,84 +150,81 @@ void CInfoUrl::OnTimer(UINT_PTR nIDEvent)
     EndDialog(IDOK);
     return;
   }
-  if (!StatsBufferback) return;
+  // Snapshot the engine-owned rows under the lock, then render outside it: reaching
+  // into the live back[] here was a use-after-free (unlocked, freed on engine exit).
+  // Single modal CInfoUrl at a time, so a static copy is safe and spares the stack.
+  static t_StatsBuffer rows[NStatsBuffer];
+  WHTT_LOCK();
+  if (termine) {
+    WHTT_UNLOCK();
+    EndDialog(IDOK);
+    return;
+  }
+  memcpy(rows,StatsBuffer,sizeof(rows));
+  WHTT_UNLOCK();
   //
-  lien_back* back=(lien_back*) StatsBufferback;
+  int cur=id;
+  if (cur<0 || cur>=NStatsBuffer) cur=0;
   //
   if (m_ctl_backlist.GetDroppedState()==0) {
     m_ctl_backlist.Clear();
     m_ctl_backlist.ResetContent();
     int i;
-    int back_max=StatsBufferback_max;
-    for(i=0;i<back_max;i++) {
-      if (termine) {
-        EndDialog(IDOK);
-        return;
-      }
-      if (back[i].status != -1) {
+    for(i=0;i<NStatsBuffer;i++) {
+      if (rows[i].etat[0]) {
         char st[HTS_URLMAXSIZE*4];
         sprintf(st,"%02d: ",i);
-        strncatbuff(st,back[i].url_adr,256);
-        strncatbuff(st,back[i].url_fil,256);
+        strncatbuff(st,rows[i].url_adr,256);
+        strncatbuff(st,rows[i].url_fil,256);
         m_ctl_backlist.AddString(st);
       }
     }
   }
   //
-  if (back) {
-    CInfoUrl box;
+  {
+    t_StatsBuffer* it=&rows[cur];
     char info[8192]; info[0]='\0';
     char total[256]; total[0]='\0';
     char info100[256]; info100[0]='\0';
     int offset=0;
-    if (back[id].status != -1) {        // utilisé
-      if (back[id].r.totalsize>0) {
-        sprintf(total,LLintP,(LLint)back[id].r.totalsize);
-        offset=(int) ((LONGLONG) ((LONGLONG) back[id].r.size*(LONGLONG) 100)/((LONGLONG) back[id].r.totalsize));
+    if (it->etat[0]) {        // ligne active
+      if (it->r_totalsize>0) {
+        sprintf(total,LLintP,(LLint)it->r_totalsize);
+        offset=(int) ((LONGLONG) ((LONGLONG) it->r_size*(LONGLONG) 100)/((LONGLONG) it->r_totalsize));
         sprintf(info100,"(%d%%)",offset);
       } else {
         sprintf(total,"unknown");
-        sprintf(info100,"");
+        info100[0]='\0';
       }
-      sprintf(info,"File: %s\r\nTotal length: %s\r\nBytes downloaded: " LLintP " %s\r\nCurrent state: %s",back[id].url_sav,total,back[id].r.size,info100,ToStatus(back[id].status));
+      sprintf(info,"File: %s\r\nTotal length: %s\r\nBytes downloaded: " LLintP " %s\r\nCurrent state: %s",it->url_sav,total,it->r_size,info100,ToStatus(it->status));
     }
     //
     if (strcmp(old_info,info)) {
       char moreinfo[8192]; moreinfo[0]='\0';
-      lien_back* backitem=&back[id];
-      if (backitem) {
-        if (back[id].status != -1) {        // utilisé
-          sprintf(moreinfo+strlen(moreinfo),"Host: %s\r\n",backitem->url_adr);
-          sprintf(moreinfo+strlen(moreinfo),"File: %s\r\n",backitem->url_fil);
-          sprintf(moreinfo+strlen(moreinfo),"Name: %s\r\n",backitem->url_sav);
-          if (backitem->location_buffer)
-            if (backitem->location_buffer[0])
-              sprintf(moreinfo+strlen(moreinfo),"MoveToLocation: %s\r\n",backitem->location_buffer);
-            //
-            sprintf(moreinfo+strlen(moreinfo),"ContentType: %s\r\n",backitem->r.contenttype);
-            //
-            sprintf(moreinfo+strlen(moreinfo),"StatusCode: %d (%s)\r\n",backitem->r.statuscode,ToStatuscode(backitem->r.statuscode));
-            sprintf(moreinfo+strlen(moreinfo),"InternalStatus: %d (%s)\r\n",backitem->status,ToStatus(backitem->status));
-            if (backitem->r.msg[0])
-              sprintf(moreinfo+strlen(moreinfo),"StatusMessage: %s\r\n",backitem->r.msg);
-            //
-            sprintf(moreinfo+strlen(moreinfo),"HTTP/1.1: %s\r\n",ToBool(backitem->r.req.http11));
-            sprintf(moreinfo+strlen(moreinfo),"ChunkMode: %s\r\n",ToBool(backitem->r.is_chunk));
-            if (backitem->is_chunk)
-              sprintf(moreinfo+strlen(moreinfo),"CurrentChunkSize: " LLintP "\r\n",backitem->chunk_size);
-            //
-            sprintf(moreinfo+strlen(moreinfo),"TestMode: %s\r\n",ToBool(backitem->testmode));
-            sprintf(moreinfo+strlen(moreinfo),"HeadRequest: %s\r\n",ToBool(backitem->head_request));
-            sprintf(moreinfo+strlen(moreinfo),"NotModified: %s\r\n",ToBool(backitem->r.notmodified));
-            //
-            sprintf(moreinfo+strlen(moreinfo),"WriteToDisk: %s\r\n",ToBool(backitem->r.is_write));
-            sprintf(moreinfo+strlen(moreinfo),"LocalFile: %s\r\n",ToBool(backitem->r.is_file));
-            //
-            sprintf(moreinfo+strlen(moreinfo),"Size: " LLintP "\r\n",backitem->r.size);
-            sprintf(moreinfo+strlen(moreinfo),"TotalSize: " LLintP "\r\n",backitem->r.totalsize);
-        } else
-          strcpybuff(moreinfo,"Transfer complete in this buffer, waiting for next file");
-      }
+      if (it->etat[0]) {        // ligne active
+        sprintf(moreinfo+strlen(moreinfo),"Host: %s\r\n",it->url_adr);
+        sprintf(moreinfo+strlen(moreinfo),"File: %s\r\n",it->url_fil);
+        sprintf(moreinfo+strlen(moreinfo),"Name: %s\r\n",it->url_sav);
+        if (it->location[0])
+          sprintf(moreinfo+strlen(moreinfo),"MoveToLocation: %s\r\n",it->location);
+        sprintf(moreinfo+strlen(moreinfo),"ContentType: %s\r\n",it->contenttype);
+        sprintf(moreinfo+strlen(moreinfo),"StatusCode: %d (%s)\r\n",it->statuscode,ToStatuscode(it->statuscode));
+        sprintf(moreinfo+strlen(moreinfo),"InternalStatus: %d (%s)\r\n",it->status,ToStatus(it->status));
+        if (it->msg[0])
+          sprintf(moreinfo+strlen(moreinfo),"StatusMessage: %s\r\n",it->msg);
+        sprintf(moreinfo+strlen(moreinfo),"HTTP/1.1: %s\r\n",ToBool(it->http11));
+        sprintf(moreinfo+strlen(moreinfo),"ChunkMode: %s\r\n",ToBool(it->is_chunk));
+        if (it->lien_chunk)
+          sprintf(moreinfo+strlen(moreinfo),"CurrentChunkSize: " LLintP "\r\n",it->chunk_size);
+        sprintf(moreinfo+strlen(moreinfo),"TestMode: %s\r\n",ToBool(it->testmode));
+        sprintf(moreinfo+strlen(moreinfo),"HeadRequest: %s\r\n",ToBool(it->head_request));
+        sprintf(moreinfo+strlen(moreinfo),"NotModified: %s\r\n",ToBool(it->notmodified));
+        sprintf(moreinfo+strlen(moreinfo),"WriteToDisk: %s\r\n",ToBool(it->is_write));
+        sprintf(moreinfo+strlen(moreinfo),"LocalFile: %s\r\n",ToBool(it->is_file));
+        sprintf(moreinfo+strlen(moreinfo),"Size: " LLintP "\r\n",it->r_size);
+        sprintf(moreinfo+strlen(moreinfo),"TotalSize: " LLintP "\r\n",it->r_totalsize);
+      } else
+        strcpybuff(moreinfo,"Transfer complete in this buffer, waiting for next file");
       //
       SetDlgItemTextUTF8(this, IDC_InfoUrl,info);
       SetDlgItemTextUTF8(this, IDC_Info100,info100);

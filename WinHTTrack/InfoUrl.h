@@ -8,9 +8,6 @@
 //
 
 extern int termine;
-extern void* StatsBufferback;
-//extern lien_back* back;
-extern int StatsBufferback_max;
 
 /////////////////////////////////////////////////////////////////////////////
 // CInfoUrl dialog

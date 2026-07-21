@@ -801,7 +801,7 @@ void Cinprogress::StatsBuffer_info(int id) {
     if (SInfo.stat_time>0) {
       if (StatsBuffer[id].etat[0]) {
         CInfoUrl box;
-        box.id=StatsBuffer[id].back;
+        box.id=id;
         _Cinprogress_inst=&box;
         WHTT_UNLOCK();
         {

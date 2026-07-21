@@ -67,6 +67,23 @@ typedef struct t_StatsBuffer {
   int back;
   //
   int actived;    // pour disabled
+  // Transfers dialog (CInfoUrl) detail snapshot, filled under WHTT_LOCK on T2
+  int status;
+  LLint r_size;
+  LLint r_totalsize;
+  int statuscode;
+  int http11;
+  int is_chunk;      // htsblk r.is_chunk
+  int lien_chunk;    // lien_back.is_chunk (drives CurrentChunkSize)
+  LLint chunk_size;
+  int testmode;
+  int head_request;
+  int notmodified;
+  int is_write;
+  int is_file;
+  char contenttype[HTS_MIMETYPE_SIZE];
+  char msg[80];
+  char location[HTS_URLMAXSIZE * 2];
 } t_StatsBuffer;
 
 typedef struct InpInfo {
