@@ -25,7 +25,7 @@ jobs:
   encoding:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Byte-exact on purpose. The sources are ISO-8859-1 (accented French
       # comments), and grep-family tools treat them as binary and silently match
       # nothing, so a shell-based guard here would never fire.
@@ -82,14 +82,14 @@ jobs:
         configuration: [Release]
     steps:
       - name: Checkout httrack-windows
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: httrack-windows
 
       # $(HttrackRoot) resolves to ..\httrack, so the engine must be the sibling.
       # coucal is the engine's own submodule.
       - name: Checkout httrack engine (sibling)
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: xroche/httrack
           # Empty follows master, so engine bumps still surface on branch CI at once.
