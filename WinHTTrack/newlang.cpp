@@ -622,6 +622,12 @@ void conv_printf(char* from,char* to) {
   int i=0,j=0,len;
   len = (int) strlen(from);
   while(i<len) {
+    /* A DBCS trail byte can be 0x5C; copy the pair before it is mistaken for an escape. */
+    if (IsDBCSLeadByteEx(CP_ACP,(unsigned char)from[i]) && i+1<len) {
+      to[j++]=from[i++];
+      to[j++]=from[i++];
+      continue;
+    }
     switch(from[i]) {
     case '\\': 
       i++;
