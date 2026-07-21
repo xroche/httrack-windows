@@ -25,7 +25,7 @@ jobs:
   encoding:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Byte-exact on purpose. The sources are ISO-8859-1 (accented French
       # comments), and grep-family tools treat them as binary and silently match
       # nothing, so a shell-based guard here would never fire.
@@ -82,14 +82,14 @@ jobs:
         configuration: [Release]
     steps:
       - name: Checkout httrack-windows
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: httrack-windows
 
       # $(HttrackRoot) resolves to ..\httrack, so the engine must be the sibling.
       # coucal is the engine's own submodule.
       - name: Checkout httrack engine (sibling)
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: xroche/httrack
           # Empty follows master, so engine bumps still surface on branch CI at once.
@@ -449,7 +449,7 @@ jobs:
       - name: Upload the unsigned binaries
         id: unsigned-binaries
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unsigned-binaries-${{ matrix.platform }}
           path: unsigned/*
@@ -560,7 +560,7 @@ jobs:
       - name: Upload the unsigned installer
         id: unsigned-installer
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unsigned-installer-${{ matrix.platform }}
           path: installer/*.exe
@@ -678,14 +678,14 @@ jobs:
           if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
 
       - name: Upload the installer
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: httrack-setup-${{ matrix.platform }}
           path: installer/*.exe
           if-no-files-found: error
 
       - name: Upload the runnable build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: WinHTTrack-${{ matrix.platform }}-${{ matrix.configuration }}
           path: |
@@ -696,7 +696,7 @@ jobs:
 
       - name: Upload MSBuild log
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: msbuild-${{ matrix.platform }}-${{ matrix.configuration }}
           path: httrack-windows/msbuild.log

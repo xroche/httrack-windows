@@ -130,6 +130,10 @@ inline bool StripTrailingSlash(char* s) {
   return false;
 }
 
+// Open a document, folder or URL through the shell, true on success.
+// ShellExecute() reports success as a pseudo-HINSTANCE > 32, so a bare !ShellExecute() never fires.
+bool ShellOpen(LPCSTR file, int nShowCmd);
+
 #ifndef HTS_DEF_FWSTRUCT_lien_back
 #define HTS_DEF_FWSTRUCT_lien_back
 typedef struct lien_back lien_back;

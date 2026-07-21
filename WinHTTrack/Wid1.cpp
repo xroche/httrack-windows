@@ -100,6 +100,7 @@ void Wid1::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_INFOMAIN, m_infomain);
 	DDX_Text(pDX, IDC_filelist, m_filelist);
 	//}}AFX_DATA_MAP
+  DDV_MaxChars(pDX, m_urls, 32000);
 }
 
 //IMPLEMENT_DYNAMIC(Wid1, CPropertyPage)
@@ -141,6 +142,9 @@ END_MESSAGE_MAP()
 
 BOOL Wid1::OnInitDialog( ) {
   CPropertyPage::OnInitDialog();
+  // The URL list has no CEdit member; bound it by handle.
+  GetDlgItem(IDC_URL)->SendMessage(EM_SETLIMITTEXT, 32000, 0);
+  GetDlgItem(IDC_filelist)->SendMessage(EM_SETLIMITTEXT, 2000, 0);
   EnableToolTips(true);     // TOOL TIPS
 
   // inits après affichage
@@ -253,12 +257,15 @@ void Wid1::CleanUrls()
   // TODO: Add your control notification handler code here
   
   GetDlgItemText(IDC_URL,st);
-  tempo=(char*) malloc(st.GetLength()+1);
-  ch=(char*) malloc(st.GetLength()+1);
-  str=(char*) malloc(st.GetLength()*2+8192);
-  tempo[0]=ch[0]=str[0]='\0';
+  /* Each token can gain "http://" and a CRLF, so a 1-char token emits 10 bytes: budget per input byte, not per token. */
+  const size_t inlen = (size_t) st.GetLength();
+  const size_t strsize = inlen*10 + 16;
+  tempo=(char*) malloc(inlen+1);
+  ch=(char*) malloc(inlen+1);
+  str=(char*) malloc(strsize);
   if ( (tempo) && (ch) && (str) ) {
-    strcpybuff(tempo,st);
+    tempo[0]=ch[0]=str[0]='\0';
+    strlcpybuff(tempo,st,inlen+1);
     int i;
     for(i=0;i < (int) strlen(tempo);i++)  {
       if(tempo[i]==10) tempo[i]=' ';
@@ -286,10 +293,10 @@ void Wid1::CleanUrls()
           */
           // recopier adresse
           if (strstr(ch,":/")==NULL) {
-            strcatbuff(str,"http://");
+            strlcatbuff(str,"http://",strsize);
           }
-          strcatbuff(str,ch);
-          strcatbuff(str,"\x0d\x0a");
+          strlcatbuff(str,ch,strsize);
+          strlcatbuff(str,"\x0d\x0a",strsize);
         }
         j=0;
       } else ch[j++]=tempo[i];

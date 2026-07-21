@@ -65,7 +65,7 @@ END_MESSAGE_MAP()
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab7 message handlers
 
-void NewFilter(int i,char* s) {  // 0: forbid 1: accept
+static void NewFilter(int i,char* s,size_t ssize) {  // 0: forbid 1: accept
   CAddFilter AddF;
   AddF.type=i;
   if (AddF.type==0)
@@ -73,7 +73,7 @@ void NewFilter(int i,char* s) {  // 0: forbid 1: accept
   else
     AddF.m_addtype=LANG(LANG_B21); // "Links following this rule will be accepted:";
   if (AddF.DoModal()==IDOK) {
-    char query[2048],t[256],as[256];
+    char query[2048],t[2048],as[2100];
     char* q;
 
     // error
@@ -81,16 +81,16 @@ void NewFilter(int i,char* s) {  // 0: forbid 1: accept
       return;
     }
 
-    strcpybuff(s,"");
+    strlcpybuff(s,"",ssize);
     strcpybuff(query,AddF.m_afquery);
     q=query;
     
     if (AddF.m_aftype==10) {
       if (i==0)
-        strcpybuff(s,"-");
+        strlcpybuff(s,"-",ssize);
       else
-        strcpybuff(s,"+");
-      strcatbuff(s,"*");
+        strlcpybuff(s,"+",ssize);
+      strlcatbuff(s,"*",ssize);
     } else {
       while(strlen(q)>0) {
         while ((*q==' ') || (*q==',')) q++;
@@ -105,11 +105,11 @@ void NewFilter(int i,char* s) {  // 0: forbid 1: accept
           } else if (b) a=b;
           
           if (a) {
-            strcpybuff (t,"");
-            strncat(t,q,a-q);
+            t[0]='\0';
+            strlncatbuff(t,q,sizeof(t),a-q);
             q=a+1;
           } else {
-            strcpybuff(t,q);
+            strlcpybuff(t,q,sizeof(t));
             strcpybuff(q,"");
           }
         }
@@ -149,26 +149,29 @@ void NewFilter(int i,char* s) {  // 0: forbid 1: accept
             break;
           }
           if (strlen(as)>0) {
+            /* Stop at capacity rather than abort: strlcatbuff() does not truncate. */
+            if (strlen(s) + strlen(as) + 4 >= ssize)
+              break;
             if (i==0)
-              strcatbuff(s,"-");
+              strlcatbuff(s,"-",ssize);
             else
-              strcatbuff(s,"+");
-            strcatbuff(s,as);
-            strcatbuff(s,"\x0d\x0a");
+              strlcatbuff(s,"+",ssize);
+            strlcatbuff(s,as,ssize);
+            strlcatbuff(s,"\x0d\x0a",ssize);
           }
         }
       }
       
     }
 
-  } else strcpybuff(s,"");
+  } else strlcpybuff(s,"",ssize);
 }
 
 
 void COptionTab7::OnAdd1() 
 {
   char s[1024]; s[0]='\0';
-  NewFilter(0,s);
+  NewFilter(0,s,sizeof(s));
   if (strlen(s)>0) {
     char tempo[HTS_URLMAXSIZE*16];
     {
@@ -192,7 +195,7 @@ void COptionTab7::OnAdd1()
 void COptionTab7::OnAdd2() 
 {
   char s[1024]; s[0]='\0';
-  NewFilter(1,s);
+  NewFilter(1,s,sizeof(s));
   if (strlen(s)>0) {
     char tempo[HTS_URLMAXSIZE*16];
     {

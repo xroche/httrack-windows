@@ -122,9 +122,11 @@ void Ciplog::AffLogRefresh() {
     if (!feof(fp)) {
       char* a=dat;
       char* startline=dat;
+      // 'n' counts bytes read; the newline arm writes 2 per 1, so bound the write too.
+      char* const amax = dat + sizeof(dat) - 3;
       int n=0;
       int c;
-      while ( (!feof(fp)) && (n<HIGH_MARK) ) {
+      while ( (!feof(fp)) && (n<HIGH_MARK) && (a<amax) ) {
         c = fgetc(fp);
         n++;
         if ((c>0) && (c!=EOF)) {

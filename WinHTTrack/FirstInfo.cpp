@@ -151,7 +151,8 @@ void CFirstInfo::OnLButtonDown(UINT nFlags, CPoint point)
       this->ClientToScreen(&point);
       w->ScreenToClient(&point);
     if ((point.y>=100) && (point.y<=110) || (point.y<=80)) {
-      if (!ShellExecute(NULL,"open","http://www.httrack.com","","",SW_RESTORE)) {
+      if (!ShellOpen("http://www.httrack.com", SW_RESTORE)) {
+        AfxMessageBox("Cannot open a web browser for http://www.httrack.com");
       }
     }
     break;

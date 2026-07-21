@@ -75,6 +75,7 @@ extern "C" {
 //#include "WizLinks.h"
 
 #include "inprogress.h"
+#include "CrashReport.h"
 
 #include "SYS\TIMEB.H"
 
@@ -439,7 +440,7 @@ int check_continue(char* pathlog) {
 	char catbuff[CATBUFF_SIZE];
 	char catbuff2[CATBUFF_SIZE];
 	char catbuff3[CATBUFF_SIZE];
-  char path_log[256];
+  char path_log[HTS_URLMAXSIZE*2];
   strcpybuff(path_log,pathlog);
   if (strlen(path_log)>0)
     if ((path_log[strlen(path_log)-1]!='/') && (path_log[strlen(path_log)-1]!='\\'))
@@ -1755,19 +1756,42 @@ char *strdupt_utf8(const char *const s) {
   return utf8 != NULL ? utf8 : strdupt(s);
 }
 
+bool ShellOpen(LPCSTR file, int nShowCmd) {
+  return (INT_PTR) ShellExecute(NULL, "open", file, NULL, NULL, nShowCmd) > 32;
+}
+
 #if SHELL_MULTITHREAD
 
+// EXCEPTION_CONTINUE_EXECUTION would restart the faulting instruction forever; unwind to the -100 path instead.
 static int __cdecl ExcFilter_(DWORD dwExceptCode, PEXCEPTION_POINTERS pExceptPtrs) {
-  return EXCEPTION_CONTINUE_EXECUTION;
-}                              
+  switch(dwExceptCode) {
+    case EXCEPTION_STACK_OVERFLOW:
+      // Symbol-walking here would re-fault on the exhausted stack; just unwind to -100.
+      return EXCEPTION_EXECUTE_HANDLER;
+    case EXCEPTION_ACCESS_VIOLATION:
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+    case EXCEPTION_DATATYPE_MISALIGNMENT:
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+    case EXCEPTION_IN_PAGE_ERROR:
+    case EXCEPTION_INT_DIVIDE_BY_ZERO:
+    case EXCEPTION_PRIV_INSTRUCTION:
+      // Handling it here bypasses the top-level filter, so report before the unwind.
+      CrashReportLogException("Engine thread crashed");
+      return EXCEPTION_EXECUTE_HANDLER;
+    default:
+      return EXCEPTION_CONTINUE_SEARCH;
+  }
+}
 
 void __cdecl RunBackRobot(void* al_p) {
   int argc;
   char** argv;
 
-  while((!inprogress) && (!termine)) Sleep(10);
-  if (inprogress)
-    while ((!inprogress->m_hWnd) || (termine)) Sleep(10);   // attendre formulaire
+  /* Both spins are bounded only by 'termine', which no writer sets this early: keep the operator honest. */
+  while ((!inprogress) && (!termine)) Sleep(10);
+  if (inprogress) {
+    while ((!inprogress->m_hWnd) && (!termine)) Sleep(10);   // attendre formulaire
+  }
     //Sleep(100);
     
     Robot_params* al=(Robot_params*) al_p;
@@ -2213,7 +2237,8 @@ void lance(void) {
       strcatbuff(end_mirror_msg,"\"");
       strcatbuff(end_mirror_msg,LANG(LANG_F20 /*"\" \nDuring:\n  ","\" \nDurant:\n  "*/));
       strcatbuff(end_mirror_msg,"\"");
-      strcatbuff(end_mirror_msg,ShellOptions->LINE_back);
+      /* Debug-only echo of the command line, and the only unbounded source here: cap it. */
+      strlncatbuff(end_mirror_msg,ShellOptions->LINE_back,sizeof(end_mirror_msg),2048);
       strcatbuff(end_mirror_msg,"\"");
       strcatbuff(end_mirror_msg,LANG(LANG_F21 /*"\nSee the log file if necessary.\n\nClick OK to quit WinHTTrack.\n\nThanks for using WinHTTrack!","\nVoir le fichier log au besoin\n\nCliquez sur OK pour quitter WinHTTrack\n\nMerci d'utiliser WinHTTrack."*/));
       //AfxMessageBox(s,MB_OK+MB_ICONINFORMATION);
