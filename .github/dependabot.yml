@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Keeps the SHA pins in windows-build.yml current, rewriting the trailing "# v4"
+  # comment as it goes. Without this, pinning just means silently going stale.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
+
+  # Bumps builtin-baseline in WinHTTrack/vcpkg.json. directory must be the manifest's
+  # folder, not "/", or this silently never fires. Version updates only: Dependabot does
+  # not do vcpkg security updates, so a CVE will not open a PR here.
+  - package-ecosystem: vcpkg
+    directory: /WinHTTrack
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: deps

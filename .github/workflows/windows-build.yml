@@ -25,7 +25,7 @@ jobs:
   encoding:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Byte-exact on purpose. The sources are ISO-8859-1 (accented French
       # comments), and grep-family tools treat them as binary and silently match
       # nothing, so a shell-based guard here would never fire.
@@ -82,18 +82,36 @@ jobs:
         configuration: [Release]
     steps:
       - name: Checkout httrack-windows
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: httrack-windows
 
       # $(HttrackRoot) resolves to ..\httrack, so the engine must be the sibling.
       # coucal is the engine's own submodule.
       - name: Checkout httrack engine (sibling)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: xroche/httrack
+          # Empty follows master, so engine bumps still surface on branch CI at once.
+          ref: ${{ vars.HTTRACK_ENGINE_REF }}
           path: httrack
           submodules: recursive
+
+      - name: Record engine provenance
+        shell: pwsh
+        # Via env, not ${{ }} interpolation: a value containing $(...) would otherwise run.
+        env:
+          ENGINE_REF: ${{ vars.HTTRACK_ENGINE_REF }}
+          GH_REF: ${{ github.ref }}
+        run: |
+          $sha = (git -C httrack rev-parse HEAD).Trim()
+          Write-Host "::notice::engine $sha (HTTRACK_ENGINE_REF='$env:ENGINE_REF')"
+          "ENGINE_SHA=$sha" | Out-File -Append $env:GITHUB_ENV
+          # Two thirds of what we sign is built from the engine tree, so a tag that floats
+          # cannot say what it shipped. A branch name is not a pin, so require a full SHA.
+          if ($env:GH_REF -like 'refs/tags/*' -and $env:ENGINE_REF -notmatch '^[0-9a-f]{40}$') {
+            throw "Tagged build needs HTTRACK_ENGINE_REF pinned to a 40-hex SHA (got '$env:ENGINE_REF')"
+          }
 
       # Located with vswhere rather than microsoft/setup-msbuild. A repo that
       # restricts Actions to GitHub-owned ones kills a third-party action as a
@@ -114,7 +132,15 @@ jobs:
 
       - name: Enable vcpkg MSBuild integration
         shell: pwsh
-        run: vcpkg integrate install
+        run: |
+          # The runner's preinstalled C:\vcpkg is a checkout frozen at image-build time and
+          # never fetches, so our pinned baseline has to be pulled in or resolution fails.
+          $baseline = (Get-Content httrack-windows/WinHTTrack/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          git -C C:\vcpkg fetch --depth 1 origin $baseline
+          git -C C:\vcpkg cat-file -e "${baseline}:versions/baseline.json"
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg baseline $baseline is still unreachable after fetch" }
+          Write-Host "vcpkg baseline $baseline reachable"
+          vcpkg integrate install
 
       # WinHTTrack links src\$(Platform)\$(Configuration)\libhttrack.lib, so the
       # engine has to be built first.
@@ -393,7 +419,7 @@ jobs:
       - name: Upload the unsigned binaries
         id: unsigned-binaries
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: unsigned-binaries-${{ matrix.platform }}
           path: unsigned/*
@@ -401,7 +427,7 @@ jobs:
 
       - name: Sign the binaries
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -419,15 +445,21 @@ jobs:
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
-          # Assert before overwriting: a request that came back unsigned would otherwise
-          # sail on and ship an unsigned installer every later step still calls signed.
-          foreach ($f in Get-ChildItem 'signed\*' -Include *.exe, *.dll) {
+          # Enumerate once, recursively: SignPath may return a nested layout, and a flat
+          # glob would then copy nothing while every later step still calls these signed.
+          $files = @(Get-ChildItem 'signed' -Recurse -Include *.exe, *.dll -File)
+          # Assert the expected set by name. Validating only what came back passes happily
+          # when SignPath returns two of three, leaving the third unsigned in the installer.
+          $expected = @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')
+          $missing = $expected | Where-Object { $_ -notin $files.Name }
+          if ($missing) { throw "SignPath did not return: $($missing -join ', ')" }
+          foreach ($f in $files) {
             $sig = Get-AuthenticodeSignature $f.FullName
             Write-Host "  $($f.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
             if ($sig.Status -ne 'Valid') { throw "$($f.Name) came back $($sig.Status), not Valid" }
           }
-          Copy-Item 'signed\*' $bin -Force
-          Write-Host "::notice::signed $((Get-ChildItem 'signed\*').Count) binaries"
+          $files | Copy-Item -Destination $bin -Force
+          Write-Host "::notice::signed $($files.Count) binaries"
 
       # Build the installer, install it, and run the thing. Until now nothing had
       # ever executed: the manifest bug that stopped the exe from starting got
@@ -455,6 +487,15 @@ jobs:
           $redist = "$PWD\vc_redist.$arch.exe"
           Invoke-WebRequest "https://aka.ms/vs/17/release/vc_redist.$arch.exe" -OutFile $redist
           if ((Get-Item $redist).Length -lt 1MB) { throw 'vc_redist download looks wrong' }
+
+          # Bundled into a signed installer and run elevated, so verify who produced the
+          # bytes: aka.ms redirects, and TLS only authenticates the host we fetched from.
+          $sig = Get-AuthenticodeSignature $redist
+          if ($sig.Status -ne 'Valid') { throw "vc_redist signature is $($sig.Status)" }
+          if ($sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw "vc_redist signed by an unexpected party: $($sig.SignerCertificate.Subject)"
+          }
+          Write-Host "vc_redist signer verified: $($sig.SignerCertificate.Subject)"
 
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
@@ -489,7 +530,7 @@ jobs:
       - name: Upload the unsigned installer
         id: unsigned-installer
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: unsigned-installer-${{ matrix.platform }}
           path: installer/*.exe
@@ -497,7 +538,7 @@ jobs:
 
       - name: Sign the installer
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -607,14 +648,14 @@ jobs:
           if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
 
       - name: Upload the installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: httrack-setup-${{ matrix.platform }}
           path: installer/*.exe
           if-no-files-found: error
 
       - name: Upload the runnable build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: WinHTTrack-${{ matrix.platform }}-${{ matrix.configuration }}
           path: |
@@ -625,7 +666,7 @@ jobs:
 
       - name: Upload MSBuild log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: msbuild-${{ matrix.platform }}-${{ matrix.configuration }}
           path: httrack-windows/msbuild.log
