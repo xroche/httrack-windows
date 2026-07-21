@@ -301,16 +301,18 @@ void LANG_LOAD(char* limit_to) {
 
   /* Get only language name */
   if (limit_to) {
-    if (hashname)
+    if (strnotempty(hashname))
       strcpybuff(limit_to,hashname);
     else
       strcpybuff(limit_to,"???");
     return;
   }
 
-  /* Error */
-  if (!hashname)
+  /* LANGINTKEY() returns "" on a miss, so a stale registry index would otherwise exit(1) on every start. */
+  if (!strnotempty(hashname) && selected_lang != 0) {
+    LANG_T(0);
     return;
+  }
 
   // xxc TEST
   /*
@@ -664,7 +666,6 @@ void LANG_DELETE() {
 void LANG_INIT() {
   CWinApp* pApp = AfxGetApp();
   if (pApp) {
-    int test = pApp->GetProfileInt("Language","IntId",0);
     LANG_T(pApp->GetProfileInt("Language","IntId",0));
   }
 }
@@ -672,10 +673,11 @@ void LANG_INIT() {
 int LANG_T(int l) {
   if (l>=0) {
     QLANG_T(l);
+    LANG_LOAD(NULL);
+    /* Persist only what loaded: LANG_LOAD() falls back to 0 on a bad index, and that is what must be saved. */
     CWinApp* pApp = AfxGetApp();
     if (pApp)
-      pApp->WriteProfileInt("Language","IntId",l);
-    LANG_LOAD(NULL);
+      pApp->WriteProfileInt("Language","IntId",QLANG_T(-1));
   }
   return QLANG_T(-1);  // 0=default (english)
 }
