@@ -1738,6 +1738,10 @@ char *strdupt_utf8(const char *const s) {
   return utf8 != NULL ? utf8 : strdupt(s);
 }
 
+bool ShellOpen(LPCSTR file, int nShowCmd) {
+  return (INT_PTR) ShellExecute(NULL, "open", file, NULL, NULL, nShowCmd) > 32;
+}
+
 #if SHELL_MULTITHREAD
 
 static int __cdecl ExcFilter_(DWORD dwExceptCode, PEXCEPTION_POINTERS pExceptPtrs) {
