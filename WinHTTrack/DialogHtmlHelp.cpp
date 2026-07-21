@@ -98,7 +98,7 @@ BOOL CDialogHtmlHelp::OnInitDialog()
     UpdateWindow();
   } else {
     EndDialog(IDCANCEL);
-    if (!ShellExecute(NULL,"open",home+strlen("file://"),"","",SW_RESTORE))
+    if (!ShellOpen(home+strlen("file://"), SW_RESTORE))
       AfxMessageBox(LANG(LANG_DIAL1));
   }
   return TRUE;  

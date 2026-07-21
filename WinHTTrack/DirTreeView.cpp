@@ -726,7 +726,8 @@ BOOL CDirTreeViewShellEx::InitInstance() {
 UINT CDirTreeViewShellEx( LPVOID pP ) {
   CWaitCursor wait;
   CString* File=(CString*) pP;
-  if (!ShellExecute(NULL,"open",*File,NULL,NULL,SW_SHOWNORMAL)) {
+  if (!ShellOpen(*File, SW_SHOWNORMAL)) {
+    AfxMessageBox("Cannot open " + *File);
   }
   delete File;
   return 0;
