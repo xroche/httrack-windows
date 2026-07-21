@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "winhttrack",
   "version-string": "3.49",
-  "builtin-baseline": "44819aa2a6c10e56065e2b0330e7d6c89d1d2574",
+  "builtin-baseline": "cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3",
   "dependencies": [
     "openssl",
     "zlib"
