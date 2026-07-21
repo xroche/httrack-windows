@@ -35,6 +35,13 @@ def vkey(v):
     return (int(a), int(b), int(c), len(suf), tuple(map(ord, suf)))
 
 
+def branch(v):
+    """(major, minor) of a version string, or None. Tolerates unparseable tails
+    like '3.6.0-beta1', so a same-branch bound can be recognised even when vkey fails."""
+    m = re.match(r"^(\d+)\.(\d+)", (v or "").strip())
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
 def resolved_versions(installed_dirs):
     """port -> version, read from vcpkg's per-package SPDX SBOMs.
 
@@ -44,6 +51,11 @@ def resolved_versions(installed_dirs):
     """
     found = {}
     for root in installed_dirs:
+        # Fail closed on a missing or empty tree: a vanished engine layout would
+        # otherwise scan only the other tree and pass, checking the wrong binaries.
+        if not Path(root).is_dir():
+            sys.exit(f"FATAL: --installed path '{root}' is missing -- partial scan is not clean")
+        n = 0
         for sbom in Path(root).rglob("vcpkg.spdx.json"):
             # Build intermediates, not the installed tree that ships.
             if {"pkgs", "buildtrees", "packages"} & set(sbom.parts):
@@ -55,6 +67,9 @@ def resolved_versions(installed_dirs):
                     ver = (pkg.get("versionInfo") or "").split("#")[0].strip()
                     if ver:
                         found.setdefault(port, ver)
+                        n += 1
+        if n == 0:
+            sys.exit(f"FATAL: no SBOMs under '{root}' -- extraction is broken, not clean")
     return found
 
 
@@ -69,11 +84,18 @@ def advisories():
         return list(ex.map(lambda n: json.loads(get(FEED + n)), names))
 
 
-def hits(doc, ver):
-    """(cve, severity) if ver is in an affected range, else None."""
+def hits(doc, ver, ver_branch):
+    """(cve, severity) if ver is in an affected range, else None. severity is None
+    when the record carries none in the expected place.
+
+    Fails closed on a same-branch shape it cannot evaluate -- an open-ended affected
+    range, or an unparseable bound on ver's own branch -- rather than skipping it, so
+    a feed-shape drift surfaces as a finding instead of a silent clean. Cross-branch
+    unparseable bounds (ancient 0.9.x/fips entries) still skip: fail-closing there
+    would flag every modern version against pre-1.0 CVEs."""
     cna = doc.get("containers", {}).get("cna", {})
     cve = doc.get("cveMetadata", {}).get("cveId")
-    sev = "unknown"
+    sev = None
     for m in cna.get("metrics", []):
         text = m.get("other", {}).get("content", {}).get("text")
         if text:
@@ -84,16 +106,37 @@ def hits(doc, ver):
         for rng in aff.get("versions", []):
             if rng.get("status") != "affected":
                 continue
-            lo = vkey(rng.get("version"))
-            if lo is None or not lo <= ver:
+            lo_raw = rng.get("version")
+            lo = vkey(lo_raw)
+            if lo is None:
+                # Unparseable lower bound: suspicious only if it names ver's branch.
+                if branch(lo_raw) == ver_branch:
+                    return cve, sev
                 continue
-            hi = vkey(rng.get("lessThan"))
-            if hi is not None and ver < hi:
-                return cve, sev
-            # CVE-2022-3996 is the one record bounding inclusively.
-            hie = vkey(rng.get("lessThanOrEqual"))
-            if hie is not None and ver <= hie:
-                return cve, sev
+            if not lo <= ver:
+                continue
+            hi_raw, hie_raw = rng.get("lessThan"), rng.get("lessThanOrEqual")
+            if hi_raw:
+                hi = vkey(hi_raw)
+                if hi is None:
+                    if branch(hi_raw) == ver_branch:
+                        return cve, sev
+                    continue
+                if ver < hi:
+                    return cve, sev
+                continue
+            if hie_raw:
+                # CVE-2022-3996 is the one record bounding inclusively.
+                hie = vkey(hie_raw)
+                if hie is None:
+                    if branch(hie_raw) == ver_branch:
+                        return cve, sev
+                    continue
+                if ver <= hie:
+                    return cve, sev
+                continue
+            # lo <= ver with no upper bound at all: open-ended affected range.
+            return cve, sev
     return None
 
 
@@ -138,19 +181,22 @@ def main():
     ver = vkey(ossl)
     if ver is None:
         sys.exit(f"FATAL: cannot parse openssl version {ossl!r}")
+    ver_branch = (ver[0], ver[1])
 
     accepted = {c.strip().upper() for c in args.accept.split(",") if c.strip()}
     floor = RANK[args.min_severity]
     blocking, noted = [], []
     for doc in advisories():
-        h = hits(doc, ver)
+        h = hits(doc, ver, ver_branch)
         if not h:
             continue
         cve, sev = h
         if cve.upper() in accepted:
             print(f"::warning::{cve} ({sev}) accepted by policy")
-        elif RANK.get(sev, 0) >= floor:
-            blocking.append((cve, sev))
+        # sev is None only when a matched record lacks severity where OpenSSL always
+        # puts it -- an unexpected shape, so block rather than silently downgrade.
+        elif sev is None or RANK.get(sev, 0) >= floor:
+            blocking.append((cve, sev or "unrated"))
         else:
             noted.append((cve, sev))
 
