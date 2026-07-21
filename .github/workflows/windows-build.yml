@@ -449,7 +449,7 @@ jobs:
       - name: Upload the unsigned binaries
         id: unsigned-binaries
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unsigned-binaries-${{ matrix.platform }}
           path: unsigned/*
@@ -560,7 +560,7 @@ jobs:
       - name: Upload the unsigned installer
         id: unsigned-installer
         if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unsigned-installer-${{ matrix.platform }}
           path: installer/*.exe
@@ -678,14 +678,14 @@ jobs:
           if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
 
       - name: Upload the installer
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: httrack-setup-${{ matrix.platform }}
           path: installer/*.exe
           if-no-files-found: error
 
       - name: Upload the runnable build
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: WinHTTrack-${{ matrix.platform }}-${{ matrix.configuration }}
           path: |
@@ -696,7 +696,7 @@ jobs:
 
       - name: Upload MSBuild log
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: msbuild-${{ matrix.platform }}-${{ matrix.configuration }}
           path: httrack-windows/msbuild.log
