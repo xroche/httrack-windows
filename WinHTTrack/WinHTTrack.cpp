@@ -756,10 +756,22 @@ BOOL CWinHTTrackApp::RmDir(CString srcpath) {
 
   if (srcpath.GetLength()==0)
     return FALSE;
+
+  // A junction or symlink must be unlinked, never descended: its target is outside what the user confirmed.
+  const DWORD attr = GetFileAttributes(srcpath);
+  if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_REPARSE_POINT)) {
+    if (!RemoveDirectory(srcpath)) {
+      AfxMessageBox("Error deleting "+srcpath);
+      return FALSE;
+    }
+    return TRUE;
+  }
+
   CString path=srcpath;
   WIN32_FIND_DATA find;
+  BOOL ok = TRUE;
   if (path.Right(1)!="\\")
-    path+="\\";  
+    path+="\\";
   HANDLE h = FindFirstFile(path+"*.*",&find);
   if (h != INVALID_HANDLE_VALUE) {
     do {
@@ -769,15 +781,17 @@ BOOL CWinHTTrackApp::RmDir(CString srcpath) {
         if (!(find.dwFileAttributes  & FILE_ATTRIBUTE_DIRECTORY )) {
           if (remove(path+find.cFileName)) {
             AfxMessageBox("Error deleting "+path+find.cFileName);
-            return FALSE;
+            ok = FALSE;
           }
         } else {
           if (!RmDir(path+find.cFileName))
-            return FALSE;
+            ok = FALSE;
         }
-    } while(FindNextFile(h,&find));
+    } while(ok && FindNextFile(h,&find));
     FindClose(h);
   }
+  if (!ok)
+    return FALSE;
   if (rmdir(srcpath)) {
     AfxMessageBox("Error deleting "+srcpath);
     return FALSE;
