@@ -133,13 +133,17 @@ jobs:
       - name: Enable vcpkg MSBuild integration
         shell: pwsh
         run: |
-          # The runner's preinstalled C:\vcpkg is a checkout frozen at image-build time and
-          # never fetches, so our pinned baseline has to be pulled in or resolution fails.
-          $baseline = (Get-Content httrack-windows/WinHTTrack/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
-          git -C C:\vcpkg fetch --depth 1 origin $baseline
-          git -C C:\vcpkg cat-file -e "${baseline}:versions/baseline.json"
-          if ($LASTEXITCODE -ne 0) { throw "vcpkg baseline $baseline is still unreachable after fetch" }
-          Write-Host "vcpkg baseline $baseline reachable"
+          # The runner's preinstalled C:\vcpkg is frozen at image-build time and never
+          # fetches, so every pinned baseline we build against has to be pulled in first.
+          # Both manifests are pinned now (the engine got its own in xroche/httrack#643).
+          foreach ($m in 'httrack-windows/WinHTTrack/vcpkg.json', 'httrack/src/vcpkg.json') {
+            $baseline = (Get-Content $m -Raw | ConvertFrom-Json).'builtin-baseline'
+            if (-not $baseline) { continue }
+            git -C C:\vcpkg fetch --depth 1 origin $baseline
+            git -C C:\vcpkg cat-file -e "${baseline}:versions/baseline.json"
+            if ($LASTEXITCODE -ne 0) { throw "vcpkg baseline $baseline ($m) unreachable after fetch" }
+            Write-Host "vcpkg baseline $baseline reachable ($m)"
+          }
           vcpkg integrate install
 
       # WinHTTrack links src\$(Platform)\$(Configuration)\libhttrack.lib, so the
@@ -404,11 +408,13 @@ jobs:
           ACCEPTED: ${{ vars.SECURITY_ACCEPTED_CVES }}
         run: |
           $expectArg = @()
-          $baseline = (Get-Content httrack-windows/WinHTTrack/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          # Cross-check against the ENGINE's pin: its tree is what the installer ships and
+          # is scanned first-wins below, so the GUI baseline would compare the wrong thing.
+          $baseline = (Get-Content httrack/src/vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
           if ($baseline) {
             $url = "https://raw.githubusercontent.com/microsoft/vcpkg/$baseline/versions/baseline.json"
             $expect = (Invoke-RestMethod $url).default.openssl.baseline
-            Write-Host "GUI pin resolves openssl to $expect"
+            Write-Host "engine pin resolves openssl to $expect"
             $expectArg = @('--expect-openssl', $expect)
           }
           # Engine tree first: its DLLs are the ones the installer ships.
