@@ -182,60 +182,6 @@ int __stdcall XSHBFF_CallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpDat
   } 
   else if (uMsg==BFFM_INITIALIZED) {  // init
 // DO NOT ADD BUTTON
-#if 0000
-    int x,y,w=0,h=0;
-    HWND ok = GetDlgItem(hwnd,XSHBrowseForFolder_OK);     // 'OK' button
-    if (ok) {
-      RECT rect;
-      GetWindowRect(ok,&rect);
-      
-      // screen coord -> client coord
-      POINT a,b;
-      a.x=rect.left; a.y=rect.top; b.x=rect.right; b.y=rect.bottom;
-      ScreenToClient(hwnd,&a); ScreenToClient(hwnd,&b);
-      rect.left=a.x; rect.top=a.y; rect.right=b.x; rect.bottom=b.y;
-      
-      // button's coordinates and size
-      x=rect.left;
-      y=rect.top;
-      w=rect.right-rect.left+1;
-      h=rect.bottom-rect.top+1;
-      x-=w+10;  // nice shift
-
-      // Okay, then create the button
-      if (w*h != 0) {
-        // button's styles
-        int style = WS_CHILD | WS_CLIPSIBLINGS | BS_PUSHBUTTON | WS_TABSTOP | WS_VISIBLE;
-        // create button, parent=hwnd
-        HWND b = CreateWindow("BUTTON","New folder",style,x,y,w,h,hwnd,NULL,0,NULL);
-        LONG_PTR Ladr=NULL;
-        if (b!=NULL) {
-          // Send Font notification so that the font be the same as default font
-          HFONT hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
-          ::SendMessage(b, WM_SETFONT, (WPARAM) hFont, MAKELPARAM(1,0));
-          // Enable input
-          EnableWindow(b,true);
-          // Get the control ID of our button
-          XSHBFF_button1 = GetDlgCtrlID(b);
-          // Place our function
-          Ladr = SetWindowLongPtr(hwnd,GWLP_WNDPROC,(LONG_PTR) XSHBFF_WndProc);
-        }
-        
-        // initial selection
-        LPARAM* Param = (LPARAM*) lpData;
-        if (Param) {
-          // Send init dir
-          SendMessage(hwnd,BFFM_SETSELECTION,WPARAM(false),Param[0]);  // init dir
-          // Send string return address
-          XSHBFF_WndProc(hwnd,XSHBrowseForFolder_SETSTRING,0,Param[1]);             // return string
-          // Send former function address
-          if (Ladr) {
-            XSHBFF_WndProc(hwnd,XSHBrowseForFolder_SETSTRING+1,0,Ladr);             // return string
-          }
-        }
-      }
-    }
-#endif
   }
   return 0;
 }
