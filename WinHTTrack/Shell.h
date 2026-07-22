@@ -250,7 +250,7 @@ public:
     conn, tog, cache, robots, choixdeb, build, filtre, htmlfirst, 
     index, index2, index_mail, dos, time, rate, hostquit, ka, 
     user, footer, log, testall, parseall, link, path, 
-    retry, errpage, external, nopurge, hidepwd, hidequery, 
+    retry, errpage, external, nopurge, warc, hidepwd, hidequery,
     cookies, checktype, parsejava, Cache2, logtype, norecatch, 
     toler, updhack, urlhack, http10, waittime, maxtime, maxrate, 
     maxconn, maxlinks, hh, mm, ss, buff_filtres, buff_MIME, 

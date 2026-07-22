@@ -189,6 +189,7 @@ Please visit our Website: http://www.httrack.com
 #define IDC_external                    1035
 #define IDC_prox                        1036
 #define IDC_nopurge                     1036
+#define IDC_warc                        1321
 #define IDC_portprox                    1037
 #define IDC_hidepwd                     1037
 #define IDC_choix2                      1038
@@ -615,7 +616,7 @@ Please visit our Website: http://www.httrack.com
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        247
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1321
+#define _APS_NEXT_CONTROL_VALUE         1322
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif

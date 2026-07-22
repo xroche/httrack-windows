@@ -556,8 +556,9 @@ void compute_options() {
   if(maintab->m_option1.m_htmlfirst) ShellOptions->htmlfirst = "p7"; else ShellOptions->htmlfirst = ""; 
   if(maintab->m_option2.m_errpage) ShellOptions->errpage = "o0"; else ShellOptions->errpage = ""; 
   if(maintab->m_option2.m_external) ShellOptions->external = "x"; else ShellOptions->external = ""; 
-  if(maintab->m_option2.m_nopurge) ShellOptions->nopurge = "X0"; else ShellOptions->nopurge = ""; 
-  if(maintab->m_option2.m_hidepwd) ShellOptions->hidepwd = "%x"; else ShellOptions->hidepwd = ""; 
+  if(maintab->m_option2.m_nopurge) ShellOptions->nopurge = "X0"; else ShellOptions->nopurge = "";
+  if(maintab->m_option2.m_warc) ShellOptions->warc = "%r"; else ShellOptions->warc = "";
+  if(maintab->m_option2.m_hidepwd) ShellOptions->hidepwd = "%x"; else ShellOptions->hidepwd = "";
   if(maintab->m_option2.m_hidequery) ShellOptions->hidequery = "%q0"; else ShellOptions->hidequery = ""; 
   
   ShellOptions->keepwww = maintab->m_option1.m_keepwww ? "--keep-www-prefix" : "";
@@ -1896,6 +1897,7 @@ void lance(void) {
   single += ShellOptions->link;
   single += ShellOptions->external;
   single += ShellOptions->nopurge;
+  single += ShellOptions->warc;    // -%r: engine writes an auto-named .warc.gz
   single += ShellOptions->hidepwd;
   single += ShellOptions->hidequery;
   single += ShellOptions->robots;
@@ -2504,6 +2506,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "NoPwdInPages",maintab->m_option2.m_hidepwd);
     MyWriteProfileInt(path,strSection, "NoQueryStrings",maintab->m_option2.m_hidequery);
     MyWriteProfileInt(path,strSection, "NoPurgeOldFiles",maintab->m_option2.m_nopurge);
+    MyWriteProfileInt(path,strSection, "Warc",maintab->m_option2.m_warc);
     MyWriteProfileInt(path,strSection, "Cookies",maintab->m_option8.m_cookies);
     MyWriteProfileInt(path,strSection, "CheckType",maintab->m_option8.m_checktype);
     MyWriteProfileInt(path,strSection, "ParseJava",maintab->m_option8.m_parsejava);
@@ -2615,6 +2618,8 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection,"NoExternalPages", n);
     n=maintab->m_option2.IsDlgButtonChecked(IDC_nopurge);
     MyWriteProfileInt(path,strSection,"NoPurgeOldFiles", n);
+    n=maintab->m_option2.IsDlgButtonChecked(IDC_warc);
+    MyWriteProfileInt(path,strSection,"Warc", n);
     if ((n=maintab->m_option2.m_ctl_build.GetCurSel()) != CB_ERR)
       MyWriteProfileInt(path,strSection, "Build", n);
     st = maintab->m_option2.Bopt.m_BuildString;
@@ -2844,6 +2849,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option2.m_hidepwd   = MyGetProfileInt(path,strSection, "NoPwdInPages",0);
   maintab->m_option2.m_hidequery = MyGetProfileInt(path,strSection, "NoQueryStrings",0);
   maintab->m_option2.m_nopurge   = MyGetProfileInt(path,strSection, "NoPurgeOldFiles",0);
+  maintab->m_option2.m_warc      = MyGetProfileInt(path,strSection, "Warc",0);
   maintab->m_option8.m_cookies    = MyGetProfileInt(path,strSection, "Cookies",1);
   maintab->m_option8.m_checktype  = MyGetProfileInt(path,strSection, "CheckType",1);
   maintab->m_option8.m_parsejava  = MyGetProfileInt(path,strSection, "ParseJava",1);
