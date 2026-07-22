@@ -281,93 +281,6 @@ BOOL LaunchMirror() {
   return 0;
 }
 
-#if 0
-BOOL CShellApp::InitInstance()
-{
-  CShellApp_app=this;
-  termine=termine_requested=shell_terminated=soft_term_requested=0;
-  
-  // Initialize OLE libraries
-  /*
-  if (!AfxOleInit())
-  {
-  AfxMessageBox(LANG(LANG_F1));
-  return FALSE;
-  }
-  AfxEnableControlContainer();
-  */
-  
-  // Fixer localisation dans la base de registre
-  //SetRegistryKey("WinHTTrack");
-  
-  // Standard initialization
-  // If you are not using these features and wish to reduce the size
-  //  of your final executable, you should remove from the following
-  //  the specific initialization routines you do not need.
-  /*
-  #ifdef _AFXDLL
-  Enable3dControls();			// Call this when using MFC in a shared DLL
-  #else
-  Enable3dControlsStatic();	// Call this when linking to MFC statically
-  #endif
-  */
-  
-  // Register the application's document templates.  Document templates
-  //  serve as the connection between documents, frame windows and views.
-  
-  // Change the registry key under which our settings are stored.
-  // You should modify this string to be something appropriate
-  // such as the name of your company or organization.
-  //SetRegistryKey(_T("Local AppWizard-Generated Applications"));
-  
-  //LoadStdProfileSettings();  // Load standard INI file options (including MRU)
-  
-  // Register the application's document templates.  Document templates
-  //  serve as the connection between documents, frame windows and views.
-  
-  // Parse command line for standard shell commands, DDE, file open
-  /*CCommandLineInfo cmdInfo;
-  ParseCommandLine(cmdInfo);
-  */
-  
-  _Cinprogress_inst=NULL;
-  
-  LibRasUse=0;
-  
-  /*
-  #if USE_RAS
-  LibRas=new CDynamicRAS();
-  if (LibRas->IsRASLoaded()) 
-  LibRasUse=1;
-  else
-  LibRasUse=0;
-  #endif
-  */
-  
-  maintab = new CMainTab("WinHTTrack Website Copier");
-  
-  // PATCH-->
-  // éxécution..
-  init_lance();
-  
-  delete maintab;
-  maintab=NULL;
-  
-  // PATCH-->
-  /*
-  // Dispatch commands specified on the command line
-  if (!ProcessShellCommand(cmdInfo))
-		return FALSE;
-    
-      // The one and only window has been initialized, so show and update it.
-      m_pMainWnd->ShowWindow(SW_SHOW);
-      m_pMainWnd->UpdateWindow();
-  */  
-  
-  
-  return TRUE;
-}
-#endif
 
 // PATCH-->
 // routines diverses
@@ -945,16 +858,6 @@ BOOL InitiateSystemShutdownExWithPriv(
  
    // Display the shutdown dialog box and start the countdown. 
 
-#if 0
-  fResult = InitiateSystemShutdownEx(
-    NULL,
-    lpMessage,
-    dwTimeout,
-    bForceAppsClosed,
-    bRebootAfterShutdown,
-    dwReason
-    );
-#else
 #ifndef EWX_FORCEIFHUNG
 #define EWX_FORCEIFHUNG     0x00000010
 #endif
@@ -966,7 +869,6 @@ BOOL InitiateSystemShutdownExWithPriv(
      } else {
        fResult = 0;
      }
-#endif
 
    // Disable shutdown privilege.
    tkp.Privileges[0].Attributes = 0; 

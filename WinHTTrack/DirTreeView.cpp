@@ -410,13 +410,6 @@ HTREEITEM CDirTreeView::GetPathItem(CString path,BOOL open,BOOL nofail,BOOL nohi
 
 BOOL CDirTreeView::EnsureVisible(CString path) {
   if (!GetTreeCtrl()) return FALSE;   /* error */
-#if 0
-  /* Lancer refresh en arrière plan */
-  refreshPath=path;
-  StopTimer();
-  AfxBeginThread(CDirTreeViewRefresh,this);
-  return TRUE;
-#else
   CWaitCursor wait;
   HTREEITEM pos=GetPathItem(path,TRUE,TRUE);
   if (pos) {
@@ -424,7 +417,6 @@ BOOL CDirTreeView::EnsureVisible(CString path) {
   } else
     return FALSE;
   return TRUE;
-#endif
 }
 
 BOOL CDirTreeView::EnsureVisibleBl(CString path) {
