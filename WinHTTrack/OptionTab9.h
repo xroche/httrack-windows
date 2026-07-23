@@ -57,6 +57,7 @@ public:
 	BOOL	m_norecatch;
 	BOOL	m_index2;
 	BOOL	m_index_mail;
+	BOOL	m_warc;
 	//}}AFX_DATA
 
 

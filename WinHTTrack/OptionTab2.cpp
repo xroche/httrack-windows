@@ -57,7 +57,6 @@ COptionTab2::COptionTab2() : CPropertyPage(COptionTab2::IDD)
 	m_errpage = FALSE;
 	m_external = FALSE;
 	m_nopurge = FALSE;
-	m_warc = FALSE;
 	m_hidepwd = FALSE;
 	m_hidequery = FALSE;
 	m_iso9660 = FALSE;
@@ -79,7 +78,6 @@ void COptionTab2::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_errpage, m_errpage);
 	DDX_Check(pDX, IDC_external, m_external);
 	DDX_Check(pDX, IDC_nopurge, m_nopurge);
-	DDX_Check(pDX, IDC_warc, m_warc);
 	DDX_Check(pDX, IDC_hidepwd, m_hidepwd);
 	DDX_Check(pDX, IDC_hidequery, m_hidequery);
 	DDX_Check(pDX, IDC_iso9660, m_iso9660);
@@ -136,7 +134,6 @@ BOOL COptionTab2::OnInitDialog()
     GetDlgItem(IDC_iso9660) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_errpage) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_nopurge) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_warc)    ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_external)->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_hidepwd) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_hidequery)->ModifyStyle(0,WS_DISABLED);
@@ -147,7 +144,6 @@ BOOL COptionTab2::OnInitDialog()
     GetDlgItem(IDC_iso9660) ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_errpage) ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_nopurge) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_warc)    ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_external)->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_hidepwd) ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_hidequery)->ModifyStyle(WS_DISABLED,0);
@@ -203,7 +199,6 @@ const char* COptionTab2::GetTip(int ID)
     case IDC_errpage: return LANG(LANG_I9); break; // "Do not write html error pages","Ne pas générer les fichiers d'erreur html"); break;
     case IDC_external: return LANG(LANG_I29); break; // extern
     case IDC_nopurge: return LANG(LANG_I1a); break; // erase old files
-    case IDC_warc: return "Write an ISO-28500 WARC archive (.warc.gz)"; break;
     case IDC_hidepwd: return LANG(LANG_I30); break;
     case IDC_hidequery: return LANG_I30b; break;
   }

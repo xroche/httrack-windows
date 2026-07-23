@@ -62,7 +62,6 @@ public:
 	BOOL	m_errpage;
 	BOOL	m_external;
 	BOOL	m_nopurge;
-	BOOL	m_warc;
 	BOOL	m_hidepwd;
 	BOOL	m_hidequery;
 	BOOL	m_iso9660;
