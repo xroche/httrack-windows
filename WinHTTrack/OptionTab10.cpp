@@ -60,7 +60,8 @@ COptionTab10::COptionTab10() : CPropertyPage(COptionTab10::IDD)
 {
   // Patcher titre
   if (LANG_T(-1)) {    // Patcher en français
-    m_psp.pszTitle=LANG(LANG_IOPT10); // titre
+    m_strCaption = LANG(LANG_IOPT10); // page-owned copy; the hash-table string is freed on a language change
+    m_psp.pszTitle = m_strCaption;
     m_psp.dwFlags|=PSP_USETITLE;
   }
   m_psp.dwFlags|=PSP_HASHELP;
