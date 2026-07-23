@@ -2600,18 +2600,18 @@ void Write_profile(CString path,int load_path) {
     // 2
     n=maintab->m_option3.IsDlgButtonChecked(IDC_Cache);
     MyWriteProfileInt(path,strSection,"Cache", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_norecatch);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_norecatch);
     MyWriteProfileInt(path,strSection,"NoRecatch", n);
     n = ((maintab->m_option2.IsDlgButtonChecked(IDC_dos))?1:0)
       + ((maintab->m_option2.IsDlgButtonChecked(IDC_iso9660)?1:0)<<1);
     MyWriteProfileInt(path,strSection,"Dos", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_index);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_index);
     MyWriteProfileInt(path,strSection,"Index", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_index2);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_index2);
     MyWriteProfileInt(path,strSection,"WordIndex", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_index_mail);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_index_mail);
     MyWriteProfileInt(path,strSection,"MailIndex", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_logf);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_logf);
     MyWriteProfileInt(path,strSection,"Log", n);
     n=maintab->m_option2.IsDlgButtonChecked(IDC_errpage);
     MyWriteProfileInt(path,strSection,"NoErrorPages", n);
