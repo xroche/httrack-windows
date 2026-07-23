@@ -557,7 +557,7 @@ void compute_options() {
   if(maintab->m_option2.m_errpage) ShellOptions->errpage = "o0"; else ShellOptions->errpage = ""; 
   if(maintab->m_option2.m_external) ShellOptions->external = "x"; else ShellOptions->external = ""; 
   if(maintab->m_option2.m_nopurge) ShellOptions->nopurge = "X0"; else ShellOptions->nopurge = "";
-  if(maintab->m_option2.m_warc) ShellOptions->warc = "%r"; else ShellOptions->warc = "";
+  if(maintab->m_option2.m_warc) ShellOptions->warc = "1"; else ShellOptions->warc = "";
   if(maintab->m_option2.m_hidepwd) ShellOptions->hidepwd = "%x"; else ShellOptions->hidepwd = "";
   if(maintab->m_option2.m_hidequery) ShellOptions->hidequery = "%q0"; else ShellOptions->hidequery = ""; 
   
@@ -1897,7 +1897,6 @@ void lance(void) {
   single += ShellOptions->link;
   single += ShellOptions->external;
   single += ShellOptions->nopurge;
-  single += ShellOptions->warc;    // -%r: engine writes an auto-named .warc.gz
   single += ShellOptions->hidepwd;
   single += ShellOptions->hidequery;
   single += ShellOptions->robots;
@@ -1944,7 +1943,13 @@ void lance(void) {
   single += ShellOptions->maxlinks;
   single += ShellOptions->proxyftp;  
   single += "#f";  // flush
-  
+
+  // WARC: emit --warc as its own token, not in the compacted -%... string, whose
+  // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
+  if (ShellOptions->warc.GetLength() != 0) {
+    args.Add("--warc");
+  }
+
   if (ShellOptions->user.GetLength() != 0) {
     args.Add("-F");
     args.Add(ShellOptions->user);
