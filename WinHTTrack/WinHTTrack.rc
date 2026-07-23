@@ -592,7 +592,7 @@ BEGIN
     CONTROL         "Keep the original query-string order",IDC_keepqueryorder,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,133,309,10
 END
 
-IDD_OPTION2 DIALOG  0, 0, 296, 150
+IDD_OPTION2 DIALOG  0, 0, 296, 165
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Build"
 FONT 8, "MS Sans Serif"
@@ -607,6 +607,7 @@ BEGIN
     CONTROL         "Hide passwords",IDC_hidepwd,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,105,269,9
     CONTROL         "Hide query strings",IDC_hidequery,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,120,269,9
     CONTROL         "Do not purge old files",IDC_nopurge,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,135,269,9
+    CONTROL         "Write WARC archive",IDC_warc,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,150,269,9
 END
 
 IDD_OPTION7 DIALOG  0, 0, 315, 197
