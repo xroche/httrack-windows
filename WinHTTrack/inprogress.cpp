@@ -995,10 +995,9 @@ LRESULT Cinprogress::OnEndMirror(WPARAM /* wP*/, LPARAM /*lP*/) {
 	char catbuff[CATBUFF_SIZE];
 	char catbuff2[CATBUFF_SIZE];
 
-  // A panel opened mid-mirror (Options -> maintab, View transfers ->
-  // _Cinprogress_inst) runs a nested modal loop on this thread; the teardown
-  // below destroys the progress view under it and would leave DoModal() driving
-  // freed windows. Close it, then re-post so teardown runs after the loop unwinds.
+  // A panel open mid-mirror (Options, View transfers) runs a nested modal loop on
+  // this thread; tearing the view down now would free it under a live DoModal().
+  // Close it and re-post so teardown runs only after that loop has unwound.
   if (maintab != NULL && maintab->m_hWnd != NULL) {
     maintab->EndDialog(IDCANCEL);
     PostMessage(wm_MirrorFinished);
