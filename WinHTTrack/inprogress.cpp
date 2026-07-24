@@ -994,6 +994,21 @@ BOOL Cinprogress::DestroyWindow()
 LRESULT Cinprogress::OnEndMirror(WPARAM /* wP*/, LPARAM /*lP*/) {
 	char catbuff[CATBUFF_SIZE];
 	char catbuff2[CATBUFF_SIZE];
+
+  // A panel open mid-mirror (Options, View transfers) runs a nested modal loop on
+  // this thread; tearing the view down now would free it under a live DoModal().
+  // Close it and re-post so teardown runs only after that loop has unwound.
+  if (maintab != NULL && maintab->m_hWnd != NULL) {
+    maintab->EndDialog(IDCANCEL);
+    PostMessage(wm_MirrorFinished);
+    return S_OK;
+  }
+  if (_Cinprogress_inst != NULL && _Cinprogress_inst->m_hWnd != NULL) {
+    _Cinprogress_inst->EndDialog(IDCANCEL);
+    PostMessage(wm_MirrorFinished);
+    return S_OK;
+  }
+
   //this_CSplitterFrame->SetNewView(0,1,RUNTIME_CLASS(Cinfoend));
 
   // Copie de trans.cpp
