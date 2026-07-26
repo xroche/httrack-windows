@@ -61,6 +61,9 @@ COptionTab9::COptionTab9() : CPropertyPage(COptionTab9::IDD)
 	m_index2 = FALSE;
 	m_index_mail = FALSE;
 	m_warc = FALSE;
+	m_singlefile = FALSE;
+	m_singlefilemax = _T("");
+	m_changes = FALSE;
 	//}}AFX_DATA_INIT
 }
 
@@ -80,6 +83,9 @@ void COptionTab9::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_index2, m_index2);
 	DDX_Check(pDX, IDC_index_mail, m_index_mail);
 	DDX_Check(pDX, IDC_warc, m_warc);
+	DDX_Check(pDX, IDC_singlefile, m_singlefile);
+	DDX_Text(pDX, IDC_singlefilemax, m_singlefilemax);
+	DDX_Check(pDX, IDC_changes, m_changes);
 	//}}AFX_DATA_MAP
 }
 
@@ -105,6 +111,9 @@ BOOL COptionTab9::OnInitDialog()
     SetDlgItemTextCP(this, IDC_logf,LANG(LANG_I36)); // "Fichiers d'audit");
     SetDlgItemTextCP(this, IDC_Cache2,LANG(LANG_I61));
     SetDlgItemTextCP(this, IDC_norecatch,LANG(LANG_I34b));
+    SetDlgItemTextLang(this, IDC_singlefile,LANG(LANG_SINGLEFILE));
+    SetDlgItemTextLang(this, IDC_STATIC_singlefilemax,LANG(LANG_SINGLEFILEMAX));
+    SetDlgItemTextLang(this, IDC_changes,LANG(LANG_CHANGES));
     SetCombo(this,IDC_logtype,LISTDEF_9);
   }  
 
@@ -117,6 +126,10 @@ BOOL COptionTab9::OnInitDialog()
     GetDlgItem(IDC_logf)    ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_Cache2)  ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_warc)    ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_singlefile)->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_singlefilemax)->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_STATIC_singlefilemax)->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_changes) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_logtype) ->ModifyStyle(0,WS_DISABLED);
   } else {
     GetDlgItem(IDC_norecatch)->ModifyStyle(WS_DISABLED,0);
@@ -126,6 +139,10 @@ BOOL COptionTab9::OnInitDialog()
     GetDlgItem(IDC_logf)    ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_Cache2)  ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_warc)    ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_singlefile)->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_singlefilemax)->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_STATIC_singlefilemax)->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_changes) ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_logtype) ->ModifyStyle(WS_DISABLED,0);
   }
 
@@ -180,6 +197,9 @@ const char* COptionTab9::GetTip(int ID)
     case IDC_logf:    return LANG(LANG_I7); break; // "Create log files for error and info report","Générer des fichiers d'audit pour les erreurs et les messages"); break;
     case IDC_Cache2:  return LANG(LANG_I1e); break;
     case IDC_warc:    return "Write an ISO-28500 WARC archive (.warc.gz)"; break;
+    case IDC_singlefile: return LANG(LANG_SINGLEFILETIP); break;
+    case IDC_singlefilemax: return LANG(LANG_SINGLEFILEMAXTIP); break;
+    case IDC_changes: return LANG(LANG_CHANGESTIP); break;
     case IDC_logtype: return LANG(LANG_I1f); break;
   }
   return "";

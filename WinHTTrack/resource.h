@@ -545,6 +545,13 @@ Please visit our Website: http://www.httrack.com
 #define IDC_stripquery                  1318
 #define IDC_STATIC_stripquery           1319
 #define IDC_cookiesfilebrowse           1320
+#define IDC_sitemap                     1322
+#define IDC_sitemapurl                  1323
+#define IDC_STATIC_sitemapurl           1324
+#define IDC_singlefile                  1325
+#define IDC_singlefilemax               1326
+#define IDC_STATIC_singlefilemax        1327
+#define IDC_changes                     1328
 #define ID_MENUITEM32771                32771
 #define ID_MENUITEM32772                32772
 #define ID_EXIT                         32772
@@ -616,7 +623,7 @@ Please visit our Website: http://www.httrack.com
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        247
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1322
+#define _APS_NEXT_CONTROL_VALUE         1329
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif

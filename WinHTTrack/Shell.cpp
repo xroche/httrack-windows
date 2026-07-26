@@ -557,6 +557,11 @@ void compute_options() {
   if(maintab->m_option2.m_external) ShellOptions->external = "x"; else ShellOptions->external = ""; 
   if(maintab->m_option2.m_nopurge) ShellOptions->nopurge = "X0"; else ShellOptions->nopurge = "";
   if(maintab->m_option9.m_warc) ShellOptions->warc = "1"; else ShellOptions->warc = "";
+  if(maintab->m_option8.m_sitemap) ShellOptions->sitemap = "1"; else ShellOptions->sitemap = "";
+  ShellOptions->sitemapurl = maintab->m_option8.m_sitemapurl;
+  if(maintab->m_option9.m_singlefile) ShellOptions->singlefile = "1"; else ShellOptions->singlefile = "";
+  ShellOptions->singlefilemax = maintab->m_option9.m_singlefilemax;
+  if(maintab->m_option9.m_changes) ShellOptions->changes = "1"; else ShellOptions->changes = "";
   if(maintab->m_option2.m_hidepwd) ShellOptions->hidepwd = "%x"; else ShellOptions->hidepwd = "";
   if(maintab->m_option2.m_hidequery) ShellOptions->hidequery = "%q0"; else ShellOptions->hidequery = ""; 
   
@@ -1954,6 +1959,29 @@ void lance(void) {
     args.Add("--warc");
   }
 
+  // Long forms, own tokens: same reason as --warc above.
+  if (ShellOptions->sitemap.GetLength() != 0) {
+    args.Add("--sitemap");
+  }
+
+  if (ShellOptions->sitemapurl.GetLength() != 0) {
+    args.Add("--sitemap-url");
+    args.Add(ShellOptions->sitemapurl);
+  }
+
+  if (ShellOptions->singlefile.GetLength() != 0) {
+    args.Add("--single-file");
+    // the cap implies --single-file, so it must not leak out on its own
+    if (ShellOptions->singlefilemax.GetLength() != 0) {
+      args.Add("--single-file-max-size");
+      args.Add(ShellOptions->singlefilemax);
+    }
+  }
+
+  if (ShellOptions->changes.GetLength() != 0) {
+    args.Add("--changes");
+  }
+
   if (ShellOptions->user.GetLength() != 0) {
     args.Add("-F");
     args.Add(ShellOptions->user);
@@ -2516,6 +2544,11 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "NoQueryStrings",maintab->m_option2.m_hidequery);
     MyWriteProfileInt(path,strSection, "NoPurgeOldFiles",maintab->m_option2.m_nopurge);
     MyWriteProfileInt(path,strSection, "Warc",maintab->m_option9.m_warc);
+    MyWriteProfileInt(path,strSection, "Sitemap",maintab->m_option8.m_sitemap);
+    MyWriteProfileString(path,strSection, "SitemapUrl",maintab->m_option8.m_sitemapurl);
+    MyWriteProfileInt(path,strSection, "SingleFile",maintab->m_option9.m_singlefile);
+    MyWriteProfileString(path,strSection, "SingleFileMaxSize",maintab->m_option9.m_singlefilemax);
+    MyWriteProfileInt(path,strSection, "Changes",maintab->m_option9.m_changes);
     MyWriteProfileInt(path,strSection, "Cookies",maintab->m_option8.m_cookies);
     MyWriteProfileInt(path,strSection, "CheckType",maintab->m_option8.m_checktype);
     MyWriteProfileInt(path,strSection, "ParseJava",maintab->m_option8.m_parsejava);
@@ -2718,6 +2751,10 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "URLHack", n);
     maintab->m_option8.GetDlgItemText(IDC_cookiesfile,st);
     MyWriteProfileString(path,strSection, "CookiesFile", st);
+    n=maintab->m_option8.IsDlgButtonChecked(IDC_sitemap);
+    MyWriteProfileInt(path,strSection, "Sitemap", n);
+    maintab->m_option8.GetDlgItemText(IDC_sitemapurl,st);
+    MyWriteProfileString(path,strSection, "SitemapUrl", st);
     maintab->m_option4.GetDlgItemText(IDC_pausefiles,st);
     MyWriteProfileString(path,strSection, "PauseFiles", st);
     // 9
@@ -2725,6 +2762,12 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileString(path,strSection, "StoreAllInCache", st);
     maintab->m_option9.GetDlgItemText(IDC_logtype,st);
     MyWriteProfileString(path,strSection, "LogType", st);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_singlefile);
+    MyWriteProfileInt(path,strSection, "SingleFile", n);
+    maintab->m_option9.GetDlgItemText(IDC_singlefilemax,st);
+    MyWriteProfileString(path,strSection, "SingleFileMaxSize", st);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_changes);
+    MyWriteProfileInt(path,strSection, "Changes", n);
     // 10
     maintab->m_option10.GetDlgItemText(IDC_prox,st);
     MyWriteProfileString(path,strSection,"Proxy",st);
@@ -2859,6 +2902,11 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option2.m_hidequery = MyGetProfileInt(path,strSection, "NoQueryStrings",0);
   maintab->m_option2.m_nopurge   = MyGetProfileInt(path,strSection, "NoPurgeOldFiles",0);
   maintab->m_option9.m_warc      = MyGetProfileInt(path,strSection, "Warc",0);
+  maintab->m_option8.m_sitemap   = MyGetProfileInt(path,strSection, "Sitemap",0);
+  maintab->m_option8.m_sitemapurl = MyGetProfileString(path,strSection, "SitemapUrl");
+  maintab->m_option9.m_singlefile = MyGetProfileInt(path,strSection, "SingleFile",0);
+  maintab->m_option9.m_singlefilemax = MyGetProfileString(path,strSection, "SingleFileMaxSize");
+  maintab->m_option9.m_changes   = MyGetProfileInt(path,strSection, "Changes",0);
   maintab->m_option8.m_cookies    = MyGetProfileInt(path,strSection, "Cookies",1);
   maintab->m_option8.m_checktype  = MyGetProfileInt(path,strSection, "CheckType",1);
   maintab->m_option8.m_parsejava  = MyGetProfileInt(path,strSection, "ParseJava",1);

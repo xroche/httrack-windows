@@ -647,6 +647,12 @@ BOOL SetDlgItemTextUTF8(CWnd* wnd, int nIDDlgItem, LPCSTR lpString) {
   return SetDlgItemTextUTF8(wnd->m_hWnd, nIDDlgItem, lpString);
 }
 
+BOOL SetDlgItemTextLang(CWnd* wnd, int nIDDlgItem, LPCSTR lpString) {
+  if (lpString == NULL || *lpString == '\0')
+    return FALSE;
+  return SetDlgItemTextCP(wnd->m_hWnd, nIDDlgItem, lpString);
+}
+
 BOOL SetWindowTextCP(HWND hWnd, LPCSTR lpString) {
   if (NewLangCP != CP_THREAD_ACP)
     return SetWindowTextW(hWnd, ConvertCodepage(lpString, NewLangCP));

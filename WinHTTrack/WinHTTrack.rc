@@ -624,7 +624,7 @@ BEGIN
     LTEXT           "Tip: To have ALL GIF files included, use something like +www.someweb.com/*.gif. \n(+*.gif / -*.gif will include/exclude ALL GIFs from ALL sites)",IDC_STATIC_tip,16,150,289,36
 END
 
-IDD_OPTION8 DIALOGEX 0, 0, 272, 161
+IDD_OPTION8 DIALOGEX 0, 0, 272, 192
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Spider"
 FONT 8, "MS Sans Serif", 0, 0, 0x0
@@ -642,9 +642,12 @@ BEGIN
     LTEXT           "Load cookies from file:",IDC_STATIC_cookiesfile,16,144,120,8
     EDITTEXT        IDC_cookiesfile,140,142,96,12,ES_AUTOHSCROLL
     PUSHBUTTON      "...",IDC_cookiesfilebrowse,240,142,16,12
+    CONTROL         "Seed the crawl from the site's sitemap",IDC_sitemap,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,160,244,9
+    LTEXT           "Sitemap address:",IDC_STATIC_sitemapurl,16,176,120,8
+    EDITTEXT        IDC_sitemapurl,140,174,116,12,ES_AUTOHSCROLL
 END
 
-IDD_OPTION9 DIALOGEX 0, 0, 325, 143
+IDD_OPTION9 DIALOGEX 0, 0, 325, 176
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Log, Index, Cache"
 FONT 8, "MS Sans Serif", 0, 0, 0x0
@@ -658,6 +661,10 @@ BEGIN
     CONTROL         "Make an index",IDC_index,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,80,304,9
     CONTROL         "Make a word database",IDC_index2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,96,304,9
     CONTROL         "Build a mail archive",IDC_index_mail,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,112,306,9
+    CONTROL         "Inline assets as data: URIs (self-contained pages)",IDC_singlefile,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,128,305,9
+    LTEXT           "Largest inlined asset (bytes):",IDC_STATIC_singlefilemax,32,145,140,8
+    EDITTEXT        IDC_singlefilemax,175,143,64,12,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "Report what changed since the previous mirror",IDC_changes,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,160,305,9
 END
 
 IDD_OPTION10 DIALOG  0, 0, 309, 61

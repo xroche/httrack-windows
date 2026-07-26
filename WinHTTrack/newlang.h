@@ -48,6 +48,9 @@ void conv_printf(char* from,char* to);
 
 BOOL SetDlgItemTextCP(HWND hDlg, int nIDDlgItem, LPCSTR lpString);
 BOOL SetDlgItemTextCP(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
+/* As SetDlgItemTextCP(), but keeps the .rc caption when lpString is empty:
+   LANGSEL() yields "" for a key the loaded language file does not carry. */
+BOOL SetDlgItemTextLang(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
 BOOL SetDlgItemTextUTF8(HWND hDlg, int nIDDlgItem, LPCSTR lpString);
 BOOL SetDlgItemTextUTF8(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
 BOOL SetWindowTextCP(HWND hWnd, LPCSTR lpString);

@@ -59,6 +59,8 @@ public:
 	BOOL	m_updhack;
 	BOOL	m_urlhack;
 	CString	m_cookiesfile;
+	BOOL	m_sitemap;
+	CString	m_sitemapurl;
 	//}}AFX_DATA
 
 
