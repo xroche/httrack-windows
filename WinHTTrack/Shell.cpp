@@ -1868,7 +1868,7 @@ static BOOL isEngineArgument(const CString &value) {
   if (value.IsEmpty() || value[0] == '-')
     return FALSE;
   // the engine measures the UTF-8 bytes strdupt_utf8() will hand it, not these characters
-  char *const utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());
+  char *utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());  // freet() nulls it, so not const
   const BOOL fits = utf8 == NULL || strlen(utf8) < HTS_URLMAXSIZE;
   if (utf8 != NULL)
     freet(utf8);
