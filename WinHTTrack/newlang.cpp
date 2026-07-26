@@ -624,6 +624,17 @@ static _bstr_t ConvertCodepage(LPCSTR str, UINT codePage)
   return returnValue;
 }
 
+void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString) {
+  if (destSize <= 0)
+    return;
+  _bstr_t s = ConvertCodepage(lpString, CP_UTF8);
+  if (s.length() != 0
+      && WideCharToMultiByte(CP_ACP, 0, s, -1, dest, destSize, NULL, NULL) > 0)
+    return;
+  // Not valid UTF-8, or longer than dest: hand back the raw bytes rather than nothing.
+  lstrcpynA(dest, lpString, destSize);
+}
+
 BOOL SetDlgItemTextCP(HWND hDlg, int nIDDlgItem, LPCSTR lpString) {
   if (NewLangCP != CP_THREAD_ACP)
     return SetDlgItemTextW(hDlg, nIDDlgItem, ConvertCodepage(lpString, NewLangCP));

@@ -112,8 +112,6 @@ extern "C" {
 
 // --- --- --- --- Options --- --- --- ---
 
-#define MAX_LEN_INPROGRESS 32
-
 // lancement en multithread du shell ET de gethostbyname
 #define SHELL_MULTITHREAD 1
 //#define HTS_XGMETHOD 2    // 1: AfxBeginThread 2: _beginthread
@@ -1240,9 +1238,7 @@ int __cdecl httrackengine_loop(t_hts_callbackarg *carg, httrackp *opt,
         int j,k;
         int index=0;
         int ok=0;         // idem
-        int l;            // idem
-        int M=32;         // idem
-        
+
         {
           int i;
           for(i=0;i<NStatsBuffer;i++) {
@@ -1363,15 +1359,8 @@ int __cdecl httrackengine_loop(t_hts_callbackarg *carg, httrackp *opt,
                     }
                   }
                   
-                  if ((l = (int) strlen(s))<MAX_LEN_INPROGRESS)
-                    strcpybuff(StatsBuffer[index].nom,s);
-                  else {
-                    // couper
-                    StatsBuffer[index].nom[0]='\0';
-                    strncatbuff(StatsBuffer[index].nom,s,MAX_LEN_INPROGRESS/2-2);
-                    strcatbuff(StatsBuffer[index].nom,"...");
-                    strcatbuff(StatsBuffer[index].nom,s+l-MAX_LEN_INPROGRESS/2+2);
-                  }
+                  // Whole: the cell ellipsizes to its own width, and the tooltip needs it untruncated.
+                  strcpybuff(StatsBuffer[index].nom,s);
                   
                   //if (back[i].url_fil[0]!='/') printf("/");
                   

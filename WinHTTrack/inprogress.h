@@ -149,6 +149,10 @@ public:
 // Implementation
 protected:
   const char* GetTip(int id);
+  /* Untruncated URL of a transfer row, in the tooltip's codepage; empty if the row
+     is idle. Valid until the next call. */
+  const char* RowTip(int row);
+  char m_tip[HTS_URLMAXSIZE*4];
   void OnHelpInfo2();
   UINT_PTR timer;
   void StartTimer();
