@@ -139,8 +139,24 @@ void CMainFrame::InitialShowWindow(UINT nCmdShow)
 	WINDOWPLACEMENT wp;
 	if (!ReadWindowPlacement(&wp))
 	{
-		ShowWindow(SW_SHOWMAXIMIZED);   /* by default, maximized */
-		//ShowWindow(nCmdShow);
+		/* Maximized, but give the restored size something as well: with no explicit
+		   rcNormalPosition the frame keeps CW_USEDEFAULT, so the first un-maximize
+		   drops to a small window however large the screen is. */
+		CRect work;
+		if (!::SystemParametersInfo(SPI_GETWORKAREA, 0, &work, 0))
+			work.SetRect(0, 0, ::GetSystemMetrics(SM_CXSCREEN), ::GetSystemMetrics(SM_CYSCREEN));
+		CRect normal(0, 0, work.Width()*3/4, work.Height()*3/4);
+		normal.OffsetRect(work.left + (work.Width() - normal.Width())/2,
+		                  work.top + (work.Height() - normal.Height())/2);
+
+		WINDOWPLACEMENT init;
+		init.length = sizeof(init);
+		init.flags = 0;
+		init.showCmd = SW_SHOWMAXIMIZED;   /* by default, maximized */
+		init.ptMinPosition = CPoint(-1, -1);
+		init.ptMaxPosition = CPoint(-1, -1);
+		init.rcNormalPosition = normal;
+		SetWindowPlacement(&init);
 		return;
 	}
 	if (nCmdShow != SW_SHOWNORMAL)
