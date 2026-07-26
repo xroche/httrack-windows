@@ -317,8 +317,8 @@ void CWizTab::LayoutActivePage()
 {
   if (m_pageBase.IsRectEmpty() || m_pageBaseClient.cx == 0)
     return;
-  /* Not GetActivePage(): with the page array emptied, as FinalInProgress does between
-     RemovePage and AddPage, it indexes it at -1 and hands back a wild pointer. */
+  /* Not GetActivePage(): FinalInProgress empties the page array between RemovePage and
+     AddPage, and it then indexes -1 and hands back a wild pointer. */
   const int active = GetActiveIndex();
   if (active < 0 || active >= GetPageCount())
     return;

@@ -146,8 +146,7 @@ void CDialogContainer::OnInitialUpdate()
   sizeTotal.cy = view_h;
   SetScrollSizes(MM_TEXT, sizeTotal);
   scrollsize_declared=TRUE;
-  /* Only now are the sheets their final WS_CHILD selves, so this is the first moment
-     their template geometry can be recorded truthfully. */
+  /* Both sheets are fully built only now; contract in WizTab.h. */
   if (tab != NULL && tab->m_hWnd != NULL)
     tab->BuildLayout();
   if (tab2 != NULL && tab2->m_hWnd != NULL)
