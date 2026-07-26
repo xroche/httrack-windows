@@ -261,6 +261,7 @@ BEGIN_MESSAGE_MAP(Cinprogress, CPropertyPage)
 	ON_BN_CLICKED(IDC_st12, Onst12)
 	ON_BN_CLICKED(IDC_st13, Onst13)
 	ON_WM_TIMER()
+	ON_WM_SIZE()
 	ON_BN_CLICKED(IDC_inphide, Oninphide)
 	//}}AFX_MSG_MAP
   ON_MESSAGE( wm_CEasyDropTargetCallback, DragDropText)
@@ -502,6 +503,29 @@ BOOL Cinprogress::OnInitDialog()
   element[3][12]=&m_sk12;
   element[3][13]=&m_sk13;
 
+  /* Where the panel's extra width goes. The two text columns, which are the ones that
+     clip, split it evenly; the bar and the SKIP button ride along at the right edge.
+     Height is deliberately left alone: the row count is fixed at NStatsBuffer. */
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_inforun, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_informations, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_actions, 0, 100);
+  {
+    /* Second column of the statistics block, so it does not strand at the left. */
+    static const UINT stats[] = {
+      IDC_STATIC_scanned, IDC_i2, IDC_STATIC_written, IDC_i6,
+      IDC_STATIC_updated, IDC_i7, IDC_STATIC_errors,  IDC_i5
+    };
+    for(int i=0 ; i<(int)_countof(stats) ; i++)
+      m_layout.AddId(this, stats[i], 50, 0);
+  }
+  for(int row=0 ; row<NStatsBuffer ; row++) {
+    m_layout.Add(element[1][row],   0, 50);   /* URL      */
+    m_layout.Add(element[4][row],  50, 50);   /* filename */
+    m_layout.Add(element[2][row], 100,  0);   /* bar      */
+    m_layout.Add(element[3][row], 100,  0);   /* SKIP     */
+  }
+
   /* Init checkbox */
   CMenu* m;
   if (m = AfxGetApp()->GetMainWnd()->GetMenu()) {
@@ -554,6 +578,12 @@ BOOL Cinprogress::OnInitDialog()
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
+}
+
+void Cinprogress::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
 }
 
 void Cinprogress::StartTimer() {

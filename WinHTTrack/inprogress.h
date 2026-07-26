@@ -36,6 +36,7 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "iplog.h"
 #include "EasyDropTarget.h"
+#include "WndLayout.h"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -55,6 +56,7 @@ public:
   void StopTimer();
 
   CWnd* element[5][NStatsBuffer];    // ici 10=NStatsBuffer -- les éléments (status nom slide bouton)
+  CWndLayout m_layout;               // anchors the row grid to the panel width
 	//Cinprogress(CWnd* pParent = NULL);   // standard constructor
   CWinThread * BackAffLog;
   Ciplog form;
@@ -211,6 +213,7 @@ public:
 	afx_msg void Onst12();
 	afx_msg void Onst13();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void Oninphide();
 	//}}AFX_MSG
   afx_msg LRESULT DragDropText(WPARAM wParam,LPARAM lParam);

@@ -170,6 +170,7 @@
     <ClCompile Include="Wizard.cpp" />
     <ClCompile Include="Wizard2.cpp" />
     <ClCompile Include="WizLinks.cpp" />
+    <ClCompile Include="WndLayout.cpp" />
     <ClCompile Include="WizTab.cpp" />
     <ClCompile Include="XSHBrowseForFolder.cpp" />
 
@@ -241,6 +242,7 @@
     <ClInclude Include="wizard.h" />
     <ClInclude Include="wizard2.h" />
     <ClInclude Include="WizLinks.h" />
+    <ClInclude Include="WndLayout.h" />
     <ClInclude Include="WizTab.h" />
     <ClInclude Include="XSHBrowseForFolder.h" />
   </ItemGroup>
