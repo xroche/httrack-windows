@@ -230,7 +230,7 @@ BEGIN
     LTEXT           "",IDC_question,7,7,176,47
 END
 
-IDD_inprogress DIALOG  0, 0, 361, 267
+IDD_inprogress DIALOG  0, 0, 361, 207
 STYLE DS_SETFONT | WS_CHILD
 FONT 8, "MS Sans Serif"
 BEGIN
@@ -254,7 +254,7 @@ BEGIN
     LTEXT           "Errors:",IDC_STATIC_errors,199,70,66,8
     LTEXT           "",IDC_i5,274,70,72,8
     CONTROL         "Actions:",IDC_inphide,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,95,148,10
-    GROUPBOX        "",IDC_STATIC_actions,7,105,343,153
+    GROUPBOX        "",IDC_STATIC_actions,7,105,343,93
     CONTROL         "",IDC_st0,"Static",SS_LEFTNOWORDWRAP | SS_ENDELLIPSIS | SS_NOTIFY | WS_GROUP,15,117,40,8
     RTEXT           "",IDC_nm0,60,117,91,8,SS_NOTIFY | SS_PATHELLIPSIS
     CONTROL         "Progress1",IDC_sl0,"msctls_progress32",PBS_SMOOTH | WS_BORDER,240,117,50,8

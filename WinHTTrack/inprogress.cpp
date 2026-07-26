@@ -109,6 +109,9 @@ Cinprogress::Cinprogress()
   timer=0;
   m_tip[0]='\0';
   memset(element,0,sizeof(element));   // GetTip walks it, and OnInitDialog fills it later
+  m_rowTop=m_rowPitch=m_rowHeight=0;   // zero pitch means "not measured yet"
+  m_groupTop=m_groupGap=m_bottomSlack=0;
+  m_rowsShown=NStatsBuffer;
   //{{AFX_DATA_INIT(Cinprogress)
 	m_inphide = FALSE;
 	//}}AFX_DATA_INIT
@@ -526,6 +529,24 @@ BOOL Cinprogress::OnInitDialog()
     m_layout.Add(element[3][row], 100,  0);   /* SKIP     */
   }
 
+  /* Row spacing and margins, taken from the template rather than from dialog units,
+     so the arithmetic below holds at any DPI. */
+  {
+    CRect page, r0, r1, group;
+    GetClientRect(page);
+    element[0][0]->GetWindowRect(r0);    ScreenToClient(r0);
+    element[0][1]->GetWindowRect(r1);    ScreenToClient(r1);
+    GetDlgItem(IDC_STATIC_actions)->GetWindowRect(group);
+    ScreenToClient(group);
+    m_rowTop     = r0.top;
+    m_rowPitch   = r1.top - r0.top;
+    m_rowHeight  = r0.Height();
+    m_groupTop   = group.top;
+    m_bottomSlack = page.Height() - group.bottom;
+    m_rowsShown  = RowsThatFit(page.Height());
+    m_groupGap   = group.bottom - (m_rowTop + (m_rowsShown-1)*m_rowPitch + m_rowHeight);
+  }
+
   /* Init checkbox */
   CMenu* m;
   if (m = AfxGetApp()->GetMainWnd()->GetMenu()) {
@@ -580,10 +601,59 @@ BOOL Cinprogress::OnInitDialog()
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
 
+int Cinprogress::RowsThatFit(int cy) const
+{
+  if (m_rowPitch <= 0)
+    return NStatsBuffer;
+  const int room = cy - m_bottomSlack - m_rowTop - m_rowHeight;
+  const int rows = 1 + (room > 0 ? room / m_rowPitch : 0);
+  return min(rows, NStatsBuffer);
+}
+
+/* A row is on screen only when the Actions box is open and the row fits. Same style
+   juggling as Oninphide, which is the other writer of these bits. */
+void Cinprogress::ApplyRowVisibility()
+{
+  const BOOL open = IsDlgButtonChecked(IDC_inphide);
+  for(int row=0 ; row<NStatsBuffer ; row++) {
+    const BOOL show = open && row < m_rowsShown;
+    for(int col=0 ; col<5 ; col++) {
+      CWnd* const w = element[col][row];
+      if (w == NULL || w->m_hWnd == NULL)
+        continue;
+      if (show) {
+        w->ModifyStyle(WS_DISABLED,0);
+        w->ModifyStyle(0,WS_VISIBLE);
+      } else {
+        w->ModifyStyle(0,WS_DISABLED);
+        w->ModifyStyle(WS_VISIBLE,0);
+      }
+    }
+  }
+}
+
 void Cinprogress::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+
+  if (m_rowPitch <= 0)     /* before OnInitDialog recorded the geometry */
+    return;
+  m_rowsShown = RowsThatFit(cy);
+  ApplyRowVisibility();
+
+  /* Close the Actions frame under the last row on screen, rather than leaving it
+     hanging over empty space or past the bottom of the panel. */
+  CWnd* const box = GetDlgItem(IDC_STATIC_actions);
+  if (box != NULL && box->m_hWnd != NULL) {
+    CRect r;
+    box->GetWindowRect(r);
+    ScreenToClient(r);
+    const int bottom = m_rowTop + (m_rowsShown-1)*m_rowPitch + m_rowHeight + m_groupGap;
+    box->SetWindowPos(NULL, r.left, m_groupTop, r.Width(), bottom - m_groupTop,
+                      SWP_NOZORDER|SWP_NOACTIVATE);
+  }
+  Invalidate(TRUE);
 }
 
 void Cinprogress::StartTimer() {
@@ -1142,27 +1212,17 @@ BOOL Cinprogress::OnQueryCancel( ) {
 
 void Cinprogress::Oninphide() 
 {
+  /* Checked opens the panel. ModifyStyle takes (remove, add), which the old comments
+     here had backwards. */
   int status=IsDlgButtonChecked(IDC_inphide);
   if (status) {
-    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(WS_DISABLED,0);  // disabled
-    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(0,WS_VISIBLE);   // not visible
+    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(0,WS_VISIBLE);
   } else {
-    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(0,WS_DISABLED);  // not disabled
-    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(WS_VISIBLE,0);   // visible
+    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_STATIC_actions)->ModifyStyle(WS_VISIBLE,0);
   }
-  int i;
-  for(i=0;i<NStatsBuffer;i++) {
-    int j;
-    for(j=0;j<5;j++) {
-      if (status) {
-        inprogress->element[j][i]->ModifyStyle(WS_DISABLED,0);  // disabled
-        inprogress->element[j][i]->ModifyStyle(0,WS_VISIBLE);   // not visible
-      } else {
-        inprogress->element[j][i]->ModifyStyle(0,WS_DISABLED);  // not disabled
-        inprogress->element[j][i]->ModifyStyle(WS_VISIBLE,0);   // visible
-      }
-    }
-  }
+  ApplyRowVisibility();   // honours both this checkbox and how many rows fit
   RedrawWindow();
 }
 
