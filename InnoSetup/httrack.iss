@@ -53,6 +53,8 @@ OutputBaseFilename=httrack_{#Arch}_{#AppVersion}
 OutputDir={#OutDir}
 SetupIconFile={#GuiDir}\WinHTTrack\res\Shell.ico
 UninstallIconFile={#GuiDir}\WinHTTrack\res\Shell.ico
+; Add/Remove Programs reads DisplayIcon, which only this directive writes.
+UninstallDisplayIcon={app}\WinHTTrack.exe
 #if Arch == "x64"
 ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
