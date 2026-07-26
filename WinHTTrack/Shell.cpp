@@ -1070,7 +1070,9 @@ int __cdecl httrackengine_loop(t_hts_callbackarg *carg, httrackp *opt,
                                int lien_n,int lien_tot,
                                int stat_time,
                                hts_stat_struct* stats) {    // appelé à chaque boucle de HTTrack
-  static char s[HTS_URLMAXSIZE*2]="";  // utilisé plus loin
+  // Takes url_adr + '/' + url_fil, each HTS_URLMAXSIZE*2 in lien_back. The buff()
+  // macros abort instead of truncating, so the sum has to fit.
+  static char s[HTS_URLMAXSIZE*4]="";  // utilisé plus loin
   int stat_written=-1;
   int stat_updated=-1;
   int stat_errors=-1;
