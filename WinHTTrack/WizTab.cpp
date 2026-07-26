@@ -94,6 +94,8 @@ CWizTab::~CWizTab()
 }
 
 void CWizTab::DoInits() {
+  m_pageBase.SetRectEmpty();     // BuildLayout fills these once the sheet exists
+  m_pageBaseClient.cx=m_pageBaseClient.cy=0;
   m_tab0=NULL;
   m_tab1=NULL;
   m_tab2=NULL;
@@ -206,6 +208,7 @@ void CWizTab::EndInProgress()
 BEGIN_MESSAGE_MAP(CWizTab, CPropertySheet)
 //{{AFX_MSG_MAP(CWizTab)
 ON_WM_HELPINFO()
+ON_WM_SIZE()
 	//}}AFX_MSG_MAP
 ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -252,11 +255,92 @@ BOOL CWizTab::OnInitDialog()
   int r = CPropertySheet::OnInitDialog();
   //xx RemovePage(m_tabprogress);
   //xx RemovePage(m_tabend);
+  BuildLayout();   // children are still where the template put them
   SetWizardButtons(PSWIZB_BACK|PSWIZB_NEXT);
   SetWindowPos(&wndTop,0,0,0,0,SWP_NOZORDER|SWP_NOSIZE|SWP_NOOWNERZORDER);
   SetActivePage(0);
   WHTT_LOCATION("FirstInfo");
 
+  return r;
+}
+
+static BOOL IsSheetPage(CPropertySheet* sheet, HWND hwnd)
+{
+  for(int i=0 ; i<sheet->GetPageCount() ; i++) {
+    const CPropertyPage* const page = sheet->GetPage(i);
+    if (page != NULL && page->m_hWnd == hwnd)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+void CWizTab::BuildLayout()
+{
+  m_layout.Reset(this);
+  m_pageBase.SetRectEmpty();
+
+  CRect client;
+  GetClientRect(client);
+  m_pageBaseClient = client.Size();
+
+  // Wizard mode hides the tab control but still gives it the page area, so it serves
+  // as the reference before any page has a window.
+  CWnd* ref = GetActivePage();
+  if (ref == NULL || ref->m_hWnd == NULL)
+    ref = GetTabControl();
+  if (ref != NULL && ref->m_hWnd != NULL) {
+    ref->GetWindowRect(m_pageBase);
+    ScreenToClient(m_pageBase);
+  }
+
+  for(CWnd* child = GetWindow(GW_CHILD) ; child != NULL ; child = child->GetWindow(GW_HWNDNEXT)) {
+    if (IsSheetPage(this, child->m_hWnd))
+      continue;                      // LayoutActivePage owns these
+    switch(child->GetDlgCtrlID()) {
+      case ID_WIZBACK: case ID_WIZNEXT: case ID_WIZFINISH:
+      case IDOK: case IDCANCEL: case IDHELP:
+        m_layout.Add(child, 100, 0, 100, 0);   // keep the strip in the bottom right
+        break;
+      default: {
+        TCHAR cls[16];
+        // The rule above the buttons is the only other static the sheet owns.
+        if (::GetClassName(child->m_hWnd, cls, (int)_countof(cls)) > 0
+            && _tcsicmp(cls, _T("Static")) == 0)
+          m_layout.Add(child, 0, 100, 100, 0);
+        break;
+      }
+    }
+  }
+}
+
+void CWizTab::LayoutActivePage()
+{
+  CPropertyPage* const page = GetActivePage();
+  if (page == NULL || page->m_hWnd == NULL
+      || m_pageBase.IsRectEmpty() || m_pageBaseClient.cx == 0)
+    return;
+  CRect client;
+  GetClientRect(client);
+  const int dx = max(client.Width() - m_pageBaseClient.cx, 0);
+  const int dy = max(client.Height() - m_pageBaseClient.cy, 0);
+  page->SetWindowPos(NULL, m_pageBase.left, m_pageBase.top,
+                     m_pageBase.Width() + dx, m_pageBase.Height() + dy,
+                     SWP_NOZORDER|SWP_NOACTIVATE);
+}
+
+void CWizTab::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertySheet::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+  LayoutActivePage();
+}
+
+LRESULT CWizTab::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+  const LRESULT r = CPropertySheet::WindowProc(message, wParam, lParam);
+  // A page comctl32 has just shown comes back at its creation rect.
+  if (message == PSM_SETCURSEL || message == PSM_SETCURSELID)
+    LayoutActivePage();
   return r;
 }
 

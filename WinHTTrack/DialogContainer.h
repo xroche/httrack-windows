@@ -53,6 +53,8 @@ protected:
   CWizTab* tab2;
   BOOL scrollsize_declared;
   int view_w,view_h;
+  /* Fit both sheets to a pane of cx by cy, never below the sheets' natural size. */
+  void SizeSheets(int cx, int cy);
 
 // Form Data
 public:

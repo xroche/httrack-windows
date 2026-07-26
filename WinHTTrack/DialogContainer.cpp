@@ -146,27 +146,34 @@ void CDialogContainer::OnInitialUpdate()
   sizeTotal.cy = view_h;
   SetScrollSizes(MM_TEXT, sizeTotal);
   scrollsize_declared=TRUE;
-  //
   CRect curRect;
   GetClientRect(curRect);
-  //tab->MoveWindow(curRect);	
+  SizeSheets(curRect.Width(), curRect.Height());
 }
 
-void CDialogContainer::OnSize(UINT nType, int cx, int cy) 
+/* Fit both sheets to the pane. Both, not just the visible one: starting or ending a
+   mirror only toggles WS_VISIBLE between them, so a sheet left behind at the old size
+   would reappear wrong. */
+void CDialogContainer::SizeSheets(int cx, int cy)
+{
+  // Never below the natural size; under that the form view scrolls instead.
+  const int w = max(cx, view_w);
+  const int h = max(cy, view_h);
+  // CScrollView physically moves its children as it scrolls, so honour the offset.
+  const CPoint scroll = GetScrollPosition();
+  CWizTab* const sheets[2] = { tab, tab2 };
+  for(int i=0 ; i<2 ; i++) {
+    if (sheets[i] != NULL && sheets[i]->m_hWnd != NULL)
+      sheets[i]->SetWindowPos(NULL, -scroll.x, -scroll.y, w, h,
+                              SWP_NOZORDER|SWP_NOACTIVATE);
+  }
+}
+
+void CDialogContainer::OnSize(UINT nType, int cx, int cy)
 {
 	CFormView::OnSize(nType, cx, cy);
-	
-  if (scrollsize_declared) {
-    if (tab->m_hWnd) {
-      // now capture current size and resize child
-      CRect curRect;
-      GetClientRect(curRect);
-      //curRect.left=curRect.top=0;
-      //curRect.right=max(curRect.right,view_w);
-      //curRect.bottom=max(curRect.bottom,view_h);
-      //tab->MoveWindow(curRect);	
-    }
-  }
-	
+
+  if (scrollsize_declared)
+    SizeSheets(cx, cy);
 }
 
