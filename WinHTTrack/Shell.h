@@ -80,7 +80,8 @@ Please visit our Website: http://www.httrack.com
 #define dynclear(dest) { if (dest) { free(dest); dest=NULL; }}
 
 typedef struct t_StatsBuffer {
-  char nom[HTS_URLMAXSIZE*2];
+  /* Holds url_adr + '/' + url_fil, so it has to be able to take both whole. */
+  char nom[HTS_URLMAXSIZE*4];
   char fichier[HTS_URLMAXSIZE];
   char etat[256];
   char url_sav[HTS_URLMAXSIZE*2];    // pour cancel
