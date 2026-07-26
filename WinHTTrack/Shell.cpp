@@ -1861,6 +1861,28 @@ static void splitStringInArray(CSimpleArray<CString> &args,
   }
 }
 
+// A value restored from a profile never met the dialog's validation, so an option's
+// argument is checked here as well: the engine aborts the whole mirror on one that is
+// over-long, or that starts with a dash, which it reads as the argument being missing.
+static BOOL isEngineArgument(const CString &value) {
+  if (value.IsEmpty() || value[0] == '-')
+    return FALSE;
+  // the engine measures the UTF-8 bytes strdupt_utf8() will hand it, not these characters
+  char *const utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());
+  const BOOL fits = utf8 == NULL || strlen(utf8) < HTS_URLMAXSIZE;
+  if (utf8 != NULL)
+    freet(utf8);
+  return fits;
+}
+
+static BOOL isAllDigits(const CString &value) {
+  for(int i = 0 ; i < value.GetLength() ; i++) {
+    if (value[i] < '0' || value[i] > '9')
+      return FALSE;
+  }
+  return !value.IsEmpty();
+}
+
 // Lancement
 void lance(void) {
   char **argv;
@@ -1959,22 +1981,28 @@ void lance(void) {
     args.Add("--warc");
   }
 
-  // Long forms, own tokens: same reason as --warc above.
+  // Long forms, own tokens: same reason as --warc above. Each option's own checkbox
+  // gates it, so an unticked box never reaches the engine through a field left filled.
   if (ShellOptions->sitemap.GetLength() != 0) {
-    args.Add("--sitemap");
-  }
-
-  if (ShellOptions->sitemapurl.GetLength() != 0) {
-    args.Add("--sitemap-url");
-    args.Add(ShellOptions->sitemapurl);
+    CString sitemapurl = ShellOptions->sitemapurl;
+    sitemapurl.Trim();
+    // an address given here replaces the robots.txt then /sitemap.xml probe
+    if (isEngineArgument(sitemapurl)) {
+      args.Add("--sitemap-url");
+      args.Add(sitemapurl);
+    } else {
+      args.Add("--sitemap");
+    }
   }
 
   if (ShellOptions->singlefile.GetLength() != 0) {
     args.Add("--single-file");
+    CString singlefilemax = ShellOptions->singlefilemax;
+    singlefilemax.Trim();
     // the cap implies --single-file, so it must not leak out on its own
-    if (ShellOptions->singlefilemax.GetLength() != 0) {
+    if (isAllDigits(singlefilemax) && isEngineArgument(singlefilemax)) {
       args.Add("--single-file-max-size");
-      args.Add(ShellOptions->singlefilemax);
+      args.Add(singlefilemax);
     }
   }
 

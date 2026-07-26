@@ -85,6 +85,7 @@ void COptionTab9::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_warc, m_warc);
 	DDX_Check(pDX, IDC_singlefile, m_singlefile);
 	DDX_Text(pDX, IDC_singlefilemax, m_singlefilemax);
+	DDV_MaxChars(pDX, m_singlefilemax, 19);  // an LLint byte count is 19 digits at most
 	DDX_Check(pDX, IDC_changes, m_changes);
 	//}}AFX_DATA_MAP
 }
