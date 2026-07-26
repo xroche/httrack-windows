@@ -332,9 +332,8 @@ BOOL CWinHTTrackApp::InitInstance()
         printf("MBCS->UTF-8 ok\n");
       }
     }
-    /* The language list is enumerated by walking the index until LANG_LOAD() reports an
-       empty name. When that terminator was lost the first-run About box spun forever,
-       and nothing else here could see it: --selftest exits long before that dialog. */
+    /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
+       terminator hangs it on the first run, past where --selftest ever reaches. */
     {
       const int LANG_SANE_MAX = 512;   /* lang.def ships a few dozen */
       const int saved = QLANG_T(-1);
