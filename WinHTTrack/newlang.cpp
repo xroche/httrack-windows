@@ -326,8 +326,8 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
   }
 
   /* Empty name is the caller's enumeration terminator: never substitute a placeholder.
-     lstrcpynA, not strcpybuff: limit_to is a pointer, so the buff() macros lose the
-     bound and degrade to a plain strcpy of whatever lang.def holds. */
+     lstrcpynA, not strcpybuff: limit_to is a pointer, so buff() cannot size it and falls
+     back to a plain strcpy. */
   if (limit_to) {
     if (limit_size > 0)
       lstrcpynA(limit_to,hashname,(int) limit_size);
