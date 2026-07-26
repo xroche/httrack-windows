@@ -325,12 +325,11 @@ void LANG_LOAD(char* limit_to) {
     hashname=LANGINTKEY(name);
   }
 
-  /* Get only language name */
+  /* Get only language name. LANGINTKEY() already yields "" for an index that names no
+     language, and that empty name is what stops the callers' enumeration loop: a
+     placeholder here spins them forever. Contract in newlang.h. */
   if (limit_to) {
-    if (strnotempty(hashname))
-      strcpybuff(limit_to,hashname);
-    else
-      strcpybuff(limit_to,"???");
+    strcpybuff(limit_to,hashname);
     return;
   }
 
