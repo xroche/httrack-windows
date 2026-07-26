@@ -85,6 +85,14 @@ void CWndLayout::AddId(CWnd* parent, UINT id, int moveX, int sizeX, int moveY, i
   Add(parent->GetDlgItem(id), moveX, sizeX, moveY, sizeY);
 }
 
+CRect CWndLayout::Target(const ITEM& item, int dx, int dy)
+{
+  const CPoint origin(item.base.left + dx * item.moveX / 100,
+                      item.base.top  + dy * item.moveY / 100);
+  return CRect(origin, CSize(item.base.Width()  + dx * item.sizeX / 100,
+                             item.base.Height() + dy * item.sizeY / 100));
+}
+
 void CWndLayout::Apply(int cx, int cy) const
 {
   const INT_PTR count = m_items.GetSize();
@@ -96,23 +104,30 @@ void CWndLayout::Apply(int cx, int cy) const
   const int dx = max(cx - m_base.cx, 0);
   const int dy = max(cy - m_base.cy, 0);
 
+  static const UINT flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS;
+
   HDWP defer = ::BeginDeferWindowPos((int) count);
-  for(INT_PTR i=0 ; i<count ; i++) {
+  for(INT_PTR i=0 ; defer != NULL && i<count ; i++) {
     const ITEM& item = m_items[i];
     if (!::IsWindow(item.hwnd))
       continue;
-    const int x = item.base.left + dx * item.moveX / 100;
-    const int y = item.base.top + dy * item.moveY / 100;
-    const int w = item.base.Width() + dx * item.sizeX / 100;
-    const int h = item.base.Height() + dy * item.sizeY / 100;
-    const UINT flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS;
-    if (defer != NULL)
-      defer = ::DeferWindowPos(defer, item.hwnd, NULL, x, y, w, h, flags);
-    else
-      ::SetWindowPos(item.hwnd, NULL, x, y, w, h, flags);
+    const CRect to = Target(item, dx, dy);
+    // A failure destroys the HDWP and drops everything already deferred, so the pass
+    // has to be redone the plain way rather than continued.
+    defer = ::DeferWindowPos(defer, item.hwnd, NULL,
+                             to.left, to.top, to.Width(), to.Height(), flags);
   }
   if (defer != NULL)
     ::EndDeferWindowPos(defer);
+  else {
+    for(INT_PTR i=0 ; i<count ; i++) {
+      const ITEM& item = m_items[i];
+      if (::IsWindow(item.hwnd)) {
+        const CRect to = Target(item, dx, dy);
+        ::SetWindowPos(item.hwnd, NULL, to.left, to.top, to.Width(), to.Height(), flags);
+      }
+    }
+  }
 
   // Statics and group boxes leave their old pixels behind when they move.
   if (::IsWindow(m_parent))
