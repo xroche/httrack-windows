@@ -342,7 +342,7 @@ BOOL CWinHTTrackApp::InitInstance()
         char name[1024];
         QLANG_T(i);
         strcpybuff(name, "LANGUAGE_NAME");
-        LANG_LOAD(name);
+        LANG_LOAD(name,sizeof(name));
         if (name[0] == '\0')
           break;
       }
