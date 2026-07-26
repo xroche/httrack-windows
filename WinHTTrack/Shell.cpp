@@ -156,6 +156,7 @@ httrackp *global_opt = NULL;
 extern "C" {
   HTSEXT_API void qsec2str(char *st,TStamp t);
   HTSEXT_API char *hts_convertStringSystemToUTF8(const char *s, size_t size);
+  HTSEXT_API char *hts_convertStringUTF8ToSystem(const char *s, size_t size);
 }
 
 // construction index général
@@ -1674,6 +1675,18 @@ char *strdupt_utf8(const char *const s) {
   // argv[] entry is always non-NULL and freet()-able (same libc heap under /MD).
   char *const utf8 = hts_convertStringSystemToUTF8(s, strlen(s));
   return utf8 != NULL ? utf8 : strdupt(s);
+}
+
+// The other direction, for the ANSI-only Win32 calls left in this MBCS build.
+// Contract in Shell.h.
+void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString) {
+  if (destSize <= 0)
+    return;
+  // freet() nulls its argument, so not const.
+  char *cp = hts_convertStringUTF8ToSystem(lpString, strlen(lpString));
+  // On failure the raw bytes beat showing nothing at all.
+  lstrcpynA(dest, cp != NULL ? cp : lpString, destSize);
+  freet(cp);
 }
 
 bool ShellOpen(LPCSTR file, int nShowCmd) {

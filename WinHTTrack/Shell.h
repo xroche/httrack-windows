@@ -147,6 +147,11 @@ extern const char* WhttLocation;
 // Caller frees with freet(); returns the bytes unchanged if conversion fails, never NULL.
 char *strdupt_utf8(const char *const s);
 
+// The reverse: copy a UTF-8 string into dest as the ANSI codepage, always
+// NUL-terminated. For the ANSI-only APIs left in this MBCS build, such as
+// TTN_NEEDTEXTA tooltip text. Falls back to the raw bytes if conversion fails.
+void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString);
+
 // Drop a trailing '/' or '\\', reporting whether there was one. Empty-string safe.
 inline bool StripTrailingSlash(char* s) {
   const size_t len = (s != NULL) ? strlen(s) : 0;

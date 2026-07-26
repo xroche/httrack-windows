@@ -55,9 +55,5 @@ BOOL SetWindowTextUTF8(CWnd* wnd, LPCSTR lpString);
 BOOL ModifyMenuCP(HMENU hMnu, UINT uPosition, UINT uFlags, UINT uIDNewItem, LPCSTR lpNewItem);
 BOOL ModifyMenuCP(CMenu* menu, UINT uPosition, UINT uFlags, UINT uIDNewItem, LPCSTR lpNewItem);
 
-/* UTF-8 -> the ANSI codepage, into dest (always NUL-terminated). For the ANSI-only
-   APIs left in this MBCS build, such as TTN_NEEDTEXTA tooltip text. */
-void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString);
-
 #endif
 
