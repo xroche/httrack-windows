@@ -81,6 +81,10 @@ public:
   /* Give the page comctl32 has just shown the sheet's current size. comctl32 restores
      the rect the page had at creation, so this has to run after every page change. */
   void LayoutActivePage();
+  /* Records template geometry. Run it once the sheet is built and its active page has a
+     window, so the page's own rect is measured instead of the hidden tab control
+     standing in for it. */
+  void BuildLayout();
   void ApplyAndSave();
   void Apply();
   void LoadPrefs();
@@ -94,7 +98,6 @@ protected:
   void ClearInits();
   
   const char* GetTip(int id);
-  void BuildLayout();
   CWndLayout m_layout;   /* buttons and the separator; the page is sized separately */
   CRect m_pageBase;      /* page rect, and the client size it was measured against */
   CSize m_pageBaseClient;
