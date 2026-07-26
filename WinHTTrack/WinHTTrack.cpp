@@ -332,6 +332,28 @@ BOOL CWinHTTrackApp::InitInstance()
         printf("MBCS->UTF-8 ok\n");
       }
     }
+    /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
+       terminator hangs it on the first run, past where --selftest ever reaches. */
+    {
+      const int LANG_SANE_MAX = 512;   /* lang.def ships a few dozen */
+      const int saved = QLANG_T(-1);
+      int i;
+      for(i=0 ; i<LANG_SANE_MAX ; i++) {
+        char name[1024];
+        QLANG_T(i);
+        strcpybuff(name, "LANGUAGE_NAME");
+        LANG_LOAD(name);
+        if (name[0] == '\0')
+          break;
+      }
+      QLANG_T(saved);
+      if (i >= LANG_SANE_MAX) {
+        fprintf(stderr, "FATAL: the language list never ends: LANG_LOAD() lost its empty-name terminator\n");
+        fflush(stderr);
+        ExitProcess(4);
+      }
+      printf("language list ends after %d entries\n", i);
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */

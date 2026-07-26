@@ -646,6 +646,11 @@ jobs:
           if ("$so" -notmatch 'MBCS->UTF-8 ok') {
             throw "selftest did not exercise the MBCS->UTF-8 conversion"
           }
+          # Guards the empty-name terminator (newlang.h); losing it hangs the first-run About
+          # box. [1-9] not \d: "after 0 entries" would pass while proving nothing.
+          if ("$so" -notmatch 'language list ends after [1-9]\d* entries') {
+            throw "selftest did not check that the language list terminates"
+          }
 
           # --selftest throws one exception on purpose. A crash report that resolves nothing
           # is indistinguishable from a working one until someone needs it, so assert the

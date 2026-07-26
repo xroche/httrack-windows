@@ -28,6 +28,8 @@ Please visit our Website: http://www.httrack.com
 #ifndef HTS_DEFNEWLANG
 #define HTS_DEFNEWLANG
 
+/* limit_to: set to the current language's name, or left EMPTY when the index names
+   none. Callers walk the index until that empty name, so never return a placeholder. */
 void LANG_LOAD(char* limit_to);
 void LANG_INIT();
 int LANG_T(int);

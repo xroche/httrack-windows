@@ -325,12 +325,9 @@ void LANG_LOAD(char* limit_to) {
     hashname=LANGINTKEY(name);
   }
 
-  /* Get only language name */
+  /* Empty name is the caller's enumeration terminator: never substitute a placeholder. */
   if (limit_to) {
-    if (strnotempty(hashname))
-      strcpybuff(limit_to,hashname);
-    else
-      strcpybuff(limit_to,"???");
+    strcpybuff(limit_to,hashname);
     return;
   }
 
