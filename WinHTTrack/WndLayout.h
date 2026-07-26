@@ -53,11 +53,14 @@ public:
      Call before the first Add. */
   void Reset(CWnd* parent);
 
-  /* Anchor one control, by window or by dialog ID. Percentages are of the growth in
-     that axis; 0 pins the control to the template. A control that is missing, or a
-     zero ID, is ignored so a caller can loop over an optional row. */
+  /* Anchor one control. Percentages are of the growth in that axis; 0 pins the
+     control to the template. A control that is missing, or a zero ID, is ignored so
+     a caller can loop over an optional row.
+     AddId is deliberately not an overload of Add: the IDC_* macros are plain ints, so
+     Add(this, IDC_x, 0, 100) would bind to Add(CWnd*, int, int, int) and silently
+     anchor the dialog itself with a four-digit percentage. */
   void Add(CWnd* ctrl, int moveX, int sizeX, int moveY = 0, int sizeY = 0);
-  void Add(CWnd* parent, UINT id, int moveX, int sizeX, int moveY = 0, int sizeY = 0);
+  void AddId(CWnd* parent, UINT id, int moveX, int sizeX, int moveY = 0, int sizeY = 0);
 
   /* Reposition everything for a client area of cx by cy. Cheap enough for WM_SIZE:
      one DeferWindowPos pass, no redraw of untouched controls. */

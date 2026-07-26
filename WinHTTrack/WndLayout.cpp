@@ -78,7 +78,7 @@ void CWndLayout::Add(CWnd* ctrl, int moveX, int sizeX, int moveY, int sizeY)
   m_items.Add(item);
 }
 
-void CWndLayout::Add(CWnd* parent, UINT id, int moveX, int sizeX, int moveY, int sizeY)
+void CWndLayout::AddId(CWnd* parent, UINT id, int moveX, int sizeX, int moveY, int sizeY)
 {
   if (parent == NULL || id == 0)
     return;

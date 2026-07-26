@@ -505,9 +505,9 @@ BOOL Cinprogress::OnInitDialog()
      clip, split it evenly; the bar and the SKIP button ride along at the right edge.
      Height is deliberately left alone: the row count is fixed at NStatsBuffer. */
   m_layout.Reset(this);
-  m_layout.Add(this, IDC_inforun, 0, 100);
-  m_layout.Add(this, IDC_STATIC_informations, 0, 100);
-  m_layout.Add(this, IDC_STATIC_actions, 0, 100);
+  m_layout.AddId(this, IDC_inforun, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_informations, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_actions, 0, 100);
   {
     /* Second column of the statistics block, so it does not strand at the left. */
     static const UINT stats[] = {
@@ -515,7 +515,7 @@ BOOL Cinprogress::OnInitDialog()
       IDC_STATIC_updated, IDC_i7, IDC_STATIC_errors,  IDC_i5
     };
     for(int i=0 ; i<(int)_countof(stats) ; i++)
-      m_layout.Add(this, stats[i], 50, 0);
+      m_layout.AddId(this, stats[i], 50, 0);
   }
   for(int row=0 ; row<NStatsBuffer ; row++) {
     m_layout.Add(element[1][row],   0, 50);   /* URL      */
