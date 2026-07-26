@@ -81,6 +81,10 @@ public:
   /* Give the page comctl32 has just shown the sheet's current size. comctl32 restores
      the rect the page had at creation, so this has to run after every page change. */
   void LayoutActivePage();
+  /* Record where the template put everything. Must run once the sheet is its final
+     WS_CHILD self: MFC restyles it from a popup after WM_INITDIALOG, which moves the
+     client origin and would bake a caption's worth of offset into every rect. */
+  void BuildLayout();
   void ApplyAndSave();
   void Apply();
   void LoadPrefs();
@@ -94,7 +98,6 @@ protected:
   void ClearInits();
   
   const char* GetTip(int id);
-  void BuildLayout();
   CWndLayout m_layout;   /* buttons and the separator; the page is sized separately */
   CRect m_pageBase;      /* page rect, and the client size it was measured against */
   CSize m_pageBaseClient;

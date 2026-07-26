@@ -74,6 +74,9 @@ private:
     CRect base;                  /* template rect, in parent client coordinates */
     int moveX, sizeX, moveY, sizeY;
   };
+  /* Where one item lands once the window has grown by (dx,dy). */
+  static CRect Target(const ITEM& item, int dx, int dy);
+
   CArray<ITEM,ITEM&> m_items;
   HWND m_parent;
   CSize m_base;                  /* client size the rects above were recorded at */

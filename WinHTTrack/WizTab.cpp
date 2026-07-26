@@ -255,7 +255,6 @@ BOOL CWizTab::OnInitDialog()
   int r = CPropertySheet::OnInitDialog();
   //xx RemovePage(m_tabprogress);
   //xx RemovePage(m_tabend);
-  BuildLayout();   // children are still where the template put them
   SetWizardButtons(PSWIZB_BACK|PSWIZB_NEXT);
   SetWindowPos(&wndTop,0,0,0,0,SWP_NOZORDER|SWP_NOSIZE|SWP_NOOWNERZORDER);
   SetActivePage(0);
@@ -285,7 +284,8 @@ void CWizTab::BuildLayout()
 
   // Wizard mode hides the tab control but still gives it the page area, so it serves
   // as the reference before any page has a window.
-  CWnd* ref = GetActivePage();
+  const int active = GetActiveIndex();
+  CWnd* ref = (active >= 0 && active < GetPageCount()) ? (CWnd*) GetPage(active) : NULL;
   if (ref == NULL || ref->m_hWnd == NULL)
     ref = GetTabControl();
   if (ref != NULL && ref->m_hWnd != NULL) {
@@ -315,9 +315,15 @@ void CWizTab::BuildLayout()
 
 void CWizTab::LayoutActivePage()
 {
-  CPropertyPage* const page = GetActivePage();
-  if (page == NULL || page->m_hWnd == NULL
-      || m_pageBase.IsRectEmpty() || m_pageBaseClient.cx == 0)
+  if (m_pageBase.IsRectEmpty() || m_pageBaseClient.cx == 0)
+    return;
+  /* Not GetActivePage(): with the page array emptied, as FinalInProgress does between
+     RemovePage and AddPage, it indexes it at -1 and hands back a wild pointer. */
+  const int active = GetActiveIndex();
+  if (active < 0 || active >= GetPageCount())
+    return;
+  CPropertyPage* const page = GetPage(active);
+  if (page == NULL || page->m_hWnd == NULL)
     return;
   CRect client;
   GetClientRect(client);
