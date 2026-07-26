@@ -155,6 +155,15 @@ protected:
      is idle. Valid until the next call. */
   const char* RowTip(int row);
   char m_tip[HTS_URLMAXSIZE*4];
+  /* The transfer grid adapts to the panel height: rows that will not fit are hidden
+     rather than making the whole panel scroll. Geometry is measured from the template
+     at run time, so it stays right at any DPI. */
+  int RowsThatFit(int cy) const;
+  void ApplyRowVisibility();
+  int m_rowTop, m_rowPitch, m_rowHeight;   /* first row's top, row spacing, row height */
+  int m_groupTop, m_groupGap;              /* Actions frame top, and its gap under the last row */
+  int m_bottomSlack;                       /* page height left below the Actions frame */
+  int m_rowsShown;
   void OnHelpInfo2();
   UINT_PTR timer;
   void StartTimer();
