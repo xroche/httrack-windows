@@ -107,6 +107,8 @@ Cinprogress::Cinprogress()
 	: CPropertyPage(Cinprogress::IDD)
 {
   timer=0;
+  m_tip[0]='\0';
+  memset(element,0,sizeof(element));   // GetTip walks it, and OnInitDialog fills it later
   //{{AFX_DATA_INIT(Cinprogress)
 	m_inphide = FALSE;
 	//}}AFX_DATA_INIT
@@ -872,6 +874,8 @@ BOOL Cinprogress::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
     {
       const char* st=GetTip((int)nID);
       if (st != NULL && *st) {
+        // A whole URL on one line runs off the screen; a width makes the tip wrap.
+        ::SendMessage(pNMHDR->hwndFrom, TTM_SETMAXTIPWIDTH, 0, 600);
         pTTT->lpszText = (LPSTR)st;
         pTTT->hinst = AfxGetResourceHandle();
         return(TRUE);
@@ -880,16 +884,38 @@ BOOL Cinprogress::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
   }
   return(FALSE);
 }
+const char* Cinprogress::RowTip(int row)
+{
+  char url[HTS_URLMAXSIZE*4+8];
+  url[0]='\0';
+  m_tip[0]='\0';
+  if (row < 0 || row >= NStatsBuffer)
+    return m_tip;
+  // Compose under the lock: the engine thread rewrites these fields on every refresh.
+  WHTT_LOCK();
+  if (StatsBuffer[row].etat[0] != '\0') {   // idle slot otherwise
+    strncatbuff(url,StatsBuffer[row].url_adr,HTS_URLMAXSIZE*2-1);
+    if (StatsBuffer[row].url_fil[0] != '/')
+      strcatbuff(url,"/");
+    strncatbuff(url,StatsBuffer[row].url_fil,HTS_URLMAXSIZE*2-1);
+  }
+  WHTT_UNLOCK();
+  CopyTextUTF8ToCP(m_tip,sizeof(m_tip),url);   // engine strings are UTF-8, the tip is ANSI
+  return m_tip;
+}
+
 const char* Cinprogress::GetTip(int ID)
 {
-  switch(ID) {
-    //case IDC_STOPALL: return LANG(LANG_H4); break; // "Stop the mirror","Stopper le miroir"); break;
-    //case IDC_hide:    return LANG(LANG_H5); break; // "Hide this window behind the system tray","Cacher la fenêtre dans la barre système"); break;
-    case IDC_sk0:     return LANG(LANG_H6); break; // "Click to skip a link or interrupt parsing","Clic pour sauter un lien ou interrompre"); break;
-    case IDC_sk1: case IDC_sk2: case IDC_sk3: case IDC_sk4:
-    case IDC_sk5: case IDC_sk6: case IDC_sk7: case IDC_sk8: case IDC_sk9:
-                      return LANG(LANG_H7); break; // "Click to skip a link","Clic pour sauter un lien"); break;
-                      //
+  // Match against element[][], not the ID: the row IDs are not contiguous.
+  for(int col=0 ; col<5 ; col++) {
+    for(int row=0 ; row<NStatsBuffer ; row++) {
+      if (element[col][row] != NULL && element[col][row]->m_hWnd != NULL
+          && element[col][row]->GetDlgCtrlID() == ID) {
+        if (col == 3)   // SKIP: row 0 also interrupts parsing
+          return LANG(row == 0 ? LANG_H6 : LANG_H7);
+        return RowTip(row);   // state, URL and filename cells: show what got clipped
+      }
+    }
   }
   return "";
 }
