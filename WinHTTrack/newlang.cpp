@@ -226,7 +226,7 @@ WinLangid WINDOWS_LANGID[] = {
   { 0, NULL }
 };
 
-void LANG_LOAD(char* limit_to) {
+void LANG_LOAD(char* limit_to, size_t limit_size) {
   CWaitCursor wait;
   //
   extern int NewLangStrSz;
@@ -325,9 +325,12 @@ void LANG_LOAD(char* limit_to) {
     hashname=LANGINTKEY(name);
   }
 
-  /* Empty name is the caller's enumeration terminator: never substitute a placeholder. */
+  /* Empty name is the caller's enumeration terminator: never substitute a placeholder.
+     lstrcpynA, not strcpybuff: limit_to is a pointer, so buff() cannot size it and falls
+     back to a plain strcpy. */
   if (limit_to) {
-    strcpybuff(limit_to,hashname);
+    if (limit_size > 0)
+      lstrcpynA(limit_to,hashname,(int) limit_size);
     return;
   }
 
@@ -536,7 +539,7 @@ void LANG_INIT() {
 int LANG_T(int l) {
   if (l>=0) {
     QLANG_T(l);
-    LANG_LOAD(NULL);
+    LANG_LOAD(NULL,0);
     /* Persist only what loaded: LANG_LOAD() falls back to 0 on a bad index, and that is what must be saved. */
     CWinApp* pApp = AfxGetApp();
     if (pApp)
