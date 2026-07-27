@@ -262,7 +262,7 @@ public:
     maxconn, maxlinks, hh, mm, ss, buff_filtres, buff_MIME, 
     _RasString, accept_language, other_headers, default_referer,
     cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder,
-    stripquery;
+    stripquery, sitemap, sitemapurl, singlefile, singlefilemax, changes;
   CString LINE_back;
   RASDIALPARAMS _dial;
 };
