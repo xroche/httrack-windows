@@ -2799,7 +2799,7 @@ void Write_profile(CString path,int load_path) {
     // 10
     maintab->m_option10.GetDlgItemText(IDC_prox,st);
     MyWriteProfileString(path,strSection,"Proxy",st);
-    maintab->m_option10.GetDlgItemText(IDC_proxport,st);
+    maintab->m_option10.GetDlgItemText(IDC_portprox,st);  // IDC_proxport is the ProxyId dialog's
     MyWriteProfileString(path,strSection,"Port",st);
     MyWriteProfileInt(path,strSection,"ProxyType", maintab->m_option10.m_proxytype);
     n=maintab->m_option10.IsDlgButtonChecked(IDC_ftpprox);
