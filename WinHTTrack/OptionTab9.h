@@ -58,6 +58,9 @@ public:
 	BOOL	m_index2;
 	BOOL	m_index_mail;
 	BOOL	m_warc;
+	BOOL	m_singlefile;
+	CString	m_singlefilemax;
+	BOOL	m_changes;
 	//}}AFX_DATA
 
 

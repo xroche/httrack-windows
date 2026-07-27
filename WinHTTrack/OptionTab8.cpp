@@ -62,6 +62,8 @@ COptionTab8::COptionTab8() : CPropertyPage(COptionTab8::IDD)
 	m_updhack = FALSE;
 	m_urlhack = FALSE;
 	m_cookiesfile = _T("");
+	m_sitemap = FALSE;
+	m_sitemapurl = _T("");
 	//}}AFX_DATA_INIT
 }
 
@@ -82,6 +84,9 @@ void COptionTab8::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_updhack, m_updhack);
 	DDX_Check(pDX, IDC_urlhack, m_urlhack);
 	DDX_Text(pDX, IDC_cookiesfile, m_cookiesfile);
+	DDX_Check(pDX, IDC_sitemap, m_sitemap);
+	DDX_Text(pDX, IDC_sitemapurl, m_sitemapurl);
+	DDV_MaxChars(pDX, m_sitemapurl, 1023);  // HTS_URLMAXSIZE, past which the engine aborts the mirror
 	//}}AFX_DATA_MAP
 }
 
@@ -122,6 +127,9 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_robots)           ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_STATIC_checktype) ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_STATIC_spider)    ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_sitemap)          ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_sitemapurl)       ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_STATIC_sitemapurl)->ModifyStyle(0,WS_DISABLED);
   } else {
     GetDlgItem(IDC_cookies)          ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_checktype)        ->ModifyStyle(WS_DISABLED,0);
@@ -133,6 +141,9 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_robots)           ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_STATIC_checktype) ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_STATIC_spider)    ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_sitemap)          ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_sitemapurl)       ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_STATIC_sitemapurl)->ModifyStyle(WS_DISABLED,0);
   }
 
   if (LANG_T(-1)) {    // Patcher en français
@@ -145,6 +156,8 @@ BOOL COptionTab8::OnInitDialog()
     SetDlgItemTextCP(this, IDC_updhack,LANG(LANG_I62b));
     SetDlgItemTextCP(this, IDC_urlhack,LANG(LANG_I62b2));
     SetDlgItemTextCP(this, IDC_STATIC_cookiesfile,LANG(LANG_COOKIEFILE));
+    SetDlgItemTextLang(this, IDC_sitemap,LANG(LANG_SITEMAP));
+    SetDlgItemTextLang(this, IDC_STATIC_sitemapurl,LANG(LANG_SITEMAPURL));
     SetCombo(this,IDC_checktype,LISTDEF_7);
     SetCombo(this,IDC_robots,LISTDEF_8);
   }  
@@ -202,6 +215,8 @@ const char* COptionTab8::GetTip(int ID)
     case IDC_updhack:   return LANG(LANG_I1k); break;
     case IDC_urlhack:   return LANG(LANG_I1k2); break;
     case IDC_cookiesfile: return LANG(LANG_COOKIEFILETIP); break;
+    case IDC_sitemap:   return LANG(LANG_SITEMAPTIP); break;
+    case IDC_sitemapurl: return LANG(LANG_SITEMAPURLTIP); break;
   }
   return "";
 }
