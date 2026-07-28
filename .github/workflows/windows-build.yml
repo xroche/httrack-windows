@@ -156,6 +156,22 @@ jobs:
                 % (len(dialogs), len(owners)))
           EOF
 
+      # The signing job runs this script on a tag only, behind an approval, so a
+      # typo in it costs a release attempt rather than a build.
+      - name: The login script parses and its tray helper compiles
+        shell: pwsh
+        run: |
+          $file = "$PWD/tools/simplysign-login.ps1"
+          $errs = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$errs) | Out-Null
+          if ($errs) { $errs | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          # The tray helper is C# in a here-string, invisible to the parser above.
+          $pat = '(?s)\$src = @''\r?\n(.*?)\r?\n''@'
+          $src = [regex]::Match((Get-Content $file -Raw), $pat).Groups[1].Value
+          if (-not $src) { throw 'the C# block was not found: this check would prove nothing' }
+          Add-Type -TypeDefinition $src
+          Write-Host 'OK: the login script parses and its tray helper compiles.'
+
   build:
     runs-on: windows-2022
     outputs:
