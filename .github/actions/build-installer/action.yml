@@ -1,0 +1,121 @@
+# Shared by both jobs: the build job produces the unsigned installer every push
+# tests, and the sign job rebuilds it from signed binaries with /DSign, which is
+# what also gets the embedded uninstaller signed.
+name: Build the WinHTTrack installer
+description: Compile InnoSetup/httrack.iss over a staged payload directory, optionally signing.
+
+inputs:
+  payload-dir:
+    description: The staged bin directory ISCC packages (WinHTTrack.exe, the DLLs, lang/).
+    required: true
+  engine-dir:
+    description: The httrack engine checkout, for the version header and the shipped sources.
+    required: true
+  gui-dir:
+    description: The httrack-windows checkout, for the .iss itself, the licence and the icon.
+    required: true
+  arch:
+    description: x64 or x86.
+    required: true
+  out-dir:
+    description: Where to write the installer.
+    required: true
+  sign:
+    description: "'true' to sign setup.exe and unins000.exe: needs a signing session and signtool.exe on PATH."
+    default: 'false'
+  thumbprint:
+    description: SHA-1 thumbprint of the certificate to sign with.
+    default: ''
+
+outputs:
+  version:
+    description: HTTRACK_VERSION, read from the engine header.
+    value: ${{ steps.iscc.outputs.version }}
+  setup:
+    description: Full path of the installer that was built.
+    value: ${{ steps.iscc.outputs.setup }}
+
+runs:
+  using: composite
+  steps:
+    - id: iscc
+      shell: pwsh
+      # Via env rather than ${{ }} interpolation: a value containing $(...) would run.
+      env:
+        PAYLOAD_DIR: ${{ inputs.payload-dir }}
+        ENGINE_DIR: ${{ inputs.engine-dir }}
+        GUI_DIR: ${{ inputs.gui-dir }}
+        ARCH: ${{ inputs.arch }}
+        OUT_DIR: ${{ inputs.out-dir }}
+        SIGN: ${{ inputs.sign }}
+        THUMBPRINT: ${{ inputs.thumbprint }}
+      run: |
+        $arch = $env:ARCH
+        if ($arch -notin 'x64', 'x86') { throw "arch must be x64 or x86, not '$arch'" }
+
+        # Single source of truth for the version: the engine's own header.
+        $hg = Get-Content (Join-Path $env:ENGINE_DIR 'src\htsglobal.h') -Raw
+        if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
+        $ver = $Matches[1]
+        # Inno stamps 0.0.0.0 unless it gets a valid version number, and "3.49-12" is not one.
+        if ($hg -notmatch '#define\s+HTTRACK_VERSIONID\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSIONID' }
+        $verid = $Matches[1]
+        Write-Host "version = $ver ($verid), arch = $arch"
+
+        # The VC++ runtime, bundled so a clean machine can actually start the app.
+        # vs/17 is the VS2022 line (14.4x). NOT vs/18: the 14.5x redistributable
+        # refuses to install on Windows 7, which is still our floor.
+        $redist = "$PWD\vc_redist.$arch.exe"
+        Invoke-WebRequest "https://aka.ms/vs/17/release/vc_redist.$arch.exe" -OutFile $redist
+        if ((Get-Item $redist).Length -lt 1MB) { throw 'vc_redist download looks wrong' }
+
+        # Bundled into a signed installer and run elevated, so verify who produced the
+        # bytes: aka.ms redirects, and TLS only authenticates the host we fetched from.
+        $sig = Get-AuthenticodeSignature $redist
+        if ($sig.Status -ne 'Valid') { throw "vc_redist signature is $($sig.Status)" }
+        if ($sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+          throw "vc_redist signed by an unexpected party: $($sig.SignerCertificate.Subject)"
+        }
+        Write-Host "vc_redist signer verified: $($sig.SignerCertificate.Subject)"
+
+        $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+        if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+        if (-not (Test-Path $iscc)) { throw 'Inno Setup is not available' }
+
+        $iargs = @(
+          '/Q'
+          "/DArch=$arch", "/DAppVersion=$ver", "/DAppVersionNumeric=$verid"
+          "/DPayloadDir=$env:PAYLOAD_DIR", "/DEngineDir=$env:ENGINE_DIR", "/DGuiDir=$env:GUI_DIR"
+          "/DRedistFile=$redist", "/DOutDir=$env:OUT_DIR"
+        )
+        if ($env:SIGN -eq 'true') {
+          if ($env:THUMBPRINT -notmatch '^[0-9A-Fa-f]{40}$') { throw "a 40-hex thumbprint is needed to sign, got '$env:THUMBPRINT'" }
+          if (-not (Get-Command signtool.exe -ErrorAction SilentlyContinue)) { throw 'signing was asked for but signtool.exe is not on PATH' }
+          # /DSign turns on SignedUninstaller and points the .iss at the tool named
+          # certum; $f is Inno's placeholder for the file to sign.
+          $iargs += '/DSign'
+          $iargs += ("/Scertum=signtool.exe sign /sha1 $env:THUMBPRINT /fd sha256 /tr http://time.certum.pl /td sha256 " + '$f')
+        }
+
+        # ISCC fails if any Source: is missing, so a clean compile also proves the
+        # redistributable really is in the package.
+        & $iscc @iargs (Join-Path $env:GUI_DIR 'InnoSetup\httrack.iss')
+        if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+
+        # By name, not by glob: both architectures write into one directory on the
+        # signing run, and picking the first match would test the wrong installer.
+        $setup = Get-Item (Join-Path $env:OUT_DIR "httrack_${arch}_$ver.exe")
+        Write-Host "  $($setup.Name) ($([math]::Round($setup.Length/1MB,1)) MB)"
+
+        # The installer is a fourth binary with its own copy of the product name. Inno
+        # stamps 0.0.0.0 rather than failing, so assert what it actually wrote.
+        $v = $setup.VersionInfo
+        # Inno pads these fields with trailing spaces, so trim before comparing.
+        $pn = "$($v.ProductName)".Trim()
+        $pv = "$($v.ProductVersion)".Trim()
+        Write-Host "  ProductName='$pn' ProductVersion='$pv'"
+        if ($pn -ne 'HTTrack Website Copier') { throw "the installer names the product '$pn'" }
+        if ($pv -ne $ver) { throw "the installer is version '$pv', not '$ver'" }
+
+        "version=$ver" | Out-File -Append $env:GITHUB_OUTPUT
+        "setup=$($setup.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
