@@ -647,7 +647,7 @@ BEGIN
     EDITTEXT        IDC_sitemapurl,140,174,116,12,ES_AUTOHSCROLL
 END
 
-IDD_OPTION9 DIALOGEX 0, 0, 325, 176
+IDD_OPTION9 DIALOGEX 0, 0, 325, 198
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Log, Index, Cache"
 FONT 8, "MS Sans Serif", 0, 0, 0x0
@@ -656,15 +656,17 @@ BEGIN
     CONTROL         "Do not re-download locally erased files",IDC_norecatch,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,32,304,9
     CONTROL         "Write WARC archive",IDC_warc,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,48,305,9
-    CONTROL         "Create Log files",IDC_logf,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,64,159,9
-    COMBOBOX        IDC_logtype,175,64,105,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Make an index",IDC_index,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,80,304,9
-    CONTROL         "Make a word database",IDC_index2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,96,304,9
-    CONTROL         "Build a mail archive",IDC_index_mail,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,112,306,9
-    CONTROL         "Inline assets as data: URIs (self-contained pages)",IDC_singlefile,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,128,305,9
-    LTEXT           "Largest inlined asset (bytes):",IDC_STATIC_singlefilemax,32,145,140,8
-    EDITTEXT        IDC_singlefilemax,175,143,64,12,ES_AUTOHSCROLL | ES_NUMBER
-    CONTROL         "Report what changed since the previous mirror",IDC_changes,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,160,305,9
+    CONTROL         "Also write a CDXJ index",IDC_warccdx,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,32,64,145,9
+    CONTROL         "Package the archive as WACZ",IDC_wacz,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,180,64,141,9
+    CONTROL         "Create Log files",IDC_logf,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,80,159,9
+    COMBOBOX        IDC_logtype,175,80,105,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Make an index",IDC_index,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,96,304,9
+    CONTROL         "Make a word database",IDC_index2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,112,304,9
+    CONTROL         "Build a mail archive",IDC_index_mail,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,128,306,9
+    CONTROL         "Inline assets as data: URIs (self-contained pages)",IDC_singlefile,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,144,305,9
+    LTEXT           "Largest inlined asset (bytes):",IDC_STATIC_singlefilemax,32,161,140,8
+    EDITTEXT        IDC_singlefilemax,175,159,64,12,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "Report what changed since the previous mirror",IDC_changes,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,176,305,9
 END
 
 IDD_OPTION10 DIALOG  0, 0, 309, 61
