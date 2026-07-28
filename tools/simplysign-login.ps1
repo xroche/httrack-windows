@@ -1,12 +1,12 @@
 # Log this runner into Certum SimplySign, so signtool can use the cloud key.
 #
-# SimplySign Desktop is a tray-only .NET application: no command line, and no window
-# until it is asked for one. UI Automation cannot see inside the notification area
-# (it enumerates the panes and stops), so the icon is located by asking the tray's
-# toolbar which process owns each button, and clicked where Windows says it is. A
-# fixed coordinate does not survive: hosted runners differ in what else is in the
-# tray. Credentials come from the environment: CERTUM_EMAIL and CERTUM_OTP_URI, the
-# otpauth:// URI from the activation QR code.
+# SimplySign Desktop ships as one executable with no command line, and shows no
+# window until asked. Launching it a second time is what asks: the running instance
+# answers by opening its login window. Failing that, the tray icon is located by
+# asking the notification area which process owns each button, because a fixed
+# coordinate does not survive (runners differ in what else sits there, and the icon
+# may be folded behind the chevron). Credentials come from the environment:
+# CERTUM_EMAIL and CERTUM_OTP_URI, the otpauth:// URI from the activation QR code.
 
 [CmdletBinding()]
 param(
@@ -242,9 +242,8 @@ foreach ($p in Get-SsdPids) {
     if ($x -ge 0) { break }
 }
 
-# Launching it again is what a user pressing the key and typing the name would do,
-# and a single-instance application answers it by showing its window. No coordinate
-# involved, so try it before touching the tray.
+# No coordinate involved, so this comes first. The window it opens can belong to a
+# different process than the one launched, which is why windows are matched by name.
 if (-not $dlg) {
     Write-Host 'no window yet; launching it again to make the running instance show itself'
     Start-Process -FilePath $Exe | Out-Null
