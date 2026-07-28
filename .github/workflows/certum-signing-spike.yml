@@ -1,0 +1,197 @@
+# Throwaway experiment: can a GitHub-hosted Windows runner log into Certum's
+# SimplySign Desktop unattended, so signing stays on the official vendor stack
+# (Certum's MSI + Microsoft's signtool) instead of a third-party client?
+#
+# The unknown is the login: it is a Qt dialog with no CLI, so the only way in is
+# generating the TOTP from the otpauth:// seed and typing it with SendKeys. That
+# is blind and timing-dependent, which is exactly why this runs before anything
+# is designed around it. Success is one assertion: the certificate reaches
+# CurrentUser\My. Delete this file once the answer is known either way.
+name: certum-signing-spike
+
+on:
+  # workflow_dispatch only registers from the default branch, and this file is not
+  # going there, so pushing the branch is what runs it. The environment gate still
+  # holds the job until it is approved.
+  push:
+    branches: [certum-signing-spike]
+  workflow_dispatch:
+    inputs:
+      sign_probe:
+        description: 'Also sign a throwaway file (spends one signature, proves the key is usable)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  # Public material: see httrack-works/windows-modernization/codesign/README.md.
+  THUMBPRINT: AEEE0C1672811FEBB33099FB433FC0D70E5B89C2
+  MSI_URL: https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi
+  MSI_SHA256: 8ec420fc27798b86078b7bd02fe7152097e1b3005bab51820eaca8e57df84da3
+
+jobs:
+  spike:
+    runs-on: windows-2022
+    # Required-reviewer gate, so the seed is never a plain repo secret -- not even
+    # during the experiment.
+    environment: signing
+    steps:
+      - name: Fetch and verify SimplySign Desktop
+        shell: pwsh
+        run: |
+          $msi = "$PWD\SimplySignDesktop.msi"
+          Invoke-WebRequest $env:MSI_URL -OutFile $msi
+          $got = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:MSI_SHA256) { throw "MSI is $got, not $env:MSI_SHA256" }
+
+          # It installs a virtual smart-card driver, so verify who produced the bytes.
+          $sig = Get-AuthenticodeSignature $msi
+          if ($sig.Status -ne 'Valid') { throw "MSI signature is $($sig.Status)" }
+          if ($sig.SignerCertificate.Subject -notmatch 'O=Asseco Data Systems S\.A\.') {
+            throw "MSI signed by an unexpected party: $($sig.SignerCertificate.Subject)"
+          }
+          Write-Host "MSI verified: $($sig.SignerCertificate.Subject)"
+
+      - name: Install it
+        shell: pwsh
+        run: |
+          $p = Start-Process msiexec -Wait -PassThru -ArgumentList `
+            '/i', "$PWD\SimplySignDesktop.msi", '/quiet', '/norestart', '/l*v', "$PWD\msi-install.log"
+          # 3010 is "success, reboot required" -- fine, the driver loads anyway.
+          if ($p.ExitCode -notin 0, 3010) { throw "msiexec exited $($p.ExitCode)" }
+
+          # The install path and the exe's exact name are both unverified, so search
+          # for it rather than assume, and print every candidate for the next attempt.
+          $found = @(Get-ChildItem 'C:\Program Files', 'C:\Program Files (x86)' -Recurse `
+                       -Filter '*SimplySign*.exe' -ErrorAction SilentlyContinue)
+          $found | ForEach-Object { Write-Host "  candidate: $($_.FullName)" }
+          $exe = $found | Where-Object Name -eq 'SimplySignDesktop.exe' | Select-Object -First 1
+          if (-not $exe) { $exe = $found | Select-Object -First 1 }
+          if (-not $exe) { throw 'no SimplySign executable found after install' }
+          Write-Host "installed: $($exe.FullName)"
+          "SSD_EXE=$($exe.FullName)" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Log in and wait for the certificate
+        id: login
+        shell: pwsh
+        env:
+          CERTUM_EMAIL: ${{ secrets.CERTUM_EMAIL }}
+          CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+        run: |
+          function ConvertFrom-Base32([string]$s) {
+            $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+            $bits = -join (($s -replace '[=\s]', '').ToUpper().ToCharArray() | ForEach-Object {
+              $i = $alphabet.IndexOf($_)
+              if ($i -lt 0) { throw 'the seed is not valid base32' }
+              [Convert]::ToString($i, 2).PadLeft(5, '0')
+            })
+            [byte[]]@(for ($i = 0; $i + 8 -le $bits.Length; $i += 8) { [Convert]::ToByte($bits.Substring($i, 8), 2) })
+          }
+
+          # Honour the URI's own algorithm: Certum issues SHA-256 seeds, and every
+          # naive TOTP snippet assumes SHA-1 and silently emits wrong codes.
+          $q = @{}
+          foreach ($kv in (($env:CERTUM_OTP_URI -replace '^[^?]*\??', '') -split '&')) {
+            $p = $kv -split '=', 2
+            if ($p.Count -eq 2) { $q[$p[0].ToLower()] = [uri]::UnescapeDataString($p[1]) }
+          }
+          $secret = if ($q['secret']) { $q['secret'] } else { $env:CERTUM_OTP_URI }
+          $alg = if ($q['algorithm']) { $q['algorithm'].ToUpper() } else { 'SHA1' }
+          $digits = if ($q['digits']) { [int]$q['digits'] } else { 6 }
+          $period = if ($q['period']) { [int]$q['period'] } else { 30 }
+          Write-Host "seed: algorithm=$alg digits=$digits period=$period"
+
+          $key = ConvertFrom-Base32 $secret
+          $counter = [long][math]::Floor([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() / $period)
+          $cb = [BitConverter]::GetBytes($counter); [array]::Reverse($cb)
+          $hmac = switch ($alg) {
+            'SHA256' { [System.Security.Cryptography.HMACSHA256]::new($key) }
+            'SHA512' { [System.Security.Cryptography.HMACSHA512]::new($key) }
+            default { [System.Security.Cryptography.HMACSHA1]::new($key) }
+          }
+          $h = $hmac.ComputeHash($cb)
+          $o = $h[$h.Length - 1] -band 0x0f
+          $bin = (($h[$o] -band 0x7f) -shl 24) -bor (($h[$o + 1] -band 0xff) -shl 16) -bor `
+                 (($h[$o + 2] -band 0xff) -shl 8) -bor ($h[$o + 3] -band 0xff)
+          $otp = ($bin % [int][math]::Pow(10, $digits)).ToString().PadLeft($digits, '0')
+          Write-Host "::add-mask::$otp"
+
+          Write-Host "certificates before login: $((Get-ChildItem Cert:\CurrentUser\My).Count)"
+
+          # The guess under test. A fresh runner has no saved profile, so the email
+          # has to be typed too; the real field order is what the screenshot below
+          # will tell us when this fails.
+          $proc = Start-Process -FilePath $env:SSD_EXE -PassThru
+          Start-Sleep -Seconds 20
+          $wshell = New-Object -ComObject WScript.Shell
+          if (-not $wshell.AppActivate($proc.Id)) {
+            Write-Host '::warning::could not focus the SimplySign window; keystrokes may go nowhere'
+          }
+          Start-Sleep -Milliseconds 800
+          $wshell.SendKeys("$($env:CERTUM_EMAIL){TAB}$otp{ENTER}")
+
+          # Login is asynchronous: the virtual reader appears seconds after the dialog closes.
+          $deadline = (Get-Date).AddSeconds(120)
+          do {
+            Start-Sleep -Seconds 5
+            $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq $env:THUMBPRINT
+          } while (-not $cert -and (Get-Date) -lt $deadline)
+
+          if (-not $cert) {
+            Get-Process | Where-Object MainWindowTitle | ForEach-Object {
+              Write-Host "  open window: $($_.ProcessName) -- $($_.MainWindowTitle)"
+            }
+            throw "the certificate never reached CurrentUser\My: the login did not complete"
+          }
+          Write-Host "::notice::logged in -- $($cert.Subject)"
+          Write-Host "  has private key: $($cert.HasPrivateKey)"
+
+      - name: Sign something, to prove the key is usable
+        if: ${{ inputs.sign_probe }}
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse `
+                        -Filter signtool.exe | Where-Object FullName -like '*\x64\*' |
+                        Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'no signtool.exe in the Windows SDK' }
+
+          $probe = "$PWD\probe.exe"
+          Copy-Item 'C:\Windows\System32\where.exe' $probe
+          & $signtool.FullName sign /sha1 $env:THUMBPRINT /fd sha256 `
+            /tr http://time.certum.pl /td sha256 /v $probe
+          if ($LASTEXITCODE -ne 0) { throw "signtool exited $LASTEXITCODE" }
+
+          $sig = Get-AuthenticodeSignature $probe
+          Write-Host "  status:    $($sig.Status)"
+          Write-Host "  signer:    $($sig.SignerCertificate.Subject)"
+          Write-Host "  timestamp: $($sig.TimeStamperCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "probe is $($sig.Status), not Valid" }
+          if (-not $sig.TimeStamperCertificate) { throw 'no RFC 3161 countersignature' }
+          Write-Host '::notice::the official stack signs end to end on a hosted runner'
+
+      # SendKeys fails blind, so capture what the screen actually showed.
+      - name: Screenshot and logs
+        if: always()
+        shell: pwsh
+        run: |
+          try {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD\screen.png")
+            Write-Host "captured $($b.Width)x$($b.Height)"
+          } catch {
+            Write-Host "::warning::no screenshot: $_"
+          }
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: spike-diagnostics
+          path: |
+            screen.png
+            msi-install.log
+          if-no-files-found: warn
