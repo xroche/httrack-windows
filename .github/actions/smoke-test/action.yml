@@ -16,6 +16,9 @@ inputs:
   thumbprint:
     description: When set, every signature must be valid, timestamped, and this certificate's.
     default: ''
+  require-signature:
+    description: "'true' to demand a thumbprint: signing must never be skipped just because one was not passed."
+    default: 'false'
   install-dir:
     description: Where to install.
     default: C:\WinHTTrackTest
@@ -28,6 +31,7 @@ runs:
         SETUP: ${{ inputs.setup }}
         APPVER: ${{ inputs.version }}
         THUMBPRINT: ${{ inputs.thumbprint }}
+        REQUIRE_SIG: ${{ inputs.require-signature }}
         INSTALL_DIR: ${{ inputs.install-dir }}
       run: |
         $setup = Get-Item $env:SETUP
@@ -35,6 +39,10 @@ runs:
         # Without this, an empty version would make [regex]::Escape('') = '' and
         # `-notmatch ''` false: every version assertion below would stop asserting.
         if ([string]::IsNullOrWhiteSpace($env:APPVER)) { throw 'no version was passed: the version checks would be vacuous' }
+        # Skipping the signature checks is the normal shape on every unsigned build,
+        # so the release path has to say out loud that it expects them.
+        if ($env:REQUIRE_SIG -eq 'true' -and -not $env:THUMBPRINT) { throw 'signatures were required but no thumbprint was passed' }
+        if ($env:THUMBPRINT -and $env:THUMBPRINT -notmatch '^[0-9A-Fa-f]{40}$') { throw "'$env:THUMBPRINT' is not a 40-hex thumbprint" }
 
         # A catalog-signed file reports Microsoft as its signer whatever is embedded in
         # it, so the thumbprint is the only assertion that cannot pass by accident.
@@ -67,7 +75,7 @@ runs:
         # Everything laid down, including the uninstaller Inno generates and the OpenSSL
         # and zlib DLLs. Signing them is worth nothing if packaging then loses it.
         if ($env:THUMBPRINT) {
-          $pes = @(Get-ChildItem $dir -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+          $pes = @(Get-ChildItem $dir -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
           Write-Host "--- signatures on the $($pes.Count) installed binaries ---"
           if ($pes.Count -lt 5) { throw "only $($pes.Count) binaries were installed: the check below would prove nothing" }
           $bad = @($pes | ForEach-Object { Test-Signature $_.FullName } | Where-Object { $_ })

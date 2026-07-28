@@ -466,9 +466,8 @@ jobs:
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
-      # Self-imposed, and worth keeping now that no CA enforces it: every shipped
-      # binary and the installer must name one product and one version, or a user
-      # cannot tell what they have. Cheap here, embarrassing after publishing.
+      # Self-imposed now that no CA enforces it: every shipped binary and the
+      # installer must agree on product name and version. Cheap to catch here.
       - name: Check the binaries agree on product name and version
         shell: pwsh
         run: |
@@ -534,7 +533,6 @@ jobs:
           version: ${{ steps.installer.outputs.version }}
 
       - name: Upload the installer
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: httrack-setup-${{ matrix.platform }}
@@ -581,30 +579,30 @@ jobs:
       MSI_URL: https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi
       MSI_SHA256: 8ec420fc27798b86078b7bd02fe7152097e1b3005bab51820eaca8e57df84da3
     steps:
+      # An empty value would check out the engine's master instead, silently
+      # packaging sources that never went through the build job.
+      - name: Check the engine SHA came through
+        shell: pwsh
+        run: |
+          if ('${{ needs.build.outputs.engine-sha }}' -notmatch '^[0-9a-f]{40}$') {
+            throw 'the build job recorded no engine SHA'
+          }
+
       - name: Checkout httrack-windows
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: httrack-windows
 
       # The installer packs both source trees as well as the binaries (HTTrack is
-      # GPL), so the sign job needs the same two checkouts the build job had.
+      # GPL), so the sign job needs the same two checkouts the build job had. At
+      # the exact commit that was built, not at whatever the ref resolves to now.
       - name: Checkout httrack engine (sibling)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: xroche/httrack
-          ref: ${{ vars.HTTRACK_ENGINE_REF }}
+          ref: ${{ needs.build.outputs.engine-sha }}
           path: httrack
           submodules: recursive
-
-      - name: Check the engine is the tree that was built
-        shell: pwsh
-        run: |
-          $sha = (git -C httrack rev-parse HEAD).Trim()
-          $want = '${{ needs.build.outputs.engine-sha }}'
-          # The ref is a pinned SHA on tags, so this can only differ if it moved
-          # under us -- in which case we would be signing untested sources.
-          if ($sha -ne $want) { throw "the engine moved: the binaries are from $want, this tree is $sha" }
-          Write-Host "engine $sha"
 
       # The very binaries the build job smoke-tested, rather than a fresh compile.
       - name: Download the tested binaries
@@ -660,13 +658,15 @@ jobs:
       - name: Sign the binaries
         shell: pwsh
         run: |
-          foreach ($d in Get-ChildItem payload -Directory) {
+          # Nothing downstream would notice this loop running zero times: it would
+          # sign nothing and exit 0.
+          $dirs = @(Get-ChildItem payload -Directory)
+          if ($dirs.Count -ne 2) { throw "expected both architectures under payload\, found $($dirs.Count)" }
+          foreach ($d in $dirs) {
             # Sign what is there rather than a fixed list: OpenSSL is libssl-3.dll on
-            # x86 but libssl-3-x64.dll on x64, so a hardcoded set is wrong on one leg.
-            # The OpenSSL, zlib, zstd and brotli DLLs are signed too: we build them
-            # from source, they ship with our name on the installer, and Certum sets
-            # no rule against it.
-            $pes = @(Get-ChildItem $d.FullName -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+            # x86 but libssl-3-x64.dll on x64. Recursive because the installer packs
+            # subdirectories, so a PE below the top level would otherwise ship unsigned.
+            $pes = @(Get-ChildItem $d.FullName -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
             foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
               if ($f -notin $pes.Name) { throw "$($d.Name) has no $f to sign" }
             }
@@ -727,6 +727,7 @@ jobs:
           setup: ${{ steps.x64.outputs.setup }}
           version: ${{ steps.x64.outputs.version }}
           thumbprint: ${{ env.THUMBPRINT }}
+          require-signature: 'true'
 
       - name: Install it, run it, uninstall it (x86)
         uses: ./httrack-windows/.github/actions/smoke-test
@@ -734,6 +735,7 @@ jobs:
           setup: ${{ steps.x86.outputs.setup }}
           version: ${{ steps.x86.outputs.version }}
           thumbprint: ${{ env.THUMBPRINT }}
+          require-signature: 'true'
 
       - name: Upload the signed installers
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

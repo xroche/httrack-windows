@@ -38,6 +38,7 @@ foreach ($kv in (($env:CERTUM_OTP_URI -replace '^[^?]*\??', '') -split '&')) {
     if ($p.Count -eq 2) { $q[$p[0].ToLower()] = [uri]::UnescapeDataString($p[1]) }
 }
 $secret = if ($q['secret']) { $q['secret'] } else { $env:CERTUM_OTP_URI }
+Write-Host "::add-mask::$secret"
 $alg = if ($q['algorithm']) { $q['algorithm'].ToUpper() } else { 'SHA1' }
 $digits = if ($q['digits']) { [int]$q['digits'] } else { 6 }
 $period = if ($q['period']) { [int]$q['period'] } else { 30 }
@@ -97,11 +98,10 @@ if ($proc.HasExited) { throw "SimplySign Desktop exited immediately (code $($pro
 $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 Write-Host "desktop is $($b.Width)x$($b.Height), tray icon expected at $IconX,$IconY"
 if ($b.Width -ne 1024 -or $b.Height -ne 768) {
-    Write-Host "::warning::the icon coordinate was measured at 1024x768; this desktop differs, so the click may miss"
+    throw "the tray coordinate was measured on a 1024x768 desktop, and this one is $($b.Width)x$($b.Height)"
 }
 
-# The icon is visible rather than folded behind the chevron, and a double-click is
-# the gesture that opens the login window.
+# The icon is visible rather than folded behind the chevron.
 [M]::Double($IconX, $IconY)
 Start-Sleep -Seconds 6
 Show-TopLevel 'after the tray click'
@@ -117,7 +117,10 @@ $otp = Get-Otp
 Write-Host "::add-mask::$otp"
 
 $wshell = New-Object -ComObject WScript.Shell
-[void]$wshell.AppActivate($proc.Id)
+for ($try = 1; -not $wshell.AppActivate($proc.Id); $try++) {
+    if ($try -ge 3) { throw 'could not focus the login window: the keystrokes would go to whatever has focus' }
+    Start-Sleep -Seconds 2
+}
 Start-Sleep -Milliseconds 800
 $wshell.SendKeys("$(Protect-SendKeys $env:CERTUM_EMAIL){TAB}$otp{ENTER}")
 
@@ -129,7 +132,6 @@ do {
 } while (-not $cert -and (Get-Date) -lt $deadline)
 
 if (-not $cert) {
-    Show-TopLevel 'after typing'
     Write-Host "certificates in the store: $((Get-ChildItem Cert:\CurrentUser\My).Thumbprint -join ', ')"
     throw "$Thumbprint never appeared: the login was refused, or the code was wrong"
 }

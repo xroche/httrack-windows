@@ -53,6 +53,15 @@ runs:
         $arch = $env:ARCH
         if ($arch -notin 'x64', 'x86') { throw "arch must be x64 or x86, not '$arch'" }
 
+        # The payload directory and the architecture it is packaged as are paired by
+        # hand on the signing run, and a swap would build, install and run happily.
+        $pe = [IO.File]::ReadAllBytes((Join-Path $env:PAYLOAD_DIR 'WinHTTrack.exe'))
+        $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
+        $want = if ($arch -eq 'x64') { 0x8664 } else { 0x14c }
+        if ($machine -ne $want) {
+          throw ('the payload WinHTTrack.exe is machine 0x{0:x}, not the 0x{1:x} an {2} installer needs' -f $machine, $want, $arch)
+        }
+
         # Single source of truth for the version: the engine's own header.
         $hg = Get-Content (Join-Path $env:ENGINE_DIR 'src\htsglobal.h') -Raw
         if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
@@ -91,8 +100,8 @@ runs:
         if ($env:SIGN -eq 'true') {
           if ($env:THUMBPRINT -notmatch '^[0-9A-Fa-f]{40}$') { throw "a 40-hex thumbprint is needed to sign, got '$env:THUMBPRINT'" }
           if (-not (Get-Command signtool.exe -ErrorAction SilentlyContinue)) { throw 'signing was asked for but signtool.exe is not on PATH' }
-          # /DSign turns on SignedUninstaller and points the .iss at the tool named
-          # certum; $f is Inno's placeholder for the file to sign.
+          # /DSign asks Inno to sign setup.exe and the uninstaller; $f is its
+          # placeholder for the file.
           $iargs += '/DSign'
           $iargs += ("/Scertum=signtool.exe sign /sha1 $env:THUMBPRINT /fd sha256 /tr http://time.certum.pl /td sha256 " + '$f')
         }

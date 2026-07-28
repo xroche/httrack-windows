@@ -27,7 +27,7 @@ Every executable file in the package:
 | `WinHTTrack.exe` | the GUI |
 | `httrack.exe` | the command-line version |
 | `libhttrack.dll` | the engine, built from [xroche/httrack](https://github.com/xroche/httrack) |
-| `libcrypto-*.dll`, `libssl-*.dll`, `z.dll`, `zstd.dll`, `brotli*.dll` | OpenSSL, zlib, zstd and brotli, compiled from source during the build |
+| the other DLLs beside it | OpenSSL, zlib and the compression libraries, compiled from source during the build |
 | `httrack_*_*.exe` | the Inno Setup installer |
 | `unins000.exe` | the uninstaller it leaves behind |
 
@@ -35,8 +35,8 @@ Every executable file in the package:
 
 Only one thing ever signs a WinHTTrack binary: the
 [`windows-build`](.github/workflows/windows-build.yml) workflow, on a GitHub-hosted
-runner, in the `xroche/httrack-windows` repository, on a version tag. There is no key on
-a developer's machine to sign with. The signing job runs in a GitHub environment that
+runner, in the `xroche/httrack-windows` repository, on a version tag or on a run a
+maintainer starts by hand. There is no key on a developer's machine to sign with. The signing job runs in a GitHub environment that
 requires a human approval before it starts, so pushing a tag does not by itself sign
 anything.
 
