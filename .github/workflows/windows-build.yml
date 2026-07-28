@@ -156,6 +156,22 @@ jobs:
                 % (len(dialogs), len(owners)))
           EOF
 
+      # The signing job runs this script on a tag only, behind an approval, so a
+      # typo in it costs a release attempt rather than a build.
+      - name: The login script parses and its tray helper compiles
+        shell: pwsh
+        run: |
+          $file = "$PWD/tools/simplysign-login.ps1"
+          $errs = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$errs) | Out-Null
+          if ($errs) { $errs | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          # The tray helper is C# in a here-string, invisible to the parser above.
+          $pat = '(?s)\$src = @''\r?\n(.*?)\r?\n''@'
+          $src = [regex]::Match((Get-Content $file -Raw), $pat).Groups[1].Value
+          if (-not $src) { throw 'the C# block was not found: this check would prove nothing' }
+          Add-Type -TypeDefinition $src
+          Write-Host 'OK: the login script parses and its tray helper compiles.'
+
   build:
     runs-on: windows-2022
     outputs:
@@ -557,6 +573,34 @@ jobs:
           path: httrack-windows/msbuild.log
           if-no-files-found: ignore
 
+  # The signing job waits for a human, and a run nobody is watching waits forever.
+  # An assigned issue is the one way to reach a mailbox without putting SMTP
+  # credentials in a public repository: GitHub sends the mail.
+  notify:
+    if: ${{ startsWith(github.ref, 'refs/tags/') || inputs.sign }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      issue: ${{ steps.open.outputs.number }}
+    steps:
+      - id: open
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          n=$(gh issue create --repo "$GITHUB_REPOSITORY" \
+                --title "Signing waiting for approval: $REF" \
+                --assignee xroche \
+                --body "The signing job for \`$REF\` is holding for a review of the \`signing\` environment. Approve or reject it at $RUN. This issue closes itself once the run finishes signing." |
+                sed 's#.*/##')
+          echo "number=$n" >> "$GITHUB_OUTPUT"
+          echo "opened issue #$n"
+
   # A GitHub environment gates a whole job, so signing cannot live in the build job:
   # that job would carry the required-reviewer approval and every pull request would
   # stop dead waiting for a click. One job for both architectures rather than a
@@ -564,7 +608,7 @@ jobs:
   # mint the same single-use TOTP code in the same window.
   sign:
     if: ${{ startsWith(github.ref, 'refs/tags/') || inputs.sign }}
-    needs: build
+    needs: [build, notify]
     runs-on: windows-2022
     environment: signing
     # Two tags pushed at once would fight over the signing session.
@@ -743,3 +787,13 @@ jobs:
           name: httrack-setup-signed
           path: installer/*.exe
           if-no-files-found: error
+
+      # Left open on failure: it is then a record of a release that needs a look.
+      - name: Close the approval reminder
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.notify.outputs.issue }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY" --comment "Signed and published by ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."

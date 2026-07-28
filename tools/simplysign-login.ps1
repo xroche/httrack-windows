@@ -1,24 +1,29 @@
 # Log this runner into Certum SimplySign, so signtool can use the cloud key.
 #
-# SimplySign Desktop is a tray-only .NET application: no command line, no window, and
-# UI Automation cannot see inside the notification area (it enumerates the panes and
-# stops). The login dialog is therefore reachable only by clicking the tray icon at a
-# measured coordinate. Credentials come from the environment: CERTUM_EMAIL and
-# CERTUM_OTP_URI, the otpauth:// URI from the activation QR code.
+# SimplySign Desktop is a tray-only .NET application: no command line, and no window
+# until it is asked for one. UI Automation cannot see inside the notification area
+# (it enumerates the panes and stops), so the icon is located by asking the tray's
+# toolbar which process owns each button, and clicked where Windows says it is. A
+# fixed coordinate does not survive: hosted runners differ in what else is in the
+# tray. Credentials come from the environment: CERTUM_EMAIL and CERTUM_OTP_URI, the
+# otpauth:// URI from the activation QR code.
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Exe,
     [Parameter(Mandatory)][string]$Thumbprint,
-    # Measured on the runner's 1024x768 desktop; x depends on how many icons are there.
-    [int]$IconX = 842,
-    [int]$IconY = 747
+    # Stop once the window is open, before any credential is typed. Opening it is
+    # the fragile half and needs no secret, so it can be exercised without the
+    # approval gate that guards them.
+    [switch]$ProbeOnly
 )
 
 $ErrorActionPreference = 'Stop'
 
-if (-not $env:CERTUM_EMAIL) { throw 'CERTUM_EMAIL is empty' }
-if (-not $env:CERTUM_OTP_URI) { throw 'CERTUM_OTP_URI is empty' }
+if (-not $ProbeOnly) {
+    if (-not $env:CERTUM_EMAIL) { throw 'CERTUM_EMAIL is empty' }
+    if (-not $env:CERTUM_OTP_URI) { throw 'CERTUM_OTP_URI is empty' }
+}
 
 function ConvertFrom-Base32([string]$s) {
     $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
@@ -38,7 +43,7 @@ foreach ($kv in (($env:CERTUM_OTP_URI -replace '^[^?]*\??', '') -split '&')) {
     if ($p.Count -eq 2) { $q[$p[0].ToLower()] = [uri]::UnescapeDataString($p[1]) }
 }
 $secret = if ($q['secret']) { $q['secret'] } else { $env:CERTUM_OTP_URI }
-Write-Host "::add-mask::$secret"
+if ($secret) { Write-Host "::add-mask::$secret" }
 $alg = if ($q['algorithm']) { $q['algorithm'].ToUpper() } else { 'SHA1' }
 $digits = if ($q['digits']) { [int]$q['digits'] } else { 6 }
 $period = if ($q['period']) { [int]$q['period'] } else { 30 }
@@ -65,16 +70,123 @@ function Protect-SendKeys([string]$s) {
     -join ($s.ToCharArray() | ForEach-Object { if ('+^%~(){}[]'.Contains($_)) { "{$_}" } else { "$_" } })
 }
 
-$cs = @(
-    'using System; using System.Runtime.InteropServices;'
-    'public static class M {'
-    '  [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);'
-    '  [DllImport("user32.dll")] static extern void mouse_event(uint f, uint x, uint y, uint d, IntPtr e);'
-    '  static void Down() { mouse_event(2, 0, 0, 0, IntPtr.Zero); mouse_event(4, 0, 0, 0, IntPtr.Zero); }'
-    '  public static void Double(int x, int y) { SetCursorPos(x, y); System.Threading.Thread.Sleep(300); Down(); System.Threading.Thread.Sleep(80); Down(); }'
-    '}'
-) -join "`n"
-Add-Type -TypeDefinition $cs
+$src = @'
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Runtime.InteropServices;
+
+public static class Tray
+{
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string c, string w);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr p, IntPtr after, string cls, string win);
+    [DllImport("user32.dll")] static extern int GetWindowThreadProcessId(IntPtr h, out int pid);
+    [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] static extern bool MapWindowPoints(IntPtr from, IntPtr to, ref RECT r, uint n);
+    [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int max);
+    [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] static extern void mouse_event(uint f, uint x, uint y, uint d, IntPtr e);
+    [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll")] static extern IntPtr VirtualAllocEx(IntPtr h, IntPtr a, IntPtr size, uint type, uint protect);
+    [DllImport("kernel32.dll")] static extern bool VirtualFreeEx(IntPtr h, IntPtr a, IntPtr size, uint type);
+    [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr h, IntPtr a, byte[] buf, IntPtr size, out IntPtr read);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+
+    [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
+
+    const uint TB_BUTTONCOUNT = 0x0418, TB_GETBUTTON = 0x0417, TB_GETITEMRECT = 0x041D;
+
+    static void Down() { mouse_event(2, 0, 0, 0, IntPtr.Zero); mouse_event(4, 0, 0, 0, IntPtr.Zero); }
+    public static void Click(int x, int y) { SetCursorPos(x, y); System.Threading.Thread.Sleep(300); Down(); }
+    public static void DoubleClick(int x, int y) { SetCursorPos(x, y); System.Threading.Thread.Sleep(300); Down(); System.Threading.Thread.Sleep(80); Down(); }
+
+    // The visible icons and the ones folded behind the chevron live in two separate
+    // toolbars, and only the visible one can be clicked without opening the chevron.
+    static List<object[]> Toolbars()
+    {
+        var list = new List<object[]>();
+        IntPtr tray = FindWindow("Shell_TrayWnd", null);
+        IntPtr notify = FindWindowEx(tray, IntPtr.Zero, "TrayNotifyWnd", null);
+        IntPtr pager = FindWindowEx(notify, IntPtr.Zero, "SysPager", null);
+        IntPtr tb = FindWindowEx(pager != IntPtr.Zero ? pager : notify, IntPtr.Zero, "ToolbarWindow32", null);
+        if (tb != IntPtr.Zero) list.Add(new object[] { tb, "notification area", false });
+        IntPtr of = FindWindow("NotifyIconOverflowWindow", null);
+        IntPtr oftb = FindWindowEx(of, IntPtr.Zero, "ToolbarWindow32", null);
+        if (oftb != IntPtr.Zero) list.Add(new object[] { oftb, "hidden (chevron)", true });
+        return list;
+    }
+
+    // Where the chevron is, so a hidden icon can be brought on screen.
+    public static bool Chevron(out int x, out int y)
+    {
+        x = y = -1;
+        IntPtr tray = FindWindow("Shell_TrayWnd", null);
+        IntPtr notify = FindWindowEx(tray, IntPtr.Zero, "TrayNotifyWnd", null);
+        IntPtr btn = FindWindowEx(notify, IntPtr.Zero, "Button", null);
+        if (btn == IntPtr.Zero) return false;
+        RECT r; if (!GetWindowRect(btn, out r)) return false;
+        x = (r.Left + r.Right) / 2; y = (r.Top + r.Bottom) / 2;
+        return true;
+    }
+
+    // Every tray button, with the process that owns it. The icon we want is the one
+    // whose owning window belongs to SimplySign; matching on the tooltip would break
+    // the moment Certum translates it.
+    public static string Find(int wantPid, out int x, out int y, out bool hidden)
+    {
+        x = y = -1; hidden = false;
+        var sb = new StringBuilder();
+        foreach (var t in Toolbars())
+        {
+            IntPtr tb = (IntPtr)t[0];
+            int trayPid; GetWindowThreadProcessId(tb, out trayPid);
+            IntPtr proc = OpenProcess(0x0008 | 0x0010 | 0x0020, false, trayPid);
+            if (proc == IntPtr.Zero) { sb.AppendLine("  " + t[1] + ": cannot open process " + trayPid); continue; }
+            IntPtr buf = VirtualAllocEx(proc, IntPtr.Zero, (IntPtr)1024, 0x1000 | 0x2000, 0x04);
+            int count = (int)SendMessage(tb, TB_BUTTONCOUNT, IntPtr.Zero, IntPtr.Zero);
+            sb.AppendLine("  " + t[1] + ": " + count + " icon(s)");
+            for (int i = 0; i < count; i++)
+            {
+                IntPtr got;
+                SendMessage(tb, TB_GETBUTTON, (IntPtr)i, buf);
+                byte[] btn = new byte[32];
+                if (!ReadProcessMemory(proc, buf, btn, (IntPtr)32, out got)) continue;
+                // TBBUTTON.dwData, at offset 16 on x64, points at the tray's own record
+                // for the icon; its first field is the window that registered it.
+                IntPtr data = (IntPtr)BitConverter.ToInt64(btn, 16);
+                byte[] rec = new byte[8];
+                if (!ReadProcessMemory(proc, data, rec, (IntPtr)8, out got)) continue;
+                IntPtr owner = (IntPtr)BitConverter.ToInt64(rec, 0);
+                int pid; GetWindowThreadProcessId(owner, out pid);
+                var cls = new StringBuilder(256); GetClassName(owner, cls, 256);
+                var txt = new StringBuilder(256); GetWindowText(owner, txt, 256);
+                sb.AppendLine("    [" + i + "] pid=" + pid + " [" + cls + "] '" + txt + "'");
+                if (pid == wantPid && x < 0)
+                {
+                    SendMessage(tb, TB_GETITEMRECT, (IntPtr)i, buf);
+                    byte[] rb = new byte[16];
+                    if (ReadProcessMemory(proc, buf, rb, (IntPtr)16, out got))
+                    {
+                        RECT r;
+                        r.Left = BitConverter.ToInt32(rb, 0); r.Top = BitConverter.ToInt32(rb, 4);
+                        r.Right = BitConverter.ToInt32(rb, 8); r.Bottom = BitConverter.ToInt32(rb, 12);
+                        MapWindowPoints(tb, IntPtr.Zero, ref r, 2);
+                        x = (r.Left + r.Right) / 2; y = (r.Top + r.Bottom) / 2;
+                        hidden = (bool)t[2];
+                        sb.AppendLine("      ^ SimplySign, at " + x + "," + y + (hidden ? " (behind the chevron)" : ""));
+                    }
+                }
+            }
+            VirtualFreeEx(proc, buf, IntPtr.Zero, 0x8000);
+            CloseHandle(proc);
+        }
+        return sb.ToString();
+    }
+}
+'@
+Add-Type -TypeDefinition $src
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 
@@ -84,31 +196,89 @@ $any = [System.Windows.Automation.Condition]::TrueCondition
 
 # Screenshots are the obvious diagnostic and are deliberately not taken: a build
 # artifact of a public repository is public, and the login form holds the address.
-function Show-TopLevel([string]$when) {
-    Write-Host "--- top-level windows ($when) ---"
+# By name rather than by one process id: a second launch may either signal the
+# running instance or become a process of its own, and either can own the window.
+function Get-SsdPids {
+    @(Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($Exe)) -ErrorAction SilentlyContinue).Id
+}
+
+function Get-AppWindow([int]$seconds) {
+    $deadline = (Get-Date).AddSeconds($seconds)
+    do {
+        $pids = Get-SsdPids
+        $w = $root.FindAll($kids, $any) | Where-Object { $_.Current.ProcessId -in $pids } | Select-Object -First 1
+        if ($w) { return $w }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    return $null
+}
+
+function Show-TopLevel {
+    Write-Host '--- top-level windows ---'
     foreach ($e in $root.FindAll($kids, $any)) {
-        Write-Host "  [$($e.Current.ClassName)] '$($e.Current.Name)' pid=$($e.Current.ProcessId)"
+        Write-Host "  [$($e.Current.ClassName)] pid=$($e.Current.ProcessId)"
     }
 }
 
-$proc = Start-Process -FilePath $Exe -PassThru
-Start-Sleep -Seconds 25
-if ($proc.HasExited) { throw "SimplySign Desktop exited immediately (code $($proc.ExitCode))" }
+# If the vendor ever ships a command-line companion, driving a GUI stops being
+# necessary; list what is actually installed so we find out.
+Write-Host "--- $(Split-Path $Exe -Parent) ---"
+Get-ChildItem (Split-Path $Exe -Parent) -File | ForEach-Object { Write-Host "  $($_.Name)" }
 
+$proc = Start-Process -FilePath $Exe -PassThru
+Start-Sleep -Seconds 20
+if ($proc.HasExited) { throw "SimplySign Desktop exited immediately (code $($proc.ExitCode))" }
 $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-Write-Host "desktop is $($b.Width)x$($b.Height), tray icon expected at $IconX,$IconY"
-if ($b.Width -ne 1024 -or $b.Height -ne 768) {
-    throw "the tray coordinate was measured on a 1024x768 desktop, and this one is $($b.Width)x$($b.Height)"
+Write-Host "desktop is $($b.Width)x$($b.Height), SimplySign is pid $($proc.Id)"
+
+$dlg = Get-AppWindow 10
+
+# The tray is where this application lives, so report it whatever happens: when
+# nothing else works, this listing is the only evidence of why.
+Write-Host '--- notification area ---'
+$x = -1; $y = -1; $hidden = $false
+foreach ($p in Get-SsdPids) {
+    Write-Host (([Tray]::Find($p, [ref]$x, [ref]$y, [ref]$hidden)).TrimEnd())
+    if ($x -ge 0) { break }
 }
 
-# The icon is visible rather than folded behind the chevron.
-[M]::Double($IconX, $IconY)
-Start-Sleep -Seconds 6
-Show-TopLevel 'after the tray click'
+# Launching it again is what a user pressing the key and typing the name would do,
+# and a single-instance application answers it by showing its window. No coordinate
+# involved, so try it before touching the tray.
+if (-not $dlg) {
+    Write-Host 'no window yet; launching it again to make the running instance show itself'
+    Start-Process -FilePath $Exe | Out-Null
+    $dlg = Get-AppWindow 20
+}
 
-$dlg = $root.FindAll($kids, $any) | Where-Object { $_.Current.ProcessId -eq $proc.Id } | Select-Object -First 1
-if (-not $dlg) { throw "the tray click opened no window: nothing to log into (is $IconX,$IconY still the icon?)" }
+if (-not $dlg -and $x -ge 0) {
+    if ($hidden) {
+        # A hidden icon has no on-screen position until the chevron is opened.
+        $cx = 0; $cy = 0
+        if ([Tray]::Chevron([ref]$cx, [ref]$cy)) {
+            Write-Host "opening the chevron at $cx,$cy"
+            [Tray]::Click($cx, $cy)
+            Start-Sleep -Seconds 2
+            foreach ($p in Get-SsdPids) {
+                Write-Host (([Tray]::Find($p, [ref]$x, [ref]$y, [ref]$hidden)).TrimEnd())
+                if ($x -ge 0) { break }
+            }
+        }
+    }
+    Write-Host "double-clicking the icon at $x,$y"
+    [Tray]::DoubleClick($x, $y)
+    $dlg = Get-AppWindow 20
+}
+
+if (-not $dlg) {
+    Show-TopLevel
+    throw 'SimplySign never showed a window: neither its tray icon nor a second launch opened one'
+}
 Write-Host "login window: [$($dlg.Current.ClassName)] '$($dlg.Current.Name)'"
+if ($ProbeOnly) {
+    Write-Host '::notice::the window opened; stopping before the credentials'
+    exit 0
+}
 
 # A code minted in the last seconds of its period expires while it is being typed.
 $left = $period - ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() % $period)
@@ -117,7 +287,8 @@ $otp = Get-Otp
 Write-Host "::add-mask::$otp"
 
 $wshell = New-Object -ComObject WScript.Shell
-for ($try = 1; -not $wshell.AppActivate($proc.Id); $try++) {
+$owner = $dlg.Current.ProcessId
+for ($try = 1; -not $wshell.AppActivate($owner); $try++) {
     if ($try -ge 3) { throw 'could not focus the login window: the keystrokes would go to whatever has focus' }
     Start-Sleep -Seconds 2
 }
