@@ -198,8 +198,9 @@ jobs:
             Write-Host '::warning::still not logged in; read the screenshots in order'
           }
 
+      # A certificate in the store proves the login; it does not prove the cloud HSM
+      # will sign. Only a real signature does, so always spend one.
       - name: Sign something, to prove the key is usable
-        if: ${{ inputs.sign_probe }}
         shell: pwsh
         run: |
           $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Recurse `
