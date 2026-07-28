@@ -3,75 +3,67 @@
 WinHTTrack's Windows binaries and its installer carry an Authenticode signature, so that
 Windows names a verified publisher instead of warning you about an unknown one.
 
-## Attribution
+## Who signs
 
-Free code signing provided by [SignPath.io](https://signpath.io), certificate by
-[SignPath Foundation](https://signpath.org).
+The certificate is a Certum Open Source Code Signing certificate, issued to Xavier Roche,
+who writes HTTrack. Certum prefixes every certificate of that kind, so the publisher
+Windows shows reads *Open Source Developer, Xavier Roche*. The private key lives in
+Certum's cloud HSM and cannot be exported from it.
 
-The certificate belongs to SignPath Foundation, not to HTTrack or to its author. SignPath
-is not a certificate authority, so it cannot issue a certificate in anyone else's name.
-Windows will therefore show *SignPath Foundation* as the publisher of a signed WinHTTrack
-installer. That is expected, and many other open-source projects sign the same way.
+| | |
+| --- | --- |
+| Subject | `CN=Open Source Developer Roche Xavier, L=Paris, C=FR` |
+| SHA-1 thumbprint | `AEEE0C1672811FEBB33099FB433FC0D70E5B89C2` |
+| Key | RSA 4096, signatures are SHA-256 |
+| Timestamps | `http://time.certum.pl`, RFC 3161 |
+| Valid | 2026-07-28 to 2027-07-28 |
 
 ## What is signed
 
-The code we maintain ourselves, and the installer that carries it:
+Every executable file in the package:
 
 | File | What it is |
 | --- | --- |
 | `WinHTTrack.exe` | the GUI |
 | `httrack.exe` | the command-line version |
 | `libhttrack.dll` | the engine, built from [xroche/httrack](https://github.com/xroche/httrack) |
+| the other DLLs beside it | OpenSSL, zlib and the compression libraries, compiled from source during the build |
 | `httrack_*_*.exe` | the Inno Setup installer |
-
-Two things inside that installer stay unsigned, on purpose.
-
-The OpenSSL and zlib DLLs (`libssl-*.dll`, `libcrypto-*.dll`, `z.dll`) belong to their own
-upstream projects. We compile them from source during the build, but we do not maintain
-their code, and SignPath's code of conduct is clear that a project signs only binaries
-built from source its own team maintains. Upstream libraries may travel unsigned inside a
-signed package, so that is how they travel here.
-
-The uninstaller that Inno Setup embeds (`unins000.exe`) is the other one. Inno can only
-sign it by calling out to a `signtool`-style helper while it compiles, and SignPath's
-submission API does not work that way. The installer you actually download and double-click
-is signed, and that is the file Windows judges.
-
-## Team roles
-
-One person maintains HTTrack, and he holds all three SignPath roles:
-
-| Role | Who |
-| --- | --- |
-| Author (submits a signing request) | the GitHub Actions CI user, never a human |
-| Reviewer | Xavier Roche |
-| Approver | Xavier Roche |
-
-Anyone who is not a committer contributes through a pull request, which is reviewed before
-it merges. Everyone with write access to the source repositories uses multi-factor
-authentication on both GitHub and SignPath.
+| `unins000.exe` | the uninstaller it leaves behind |
 
 ## How signing happens
 
 Only one thing ever signs a WinHTTrack binary: the
-[`windows-build`](.github/workflows/windows-build.yml) workflow, on a GitHub-hosted runner,
-in the `xroche/httrack-windows` repository, on a version tag. Nobody can sign one from a
-developer's machine. The SignPath project uses origin verification, which means SignPath
-pulls the artifact and the build metadata from GitHub's own API instead of believing
-whatever the build script tells it, and it does not let interactive users submit artifacts
-at all.
+[`windows-build`](.github/workflows/windows-build.yml) workflow, on a GitHub-hosted
+runner, in the `xroche/httrack-windows` repository, on a version tag or on a run a
+maintainer starts by hand. There is no key on a developer's machine to sign with. The signing job runs in a GitHub environment that
+requires a human approval before it starts, so pushing a tag does not by itself sign
+anything.
 
-Signing takes two steps, because SignPath treats an Inno Setup installer as one opaque
-executable and cannot reach the files packed inside it:
+Every push and every pull request builds an installer, installs it, runs it and
+uninstalls it, unsigned. A tag adds a second job that takes those same binaries, signs
+each one, and rebuilds the installer around them. Inno Setup packs those binaries as
+opaque bytes, so signing the installer afterwards would leave everything inside it
+unsigned. The signed installer is then installed and run in turn, and every signature is
+checked against the thumbprint above before it is published.
 
-1. CI builds the binaries, then submits them to SignPath, which signs them;
-2. CI builds the installer from the signed binaries, then submits that, and SignPath signs
-   it in turn;
-3. CI installs, runs and uninstalls the signed installer, so the file it tests is the file
-   you get.
+## Verifying a signature
 
-Before either certificate is used, a human approves the request in SignPath's web
-interface.
+Right-click the installer, choose *Properties*, and open the *Digital Signatures* tab. Or
+from PowerShell:
+
+```powershell
+Get-AuthenticodeSignature .\httrack_x64_3.49-14.exe |
+  Format-List Status, SignerCertificate, TimeStamperCertificate
+```
+
+`Status` must say `Valid`, and the thumbprint must be the one above. The thumbprint is
+the part worth checking: any valid certificate at all produces `Valid`. The signatures
+carry an RFC 3161 timestamp, so they outlive the certificate that made them.
+
+Source releases of the engine are a separate matter: they are signed with the HTTrack PGP
+key `rsa4096/60C3AA7180598EFB`, which has nothing to do with Authenticode and is
+documented on [httrack.com](https://www.httrack.com/).
 
 ## Privacy policy
 
@@ -82,28 +74,12 @@ Copying a website is exactly such a request: when you give HTTrack a URL, it con
 site, and the sites it links to if you tell it to follow them. It sends nothing anywhere
 else, and it reports nothing back to us. HTTrack obeys `robots.txt` by default.
 
-## Verifying a signature
-
-Right-click the installer, choose *Properties*, and open the *Digital Signatures* tab. The
-signer should read SignPath Foundation, and the signature should be valid. From PowerShell:
-
-```powershell
-Get-AuthenticodeSignature .\httrack_x64_3.49.12.exe | Format-List Status, SignerCertificate
-```
-
-`Status` must say `Valid`. The signatures use SHA-256 and carry an RFC 3161 timestamp, so
-they survive the expiry of the certificate that made them.
-
-Source releases of the engine are a separate matter: they are signed with the HTTrack PGP
-key `rsa4096/60C3AA7180598EFB`, which has nothing to do with Authenticode and is documented
-on [httrack.com](https://www.httrack.com/).
-
 ## Reporting a problem
 
 Tell us if you think a WinHTTrack binary was signed that should not have been, or you find
 a signed binary that does not match the source it claims to come from. See
-[SECURITY.md](SECURITY.md). You can also report a serious case straight to SignPath
-Foundation, who can revoke the certificate.
+[SECURITY.md](SECURITY.md). A serious case can also go straight to Certum, who can revoke
+the certificate.
 
 ## Licence
 

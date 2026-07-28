@@ -9,9 +9,9 @@
 ;        /DRedistFile=...\vc_redist.x64.exe /DOutDir=...\out ^
 ;        InnoSetup\httrack.iss
 ;
-; Signing is opt-in (/DSign) and off by default so unsigned CI builds work. The old
-; script hardcoded a .pfx on a personal drive and a Verisign timestamp URL that has
-; been dead for years; when signing returns it needs an RFC3161 one.
+; Signing is opt-in (/DSign) and off by default, so an ordinary CI build needs no
+; certificate. With it, ISCC signs setup.exe and the embedded uninstaller through the
+; sign tool the caller passes as /Scertum=signtool.exe sign ... $f.
 ;
 ; Replaces the old httrack.iss + httrack-x64.iss pair. They had drifted apart, and
 ; both referenced files that no longer exist (readme, copying, file_id.diz, src_win).
@@ -61,6 +61,7 @@ ArchitecturesAllowed=x64compatible
 #endif
 #ifdef Sign
 SignedUninstaller=yes
+SignTool=certum
 #else
 SignedUninstaller=no
 #endif

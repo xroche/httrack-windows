@@ -13,12 +13,16 @@ on:
     tags: ['[0-9]*', 'v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign:
+        # A rehearsal for the release: the signing job is otherwise only reachable
+        # by tagging, which is a poor place to discover that it does not work.
+        description: Run the signing job too (needs approval, and spends signatures)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  # SignPath's GitHub app fetches the artifact and the run's metadata from GitHub's
-  # own API rather than trusting the build script, so it has to be able to read them.
-  actions: read
 
 jobs:
   # Cheap guard for the rules .gitattributes cannot enforce on its own.
@@ -154,6 +158,9 @@ jobs:
 
   build:
     runs-on: windows-2022
+    outputs:
+      # Both legs record the same value, so the matrix overwriting it is harmless.
+      engine-sha: ${{ steps.provenance.outputs.sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -177,6 +184,7 @@ jobs:
           submodules: recursive
 
       - name: Record engine provenance
+        id: provenance
         shell: pwsh
         # Via env, not ${{ }} interpolation: a value containing $(...) would otherwise run.
         env:
@@ -185,7 +193,7 @@ jobs:
         run: |
           $sha = (git -C httrack rev-parse HEAD).Trim()
           Write-Host "::notice::engine $sha (HTTRACK_ENGINE_REF='$env:ENGINE_REF')"
-          "ENGINE_SHA=$sha" | Out-File -Append $env:GITHUB_ENV
+          "sha=$sha" | Out-File -Append $env:GITHUB_OUTPUT
           # Two thirds of what we sign is built from the engine tree, so a tag that floats
           # cannot say what it shipped. A branch name is not a pin, so require a full SHA.
           if ($env:GH_REF -like 'refs/tags/*' -and $env:ENGINE_REF -notmatch '^[0-9a-f]{40}$') {
@@ -458,8 +466,8 @@ jobs:
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
-      # Signing enforces this: a mismatch fails the signing request on release day, not
-      # the build. Assert it here, where the only cost is a red build.
+      # Self-imposed now that no CA enforces it: every shipped binary and the
+      # installer must agree on product name and version. Cheap to catch here.
       - name: Check the binaries agree on product name and version
         shell: pwsh
         run: |
@@ -508,269 +516,21 @@ jobs:
             --min-severity moderate --accept "$env:ACCEPTED" @expectArg
           if ($LASTEXITCODE -ne 0) { throw 'native dependency check failed' }
 
-      # Code signing, 1 of 2: the payload. SignPath signs an Inno installer as an opaque
-      # PE and cannot reach the files inside it, so sign these BEFORE ISCC packages them.
-      # Dormant until SIGNPATH_ORGANIZATION_ID exists, then tags only: releases need a
-      # human to approve each request. See SIGNING.md.
-      - name: Collect the binaries to sign
-        id: collect
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        shell: pwsh
-        run: |
-          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
-          New-Item -ItemType Directory -Force unsigned | Out-Null
-          # Ours only. SignPath's code of conduct: "upstream OSS projects' binaries must
-          # not be signed using your subscription, but may be included in signed packages".
-          # So OpenSSL and zlib ship unsigned inside the signed installer, even though we
-          # do build them from source -- the rule is about who maintains the sources.
-          $ours = @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')
-          foreach ($f in $ours) {
-            $p = Join-Path $bin $f
-            if (-not (Test-Path $p)) { throw "nothing to sign: $f is missing" }
-            Copy-Item $p unsigned
-          }
-          Get-ChildItem unsigned | ForEach-Object { Write-Host "  will sign $($_.Name)" }
-
-      - name: Upload the unsigned binaries
-        id: unsigned-binaries
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: unsigned-binaries-${{ matrix.platform }}
-          path: unsigned/*
-          if-no-files-found: error
-
-      - name: Sign the binaries
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: winhttrack
-          signing-policy-slug: release-signing
-          artifact-configuration-slug: binaries
-          github-artifact-id: ${{ steps.unsigned-binaries.outputs.artifact-id }}
-          wait-for-completion: true
-          # Waits on a human clicking approve in SignPath's UI: give that a morning.
-          wait-for-completion-timeout-in-seconds: 14400
-          output-artifact-directory: signed
-
-      - name: Put the signed binaries back into the package
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        shell: pwsh
-        run: |
-          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
-          # Enumerate once, recursively: SignPath may return a nested layout, and a flat
-          # glob would then copy nothing while every later step still calls these signed.
-          $files = @(Get-ChildItem 'signed' -Recurse -Include *.exe, *.dll -File)
-          # Assert the expected set by name. Validating only what came back passes happily
-          # when SignPath returns two of three, leaving the third unsigned in the installer.
-          $expected = @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')
-          $missing = $expected | Where-Object { $_ -notin $files.Name }
-          if ($missing) { throw "SignPath did not return: $($missing -join ', ')" }
-          foreach ($f in $files) {
-            $sig = Get-AuthenticodeSignature $f.FullName
-            Write-Host "  $($f.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
-            if ($sig.Status -ne 'Valid') { throw "$($f.Name) came back $($sig.Status), not Valid" }
-          }
-          $files | Copy-Item -Destination $bin -Force
-          Write-Host "::notice::signed $($files.Count) binaries"
-
-      # Build the installer, install it, and run the thing. Until now nothing had
-      # ever executed: the manifest bug that stopped the exe from starting got
-      # through a fully green build, because a compiler cannot tell you whether
-      # Windows will load the binary. --version answers that in one exit code.
       - name: Build the installer
-        shell: pwsh
-        run: |
-          $arch = if ('${{ matrix.platform }}' -eq 'x64') { 'x64' } else { 'x86' }
-
-          # Single source of truth for the version: the engine's own header.
-          $hg = Get-Content 'httrack\src\htsglobal.h' -Raw
-          if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
-          $ver = $Matches[1]
-          # Inno stamps 0.0.0.0 unless it gets a valid version number, and "3.49-12" is not one.
-          if ($hg -notmatch '#define\s+HTTRACK_VERSIONID\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSIONID' }
-          $verid = $Matches[1]
-          Write-Host "version = $ver ($verid), arch = $arch"
-          "APPVER=$ver" | Out-File -Append $env:GITHUB_ENV
-          "SETUPARCH=$arch" | Out-File -Append $env:GITHUB_ENV
-
-          # The VC++ runtime, bundled so a clean machine can actually start the app.
-          # vs/17 is the VS2022 line (14.4x). NOT vs/18: the 14.5x redistributable
-          # refuses to install on Windows 7, which is still our floor.
-          $redist = "$PWD\vc_redist.$arch.exe"
-          Invoke-WebRequest "https://aka.ms/vs/17/release/vc_redist.$arch.exe" -OutFile $redist
-          if ((Get-Item $redist).Length -lt 1MB) { throw 'vc_redist download looks wrong' }
-
-          # Bundled into a signed installer and run elevated, so verify who produced the
-          # bytes: aka.ms redirects, and TLS only authenticates the host we fetched from.
-          $sig = Get-AuthenticodeSignature $redist
-          if ($sig.Status -ne 'Valid') { throw "vc_redist signature is $($sig.Status)" }
-          if ($sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
-            throw "vc_redist signed by an unexpected party: $($sig.SignerCertificate.Subject)"
-          }
-          Write-Host "vc_redist signer verified: $($sig.SignerCertificate.Subject)"
-
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
-          if (-not (Test-Path $iscc)) { throw 'Inno Setup is not available' }
-
-          # ISCC fails if any Source: is missing, so a clean compile also proves the
-          # redistributable really is in the package.
-          & $iscc /Q `
-            "/DArch=$arch" "/DAppVersion=$ver" "/DAppVersionNumeric=$verid" `
-            "/DPayloadDir=$PWD\httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}" `
-            "/DEngineDir=$PWD\httrack" `
-            "/DGuiDir=$PWD\httrack-windows" `
-            "/DRedistFile=$redist" `
-            "/DOutDir=$PWD\installer" `
-            "httrack-windows\InnoSetup\httrack.iss"
-          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
-          Get-ChildItem "$PWD\installer" | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)" }
-
-          # The installer is a fourth binary, with its own copy of the product name, and it
-          # gets signed too. Inno stamps 0.0.0.0 rather than failing, so assert what it wrote.
-          $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
-          $v = (Get-Item $setup.FullName).VersionInfo
-          # Inno pads these fields with trailing spaces, so trim before comparing.
-          $pn = "$($v.ProductName)".Trim()
-          $pv = "$($v.ProductVersion)".Trim()
-          Write-Host "  $($setup.Name) : ProductName='$pn' ProductVersion='$pv'"
-          if ($pn -ne 'HTTrack Website Copier') { throw "the installer names the product '$pn'" }
-          if ($pv -ne $ver) { throw "the installer is version '$pv', not '$ver'" }
-
-      # Code signing, 2 of 2: the wrapper the user downloads, which is what SmartScreen
-      # and UAC judge. Before the smoke test, so that what runs below is what ships.
-      - name: Upload the unsigned installer
-        id: unsigned-installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: installer
+        uses: ./httrack-windows/.github/actions/build-installer
         with:
-          name: unsigned-installer-${{ matrix.platform }}
-          path: installer/*.exe
-          if-no-files-found: error
-
-      - name: Sign the installer
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        uses: signpath/github-action-submit-signing-request@b9d91eadd323de506c0c81cf0c7fe7438f3360fd # v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: winhttrack
-          signing-policy-slug: release-signing
-          artifact-configuration-slug: installer
-          github-artifact-id: ${{ steps.unsigned-installer.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 14400
-          output-artifact-directory: installer
-
-      - name: Check the installer really is signed
-        if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/') }}
-        shell: pwsh
-        run: |
-          $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
-          $sig = Get-AuthenticodeSignature $setup.FullName
-          Write-Host "$($setup.Name): $($sig.Status)"
-          Write-Host "  signer:    $($sig.SignerCertificate.Subject)"
-          Write-Host "  timestamp: $($sig.TimeStamperCertificate.Subject)"
-          if ($sig.Status -ne 'Valid') { throw "the installer is $($sig.Status), not Valid" }
-          # SignPath timestamps for us, so nothing here proves it did. A missing counter-
-          # signature stays invisible until the cert expires and every installer goes bad.
-          if (-not $sig.TimeStamperCertificate) { throw "the signature carries no RFC 3161 timestamp" }
-          Write-Host "::notice::$($setup.Name) is signed by $($sig.SignerCertificate.Subject)"
+          payload-dir: ${{ github.workspace }}\httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}
+          engine-dir: ${{ github.workspace }}\httrack
+          gui-dir: ${{ github.workspace }}\httrack-windows
+          arch: ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+          out-dir: ${{ github.workspace }}\installer
 
       - name: Install it, run it, uninstall it
-        shell: pwsh
-        run: |
-          $setup = Get-ChildItem "$PWD\installer\*.exe" | Select-Object -First 1
-          $dir = 'C:\WinHTTrackTest'
-
-          $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
-            '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\install.log"
-          if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
-
-          $exe = "$dir\WinHTTrack.exe"
-          if (-not (Test-Path $exe)) { throw "installer did not place WinHTTrack.exe" }
-
-          # THE test. A non-zero exit here means the binary does not start: a bad
-          # manifest, a DLL that will not resolve, a broken install. All of which
-          # a green compile happily allows.
-          $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru `
-                 -RedirectStandardOutput "$PWD\version.txt"
-          $out = (Get-Content "$PWD\version.txt" -Raw).Trim()
-          Write-Host "WinHTTrack.exe --version -> exit=$($p.ExitCode), output='$out'"
-          if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --version exited $($p.ExitCode): it does not start" }
-          # Without this, an empty APPVER would make [regex]::Escape('') = '' and
-          # `-notmatch ''` false: the version assertion would quietly stop asserting.
-          if ([string]::IsNullOrWhiteSpace($env:APPVER)) { throw 'APPVER is unset: the version check would be vacuous' }
-          if ($out -notmatch [regex]::Escape($env:APPVER)) { throw "expected version $env:APPVER, got '$out'" }
-          # --version only proves the binary LOADS: it exits before any data file is
-          # touched. That is exactly why a missing lang.def shipped. --selftest runs
-          # the real startup, through LANG_INIT, and exits before showing a window.
-          $report = Join-Path $env:TEMP 'WinHTTrack-exception.txt'
-          Remove-Item $report -ErrorAction SilentlyContinue
-          $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru `
-                 -RedirectStandardOutput "$PWD\selftest.txt" -RedirectStandardError "$PWD\selftest.err"
-          $so = (Get-Content "$PWD\selftest.txt" -Raw -ErrorAction SilentlyContinue)
-          $se = (Get-Content "$PWD\selftest.err" -Raw -ErrorAction SilentlyContinue)
-          Write-Host "WinHTTrack.exe --selftest -> exit=$($p.ExitCode)"
-          if ($so) { Write-Host "  stdout: $($so.Trim())" }
-          if ($se) { Write-Host "  stderr: $($se.Trim())" }
-          if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --selftest exited $($p.ExitCode): the installation is incomplete" }
-          if ("$so" -notmatch 'startup ok') { throw "selftest did not report startup ok" }
-          # The MBCS->UTF-8 conversion the engine depends on is only reachable by typing into
-          # a dialog. --selftest exercises it; assert it actually RAN, or the check silently
-          # skips (its ANSI-codepage guard) and proves nothing.
-          if ("$so" -notmatch 'MBCS->UTF-8 ok') {
-            throw "selftest did not exercise the MBCS->UTF-8 conversion"
-          }
-          # Guards the empty-name terminator (newlang.h); losing it hangs the first-run About
-          # box. [1-9] not \d: "after 0 entries" would pass while proving nothing.
-          if ("$so" -notmatch 'language list ends after [1-9]\d* entries') {
-            throw "selftest did not check that the language list terminates"
-          }
-          # lang.indexes counts from LANGUAGE_1 and our indices from 0: an unchecked
-          # off-by-one would seed the first run in the neighbouring language.
-          if ("$so" -notmatch 'lang\.indexes offset checked on [1-9]\d* locales') {
-            throw "selftest did not check the lang.indexes offset"
-          }
-
-          # --selftest throws one exception on purpose. A crash report that resolves nothing
-          # is indistinguishable from a working one until someone needs it, so assert the
-          # whole chain here: first-chance hook -> shipped PDB -> function, file and line.
-          if (-not (Test-Path $report)) { throw "no crash report written: the first-chance hook never ran" }
-          $trace = Get-Content $report -Raw
-          Write-Host "--- crash report ---`n$trace"
-          if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
-          # Anchored past the "throw site" header on purpose: CrashReportLogException is
-          # itself called from WinHTTrack.cpp, so an unanchored match would be satisfied by
-          # the fallback stack and would still be green with the hook dead.
-          if ($trace -notmatch 'throw site\)[\s\S]*WinHTTrack\.cpp:\d+') {
-            throw "no file:line on the throw stack: the shipped PDB carries no line info"
-          }
-
-          # The CLI is a separate binary against the same DLL: it can be broken while the
-          # GUI is fine. -#h prints the version and exits 0.
-          $cli = Join-Path $dir 'httrack.exe'
-          if (-not (Test-Path $cli)) { throw "the installer did not lay down httrack.exe" }
-          $p = Start-Process $cli -ArgumentList '-#h' -Wait -PassThru `
-                 -RedirectStandardOutput "$PWD\cli.txt" -RedirectStandardError "$PWD\cli.err"
-          $co = (Get-Content "$PWD\cli.txt" -Raw -ErrorAction SilentlyContinue)
-          $co1 = ("$co".Trim() -split "\r?\n" | Select-Object -First 1)
-          Write-Host "httrack.exe -#h -> exit=$($p.ExitCode), output='$co1'"
-          if ($p.ExitCode -ne 0) { throw "httrack.exe -#h exited $($p.ExitCode)" }
-          if ($co -notmatch [regex]::Escape($env:APPVER)) {
-            throw "httrack.exe reported no version, or the wrong one: expected $env:APPVER"
-          }
-
-          Write-Host "::notice::WinHTTrack $env:APPVER installs, starts and runs."
-
-          $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
-          $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
-          if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
-          Start-Sleep -Seconds 3
-          if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
+        uses: ./httrack-windows/.github/actions/smoke-test
+        with:
+          setup: ${{ steps.installer.outputs.setup }}
+          version: ${{ steps.installer.outputs.version }}
 
       - name: Upload the installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -796,3 +556,190 @@ jobs:
           name: msbuild-${{ matrix.platform }}-${{ matrix.configuration }}
           path: httrack-windows/msbuild.log
           if-no-files-found: ignore
+
+  # A GitHub environment gates a whole job, so signing cannot live in the build job:
+  # that job would carry the required-reviewer approval and every pull request would
+  # stop dead waiting for a click. One job for both architectures rather than a
+  # matrix, because a SimplySign session belongs to one machine and two runners would
+  # mint the same single-use TOTP code in the same window.
+  sign:
+    if: ${{ startsWith(github.ref, 'refs/tags/') || inputs.sign }}
+    needs: build
+    runs-on: windows-2022
+    environment: signing
+    # Two tags pushed at once would fight over the signing session.
+    concurrency: certum-signing
+    permissions:
+      contents: read
+      # download-artifact reads this run's artifacts through the Actions API.
+      actions: read
+    env:
+      # Public material; the certificate itself is RSA-4096, valid to 2027-07-28.
+      THUMBPRINT: AEEE0C1672811FEBB33099FB433FC0D70E5B89C2
+      MSI_URL: https://files.certum.eu/software/SimplySignDesktop/Windows/9.4.4.92/SimplySignDesktop-9.4.4.92-64-bit-en.msi
+      MSI_SHA256: 8ec420fc27798b86078b7bd02fe7152097e1b3005bab51820eaca8e57df84da3
+    steps:
+      # An empty value would check out the engine's master instead, silently
+      # packaging sources that never went through the build job.
+      - name: Check the engine SHA came through
+        shell: pwsh
+        run: |
+          if ('${{ needs.build.outputs.engine-sha }}' -notmatch '^[0-9a-f]{40}$') {
+            throw 'the build job recorded no engine SHA'
+          }
+
+      - name: Checkout httrack-windows
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: httrack-windows
+
+      # The installer packs both source trees as well as the binaries (HTTrack is
+      # GPL), so the sign job needs the same two checkouts the build job had. At
+      # the exact commit that was built, not at whatever the ref resolves to now.
+      - name: Checkout httrack engine (sibling)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: xroche/httrack
+          ref: ${{ needs.build.outputs.engine-sha }}
+          path: httrack
+          submodules: recursive
+
+      # The very binaries the build job smoke-tested, rather than a fresh compile.
+      - name: Download the tested binaries
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: WinHTTrack-*-Release
+          path: payload
+
+      - name: Locate signtool
+        shell: pwsh
+        run: |
+          $st = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                  Where-Object FullName -like '*\x64\*' | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $st) { throw 'no signtool.exe in the Windows SDK' }
+          # On PATH because Inno's [SignTool] runs it by name too.
+          Add-Content -Path $env:GITHUB_PATH -Value $st.DirectoryName
+          Write-Host "signtool: $($st.FullName)"
+
+      - name: Install SimplySign Desktop
+        shell: pwsh
+        run: |
+          $msi = "$PWD\SimplySignDesktop.msi"
+          Invoke-WebRequest $env:MSI_URL -OutFile $msi
+          $got = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:MSI_SHA256) { throw "MSI is $got, not $env:MSI_SHA256" }
+
+          # It installs a virtual smart-card driver, so verify who produced the bytes.
+          $sig = Get-AuthenticodeSignature $msi
+          if ($sig.Status -ne 'Valid') { throw "MSI signature is $($sig.Status)" }
+          if ($sig.SignerCertificate.Subject -notmatch 'O=Asseco Data Systems S\.A\.') {
+            throw "MSI signed by an unexpected party: $($sig.SignerCertificate.Subject)"
+          }
+          Write-Host "MSI verified: $($sig.SignerCertificate.Subject)"
+
+          $p = Start-Process msiexec -Wait -PassThru -ArgumentList '/i', $msi, '/quiet', '/norestart'
+          # 3010 is "success, reboot required" -- fine, the driver loads anyway.
+          if ($p.ExitCode -notin 0, 3010) { throw "msiexec exited $($p.ExitCode)" }
+          $exe = 'C:\Program Files\Certum\SimplySign Desktop\SimplySignDesktop.exe'
+          if (-not (Test-Path $exe)) { throw "not where 9.4.4.92 installs: $exe" }
+          "SSD_EXE=$exe" | Out-File -Append $env:GITHUB_ENV
+
+      # Opens a two-hour window in which signtool can use the cloud key; everything
+      # below has to happen inside it.
+      - name: Sign in to SimplySign
+        shell: pwsh
+        env:
+          CERTUM_EMAIL: ${{ secrets.CERTUM_EMAIL }}
+          CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+        run: >
+          ./httrack-windows/tools/simplysign-login.ps1
+          -Exe "$env:SSD_EXE" -Thumbprint $env:THUMBPRINT
+
+      - name: Sign the binaries
+        shell: pwsh
+        run: |
+          # Nothing downstream would notice this loop running zero times: it would
+          # sign nothing and exit 0.
+          $dirs = @(Get-ChildItem payload -Directory)
+          if ($dirs.Count -ne 2) { throw "expected both architectures under payload\, found $($dirs.Count)" }
+          foreach ($d in $dirs) {
+            # Sign what is there rather than a fixed list: OpenSSL is libssl-3.dll on
+            # x86 but libssl-3-x64.dll on x64. Recursive because the installer packs
+            # subdirectories, so a PE below the top level would otherwise ship unsigned.
+            $pes = @(Get-ChildItem $d.FullName -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+            foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
+              if ($f -notin $pes.Name) { throw "$($d.Name) has no $f to sign" }
+            }
+            Write-Host "--- $($d.Name): $($pes.Count) binaries ---"
+            foreach ($f in $pes) {
+              # Every file is a fresh call to the timestamp server; one hiccup should
+              # not cost a release.
+              for ($try = 1; ; $try++) {
+                signtool sign /sha1 $env:THUMBPRINT /fd sha256 /tr http://time.certum.pl /td sha256 $f.FullName
+                if ($LASTEXITCODE -eq 0) { break }
+                if ($try -ge 3) { throw "signtool exited $LASTEXITCODE on $($f.Name)" }
+                Start-Sleep -Seconds 15
+              }
+              $sig = Get-AuthenticodeSignature $f.FullName
+              if ($sig.SignerCertificate.Thumbprint -ne $env:THUMBPRINT) {
+                throw "$($f.Name) came back signed by $($sig.SignerCertificate.Thumbprint)"
+              }
+              if (-not $sig.TimeStamperCertificate) { throw "$($f.Name) carries no RFC 3161 timestamp" }
+              Write-Host "  signed $($f.Name)"
+            }
+          }
+
+      # Rebuilt from the signed binaries, because Inno packs them as opaque bytes:
+      # signing the installer afterwards would leave everything inside it unsigned.
+      # /DSign also gets the embedded uninstaller signed, which is the one file that
+      # could never be reached from outside.
+      - name: Build the signed installer (x64)
+        id: x64
+        uses: ./httrack-windows/.github/actions/build-installer
+        with:
+          payload-dir: ${{ github.workspace }}\payload\WinHTTrack-x64-Release
+          engine-dir: ${{ github.workspace }}\httrack
+          gui-dir: ${{ github.workspace }}\httrack-windows
+          arch: x64
+          out-dir: ${{ github.workspace }}\installer
+          sign: 'true'
+          thumbprint: ${{ env.THUMBPRINT }}
+
+      # Win32 is the platform the build job names; x86 is what the installer calls it.
+      - name: Build the signed installer (x86)
+        id: x86
+        uses: ./httrack-windows/.github/actions/build-installer
+        with:
+          payload-dir: ${{ github.workspace }}\payload\WinHTTrack-Win32-Release
+          engine-dir: ${{ github.workspace }}\httrack
+          gui-dir: ${{ github.workspace }}\httrack-windows
+          arch: x86
+          out-dir: ${{ github.workspace }}\installer
+          sign: 'true'
+          thumbprint: ${{ env.THUMBPRINT }}
+
+      # Same test the build job runs, over the file that will actually be published,
+      # plus the signatures: on the installer before it runs, and on everything it
+      # lays down afterwards.
+      - name: Install it, run it, uninstall it (x64)
+        uses: ./httrack-windows/.github/actions/smoke-test
+        with:
+          setup: ${{ steps.x64.outputs.setup }}
+          version: ${{ steps.x64.outputs.version }}
+          thumbprint: ${{ env.THUMBPRINT }}
+          require-signature: 'true'
+
+      - name: Install it, run it, uninstall it (x86)
+        uses: ./httrack-windows/.github/actions/smoke-test
+        with:
+          setup: ${{ steps.x86.outputs.setup }}
+          version: ${{ steps.x86.outputs.version }}
+          thumbprint: ${{ env.THUMBPRINT }}
+          require-signature: 'true'
+
+      - name: Upload the signed installers
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: httrack-setup-signed
+          path: installer/*.exe
+          if-no-files-found: error

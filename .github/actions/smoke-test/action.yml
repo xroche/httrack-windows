@@ -1,0 +1,159 @@
+# Install the installer, run the thing, uninstall it. Until this existed nothing had
+# ever executed: the manifest bug that stopped the exe from starting got through a
+# fully green build, because a compiler cannot tell you whether Windows will load the
+# binary. Shared so that the signing run tests the installer it is about to publish
+# exactly as the build run tests the unsigned one.
+name: Smoke-test the installer
+description: Install WinHTTrack silently, run the GUI and the CLI, then uninstall.
+
+inputs:
+  setup:
+    description: The installer to test.
+    required: true
+  version:
+    description: The version every binary must report.
+    required: true
+  thumbprint:
+    description: When set, every signature must be valid, timestamped, and this certificate's.
+    default: ''
+  require-signature:
+    description: "'true' to demand a thumbprint: signing must never be skipped just because one was not passed."
+    default: 'false'
+  install-dir:
+    description: Where to install.
+    default: C:\WinHTTrackTest
+
+runs:
+  using: composite
+  steps:
+    - shell: pwsh
+      env:
+        SETUP: ${{ inputs.setup }}
+        APPVER: ${{ inputs.version }}
+        THUMBPRINT: ${{ inputs.thumbprint }}
+        REQUIRE_SIG: ${{ inputs.require-signature }}
+        INSTALL_DIR: ${{ inputs.install-dir }}
+      run: |
+        $setup = Get-Item $env:SETUP
+        $dir = $env:INSTALL_DIR
+        # Without this, an empty version would make [regex]::Escape('') = '' and
+        # `-notmatch ''` false: every version assertion below would stop asserting.
+        if ([string]::IsNullOrWhiteSpace($env:APPVER)) { throw 'no version was passed: the version checks would be vacuous' }
+        # Skipping the signature checks is the normal shape on every unsigned build,
+        # so the release path has to say out loud that it expects them.
+        if ($env:REQUIRE_SIG -eq 'true' -and -not $env:THUMBPRINT) { throw 'signatures were required but no thumbprint was passed' }
+        if ($env:THUMBPRINT -and $env:THUMBPRINT -notmatch '^[0-9A-Fa-f]{40}$') { throw "'$env:THUMBPRINT' is not a 40-hex thumbprint" }
+
+        # A catalog-signed file reports Microsoft as its signer whatever is embedded in
+        # it, so the thumbprint is the only assertion that cannot pass by accident.
+        function Test-Signature($path) {
+          $name = Split-Path $path -Leaf
+          $sig = Get-AuthenticodeSignature $path
+          if ($sig.Status -ne 'Valid') { return "$name is $($sig.Status), not Valid" }
+          if ($sig.SignerCertificate.Thumbprint -ne $env:THUMBPRINT) {
+            return "$name is signed by $($sig.SignerCertificate.Thumbprint), not $env:THUMBPRINT"
+          }
+          # A missing countersignature stays invisible until the certificate expires and
+          # every installer ever downloaded goes bad at once.
+          if (-not $sig.TimeStamperCertificate) { return "$name carries no RFC 3161 timestamp" }
+          Write-Host "  $name signed by $($sig.SignerCertificate.Subject), timestamped by $($sig.TimeStamperCertificate.Subject)"
+          return $null
+        }
+
+        if ($env:THUMBPRINT) {
+          $bad = Test-Signature $setup.FullName
+          if ($bad) { throw $bad }
+        }
+
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\install.log"
+        if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
+
+        $exe = "$dir\WinHTTrack.exe"
+        if (-not (Test-Path $exe)) { throw "installer did not place WinHTTrack.exe" }
+
+        # Everything laid down, including the uninstaller Inno generates and the OpenSSL
+        # and zlib DLLs. Signing them is worth nothing if packaging then loses it.
+        if ($env:THUMBPRINT) {
+          $pes = @(Get-ChildItem $dir -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+          Write-Host "--- signatures on the $($pes.Count) installed binaries ---"
+          if ($pes.Count -lt 5) { throw "only $($pes.Count) binaries were installed: the check below would prove nothing" }
+          $bad = @($pes | ForEach-Object { Test-Signature $_.FullName } | Where-Object { $_ })
+          if ($bad) { throw ($bad -join "`n") }
+        }
+
+        # THE test. A non-zero exit here means the binary does not start: a bad
+        # manifest, a DLL that will not resolve, a broken install. All of which
+        # a green compile happily allows.
+        $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru `
+               -RedirectStandardOutput "$PWD\version.txt"
+        $out = (Get-Content "$PWD\version.txt" -Raw).Trim()
+        Write-Host "WinHTTrack.exe --version -> exit=$($p.ExitCode), output='$out'"
+        if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --version exited $($p.ExitCode): it does not start" }
+        if ($out -notmatch [regex]::Escape($env:APPVER)) { throw "expected version $env:APPVER, got '$out'" }
+        # --version only proves the binary LOADS: it exits before any data file is
+        # touched. That is exactly why a missing lang.def shipped. --selftest runs
+        # the real startup, through LANG_INIT, and exits before showing a window.
+        $report = Join-Path $env:TEMP 'WinHTTrack-exception.txt'
+        Remove-Item $report -ErrorAction SilentlyContinue
+        $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru `
+               -RedirectStandardOutput "$PWD\selftest.txt" -RedirectStandardError "$PWD\selftest.err"
+        $so = (Get-Content "$PWD\selftest.txt" -Raw -ErrorAction SilentlyContinue)
+        $se = (Get-Content "$PWD\selftest.err" -Raw -ErrorAction SilentlyContinue)
+        Write-Host "WinHTTrack.exe --selftest -> exit=$($p.ExitCode)"
+        if ($so) { Write-Host "  stdout: $($so.Trim())" }
+        if ($se) { Write-Host "  stderr: $($se.Trim())" }
+        if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --selftest exited $($p.ExitCode): the installation is incomplete" }
+        if ("$so" -notmatch 'startup ok') { throw "selftest did not report startup ok" }
+        # The MBCS->UTF-8 conversion the engine depends on is only reachable by typing into
+        # a dialog. --selftest exercises it; assert it actually RAN, or the check silently
+        # skips (its ANSI-codepage guard) and proves nothing.
+        if ("$so" -notmatch 'MBCS->UTF-8 ok') {
+          throw "selftest did not exercise the MBCS->UTF-8 conversion"
+        }
+        # Guards the empty-name terminator (newlang.h); losing it hangs the first-run About
+        # box. [1-9] not \d: "after 0 entries" would pass while proving nothing.
+        if ("$so" -notmatch 'language list ends after [1-9]\d* entries') {
+          throw "selftest did not check that the language list terminates"
+        }
+        # lang.indexes counts from LANGUAGE_1 and our indices from 0: an unchecked
+        # off-by-one would seed the first run in the neighbouring language.
+        if ("$so" -notmatch 'lang\.indexes offset checked on [1-9]\d* locales') {
+          throw "selftest did not check the lang.indexes offset"
+        }
+
+        # --selftest throws one exception on purpose. A crash report that resolves nothing
+        # is indistinguishable from a working one until someone needs it, so assert the
+        # whole chain here: first-chance hook -> shipped PDB -> function, file and line.
+        if (-not (Test-Path $report)) { throw "no crash report written: the first-chance hook never ran" }
+        $trace = Get-Content $report -Raw
+        Write-Host "--- crash report ---`n$trace"
+        if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
+        # Anchored past the "throw site" header on purpose: CrashReportLogException is
+        # itself called from WinHTTrack.cpp, so an unanchored match would be satisfied by
+        # the fallback stack and would still be green with the hook dead.
+        if ($trace -notmatch 'throw site\)[\s\S]*WinHTTrack\.cpp:\d+') {
+          throw "no file:line on the throw stack: the shipped PDB carries no line info"
+        }
+
+        # The CLI is a separate binary against the same DLL: it can be broken while the
+        # GUI is fine. -#h prints the version and exits 0.
+        $cli = Join-Path $dir 'httrack.exe'
+        if (-not (Test-Path $cli)) { throw "the installer did not lay down httrack.exe" }
+        $p = Start-Process $cli -ArgumentList '-#h' -Wait -PassThru `
+               -RedirectStandardOutput "$PWD\cli.txt" -RedirectStandardError "$PWD\cli.err"
+        $co = (Get-Content "$PWD\cli.txt" -Raw -ErrorAction SilentlyContinue)
+        $co1 = ("$co".Trim() -split "\r?\n" | Select-Object -First 1)
+        Write-Host "httrack.exe -#h -> exit=$($p.ExitCode), output='$co1'"
+        if ($p.ExitCode -ne 0) { throw "httrack.exe -#h exited $($p.ExitCode)" }
+        if ($co -notmatch [regex]::Escape($env:APPVER)) {
+          throw "httrack.exe reported no version, or the wrong one: expected $env:APPVER"
+        }
+
+        Write-Host "::notice::WinHTTrack $env:APPVER installs, starts and runs ($($setup.Name))."
+
+        $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
+        $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
+        if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
+        Start-Sleep -Seconds 3
+        if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
