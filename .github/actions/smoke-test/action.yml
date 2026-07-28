@@ -108,6 +108,11 @@ runs:
         if ("$so" -notmatch 'language list ends after [1-9]\d* entries') {
           throw "selftest did not check that the language list terminates"
         }
+        # lang.indexes counts from LANGUAGE_1 and our indices from 0: an unchecked
+        # off-by-one would seed the first run in the neighbouring language.
+        if ("$so" -notmatch 'lang\.indexes offset checked on [1-9]\d* locales') {
+          throw "selftest did not check the lang.indexes offset"
+        }
 
         # --selftest throws one exception on purpose. A crash report that resolves nothing
         # is indistinguishable from a working one until someone needs it, so assert the
