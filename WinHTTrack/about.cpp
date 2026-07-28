@@ -112,11 +112,14 @@ BOOL Cabout::OnInitDialog()
     //int old_lang=LANG_T(-1);
     int i=0;
     int curr_lng=LANG_T(-1);
+    CString curr_name;
     QLANG_T(0);
     strcpybuff(lang_str,"LANGUAGE_NAME");
     LANG_LOAD(lang_str,sizeof(lang_str));    // 0 english 1 français..
     while(strlen(lang_str)) {
       m_ctl_lang.AddString(lang_str);
+      if (i==curr_lng)
+        curr_name=lang_str;
       i++;
       QLANG_T(i);
       strcpybuff(lang_str,"LANGUAGE_NAME");
@@ -124,11 +127,11 @@ BOOL Cabout::OnInitDialog()
     }
     QLANG_T(curr_lng);
     //LANG_T(min(old_lang,i-1));
+    /* CBS_SORT reorders the list, so match on the string that was added: it is the lang/
+       basename, which for several languages differs from the translated LANGUAGE_NAME. */
+    m_ctl_lang.SetCurSel(m_ctl_lang.FindStringExact(-1,curr_name));
   }
 
-  /* sel: items were added in language-index order above */
-  m_ctl_lang.SetCurSel(LANG_T(-1));
-  
   EnableToolTips(true);     // TOOL TIPS
   setlang();
   SetIcon(httrack_icon,false);
