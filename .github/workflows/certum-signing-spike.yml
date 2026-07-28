@@ -128,33 +128,49 @@ jobs:
 
           Write-Host "certificates before login: $((Get-ChildItem Cert:\CurrentUser\My).Count)"
 
-          # The guess under test. A fresh runner has no saved profile, so the email
-          # has to be typed too; the real field order is what the screenshot below
-          # will tell us when this fails.
+          Write-Host '--- what the MSI installed ---'
+          Get-ChildItem 'C:\Program Files\Certum' -Recurse -File -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  $($_.FullName)" }
+
+          # It is a tray application: the first run showed no window at all, so there was
+          # nothing for AppActivate to focus. Find out what it does expose before typing.
           $proc = Start-Process -FilePath $env:SSD_EXE -PassThru
-          Start-Sleep -Seconds 20
-          $wshell = New-Object -ComObject WScript.Shell
-          if (-not $wshell.AppActivate($proc.Id)) {
-            Write-Host '::warning::could not focus the SimplySign window; keystrokes may go nowhere'
+          Start-Sleep -Seconds 25
+          Write-Host "alive after 25s: $(-not $proc.HasExited)"
+          if ($proc.HasExited) { Write-Host "  exited with $($proc.ExitCode)" }
+          Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object {
+            Write-Host "  window: $($_.ProcessName) -- '$($_.MainWindowTitle)'"
           }
-          Start-Sleep -Milliseconds 800
-          $wshell.SendKeys("$($env:CERTUM_EMAIL){TAB}$otp{ENTER}")
 
-          # Login is asynchronous: the virtual reader appears seconds after the dialog closes.
-          $deadline = (Get-Date).AddSeconds(120)
-          do {
-            Start-Sleep -Seconds 5
-            $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq $env:THUMBPRINT
-          } while (-not $cert -and (Get-Date) -lt $deadline)
+          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+          $root = [System.Windows.Automation.AutomationElement]::RootElement
+          $any = [System.Windows.Automation.Condition]::TrueCondition
+          $desc = [System.Windows.Automation.TreeScope]::Descendants
 
-          if (-not $cert) {
-            Get-Process | Where-Object MainWindowTitle | ForEach-Object {
-              Write-Host "  open window: $($_.ProcessName) -- $($_.MainWindowTitle)"
+          # The tray, including the overflow flyout the icon probably hides in.
+          foreach ($cls in 'Shell_TrayWnd', 'NotifyIconOverflowWindow', 'TopLevelWindowForOverflowXamlIsland') {
+            $c = New-Object System.Windows.Automation.PropertyCondition(
+                   [System.Windows.Automation.AutomationElement]::ClassNameProperty, $cls)
+            $w = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $c)
+            if (-not $w) { Write-Host "  ($cls not present)"; continue }
+            foreach ($e in $w.FindAll($desc, $any)) {
+              $n = $e.Current.Name
+              if ($n) { Write-Host "  $cls : [$($e.Current.ControlType.ProgrammaticName)] '$n'" }
             }
-            throw "the certificate never reached CurrentUser\My: the login did not complete"
           }
-          Write-Host "::notice::logged in -- $($cert.Subject)"
-          Write-Host "  has private key: $($cert.HasPrivateKey)"
+
+          # Every top-level window, named or not: a Qt login dialog may have no title.
+          Write-Host '--- top-level windows ---'
+          foreach ($e in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $any)) {
+            Write-Host "  [$($e.Current.ClassName)] '$($e.Current.Name)' (pid $($e.Current.ProcessId))"
+          }
+
+          $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq $env:THUMBPRINT
+          if ($cert) {
+            Write-Host "::notice::logged in -- $($cert.Subject)"
+          } else {
+            Write-Host '::warning::not logged in yet -- diagnostic run, see the dumps above'
+          }
 
       - name: Sign something, to prove the key is usable
         if: ${{ inputs.sign_probe }}
