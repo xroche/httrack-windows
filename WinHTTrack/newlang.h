@@ -32,6 +32,9 @@ Please visit our Website: http://www.httrack.com
    EMPTY past the last language (callers loop until empty); pass NULL/0 to just reload. */
 void LANG_LOAD(char* limit_to, size_t limit_size);
 void LANG_INIT();
+/* Language index for an ISO tag ("fr", "pt_br") as listed in the engine's lang.indexes,
+   or -1 when the tag or the file is missing. */
+int LANG_INDEX_OF(const char* tag);
 int LANG_T(int);
 int QLANG_T(int l);
 //char* LANGSEL(char* lang0,...);

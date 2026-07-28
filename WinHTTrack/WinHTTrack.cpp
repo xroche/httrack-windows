@@ -332,11 +332,13 @@ BOOL CWinHTTrackApp::InitInstance()
         printf("MBCS->UTF-8 ok\n");
       }
     }
+    int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
        terminator hangs it on the first run, past where --selftest ever reaches. */
     {
       const int LANG_SANE_MAX = 512;   /* lang.def ships a few dozen */
       const int saved = QLANG_T(-1);
+      CStringArray names;
       int i;
       for(i=0 ; i<LANG_SANE_MAX ; i++) {
         char name[1024];
@@ -345,6 +347,15 @@ BOOL CWinHTTrackApp::InitInstance()
         LANG_LOAD(name,sizeof(name));
         if (name[0] == '\0')
           break;
+        /* The About box selects its entry by name, so a duplicate would select the wrong one. */
+        for(INT_PTR j=0 ; j<names.GetSize() ; j++) {
+          if (names[j] == name) {
+            fprintf(stderr, "FATAL: languages %d and %d are both named '%s'\n", (int) j, i, name);
+            fflush(stderr);
+            ExitProcess(4);
+          }
+        }
+        names.Add(name);
       }
       QLANG_T(saved);
       if (i >= LANG_SANE_MAX) {
@@ -352,7 +363,44 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(4);
       }
+      nlangs = i;
       printf("language list ends after %d entries\n", i);
+    }
+    /* lang.indexes seeds the first run from the system locale, but it numbers from
+       LANGUAGE_1 while our indices start at 0: pin that offset against the list above. */
+    {
+      static const struct { const char* tag; const char* name; } expect[] = {
+        { "en", "English" }, { "fr", "Francais" }, { "bg", "Bulgarian" },
+        { "pt_br", "Portugues-Brasil" }, { NULL, NULL }
+      };
+      const int saved = QLANG_T(-1);
+      int k;
+      for(k=0 ; expect[k].tag != NULL ; k++) {
+        char name[1024];
+        const int index = LANG_INDEX_OF(expect[k].tag);
+        if (index < 0 || index >= nlangs) {
+          fprintf(stderr, "FATAL: lang.indexes gives '%s' the unusable index %d\n",
+                  expect[k].tag, index);
+          fflush(stderr);
+          ExitProcess(5);
+        }
+        QLANG_T(index);
+        strcpybuff(name, "LANGUAGE_NAME");
+        LANG_LOAD(name,sizeof(name));
+        if (strcmp(name, expect[k].name) != 0) {
+          fprintf(stderr, "FATAL: lang.indexes maps '%s' to '%s', expected '%s'\n",
+                  expect[k].tag, name, expect[k].name);
+          fflush(stderr);
+          ExitProcess(5);
+        }
+      }
+      QLANG_T(saved);
+      if (LANG_INDEX_OF("zz") >= 0) {
+        fprintf(stderr, "FATAL: lang.indexes matched the bogus tag 'zz'\n");
+        fflush(stderr);
+        ExitProcess(5);
+      }
+      printf("lang.indexes offset checked on %d locales\n", k);
     }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking

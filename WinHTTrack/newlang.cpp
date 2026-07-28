@@ -226,6 +226,24 @@ WinLangid WINDOWS_LANGID[] = {
   { 0, NULL }
 };
 
+/* Locate a shipped data file next to the executable, falling back to the working directory. */
+static CString LANG_DATAFILE(const char* relative) {
+  TCHAR ModulePath[MAX_PATH + 1];
+  ModulePath[0] = '\0';
+  ::GetModuleFileName(NULL, ModulePath, sizeof(ModulePath)/sizeof(TCHAR) - 1);
+  TCHAR* pos = _tcsrchr(ModulePath, '\\');
+  if (pos != NULL)
+  {
+    * ( pos + 1) = '\0';
+  } else {
+    ModulePath[0] = '\0';
+  }
+  CString name = CString(ModulePath) + relative;
+  if (!fexist((char*)LPCTSTR(name)))
+    name = relative;
+  return name;
+}
+
 void LANG_LOAD(char* limit_to, size_t limit_size) {
   CWaitCursor wait;
   //
@@ -254,23 +272,9 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
     }
   }
 
-  TCHAR ModulePath[MAX_PATH + 1];
-  ModulePath[0] = '\0';
-  ::GetModuleFileName(NULL, ModulePath, sizeof(ModulePath)/sizeof(TCHAR) - 1);
-  TCHAR* pos = _tcsrchr(ModulePath, '\\');
-  if (pos != NULL)
-  {
-    * ( pos + 1) = '\0';
-  } else {
-    ModulePath[0] = '\0';
-  }
-
   /* Load master file (list of keys and internal keys) */
-  CString app = ModulePath;
   if (!limit_to) {
-    CString mname=app+"lang.def";
-    if (!fexist((char*)LPCTSTR(mname)))
-      mname="lang.def";
+    CString mname=LANG_DATAFILE("lang.def");
     FILE* fp=fopen(mname,"rb");
     if (fp) {
       char intkey[8192];
@@ -364,9 +368,7 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
         hashname=LANGINTKEY(name);
       }
       lbasename.Format("lang/%s.txt",hashname);
-      CString lname=app+lbasename;
-      if (!fexist((char*)LPCTSTR(lname)))
-        lname=lbasename;
+      CString lname=LANG_DATAFILE(lbasename);
       FILE* fp=fopen(lname,"rb");
       if (fp) {
         char extkey[8192];
@@ -528,11 +530,57 @@ void LANG_DELETE() {
   coucal_delete(&NewLangStrKeys);
 }
 
+int LANG_INDEX_OF(const char* tag) {
+  int index = -1;
+  if (!strnotempty(tag))
+    return -1;
+  FILE* fp = fopen(LANG_DATAFILE("lang.indexes"), "rb");
+  if (fp) {
+    char line[256];
+    while(index < 0 && !feof(fp)) {
+      linput_cpp(fp,line,(int)sizeof(line)-1);
+      char* sep = strchr(line,':');
+      if (sep != NULL) {
+        *sep = '\0';
+        if (strcmp(line,tag) == 0)
+          index = atoi(sep+1) - 1;   /* lang.indexes counts from LANGUAGE_1 */
+      }
+    }
+    fclose(fp);
+  }
+  return index;
+}
+
+/* First run only: pick the language matching the system UI language, English otherwise. */
+static int LANG_FROM_LOCALE() {
+  const LCID lcid = MAKELCID(GetUserDefaultUILanguage(),SORT_DEFAULT);
+  char lang[16];
+  char country[16];
+  char tag[40];
+  int index = -1;
+  if (GetLocaleInfoA(lcid,LOCALE_SISO639LANGNAME,lang,(int)sizeof(lang)) == 0)
+    return 0;
+  _strlwr_s(lang,sizeof(lang));
+  /* Only pt_br and zh_tw are split by country; everything else keys off the language alone. */
+  if (GetLocaleInfoA(lcid,LOCALE_SISO3166CTRYNAME,country,(int)sizeof(country)) != 0) {
+    _strlwr_s(country,sizeof(country));
+    _snprintf_s(tag,sizeof(tag),_TRUNCATE,"%s_%s",lang,country);
+    index = LANG_INDEX_OF(tag);
+  }
+  if (index < 0)
+    index = LANG_INDEX_OF(lang);
+  return (index >= 0) ? index : 0;
+}
+
 // sélection de la langue
 void LANG_INIT() {
   CWinApp* pApp = AfxGetApp();
   if (pApp) {
-    LANG_T(pApp->GetProfileInt("Language","IntId",0));
+    /* -1 means never chosen: seed from the locale rather than silently starting in English. */
+    int lng = pApp->GetProfileInt("Language","IntId",-1);
+    if (lng < 0)
+      lng = LANG_FROM_LOCALE();
+    LANG_T(lng);
   }
 }
 

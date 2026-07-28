@@ -397,7 +397,10 @@ jobs:
           # lang.def is a FILE at the engine root, not inside lang\. The GUI reads it
           # from the app directory at startup and refuses to run without it. The old
           # installer swept it up with a wildcard; enumerating files by hand lost it.
+          # lang.indexes sits next to it and maps the system locale to a language, which
+          # is how the first run picks one instead of always starting in English.
           Copy-Item "httrack\lang.def" $bin
+          Copy-Item "httrack\lang.indexes" $bin
           foreach ($d in @('lang', 'html', 'templates')) {
             Copy-Item "httrack\$d" (Join-Path $bin $d) -Recurse -Force
           }
@@ -426,6 +429,9 @@ jobs:
           }
           if (-not (Test-Path (Join-Path $bin 'lang.def'))) {
             throw "package is missing lang.def: the GUI refuses to start without it"
+          }
+          if (-not (Test-Path (Join-Path $bin 'lang.indexes'))) {
+            throw "package is missing lang.indexes: the first run would ignore the system locale"
           }
           if (-not (Test-Path (Join-Path $bin 'httrack.exe'))) {
             throw "package is missing httrack.exe: the command-line version ships with the GUI"
@@ -723,6 +729,11 @@ jobs:
           # box. [1-9] not \d: "after 0 entries" would pass while proving nothing.
           if ("$so" -notmatch 'language list ends after [1-9]\d* entries') {
             throw "selftest did not check that the language list terminates"
+          }
+          # lang.indexes counts from LANGUAGE_1 and our indices from 0: an unchecked
+          # off-by-one would seed the first run in the neighbouring language.
+          if ("$so" -notmatch 'lang\.indexes offset checked on [1-9]\d* locales') {
+            throw "selftest did not check the lang.indexes offset"
           }
 
           # --selftest throws one exception on purpose. A crash report that resolves nothing
