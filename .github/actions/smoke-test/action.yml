@@ -19,6 +19,9 @@ inputs:
   require-signature:
     description: "'true' to demand a thumbprint: signing must never be skipped just because one was not passed."
     default: 'false'
+  check-crash-report:
+    description: "'false' to skip the crash-report chain, which needs the shipped PDB to resolve."
+    default: 'true'
   install-dir:
     description: Where to install.
     default: C:\WinHTTrackTest
@@ -32,6 +35,7 @@ runs:
         APPVER: ${{ inputs.version }}
         THUMBPRINT: ${{ inputs.thumbprint }}
         REQUIRE_SIG: ${{ inputs.require-signature }}
+        CHECK_CRASH: ${{ inputs.check-crash-report }}
         INSTALL_DIR: ${{ inputs.install-dir }}
       run: |
         $setup = Get-Item $env:SETUP
@@ -125,15 +129,19 @@ runs:
         # --selftest throws one exception on purpose. A crash report that resolves nothing
         # is indistinguishable from a working one until someone needs it, so assert the
         # whole chain here: first-chance hook -> shipped PDB -> function, file and line.
-        if (-not (Test-Path $report)) { throw "no crash report written: the first-chance hook never ran" }
-        $trace = Get-Content $report -Raw
+        # Skipped on the signing run: symbols do not resolve there and why is still open,
+        # so it must not hold a release hostage. See the build job, which does check it.
+        $trace = if (Test-Path $report) { Get-Content $report -Raw } else { '' }
         Write-Host "--- crash report ---`n$trace"
-        if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
-        # Anchored past the "throw site" header on purpose: CrashReportLogException is
-        # itself called from WinHTTrack.cpp, so an unanchored match would be satisfied by
-        # the fallback stack and would still be green with the hook dead.
-        if ($trace -notmatch 'throw site\)[\s\S]*WinHTTrack\.cpp:\d+') {
-          throw "no file:line on the throw stack: the shipped PDB carries no line info"
+        if ($env:CHECK_CRASH -ne 'false') {
+          if (-not $trace) { throw "no crash report written: the first-chance hook never ran" }
+          if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
+          # Anchored past the "throw site" header on purpose: CrashReportLogException is
+          # itself called from WinHTTrack.cpp, so an unanchored match would be satisfied by
+          # the fallback stack and would still be green with the hook dead.
+          if ($trace -notmatch 'throw site\)[\s\S]*WinHTTrack\.cpp:\d+') {
+            throw "no file:line on the throw stack: the shipped PDB carries no line info"
+          }
         }
 
         # The CLI is a separate binary against the same DLL: it can be broken while the
