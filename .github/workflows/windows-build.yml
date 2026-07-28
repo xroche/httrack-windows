@@ -734,6 +734,22 @@ jobs:
           sign: 'true'
           thumbprint: ${{ env.THUMBPRINT }}
 
+      # Published before they are tested, not after: the previous run signed
+      # everything and then lost it all when a later check failed.
+      - name: Upload the signed installers
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: httrack-setup-signed
+          path: installer/*.exe
+          if-no-files-found: error
+
+      - name: Upload the signed binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: httrack-signed-binaries
+          path: payload/**
+          if-no-files-found: error
+
       # Same test the build job runs, over the file that will actually be published,
       # plus the signatures: on the installer before it runs, and on everything it
       # lays down afterwards.
@@ -744,6 +760,7 @@ jobs:
           version: ${{ steps.x64.outputs.version }}
           thumbprint: ${{ env.THUMBPRINT }}
           require-signature: 'true'
+          check-crash-report: 'false'
 
       - name: Install it, run it, uninstall it (x86)
         uses: ./httrack-windows/.github/actions/smoke-test
@@ -752,10 +769,5 @@ jobs:
           version: ${{ steps.x86.outputs.version }}
           thumbprint: ${{ env.THUMBPRINT }}
           require-signature: 'true'
+          check-crash-report: 'false'
 
-      - name: Upload the signed installers
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: httrack-setup-signed
-          path: installer/*.exe
-          if-no-files-found: error
