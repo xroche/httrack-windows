@@ -208,17 +208,37 @@ jobs:
                         Sort-Object FullName -Descending | Select-Object -First 1
           if (-not $signtool) { throw 'no signtool.exe in the Windows SDK' }
 
+          # Compile the probe rather than copying a system binary: Windows system exes
+          # are catalog-signed, so Get-AuthenticodeSignature reports Microsoft as the
+          # signer whatever we embed, and every assertion below passes vacuously.
           $probe = "$PWD\probe.exe"
-          Copy-Item 'C:\Windows\System32\where.exe' $probe
+          Set-Content "$PWD\probe.cs" 'class P { static void Main() { System.Console.WriteLine("probe"); } }'
+          & 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe' /nologo "/out:$probe" "$PWD\probe.cs"
+          if (-not (Test-Path $probe)) { throw 'could not compile the probe' }
+
+          # Negative control: prove the probe is unsigned before we claim we signed it.
+          $before = Get-AuthenticodeSignature $probe
+          Write-Host "before signing: $($before.Status)"
+          if ($before.Status -ne 'NotSigned') { throw "the probe is already $($before.Status); the test would prove nothing" }
+
           & $signtool.FullName sign /sha1 $env:THUMBPRINT /fd sha256 `
             /tr http://time.certum.pl /td sha256 /v $probe
           if ($LASTEXITCODE -ne 0) { throw "signtool exited $LASTEXITCODE" }
 
           $sig = Get-AuthenticodeSignature $probe
-          Write-Host "  signer:    $($sig.SignerCertificate.Subject)"
-          Write-Host "  timestamp: $($sig.TimeStamperCertificate.Subject)"
+          Write-Host "  status:     $($sig.Status)"
+          Write-Host "  signer:     $($sig.SignerCertificate.Subject)"
+          Write-Host "  thumbprint: $($sig.SignerCertificate.Thumbprint)"
+          Write-Host "  timestamp:  $($sig.TimeStamperCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "probe is $($sig.Status), not Valid" }
+          # The assertion that actually matters: OUR key signed it, not something else.
+          if ($sig.SignerCertificate.Thumbprint -ne $env:THUMBPRINT) {
+            throw "signed by $($sig.SignerCertificate.Thumbprint), not $env:THUMBPRINT"
+          }
           if (-not $sig.TimeStamperCertificate) { throw 'no RFC 3161 countersignature' }
+          if ($sig.TimeStamperCertificate.Subject -notmatch 'Certum') {
+            throw "timestamped by $($sig.TimeStamperCertificate.Subject), not Certum"
+          }
           Write-Host '::notice::the official stack signs end to end on a hosted runner'
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
