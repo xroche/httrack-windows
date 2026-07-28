@@ -737,6 +737,7 @@ jobs:
       # Published before they are tested, not after: the previous run signed
       # everything and then lost it all when a later check failed.
       - name: Upload the signed installers
+        id: installers
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: httrack-setup-signed
@@ -744,11 +745,34 @@ jobs:
           if-no-files-found: error
 
       - name: Upload the signed binaries
+        id: binaries
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: httrack-signed-binaries
           path: payload/**
           if-no-files-found: error
+
+      # A log line nobody can click is not a delivery. The run summary renders
+      # these as links at the top of the run page.
+      - name: Say where the signed artifacts are
+        shell: pwsh
+        env:
+          INSTALLERS: ${{ steps.installers.outputs.artifact-url }}
+          BINARIES: ${{ steps.binaries.outputs.artifact-url }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # artifact-url is empty on older action versions; the run page always works.
+          $inst = if ($env:INSTALLERS) { $env:INSTALLERS } else { "$env:RUN#artifacts" }
+          $bins = if ($env:BINARIES) { $env:BINARIES } else { "$env:RUN#artifacts" }
+          @(
+            '## Signed build'
+            ''
+            "**[Download the signed installers]($inst)** (both architectures)"
+            ''
+            "[Signed binaries]($bins), and the whole run at [$env:RUN]($env:RUN)"
+          ) | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          Write-Host "::notice title=Signed installers::$inst"
+          Write-Host "::notice title=Signed binaries::$bins"
 
       # Same test the build job runs, over the file that will actually be published,
       # plus the signatures: on the installer before it runs, and on everything it
