@@ -2,11 +2,11 @@
 # SimplySign Desktop unattended, so signing stays on the official vendor stack
 # (Certum's MSI + Microsoft's signtool) instead of a third-party client?
 #
-# The unknown is the login: it is a Qt dialog with no CLI, so the only way in is
-# generating the TOTP from the otpauth:// seed and typing it with SendKeys. That
-# is blind and timing-dependent, which is exactly why this runs before anything
-# is designed around it. Success is one assertion: the certificate reaches
-# CurrentUser\My. Delete this file once the answer is known either way.
+# Established so far: the runner has a real 1024x768 desktop, the MSI installs
+# unattended, the app launches and stays alive, and the TOTP is right. What is
+# left is purely driving the UI -- the app is a .NET tray application with no
+# CLI, no window, and no tray icon that UI Automation can see, so the login has
+# to be reached by clicking. Delete this file once the answer is known.
 name: certum-signing-spike
 
 on:
@@ -62,22 +62,11 @@ jobs:
           # 3010 is "success, reboot required" -- fine, the driver loads anyway.
           if ($p.ExitCode -notin 0, 3010) { throw "msiexec exited $($p.ExitCode)" }
 
-          # Where 9.4.4.92 landed; fall back to a scan so a version bump that moves it
-          # fails with a candidate list rather than a bare "not found".
-          $found = @(Get-Item 'C:\Program Files\Certum\SimplySign Desktop\SimplySignDesktop.exe' -ErrorAction SilentlyContinue)
-          if (-not $found) {
-            $found = @(Get-ChildItem 'C:\Program Files', 'C:\Program Files (x86)' -Recurse `
-                         -Filter '*SimplySign*.exe' -ErrorAction SilentlyContinue)
-          }
-          $found | ForEach-Object { Write-Host "  candidate: $($_.FullName)" }
-          $exe = $found | Where-Object Name -eq 'SimplySignDesktop.exe' | Select-Object -First 1
-          if (-not $exe) { $exe = $found | Select-Object -First 1 }
-          if (-not $exe) { throw 'no SimplySign executable found after install' }
-          Write-Host "installed: $($exe.FullName)"
-          "SSD_EXE=$($exe.FullName)" | Out-File -Append $env:GITHUB_ENV
+          $exe = 'C:\Program Files\Certum\SimplySign Desktop\SimplySignDesktop.exe'
+          if (-not (Test-Path $exe)) { throw "not where 9.4.4.92 installs: $exe" }
+          "SSD_EXE=$exe" | Out-File -Append $env:GITHUB_ENV
 
-      - name: Log in and wait for the certificate
-        id: login
+      - name: Click through the tray to the login dialog
         shell: pwsh
         env:
           CERTUM_EMAIL: ${{ secrets.CERTUM_EMAIL }}
@@ -93,9 +82,7 @@ jobs:
             [byte[]]@(for ($i = 0; $i + 8 -le $bits.Length; $i += 8) { [Convert]::ToByte($bits.Substring($i, 8), 2) })
           }
 
-          if (-not $env:CERTUM_OTP_URI) {
-            throw 'CERTUM_OTP_URI is empty: set it as a secret on the "signing" environment'
-          }
+          if (-not $env:CERTUM_OTP_URI) { throw 'CERTUM_OTP_URI is empty' }
           if (-not $env:CERTUM_EMAIL) { throw 'CERTUM_EMAIL is empty' }
 
           # Honour the URI's own algorithm: Certum issues SHA-256 seeds, and every
@@ -109,129 +96,119 @@ jobs:
           $alg = if ($q['algorithm']) { $q['algorithm'].ToUpper() } else { 'SHA1' }
           $digits = if ($q['digits']) { [int]$q['digits'] } else { 6 }
           $period = if ($q['period']) { [int]$q['period'] } else { 30 }
-          Write-Host "seed: algorithm=$alg digits=$digits period=$period"
 
-          $key = ConvertFrom-Base32 $secret
-          $counter = [long][math]::Floor([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() / $period)
-          $cb = [BitConverter]::GetBytes($counter); [array]::Reverse($cb)
-          $hmac = switch ($alg) {
-            'SHA256' { [System.Security.Cryptography.HMACSHA256]::new($key) }
-            'SHA512' { [System.Security.Cryptography.HMACSHA512]::new($key) }
-            default { [System.Security.Cryptography.HMACSHA1]::new($key) }
-          }
-          $h = $hmac.ComputeHash($cb)
-          $o = $h[$h.Length - 1] -band 0x0f
-          $bin = (($h[$o] -band 0x7f) -shl 24) -bor (($h[$o + 1] -band 0xff) -shl 16) -bor `
-                 (($h[$o + 2] -band 0xff) -shl 8) -bor ($h[$o + 3] -band 0xff)
-          $otp = ($bin % [int][math]::Pow(10, $digits)).ToString().PadLeft($digits, '0')
-          Write-Host "::add-mask::$otp"
-
-          Write-Host "certificates before login: $((Get-ChildItem Cert:\CurrentUser\My).Count)"
-
-          # Hand the binary back so it can be analysed offline instead of over
-          # approval-gated round trips. The bundled JRE is noise; skip it.
-          New-Item -ItemType Directory -Force loot | Out-Null
-          Get-ChildItem 'C:\Program Files\Certum' -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -notmatch '\\jre\\' } | ForEach-Object {
-              Write-Host "  $($_.FullName)"
-              if ($_.Length -lt 20MB -and $_.Extension -in '.exe', '.config', '.dll', '.bat', '.ini', '.txt') {
-                Copy-Item $_.FullName loot -ErrorAction SilentlyContinue
-              }
+          function Get-Otp {
+            $key = ConvertFrom-Base32 $secret
+            $counter = [long][math]::Floor([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() / $period)
+            $cb = [BitConverter]::GetBytes($counter); [array]::Reverse($cb)
+            $hmac = switch ($alg) {
+              'SHA256' { [System.Security.Cryptography.HMACSHA256]::new($key) }
+              'SHA512' { [System.Security.Cryptography.HMACSHA512]::new($key) }
+              default { [System.Security.Cryptography.HMACSHA1]::new($key) }
             }
-
-          Write-Host '--- SimplySignDesktop.exe.config ---'
-          Get-Content "$(Split-Path $env:SSD_EXE)\SimplySignDesktop.exe.config" -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "  $_" }
-
-          Write-Host '--- does it take arguments? ---'
-          $h = Start-Process $env:SSD_EXE -ArgumentList '--help' -PassThru -NoNewWindow `
-                 -RedirectStandardOutput help-out.txt -RedirectStandardError help-err.txt
-          if (-not $h.WaitForExit(15000)) { $h.Kill(); Write-Host '  (--help did not exit; no CLI)' }
-          foreach ($f in 'help-out.txt', 'help-err.txt') {
-            $t = (Get-Content $f -Raw -ErrorAction SilentlyContinue)
-            if ($t) { Write-Host "  ${f}: $t" }
+            $h = $hmac.ComputeHash($cb)
+            $o = $h[$h.Length - 1] -band 0x0f
+            $bin = (($h[$o] -band 0x7f) -shl 24) -bor (($h[$o + 1] -band 0xff) -shl 16) -bor `
+                   (($h[$o + 2] -band 0xff) -shl 8) -bor ($h[$o + 3] -band 0xff)
+            ($bin % [int][math]::Pow(10, $digits)).ToString().PadLeft($digits, '0')
           }
 
-          # It is a tray application: the first run showed no window at all, so there was
-          # nothing for AppActivate to focus. Find out what it does expose before typing.
-          $proc = Start-Process -FilePath $env:SSD_EXE -PassThru
-          Start-Sleep -Seconds 25
-          Write-Host "alive after 25s: $(-not $proc.HasExited)"
-          if ($proc.HasExited) { Write-Host "  exited with $($proc.ExitCode)" }
-          Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object {
-            Write-Host "  window: $($_.ProcessName) -- '$($_.MainWindowTitle)'"
+          # UI Automation cannot see inside the notification area -- it enumerates the
+          # panes and stops -- so the tray has to be driven with real clicks.
+          $cs = @(
+            'using System; using System.Runtime.InteropServices;'
+            'public static class M {'
+            '  [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);'
+            '  [DllImport("user32.dll")] static extern void mouse_event(uint f, uint x, uint y, uint d, IntPtr e);'
+            '  static void Down() { mouse_event(2, 0, 0, 0, IntPtr.Zero); mouse_event(4, 0, 0, 0, IntPtr.Zero); }'
+            '  public static void Click(int x, int y) { SetCursorPos(x, y); System.Threading.Thread.Sleep(300); Down(); }'
+            '  public static void Double(int x, int y) { SetCursorPos(x, y); System.Threading.Thread.Sleep(300); Down(); System.Threading.Thread.Sleep(80); Down(); }'
+            '}'
+          ) -join "`n"
+          Add-Type -TypeDefinition $cs
+
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $shot = 0
+          function Save-Shot([string]$label) {
+            $script:shot++
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD\shot-$script:shot-$label.png")
+            Write-Host "  [shot $script:shot] $label"
           }
 
           Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
           $root = [System.Windows.Automation.AutomationElement]::RootElement
           $any = [System.Windows.Automation.Condition]::TrueCondition
+          $kids = [System.Windows.Automation.TreeScope]::Children
           $desc = [System.Windows.Automation.TreeScope]::Descendants
 
-          # The tray, including the overflow flyout the icon probably hides in.
-          foreach ($cls in 'Shell_TrayWnd', 'NotifyIconOverflowWindow', 'TopLevelWindowForOverflowXamlIsland') {
-            $c = New-Object System.Windows.Automation.PropertyCondition(
-                   [System.Windows.Automation.AutomationElement]::ClassNameProperty, $cls)
-            $w = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $c)
-            if (-not $w) { Write-Host "  ($cls not present)"; continue }
-            foreach ($e in $w.FindAll($desc, $any)) {
-              $n = $e.Current.Name
-              if ($n) { Write-Host "  $cls : [$($e.Current.ControlType.ProgrammaticName)] '$n'" }
+          function Show-TopLevel([string]$when) {
+            Write-Host "--- top-level windows ($when) ---"
+            foreach ($e in $root.FindAll($kids, $any)) {
+              Write-Host "  [$($e.Current.ClassName)] '$($e.Current.Name)' pid=$($e.Current.ProcessId)"
             }
           }
 
-          # Every top-level window, named or not: a Qt login dialog may have no title.
-          Write-Host '--- top-level windows ---'
-          foreach ($e in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $any)) {
-            Write-Host "  [$($e.Current.ClassName)] '$($e.Current.Name)' (pid $($e.Current.ProcessId))"
-          }
+          $proc = Start-Process -FilePath $env:SSD_EXE -PassThru
+          Start-Sleep -Seconds 25
+          Write-Host "alive: $(-not $proc.HasExited)"
+          Save-Shot 'after-launch'
 
-          # Server 2022 hides new tray icons: the overflow flyout does not exist until
-          # the chevron is clicked, which is why it read as "not present" above.
-          $chevron = $null
+          # The chevron, measured off the previous run's screenshot at 1024x768.
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          Write-Host "desktop is $($b.Width)x$($b.Height)"
+          [M]::Click(846, 747)
+          Start-Sleep -Seconds 3
+          Save-Shot 'after-chevron'
+
           $c = New-Object System.Windows.Automation.PropertyCondition(
-                 [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Shell_TrayWnd')
-          $tray = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $c)
-          if ($tray) {
-            foreach ($e in $tray.FindAll($desc, $any)) {
-              if ($e.Current.Name -match 'chevron|hidden icons') { $chevron = $e }
-            }
-          }
-          if ($chevron) {
-            Write-Host "opening the tray overflow via '$($chevron.Current.Name)'"
-            $chevron.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-            Start-Sleep -Seconds 3
-            $c2 = New-Object System.Windows.Automation.PropertyCondition(
-                    [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'NotifyIconOverflowWindow')
-            $ov = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $c2)
-            if ($ov) {
-              foreach ($e in $ov.FindAll($desc, $any)) {
-                Write-Host "  overflow: [$($e.Current.ControlType.ProgrammaticName)] '$($e.Current.Name)'"
+                 [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'NotifyIconOverflowWindow')
+          $ov = $root.FindFirst($kids, $c)
+          if (-not $ov) {
+            Write-Host '::warning::the overflow flyout did not open'
+          } else {
+            foreach ($e in $ov.FindAll($desc, $any)) {
+              $r = $e.Current.BoundingRectangle
+              Write-Host "  overflow: '$($e.Current.Name)' at $($r.X),$($r.Y) $($r.Width)x$($r.Height)"
+              if ($e.Current.Name -match 'SimplySign') {
+                Write-Host "  double-clicking '$($e.Current.Name)'"
+                [M]::Double([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2))
+                Start-Sleep -Seconds 5
               }
-            } else {
-              Write-Host '  overflow window still not present'
             }
+          }
+          Save-Shot 'after-icon'
+          Show-TopLevel 'after icon'
+
+          # Whatever appeared, type into it: email, tab, a freshly minted code, enter.
+          $dlg = $root.FindAll($kids, $any) | Where-Object { $_.Current.ProcessId -eq $proc.Id } | Select-Object -First 1
+          if ($dlg) {
+            Write-Host "login window: [$($dlg.Current.ClassName)] '$($dlg.Current.Name)'"
+            $otp = Get-Otp
+            Write-Host "::add-mask::$otp"
+            $wshell = New-Object -ComObject WScript.Shell
+            [void]$wshell.AppActivate($proc.Id)
+            Start-Sleep -Milliseconds 800
+            $wshell.SendKeys("$($env:CERTUM_EMAIL){TAB}$otp{ENTER}")
+            Start-Sleep -Seconds 8
+            Save-Shot 'after-typing'
           } else {
-            Write-Host 'no tray chevron found'
+            Write-Host '::warning::no window belongs to SimplySign; nothing to type into'
           }
 
-          Write-Host '--- where it keeps state ---'
-          foreach ($d in "$env:APPDATA\Certum", "$env:LOCALAPPDATA\Certum", 'C:\ProgramData\Certum') {
-            Get-ChildItem $d -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-              Write-Host "  $($_.FullName) ($($_.Length) bytes)"
-              if ($_.Length -lt 64KB) { Copy-Item $_.FullName loot -ErrorAction SilentlyContinue }
-            }
-          }
+          $deadline = (Get-Date).AddSeconds(90)
+          do {
+            Start-Sleep -Seconds 5
+            $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq $env:THUMBPRINT
+          } while (-not $cert -and (Get-Date) -lt $deadline)
+          Save-Shot 'final'
 
-          Write-Host '--- application event log ---'
-          Get-WinEvent -LogName Application -MaxEvents 15 -ErrorAction SilentlyContinue |
-            Where-Object { $_.Message -match 'Certum|SimplySign|\.NET' } |
-            ForEach-Object { Write-Host "  $($_.LevelDisplayName): $($_.Message -replace "`r?`n", ' ' -replace '(.{200}).*', '$1...')" }
-
-          $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq $env:THUMBPRINT
           if ($cert) {
-            Write-Host "::notice::logged in -- $($cert.Subject)"
+            Write-Host "::notice::LOGGED IN -- $($cert.Subject), private key: $($cert.HasPrivateKey)"
           } else {
-            Write-Host '::warning::not logged in yet -- diagnostic run, see the dumps above'
+            Write-Host '::warning::still not logged in; read the screenshots in order'
           }
 
       - name: Sign something, to prove the key is usable
@@ -250,35 +227,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "signtool exited $LASTEXITCODE" }
 
           $sig = Get-AuthenticodeSignature $probe
-          Write-Host "  status:    $($sig.Status)"
           Write-Host "  signer:    $($sig.SignerCertificate.Subject)"
           Write-Host "  timestamp: $($sig.TimeStamperCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "probe is $($sig.Status), not Valid" }
           if (-not $sig.TimeStamperCertificate) { throw 'no RFC 3161 countersignature' }
           Write-Host '::notice::the official stack signs end to end on a hosted runner'
 
-      # SendKeys fails blind, so capture what the screen actually showed.
-      - name: Screenshot and logs
-        if: always()
-        shell: pwsh
-        run: |
-          try {
-            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-            $bmp.Save("$PWD\screen.png")
-            Write-Host "captured $($b.Width)x$($b.Height)"
-          } catch {
-            Write-Host "::warning::no screenshot: $_"
-          }
-
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: spike-diagnostics
           path: |
-            screen.png
+            shot-*.png
             msi-install.log
-            loot/
           if-no-files-found: warn
