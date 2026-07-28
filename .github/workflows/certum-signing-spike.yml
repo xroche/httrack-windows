@@ -128,9 +128,29 @@ jobs:
 
           Write-Host "certificates before login: $((Get-ChildItem Cert:\CurrentUser\My).Count)"
 
-          Write-Host '--- what the MSI installed ---'
+          # Hand the binary back so it can be analysed offline instead of over
+          # approval-gated round trips. The bundled JRE is noise; skip it.
+          New-Item -ItemType Directory -Force loot | Out-Null
           Get-ChildItem 'C:\Program Files\Certum' -Recurse -File -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "  $($_.FullName)" }
+            Where-Object { $_.FullName -notmatch '\\jre\\' } | ForEach-Object {
+              Write-Host "  $($_.FullName)"
+              if ($_.Length -lt 20MB -and $_.Extension -in '.exe', '.config', '.dll', '.bat', '.ini', '.txt') {
+                Copy-Item $_.FullName loot -ErrorAction SilentlyContinue
+              }
+            }
+
+          Write-Host '--- SimplySignDesktop.exe.config ---'
+          Get-Content "$(Split-Path $env:SSD_EXE)\SimplySignDesktop.exe.config" -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  $_" }
+
+          Write-Host '--- does it take arguments? ---'
+          $h = Start-Process $env:SSD_EXE -ArgumentList '--help' -PassThru -NoNewWindow `
+                 -RedirectStandardOutput help-out.txt -RedirectStandardError help-err.txt
+          if (-not $h.WaitForExit(15000)) { $h.Kill(); Write-Host '  (--help did not exit; no CLI)' }
+          foreach ($f in 'help-out.txt', 'help-err.txt') {
+            $t = (Get-Content $f -Raw -ErrorAction SilentlyContinue)
+            if ($t) { Write-Host "  ${f}: $t" }
+          }
 
           # It is a tray application: the first run showed no window at all, so there was
           # nothing for AppActivate to focus. Find out what it does expose before typing.
@@ -164,6 +184,48 @@ jobs:
           foreach ($e in $root.FindAll([System.Windows.Automation.TreeScope]::Children, $any)) {
             Write-Host "  [$($e.Current.ClassName)] '$($e.Current.Name)' (pid $($e.Current.ProcessId))"
           }
+
+          # Server 2022 hides new tray icons: the overflow flyout does not exist until
+          # the chevron is clicked, which is why it read as "not present" above.
+          $chevron = $null
+          $c = New-Object System.Windows.Automation.PropertyCondition(
+                 [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Shell_TrayWnd')
+          $tray = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $c)
+          if ($tray) {
+            foreach ($e in $tray.FindAll($desc, $any)) {
+              if ($e.Current.Name -match 'chevron|hidden icons') { $chevron = $e }
+            }
+          }
+          if ($chevron) {
+            Write-Host "opening the tray overflow via '$($chevron.Current.Name)'"
+            $chevron.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+            Start-Sleep -Seconds 3
+            $c2 = New-Object System.Windows.Automation.PropertyCondition(
+                    [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'NotifyIconOverflowWindow')
+            $ov = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $c2)
+            if ($ov) {
+              foreach ($e in $ov.FindAll($desc, $any)) {
+                Write-Host "  overflow: [$($e.Current.ControlType.ProgrammaticName)] '$($e.Current.Name)'"
+              }
+            } else {
+              Write-Host '  overflow window still not present'
+            }
+          } else {
+            Write-Host 'no tray chevron found'
+          }
+
+          Write-Host '--- where it keeps state ---'
+          foreach ($d in "$env:APPDATA\Certum", "$env:LOCALAPPDATA\Certum", 'C:\ProgramData\Certum') {
+            Get-ChildItem $d -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "  $($_.FullName) ($($_.Length) bytes)"
+              if ($_.Length -lt 64KB) { Copy-Item $_.FullName loot -ErrorAction SilentlyContinue }
+            }
+          }
+
+          Write-Host '--- application event log ---'
+          Get-WinEvent -LogName Application -MaxEvents 15 -ErrorAction SilentlyContinue |
+            Where-Object { $_.Message -match 'Certum|SimplySign|\.NET' } |
+            ForEach-Object { Write-Host "  $($_.LevelDisplayName): $($_.Message -replace "`r?`n", ' ' -replace '(.{200}).*', '$1...')" }
 
           $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq $env:THUMBPRINT
           if ($cert) {
@@ -218,4 +280,5 @@ jobs:
           path: |
             screen.png
             msi-install.log
+            loot/
           if-no-files-found: warn
