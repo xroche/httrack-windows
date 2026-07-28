@@ -557,6 +557,8 @@ void compute_options() {
   if(maintab->m_option2.m_external) ShellOptions->external = "x"; else ShellOptions->external = ""; 
   if(maintab->m_option2.m_nopurge) ShellOptions->nopurge = "X0"; else ShellOptions->nopurge = "";
   if(maintab->m_option9.m_warc) ShellOptions->warc = "1"; else ShellOptions->warc = "";
+  if(maintab->m_option9.m_warccdx) ShellOptions->warccdx = "1"; else ShellOptions->warccdx = "";
+  if(maintab->m_option9.m_wacz) ShellOptions->wacz = "1"; else ShellOptions->wacz = "";
   if(maintab->m_option8.m_sitemap) ShellOptions->sitemap = "1"; else ShellOptions->sitemap = "";
   ShellOptions->sitemapurl = maintab->m_option8.m_sitemapurl;
   if(maintab->m_option9.m_singlefile) ShellOptions->singlefile = "1"; else ShellOptions->singlefile = "";
@@ -1979,6 +1981,13 @@ void lance(void) {
   // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
   if (ShellOptions->warc.GetLength() != 0) {
     args.Add("--warc");
+    // neither sub-option names an archive on its own, so both stay gated on --warc
+    if (ShellOptions->warccdx.GetLength() != 0) {
+      args.Add("--warc-cdx");
+    }
+    if (ShellOptions->wacz.GetLength() != 0) {
+      args.Add("--wacz");
+    }
   }
 
   // Long forms, own tokens: same reason as --warc above. Each option's own checkbox
@@ -2572,6 +2581,8 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "NoQueryStrings",maintab->m_option2.m_hidequery);
     MyWriteProfileInt(path,strSection, "NoPurgeOldFiles",maintab->m_option2.m_nopurge);
     MyWriteProfileInt(path,strSection, "Warc",maintab->m_option9.m_warc);
+    MyWriteProfileInt(path,strSection, "WarcCdx",maintab->m_option9.m_warccdx);
+    MyWriteProfileInt(path,strSection, "Wacz",maintab->m_option9.m_wacz);
     MyWriteProfileInt(path,strSection, "Sitemap",maintab->m_option8.m_sitemap);
     MyWriteProfileString(path,strSection, "SitemapUrl",maintab->m_option8.m_sitemapurl);
     MyWriteProfileInt(path,strSection, "SingleFile",maintab->m_option9.m_singlefile);
@@ -2690,6 +2701,10 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection,"NoPurgeOldFiles", n);
     n=maintab->m_option9.IsDlgButtonChecked(IDC_warc);
     MyWriteProfileInt(path,strSection,"Warc", n);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_warccdx);
+    MyWriteProfileInt(path,strSection,"WarcCdx", n);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_wacz);
+    MyWriteProfileInt(path,strSection,"Wacz", n);
     if ((n=maintab->m_option2.m_ctl_build.GetCurSel()) != CB_ERR)
       MyWriteProfileInt(path,strSection, "Build", n);
     st = maintab->m_option2.Bopt.m_BuildString;
@@ -2930,6 +2945,8 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option2.m_hidequery = MyGetProfileInt(path,strSection, "NoQueryStrings",0);
   maintab->m_option2.m_nopurge   = MyGetProfileInt(path,strSection, "NoPurgeOldFiles",0);
   maintab->m_option9.m_warc      = MyGetProfileInt(path,strSection, "Warc",0);
+  maintab->m_option9.m_warccdx   = MyGetProfileInt(path,strSection, "WarcCdx",0);
+  maintab->m_option9.m_wacz      = MyGetProfileInt(path,strSection, "Wacz",0);
   maintab->m_option8.m_sitemap   = MyGetProfileInt(path,strSection, "Sitemap",0);
   maintab->m_option8.m_sitemapurl = MyGetProfileString(path,strSection, "SitemapUrl");
   maintab->m_option9.m_singlefile = MyGetProfileInt(path,strSection, "SingleFile",0);
