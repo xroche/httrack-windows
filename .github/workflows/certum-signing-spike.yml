@@ -62,10 +62,13 @@ jobs:
           # 3010 is "success, reboot required" -- fine, the driver loads anyway.
           if ($p.ExitCode -notin 0, 3010) { throw "msiexec exited $($p.ExitCode)" }
 
-          # The install path and the exe's exact name are both unverified, so search
-          # for it rather than assume, and print every candidate for the next attempt.
-          $found = @(Get-ChildItem 'C:\Program Files', 'C:\Program Files (x86)' -Recurse `
-                       -Filter '*SimplySign*.exe' -ErrorAction SilentlyContinue)
+          # Where 9.4.4.92 landed; fall back to a scan so a version bump that moves it
+          # fails with a candidate list rather than a bare "not found".
+          $found = @(Get-Item 'C:\Program Files\Certum\SimplySign Desktop\SimplySignDesktop.exe' -ErrorAction SilentlyContinue)
+          if (-not $found) {
+            $found = @(Get-ChildItem 'C:\Program Files', 'C:\Program Files (x86)' -Recurse `
+                         -Filter '*SimplySign*.exe' -ErrorAction SilentlyContinue)
+          }
           $found | ForEach-Object { Write-Host "  candidate: $($_.FullName)" }
           $exe = $found | Where-Object Name -eq 'SimplySignDesktop.exe' | Select-Object -First 1
           if (-not $exe) { $exe = $found | Select-Object -First 1 }
@@ -89,6 +92,11 @@ jobs:
             })
             [byte[]]@(for ($i = 0; $i + 8 -le $bits.Length; $i += 8) { [Convert]::ToByte($bits.Substring($i, 8), 2) })
           }
+
+          if (-not $env:CERTUM_OTP_URI) {
+            throw 'CERTUM_OTP_URI is empty: set it as a secret on the "signing" environment'
+          }
+          if (-not $env:CERTUM_EMAIL) { throw 'CERTUM_EMAIL is empty' }
 
           # Honour the URI's own algorithm: Certum issues SHA-256 seeds, and every
           # naive TOTP snippet assumes SHA-1 and silently emits wrong codes.
