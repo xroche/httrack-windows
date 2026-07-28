@@ -156,29 +156,16 @@ jobs:
           Write-Host "alive: $(-not $proc.HasExited)"
           Save-Shot 'after-launch'
 
-          # The chevron, measured off the previous run's screenshot at 1024x768.
+          # The icon is visible, not hidden behind the chevron: the previous run's
+          # screenshot shows a card reader badged with a red X (no card inserted)
+          # immediately after launch. Double-click is the gesture that opens the login.
           $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
           Write-Host "desktop is $($b.Width)x$($b.Height)"
-          [M]::Click(846, 747)
-          Start-Sleep -Seconds 3
-          Save-Shot 'after-chevron'
-
-          $c = New-Object System.Windows.Automation.PropertyCondition(
-                 [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'NotifyIconOverflowWindow')
-          $ov = $root.FindFirst($kids, $c)
-          if (-not $ov) {
-            Write-Host '::warning::the overflow flyout did not open'
-          } else {
-            foreach ($e in $ov.FindAll($desc, $any)) {
-              $r = $e.Current.BoundingRectangle
-              Write-Host "  overflow: '$($e.Current.Name)' at $($r.X),$($r.Y) $($r.Width)x$($r.Height)"
-              if ($e.Current.Name -match 'SimplySign') {
-                Write-Host "  double-clicking '$($e.Current.Name)'"
-                [M]::Double([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2))
-                Start-Sleep -Seconds 5
-              }
-            }
+          if ($b.Width -ne 1024 -or $b.Height -ne 768) {
+            Write-Host "::warning::icon coordinates were measured at 1024x768; this desktop differs"
           }
+          [M]::Double(842, 747)
+          Start-Sleep -Seconds 6
           Save-Shot 'after-icon'
           Show-TopLevel 'after icon'
 
