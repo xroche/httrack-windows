@@ -119,7 +119,8 @@ def options(main, pid, ids, shots):
     """The eleven option tabs, switched through the sheet rather than by clicking the
     tab control, so a two-row tab layout cannot put a tab under the mouse of another."""
     before = set(top_level_windows(pid))
-    click(find(main, control_id=ids["ID_setopt"]))
+    # By class too: ID_setopt is 3, which is also IDABORT, so a bare ID is not distinctive.
+    click(find(main, control_id=ids["ID_setopt"], class_name="Button"))
     sheet = wait(lambda: next((h for h in top_level_windows(pid) if h not in before), None),
                  "the options sheet", 30)
     tabs = wait(lambda: find(sheet, class_name="SysTabControl32"), "the option tabs", 15)
@@ -143,7 +144,7 @@ def run(pid, ids, shots, url, base_path):
         combo = ComboBoxWrapper(find(lang, control_id=ids["IDC_lang"]))
         print(f"  languages: {combo.selected_text()!r} of {len(combo.item_texts())}")
         combo.select("English")
-        click(find(lang, control_id=IDOK))
+        click(find(lang, control_id=IDOK, class_name="Button"))
     except Timeout:
         print("  no language dialog: not a first run")
 
