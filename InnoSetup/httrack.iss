@@ -6,7 +6,7 @@
 ;   ISCC /DArch=x64 /DAppVersion=3.49-12 ^
 ;        /DPayloadDir=...\WinHTTrack\bin\x64\Release ^
 ;        /DEngineDir=...\httrack /DGuiDir=...\httrack-windows ^
-;        /DRedistFile=...\vc_redist.x64.exe /DOutDir=...\out ^
+;        /DOutDir=...\out ^
 ;        InnoSetup\httrack.iss
 ;
 ; Signing is opt-in (/DSign) and off by default, so an ordinary CI build needs no
@@ -45,8 +45,8 @@ AllowNoIcons=yes
 LicenseFile={#GuiDir}\setup_license.txt
 AppMutex=WinHTTrack_RUN
 ; Windows 7 SP1 is the floor on purpose: HTTrack is still used on very old machines.
-; It is also why the bundled runtime must stay on the 14.4x (VS2022) line -- the
-; 14.5x redistributable refuses to install here.
+; It is also why the app-local runtime must stay on the 14.4x (VS2022) line: 14.5x
+; dropped Windows 7.
 MinVersion=6.1sp1
 PrivilegesRequired=admin
 OutputBaseFilename=httrack_{#Arch}_{#AppVersion}
@@ -72,11 +72,11 @@ Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "A
 Name: "quicklaunchicon"; Description: "Create a &quick launch icon"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-; The program: exe, libhttrack.dll, the OpenSSL/zlib DLLs it imports, and lang/ and
-; templates/. This is the same staged directory CI publishes, so what gets tested is
+; The program: exe, libhttrack.dll, the OpenSSL/zlib and VC++ runtime DLLs it imports,
+; and lang/ and templates/. This is the same staged directory CI publishes, so what gets tested is
 ; what gets shipped. The PDBs ship too: without them a crash report names no function and
 ; no line, and we already ship the sources they point into.
-Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt"; Flags: recursesubdirs ignoreversion
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt,runtime-vendored.txt"; Flags: recursesubdirs ignoreversion
 
 ; Documentation that actually exists. The old script also listed readme, copying and
 ; file_id.diz, none of which are in the tree any more.
@@ -94,13 +94,7 @@ Source: "{#EngineDir}\gpl-fr.txt"; DestDir: "{app}"; Flags: ignoreversion skipif
 Source: "{#EngineDir}\src\*"; DestDir: "{app}\src"; Excludes: "*.obj,*.pdb,*.lib,*.exp,*.dll,*.exe,*.iobj,*.ipdb,*.tlog,\x64\*,\Win32\*,\vcpkg_installed\*,\.vs\*"; Flags: recursesubdirs ignoreversion
 Source: "{#GuiDir}\WinHTTrack\*"; DestDir: "{app}\src_win"; Excludes: "*.obj,*.pdb,*.lib,*.exp,*.dll,*.exe,*.iobj,*.ipdb,*.tlog,\bin\*,\x64\*,\Win32\*,\vcpkg_installed\*,\.vs\*"; Flags: recursesubdirs ignoreversion
 
-; The Visual C++ runtime, bundled rather than assumed. The app links the dynamic CRT
-; and shared MFC, so on a machine without it the exe simply refuses to start, with a
-; message that tells the user nothing useful.
-Source: "{#RedistFile}"; DestDir: "{tmp}"; Flags: deleteafterinstall
-
 [Run]
-Filename: "{tmp}\{#ExtractFileName(RedistFile)}"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing the Visual C++ runtime..."; Flags: waituntilterminated
 Filename: "{app}\WinHTTrack.exe"; Description: "Launch WinHTTrack Website Copier"; Flags: nowait postinstall skipifsilent
 Filename: "{win}\notepad.exe"; Parameters: "{app}\history.txt"; WorkingDir: "{app}"; Description: "View history.txt file"; Flags: nowait postinstall skipifsilent
 
