@@ -14,7 +14,7 @@
 ; sign tool the caller passes as /Scertum=signtool.exe sign ... $f.
 ;
 ; Replaces the old httrack.iss + httrack-x64.iss pair. They had drifted apart, and
-; both referenced files that no longer exist (readme, copying, file_id.diz, src_win).
+; both referenced files that no longer exist (readme, copying, file_id.diz).
 
 #ifndef Arch
   #error Arch must be set (x64 or x86)
@@ -44,6 +44,11 @@ DefaultGroupName=WinHTTrack
 AllowNoIcons=yes
 LicenseFile={#GuiDir}\setup_license.txt
 AppMutex=WinHTTrack_RUN
+; Solid is worth ~0.5 MB: per-file streams cannot dedupe the 41 near-identical
+; api-ms-win-crt stubs. The dictionary stays put -- 8 MiB is within 9 KB of 64 MiB at
+; this size, and lzma2 allocates it to DECOMPRESS, on the machines that are our floor.
+Compression=lzma2/max
+SolidCompression=yes
 ; Windows 7 SP1 is the floor on purpose: HTTrack is still used on very old machines.
 ; It is also why the app-local runtime must stay on the 14.4x (VS2022) line: 14.5x
 ; dropped Windows 7.
@@ -74,9 +79,9 @@ Name: "quicklaunchicon"; Description: "Create a &quick launch icon"; GroupDescri
 [Files]
 ; The program: exe, libhttrack.dll, the OpenSSL/zlib and VC++ runtime DLLs it imports,
 ; and lang/ and templates/. This is the same staged directory CI publishes, so what gets tested is
-; what gets shipped. The PDBs ship too: without them a crash report names no function and
-; no line, and we already ship the sources they point into.
-Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt,runtime-vendored.txt"; Flags: recursesubdirs ignoreversion
+; what gets shipped. PDBs are built but not shipped, so a user crash report names no
+; line; source.txt carries the GPL offer the src/ tree used to meet.
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.pdb,*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt,runtime-vendored.txt"; Flags: recursesubdirs ignoreversion
 
 ; Documentation that actually exists. The old script also listed readme, copying and
 ; file_id.diz, none of which are in the tree any more.
@@ -88,11 +93,11 @@ Source: "{#EngineDir}\COPYING"; DestDir: "{app}"; Flags: ignoreversion skipifsou
 Source: "{#EngineDir}\AUTHORS"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#EngineDir}\gpl-fr.txt"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
-; Sources, kept: HTTrack is GPL and shipping them is how that offer is met. The
-; excludes are load-bearing -- CI builds inside these trees, so without them the
-; installer would carry object files, import libs and vcpkg_installed as well.
-Source: "{#EngineDir}\src\*"; DestDir: "{app}\src"; Excludes: "*.obj,*.pdb,*.lib,*.exp,*.dll,*.exe,*.iobj,*.ipdb,*.tlog,\x64\*,\Win32\*,\vcpkg_installed\*,\.vs\*"; Flags: recursesubdirs ignoreversion
-Source: "{#GuiDir}\WinHTTrack\*"; DestDir: "{app}\src_win"; Excludes: "*.obj,*.pdb,*.lib,*.exp,*.dll,*.exe,*.iobj,*.ipdb,*.tlog,\bin\*,\x64\*,\Win32\*,\vcpkg_installed\*,\.vs\*"; Flags: recursesubdirs ignoreversion
+[InstallDelete]
+; Left by installers up to 3.49-14, which shipped both source trees and the PDBs.
+Type: filesandordirs; Name: "{app}\src"
+Type: filesandordirs; Name: "{app}\src_win"
+Type: files; Name: "{app}\*.pdb"
 
 [Run]
 Filename: "{app}\WinHTTrack.exe"; Description: "Launch WinHTTrack Website Copier"; Flags: nowait postinstall skipifsilent

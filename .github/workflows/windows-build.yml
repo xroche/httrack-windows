@@ -408,15 +408,18 @@ jobs:
       # than a failed build.
       - name: Stage a runnable package
         shell: pwsh
+        # Via env, not ${{ }} interpolation: a value containing $(...) would otherwise run.
+        env:
+          ENGINE_SHA: ${{ steps.provenance.outputs.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
           $eng = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}"
           Copy-Item "$eng\*.dll" $bin
           # The command-line httrack ships with the GUI.
           Copy-Item "$eng\httrack.exe" $bin
-          # Ship the PDBs: dbghelp resolves function and file:line from them at run time, so
-          # without them every frame of a user's crash report reads "unknown". The engine's
-          # is a bonus and is not ours to fix, so do not red the build over it.
+          # PDBs stay in the artifact, out of the installer: 2.2 MB to give a user's crash
+          # report file:line. The engine's is a bonus, not ours to fix; do not red the build.
           Copy-Item "$eng\*.pdb" $bin -ErrorAction SilentlyContinue
           # lang.def is a FILE at the engine root, not inside lang\. The GUI reads it
           # from the app directory at startup and refuses to run without it. The old
@@ -519,12 +522,42 @@ jobs:
           if (-not (Test-Path (Join-Path $bin 'httrack.exe'))) {
             throw "package is missing httrack.exe: the command-line version ships with the GUI"
           }
+          # Staged, not installed: the check below needs them, and they make the artifact debuggable.
           if (-not (Test-Path (Join-Path $bin 'WinHTTrack.pdb'))) {
-            throw "package is missing WinHTTrack.pdb: crash reports would name no function"
+            throw "package is missing WinHTTrack.pdb: the crash-symbol check would prove nothing"
           }
           if (-not (Test-Path (Join-Path $bin 'libhttrack.pdb'))) {
             Write-Host "::warning::no libhttrack.pdb: engine frames will not resolve"
           }
+
+          # src/ no longer ships; the GPL offer names the exact commits instead. coucal is
+          # a submodule, so a GitHub archive of the engine carries an empty src/coucal and
+          # naming it separately is what keeps the offer complete.
+          # On a pull_request HEAD is the ephemeral merge commit, whose URLs die with the
+          # PR; the head commit is the one that was built.
+          $guiSha = if ($env:PR_HEAD_SHA) { $env:PR_HEAD_SHA } else { (git -C httrack-windows rev-parse HEAD).Trim() }
+          $engSha = $env:ENGINE_SHA
+          $couSha = (git -C httrack/src/coucal rev-parse HEAD).Trim()
+          foreach ($p in @(@('gui', $guiSha), @('engine', $engSha), @('coucal', $couSha))) {
+            if ($p[1] -notmatch '^[0-9a-f]{40}$') { throw "cannot name the corresponding source: $($p[0])='$($p[1])'" }
+          }
+          Set-Content (Join-Path $bin 'source.txt') @"
+          WinHTTrack Website Copier is free software under the GNU GPL, version 3 or
+          later. See license.txt for the terms.
+
+          The complete corresponding source for this exact build:
+
+            Windows interface  https://github.com/xroche/httrack-windows/tree/$guiSha
+            Engine             https://github.com/xroche/httrack/tree/$engSha
+            coucal (in engine) https://github.com/xroche/coucal/tree/$couSha
+
+          Downloadable archives of those revisions. coucal has to be taken separately:
+          it is a submodule, so the engine archive carries an empty src/coucal.
+
+            https://github.com/xroche/httrack-windows/archive/$guiSha.tar.gz
+            https://github.com/xroche/httrack/archive/$engSha.tar.gz
+            https://github.com/xroche/coucal/archive/$couSha.tar.gz
+          "@
 
           Set-Content (Join-Path $bin 'README-artifact.txt') @'
           This is a CI build of WinHTTrack, not an installer.
@@ -538,6 +571,33 @@ jobs:
           '@
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      # Against the staged tree, where the PDBs live: the installed build can no longer
+      # resolve a line, so this is what still proves the whole crash-report chain works.
+      - name: Crash report resolves to function, file and line
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          $report = Join-Path $env:TEMP 'WinHTTrack-exception.txt'
+          # -Force, then prove it: the report is opened for APPEND, so a leftover (or a
+          # read-only file planted at that path) would be asserted against instead.
+          Remove-Item $report -Force -ErrorAction SilentlyContinue
+          if (Test-Path $report) { throw "$report survived deletion: the check would read someone else's content" }
+          # --selftest throws one exception on purpose.
+          $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
+                 -RedirectStandardOutput "$PWD\crash-st.txt" -RedirectStandardError "$PWD\crash-st.err"
+          if ($p.ExitCode -ne 0) { throw "--selftest exited $($p.ExitCode) from the staged tree" }
+          if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
+          $trace = Get-Content $report -Raw
+          Write-Host "--- crash report ---`n$trace"
+          if ($trace -notmatch 'throw site') { throw 'report holds the handler stack, not the throw stack' }
+          # Tempered so the match cannot run past the throw-site record into a later one:
+          # CrashReportLogException is itself called from WinHTTrack.cpp, so the handler
+          # record would satisfy an unbounded match with the hook dead.
+          if ($trace -notmatch 'throw site\):(?:(?!Stack trace)[\s\S])*?WinHTTrack\.cpp:\d+') {
+            throw 'no file:line on the throw stack: the PDB carries no line info'
+          }
+          Write-Host '::notice::crash report resolves function, file and line'
 
       # Self-imposed now that no CA enforces it: every shipped binary and the
       # installer must agree on product name and version. Cheap to catch here.
@@ -667,9 +727,8 @@ jobs:
         with:
           path: httrack-windows
 
-      # The installer packs both source trees as well as the binaries (HTTrack is
-      # GPL), so the sign job needs the same two checkouts the build job had. At
-      # the exact commit that was built, not at whatever the ref resolves to now.
+      # The installer packs the engine's licence and history files, so the sign job needs
+      # the same two checkouts the build job had, at the exact commit that was built.
       - name: Checkout httrack engine (sibling)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
