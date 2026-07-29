@@ -579,7 +579,8 @@ jobs:
   # matrix, because a SimplySign session belongs to one machine and two runners would
   # mint the same single-use TOTP code in the same window.
   sign:
-    if: ${{ startsWith(github.ref, 'refs/tags/') || inputs.sign }}
+    # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
+    if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
     needs: build
     runs-on: windows-2022
     environment: signing
