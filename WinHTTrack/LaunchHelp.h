@@ -29,20 +29,21 @@ Please visit our Website: http://www.httrack.com
 #define LAUNCHHELP_HGDHDGCJHHFIJKCHSOZIOJC5448545245451
 
 #include "stdafx.h"
-#include "DialogHtmlHelp.h"
-//UINT RunBackHelp( LPVOID pP );
 
-// Lancer aide
+// Build a browsable file: URL for a doc page. dir is the ANSI directory holding it, page
+// is "guide.html" or "guide.html#win/opt-limits". False if the path cannot be encoded.
+// Public only for --selftest.
+bool BuildDocUrl(const char* dir, const char* page, CString& url);
+
+// Opens the documentation in the system default browser.
 class LaunchHelp {
 public:
-  LaunchHelp();
-  ~LaunchHelp();
+  // The documentation index.
   void Help();
+  // A page under html/, optionally with a #fragment.
   void Help(CString page);
-  CDialogHtmlHelp b;
-  CString page;
-private:
-  void GoHelp();
+  // The guide, at one of its Windows sections, e.g. "opt-limits".
+  void HelpTopic(const char* anchor);
 };
 
 #endif

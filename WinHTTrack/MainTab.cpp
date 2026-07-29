@@ -242,27 +242,27 @@ BOOL CMainTab::OnHelpInfo(HELPINFO* dummy)
   //LaunchHelp(pHelpInfo);
 
   if (this->GetActivePage() == &m_option1)
-    HtsHelper->Help("step9_opt1.html");
+    HtsHelper->HelpTopic("opt-links");
   else if (this->GetActivePage() == &m_option5)
-    HtsHelper->Help("step9_opt2.html");
+    HtsHelper->HelpTopic("opt-limits");
   else if (this->GetActivePage() == &m_option4)
-    HtsHelper->Help("step9_opt3.html");
+    HtsHelper->HelpTopic("opt-flow-control");
   else if (this->GetActivePage() == &m_option7)
-    HtsHelper->Help("step9_opt4.html");
+    HtsHelper->HelpTopic("opt-scan-rules");
   else if (this->GetActivePage() == &m_option2)
-    HtsHelper->Help("step9_opt5.html");
+    HtsHelper->HelpTopic("opt-build");
   else if (this->GetActivePage() == &m_option8)
-    HtsHelper->Help("step9_opt6.html");
+    HtsHelper->HelpTopic("opt-spider");
   else if (this->GetActivePage() == &m_option10)
-    HtsHelper->Help("step9_opt7.html");
+    HtsHelper->HelpTopic("opt-proxy");
   else if (this->GetActivePage() == &m_option6)
-    HtsHelper->Help("step9_opt8.html");
+    HtsHelper->HelpTopic("opt-browser-id");
   else if (this->GetActivePage() == &m_option9)
-    HtsHelper->Help("step9_opt9.html");
+    HtsHelper->HelpTopic("opt-log-index-cache");
   else if (this->GetActivePage() == &m_option3)
-    HtsHelper->Help("step9_opt10.html");
+    HtsHelper->HelpTopic("opt-experts-only");
   else if (this->GetActivePage() == &m_option11)
-    HtsHelper->Help("step9_opt11.html");
+    HtsHelper->HelpTopic("opt-mime-types");
   else
     HtsHelper->Help();
   return true;

@@ -712,7 +712,7 @@ BOOL Wid1::OnHelpInfo(HELPINFO* dummy)
   //return CPropertyPage::OnHelpInfo(pHelpInfo);
   //AfxGetApp()->WinHelp(0,HELP_FINDER);    // Index du fichier Hlp
   //LaunchHelp(pHelpInfo);
-  HtsHelper->Help("step2.html");
+  HtsHelper->HelpTopic("step-address");
   //HtsHelper->Help();
   return true;
 }

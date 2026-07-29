@@ -247,7 +247,7 @@ void Cinfoend::OnHelpInfo2() {
 BOOL Cinfoend::OnHelpInfo(HELPINFO* dummy) 
 {
   //return CPropertyPage::OnHelpInfo(pHelpInfo);
-  HtsHelper->Help("step5.html");
+  HtsHelper->HelpTopic("step-done");
   return true;
   //AfxGetApp()->WinHelp(0,HELP_FINDER);    // Index du fichier Hlp
   //return true;

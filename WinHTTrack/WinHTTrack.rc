@@ -30,13 +30,6 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 // remains consistent on all systems.
 IDR_MAINFRAME           ICON                    "res\\Shell.ico"
 IDR_WINHTTTYPE          ICON                    "res\\Shell.ico"
-IDI_BACK                ICON                    "res\\icon1.ico"
-IDI_FORWARD             ICON                    "res\\icon2.ico"
-IDI_STOP                ICON                    "res\\icon3.ico"
-IDI_RELOAD              ICON                    "res\\icon4.ico"
-IDI_HOME                ICON                    "res\\icon5.ico"
-IDI_PRINT               ICON                    "res\\icon6.ico"
-IDR_HELPFRM             ICON                    "res\\idr_main.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -44,7 +37,6 @@ IDR_HELPFRM             ICON                    "res\\idr_main.ico"
 //
 
 IDR_MAINFRAME           BITMAP                  "res\\Toolbar.bmp"
-IDR_HELPFRM             BITMAP                  "res\\mainfram.bmp"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -52,16 +44,6 @@ IDR_HELPFRM             BITMAP                  "res\\mainfram.bmp"
 //
 
 IDR_MAINFRAME TOOLBAR  16, 15
-BEGIN
-    BUTTON      ID_FILE_NEW
-    BUTTON      ID_FILE_OPEN
-    BUTTON      ID_FILE_SAVE
-    SEPARATOR
-    BUTTON      ID_FILE_PRINT
-    BUTTON      ID_APP_ABOUT
-END
-
-IDR_HELPFRM TOOLBAR  16, 15
 BEGIN
     BUTTON      ID_FILE_NEW
     BUTTON      ID_FILE_OPEN
@@ -681,20 +663,6 @@ BEGIN
     PUSHBUTTON      "Configure",IDC_proxyconfigure,256,16,49,11
     CONTROL         "Use proxy for ftp transfers",IDC_ftpprox,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,35,157,10
     CONTROL         "Hide password",IDC_PWDHIDE,"Button",BS_AUTOCHECKBOX | BS_LEFTTEXT | BS_RIGHT | WS_TABSTOP,177,35,128,10
-END
-
-IDD_HtmlHelp DIALOGEX 0, 0, 381, 282
-STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
-CAPTION "WinHTTrack Website Copier Help"
-FONT 8, "MS Sans Serif", 0, 0, 0x1
-BEGIN
-    LTEXT           "",IDC_HTMLVIEW,0,25,381,257
-    ICON            IDI_BACK,IDC_BACK,0,0,20,20,SS_NOTIFY | SS_CENTERIMAGE | SS_REALSIZEIMAGE,WS_EX_DLGMODALFRAME
-    ICON            IDI_FORWARD,IDC_FORWARD,20,0,20,20,SS_NOTIFY | SS_CENTERIMAGE | SS_REALSIZEIMAGE,WS_EX_DLGMODALFRAME
-    ICON            IDI_STOP,IDC_STOP,40,0,20,20,SS_NOTIFY | SS_CENTERIMAGE | SS_REALSIZEIMAGE,WS_EX_DLGMODALFRAME
-    ICON            IDI_RELOAD,IDC_RELOAD,60,0,20,20,SS_NOTIFY | SS_CENTERIMAGE | SS_REALSIZEIMAGE,WS_EX_DLGMODALFRAME
-    ICON            IDI_HOME,IDC_HOME,80,0,20,20,SS_NOTIFY | SS_CENTERIMAGE | SS_REALSIZEIMAGE,WS_EX_DLGMODALFRAME
-    ICON            IDI_PRINT,ID_FILE_PRINT,100,0,20,20,SS_NOTIFY | SS_CENTERIMAGE | SS_REALSIZEIMAGE,WS_EX_DLGMODALFRAME
 END
 
 IDD_InfoUrl DIALOG  0, 0, 347, 261
@@ -2484,28 +2452,6 @@ LANGUAGE LANG_FRENCH, SUBLANG_FRENCH
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 IDI_SPLASH              ICON                    "res\\ico00001.ico"
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Menu
-//
-
-IDR_HELPFRM MENU 
-BEGIN
-    POPUP "&File"
-    BEGIN
-        MENUITEM "&Print...\tCtrl+P",           ID_FILE_PRINT
-        MENUITEM "Print Pre&view",              ID_FILE_PRINT_PREVIEW
-        MENUITEM "P&rint Setup...",             ID_FILE_PRINT_SETUP
-        MENUITEM SEPARATOR
-        MENUITEM "E&xit",                       ID_CLOSE
-    END
-    POPUP "Help"
-    BEGIN
-        MENUITEM "About WinHTTrack Website Copier...", ID_ABOUT
-    END
-END
-
 
 /////////////////////////////////////////////////////////////////////////////
 //
