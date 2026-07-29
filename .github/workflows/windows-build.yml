@@ -525,7 +525,7 @@ jobs:
 
           # Supplied by Windows itself. The CRT names are gone from this list on purpose:
           # they are ours to ship now, so the check below catches a staging regression.
-          $provided = '^(api-ms-win-(?!crt-)|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32)'
+          $provided = '^(api-ms-win-(?!crt-)|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|shlwapi)'
           $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\httrack.exe") + @(Deps "$bin\libhttrack.dll") |
             Where-Object { $_ -notmatch $provided } | Sort-Object -Unique
           Write-Host "--- must ship: $($needed -join ', ') ---"
