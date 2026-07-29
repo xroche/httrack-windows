@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "LaunchHelp.h"
 #include "Shell.h"
+#include <shlwapi.h>
 
 /* Shared with WebHTTrack and Android; #win picks our screenshots. */
 #define DOC_GUIDE "guide.html#win/"
@@ -91,11 +92,25 @@ static bool DocDir(char* dir, size_t size) {
   return true;
 }
 
+/* ShellExecute() on a file: URL hands the handler a PATH, and the conversion stops at
+   '#', so the section is lost and every button lands on the top of the guide. Ask which
+   program opens http: and pass the URL as its argument: a browser parses argv as a URL,
+   fragment and all. */
+static bool OpenInBrowser(const char* url) {
+  char browser[MAX_PATH];
+  DWORD size = (DWORD) sizeof(browser);
+  if (AssocQueryStringA(ASSOCF_NONE, ASSOCSTR_EXECUTABLE, "http", "open",
+                        browser, &size) != S_OK)
+    return false;
+  return (INT_PTR) ShellExecuteA(NULL, "open", browser, url, NULL, SW_SHOWNORMAL) > 32;
+}
+
 void LaunchHelp::Help(CString page) {
   char dir[1024];
   CString url;
+  /* No browser registered: opening the page without its anchor still beats an error. */
   if (!DocDir(dir, sizeof(dir)) || !BuildDocUrl(dir, page, url)
-      || !ShellOpen(url, SW_SHOWNORMAL))
+      || !(OpenInBrowser(url) || ShellOpen(url, SW_SHOWNORMAL)))
     AfxMessageBox(LANG(LANG_DIAL1));
 }
 
