@@ -1,6 +1,6 @@
-# Does a hosted Windows runner give us a desktop the GUI actually draws on? If it
-# does, the documentation screenshots can be captured here instead of in a VM.
-# Manual only: it drives the app, which the build gate has no reason to wait for.
+# Documentation screenshots: drive the GUI on a runner and capture every screen.
+# Manual, and deliberately not part of the build gate -- run it after adding or
+# changing an option page, and the artifact is the new set of shots.
 name: screenshots
 
 on:
@@ -9,11 +9,17 @@ on:
   push:
     paths:
       - '.github/workflows/screenshots.yml'
-      - 'tools/screenshot-probe.py'
+      - 'tools/screenshot-*.py'
+      - 'tools/wincapture.py'
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'walk (every screen) or probe (can this machine render at all)'
+        type: choice
+        options: [walk, probe]
+        default: walk
       run-id:
-        description: 'windows-build run to take the binaries from (default: latest green master run)'
+        description: 'windows-build run to take the binaries from (default: this branch, else master)'
         required: false
 
 permissions:
@@ -22,40 +28,54 @@ permissions:
   actions: read
 
 jobs:
-  probe:
+  capture:
     runs-on: windows-2022
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # The staged build artifact already runs as-is (lang.def, lang/, html/, the
-      # engine DLLs and the app-local CRT), so the probe needs no installer.
+      # The staged build artifact runs as-is (lang.def, lang/, html/, the engine DLLs
+      # and the app-local CRT), so this needs no build and no installer.
       - name: Fetch the built app
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run-id }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           $id = $env:RUN_ID
+          $from = 'the run given'
           if (-not $id) {
-            $id = gh run list --workflow windows-build.yml --branch master --status success `
-                    --limit 1 --json databaseId -q '.[0].databaseId'
+            foreach ($b in @($env:BRANCH, 'master') | Select-Object -Unique) {
+              $id = gh run list --workflow windows-build.yml --branch $b --status success `
+                      --limit 1 --json databaseId -q '.[0].databaseId'
+              if ($id) { $from = $b; break }
+            }
           }
           if (-not $id) { throw 'no green windows-build run to take binaries from' }
-          Write-Host "taking binaries from run $id"
+          Write-Host "binaries from run $id ($from)"
+          # The walk reads control IDs out of the checked-out resource.h, so binaries
+          # built from another branch can disagree with it.
+          if ($from -ne $env:BRANCH -and $from -ne 'the run given') {
+            Write-Warning "no build for $($env:BRANCH): these are $from's binaries, which may not match this checkout"
+          }
           gh run download $id --name WinHTTrack-x64-Release --dir app
           if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
 
-      - name: Probe
+      - name: Capture
         shell: pwsh
+        env:
+          MODE: ${{ inputs.mode }}
         run: |
           python -m pip install --quiet pywin32 pillow pywinauto
-          python tools\screenshot-probe.py --exe app\WinHTTrack.exe --out shots
+          $script = if ($env:MODE -eq 'probe') { 'screenshot-probe.py' } else { 'screenshot-walk.py' }
+          Write-Host "running $script"
+          python "tools\$script" --exe app\WinHTTrack.exe --out shots
 
-      - name: Upload the captures
+      - name: Upload the screens
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: screenshot-probe
+          name: screenshots
           path: shots
           if-no-files-found: error
