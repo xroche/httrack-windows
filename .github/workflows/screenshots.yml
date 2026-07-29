@@ -1,0 +1,61 @@
+# Does a hosted Windows runner give us a desktop the GUI actually draws on? If it
+# does, the documentation screenshots can be captured here instead of in a VM.
+# Manual only: it drives the app, which the build gate has no reason to wait for.
+name: screenshots
+
+on:
+  # A push trigger as well as the button: workflow_dispatch is only offered for
+  # workflows that already exist on the default branch.
+  push:
+    paths:
+      - '.github/workflows/screenshots.yml'
+      - 'tools/screenshot-probe.py'
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: 'windows-build run to take the binaries from (default: latest green master run)'
+        required: false
+
+permissions:
+  contents: read
+  # Downloading another workflow run's artifact goes through the Actions API.
+  actions: read
+
+jobs:
+  probe:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The staged build artifact already runs as-is (lang.def, lang/, html/, the
+      # engine DLLs and the app-local CRT), so the probe needs no installer.
+      - name: Fetch the built app
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run-id }}
+        run: |
+          $id = $env:RUN_ID
+          if (-not $id) {
+            $id = gh run list --workflow windows-build.yml --branch master --status success `
+                    --limit 1 --json databaseId -q '.[0].databaseId'
+          }
+          if (-not $id) { throw 'no green windows-build run to take binaries from' }
+          Write-Host "taking binaries from run $id"
+          gh run download $id --name WinHTTrack-x64-Release --dir app
+          if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
+
+      - name: Probe
+        shell: pwsh
+        run: |
+          python -m pip install --quiet pywin32 pillow pywinauto
+          python tools\screenshot-probe.py --exe app\WinHTTrack.exe --out shots
+
+      - name: Upload the captures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: screenshot-probe
+          path: shots
+          if-no-files-found: error
