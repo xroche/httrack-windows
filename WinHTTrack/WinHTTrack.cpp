@@ -351,6 +351,9 @@ BOOL CWinHTTrackApp::InitInstance()
           "file:///C:/Program%20Files/WinHTTrack/html/guide.html#win/opt-limits" },
         { "C:\\h\\", "guide.html", "file:///C:/h/guide.html" },
         { "C:\\a#b\\", "guide.html#win", "file:///C:/a%23b/guide.html#win" },
+        /* %2C, not %2c: the accented case below pins the hex case too, but it skips
+           where the ANSI codepage cannot hold the accent. */
+        { "C:\\a,b\\", "guide.html", "file:///C:/a%2Cb/guide.html" },
         { "\\\\srv\\share\\html\\", "guide.html#win", "file://srv/share/html/guide.html#win" },
         { NULL, NULL, NULL }
       };
@@ -945,7 +948,8 @@ void CWinHTTrackApp::OnUpdate()
 {
   CString st;
   st.Format(HTS_UPDATE_WEBSITE,0,LANGUAGE_NAME);
-  HtsHelper->Help(st);
+  if (!ShellOpen(st, SW_SHOWNORMAL))
+    AfxMessageBox("Cannot open a web browser for " + st);
 }
 
 // Appel aide

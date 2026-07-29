@@ -199,6 +199,25 @@ jobs:
           path: httrack
           submodules: recursive
 
+      - name: Help anchors resolve in the engine's guide
+        shell: pwsh
+        # The GUI deep-links into the engine's guide.html and the engine is unpinned, so a
+        # rename upstream lands here silently: the page still opens, it just never scrolls.
+        run: |
+          $guide = 'httrack\html\guide.html'
+          if (-not (Test-Path $guide)) { throw "$guide is missing: every help button would 404" }
+          $page = Get-Content $guide -Raw
+          $anchors = Select-String -Path 'httrack-windows\WinHTTrack\*.cpp' `
+                       -Pattern 'HelpTopic\("([^"]+)"\)' -AllMatches |
+                     ForEach-Object { $_.Matches } |
+                     ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+          # Guard the scan itself: a regex that matched nothing would pass the loop below.
+          if ($anchors.Count -lt 10) { throw "found only $($anchors.Count) anchors; the scan is broken" }
+          foreach ($a in $anchors) {
+            if (-not $page.Contains("id=""$a""")) { throw "guide.html has no id='$a'" }
+          }
+          Write-Host "$($anchors.Count) help anchors resolve in guide.html"
+
       - name: Record engine provenance
         id: provenance
         shell: pwsh
@@ -587,6 +606,12 @@ jobs:
           $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
                  -RedirectStandardOutput "$PWD\crash-st.txt" -RedirectStandardError "$PWD\crash-st.err"
           if ($p.ExitCode -ne 0) { throw "--selftest exited $($p.ExitCode) from the staged tree" }
+          # Exit 0 also covers "every check skipped itself" -- the MBCS one bails out where
+          # the ANSI codepage cannot hold an accent. Make each say it ran.
+          $stdout = Get-Content "$PWD\crash-st.txt" -Raw
+          foreach ($m in @('MBCS->UTF-8 ok', 'help URLs ok')) {
+            if (-not $stdout.Contains($m)) { throw "--selftest never printed '$m': that check did not run" }
+          }
           if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
           $trace = Get-Content $report -Raw
           Write-Host "--- crash report ---`n$trace"

@@ -31,9 +31,8 @@ Please visit our Website: http://www.httrack.com
 #include "LaunchHelp.h"
 #include "Shell.h"
 
-/* The guide is shared with WebHTTrack and Android; the platform in the fragment is
-   what selects our screenshots. */
-#define DOC_GUIDE "guide.html#win"
+/* Shared with WebHTTrack and Android; #win picks our screenshots. */
+#define DOC_GUIDE "guide.html#win/"
 
 /* Unreserved, plus ':' and '/' so the drive letter and the separators survive. */
 static bool IsUrlSafe(unsigned char c) {
@@ -77,7 +76,8 @@ bool BuildDocUrl(const char* dir, const char* page, CString& url) {
   return true;
 }
 
-/* The doc tree sits beside the executable, where the installer stages it. */
+/* The doc tree sits beside the executable, where the installer stages it. Not the
+   engine's hts_rootdir(): that is seeded late in InitInstance, after --selftest. */
 static bool DocDir(char* dir, size_t size) {
   const DWORD n = ::GetModuleFileName(NULL, dir, (DWORD) size);
   if (n == 0 || n >= size)   /* n == size on truncation, which leaves dir unterminated */
@@ -92,13 +92,6 @@ static bool DocDir(char* dir, size_t size) {
 }
 
 void LaunchHelp::Help(CString page) {
-  /* The update check hands us a real URL; everything else names a page in html/. */
-  if (page.Left(7) == "http://" || page.Left(8) == "https://") {
-    if (!ShellOpen(page, SW_SHOWNORMAL))
-      AfxMessageBox(LANG(LANG_DIAL1));
-    return;
-  }
-
   char dir[1024];
   CString url;
   if (!DocDir(dir, sizeof(dir)) || !BuildDocUrl(dir, page, url)
@@ -107,15 +100,10 @@ void LaunchHelp::Help(CString page) {
 }
 
 void LaunchHelp::HelpTopic(const char* anchor) {
-  CString page(DOC_GUIDE);
-  if (anchor != NULL && *anchor != '\0') {
-    page += '/';
-    page += anchor;
-  }
-  Help(page);
+  Help(CString(DOC_GUIDE) + anchor);
 }
 
 void LaunchHelp::Help() {
-  HelpTopic(NULL);
+  Help("index.html");
 }
 

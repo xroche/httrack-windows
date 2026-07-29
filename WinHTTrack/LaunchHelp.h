@@ -30,21 +30,19 @@ Please visit our Website: http://www.httrack.com
 
 #include "stdafx.h"
 
-// Build a browsable URL for a documentation page: dir is the ANSI directory holding it,
-// page is "guide.html" or "guide.html#win/opt-limits". The path is percent-encoded as
-// UTF-8 and the fragment kept whole, so '#' arrives as a fragment and not as the filename
-// character NTFS also allows it to be. False if the path cannot be encoded. Help callers
-// go through LaunchHelp; this is public for --selftest.
+// Build a browsable file: URL for a doc page. dir is the ANSI directory holding it, page
+// is "guide.html" or "guide.html#win/opt-limits". False if the path cannot be encoded.
+// Public only for --selftest.
 bool BuildDocUrl(const char* dir, const char* page, CString& url);
 
 // Opens the documentation in the system default browser.
 class LaunchHelp {
 public:
-  // The guide, at the top of the Windows walkthrough.
+  // The documentation index.
   void Help();
-  // A page under html/, or an absolute http/https URL, which is opened untouched.
+  // A page under html/, optionally with a #fragment.
   void Help(CString page);
-  // The guide, scrolled to one of its Windows sections, e.g. "opt-limits".
+  // The guide, at one of its Windows sections, e.g. "opt-limits".
   void HelpTopic(const char* anchor);
 };
 
