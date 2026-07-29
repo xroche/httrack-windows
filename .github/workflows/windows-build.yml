@@ -205,7 +205,10 @@ jobs:
         # rename upstream lands here silently: the page still opens, it just never scrolls.
         run: |
           $guide = 'httrack\html\guide.html'
-          if (-not (Test-Path $guide)) { throw "$guide is missing: every help button would 404" }
+          if (-not (Test-Path $guide)) {
+            throw "$guide is missing, so every help button would open nothing. The engine " +
+                  "predates the guide: move the HTTRACK_ENGINE_REF variable past xroche/httrack a21f84ee."
+          }
           $page = Get-Content $guide -Raw
           $anchors = Select-String -Path 'httrack-windows\WinHTTrack\*.cpp' `
                        -Pattern 'HelpTopic\("([^"]+)"\)' -AllMatches |
