@@ -330,7 +330,40 @@ BOOL CWinHTTrackApp::InitInstance()
         }
         freet(got);
         printf("MBCS->UTF-8 ok\n");
+        /* The install path is where a non-ASCII byte reaches the help URL. */
+        {
+          char dir[64];
+          CString url;
+          sprintfbuff(dir, "C:\\%s\\html\\", ansi);
+          if (!BuildDocUrl(dir, "guide.html", url) || url != "file:///C:/caf%C3%A9/html/guide.html") {
+            fprintf(stderr, "FATAL: non-ASCII help path gave '%s'\n", (LPCSTR) url);
+            fflush(stderr);
+            ExitProcess(3);
+          }
+        }
       }
+    }
+    /* An unescaped space truncates the path, and an unescaped '#' names a file rather
+       than a section, since NTFS allows one in a filename. */
+    {
+      static const struct { const char* dir; const char* page; const char* want; } urls[] = {
+        { "C:\\Program Files\\WinHTTrack\\html\\", "guide.html#win/opt-limits",
+          "file:///C:/Program%20Files/WinHTTrack/html/guide.html#win/opt-limits" },
+        { "C:\\h\\", "guide.html", "file:///C:/h/guide.html" },
+        { "C:\\a#b\\", "guide.html#win", "file:///C:/a%23b/guide.html#win" },
+        { "\\\\srv\\share\\html\\", "guide.html#win", "file://srv/share/html/guide.html#win" },
+        { NULL, NULL, NULL }
+      };
+      for(int k=0 ; urls[k].dir != NULL ; k++) {
+        CString url;
+        if (!BuildDocUrl(urls[k].dir, urls[k].page, url) || url != urls[k].want) {
+          fprintf(stderr, "FATAL: help URL for '%s%s' is '%s', expected '%s'\n",
+                  urls[k].dir, urls[k].page, (LPCSTR) url, urls[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("help URLs ok\n");
     }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
@@ -922,7 +955,7 @@ void CWinHTTrackApp::OnHelpInfo2() {
 
 BOOL CWinHTTrackApp::OnHelpInfo(HELPINFO* dummy) 
 {
-  HtsHelper->Help("step2.html");
+  HtsHelper->HelpTopic("step-address");
   return true;
 }
 

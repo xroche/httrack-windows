@@ -512,7 +512,7 @@ BOOL CNewProj::OnHelpInfo(HELPINFO* dummy)
 {
   //return CPropertyPage::OnHelpInfo(pHelpInfo);
   //AfxGetApp()->WinHelp(0,HELP_FINDER);    // Index du fichier Hlp
-  HtsHelper->Help("step1.html");
+  HtsHelper->HelpTopic("step-project");
   //HtsHelper->Help();
   return true;
 }

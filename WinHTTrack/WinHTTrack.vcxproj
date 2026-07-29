@@ -127,13 +127,9 @@
     <ClCompile Include="CatchUrl.cpp" />
     <ClCompile Include="CrashReport.cpp" />
     <ClCompile Include="DialogContainer.cpp" />
-    <ClCompile Include="DialogHtmlHelp.cpp" />
     <ClCompile Include="DirTreeView.cpp" />
     <ClCompile Include="EasyDropTarget.cpp" />
     <ClCompile Include="FirstInfo.cpp" />
-    <ClCompile Include="HtmlCtrl.cpp" />
-    <ClCompile Include="HtmlFrm.cpp" />
-    <ClCompile Include="HTMLHelp.cpp" />
     <ClCompile Include="Infoend.cpp" />
     <ClCompile Include="InfoUrl.cpp" />
     <ClCompile Include="inprogress.cpp" />
@@ -195,13 +191,9 @@
     <ClInclude Include="cpp_lang.h" />
     <ClInclude Include="CrashReport.h" />
     <ClInclude Include="DialogContainer.h" />
-    <ClInclude Include="DialogHtmlHelp.h" />
     <ClInclude Include="DirTreeView.h" />
     <ClInclude Include="EasyDropTarget.h" />
     <ClInclude Include="FirstInfo.h" />
-    <ClInclude Include="HtmlCtrl.h" />
-    <ClInclude Include="HtmlFrm.h" />
-    <ClInclude Include="HTMLHelp.h" />
     <ClInclude Include="htssystem.h" />
     <ClInclude Include="HTTrackInterface.h" />
     <ClInclude Include="infoend.h" />
@@ -259,15 +251,7 @@
   <ItemGroup>
     <None Include="res\www.cur" />
     <Image Include="res\ico00001.ico" />
-    <Image Include="res\icon1.ico" />
-    <Image Include="res\icon2.ico" />
-    <Image Include="res\icon3.ico" />
-    <Image Include="res\icon4.ico" />
-    <Image Include="res\icon5.ico" />
-    <Image Include="res\icon6.ico" />
-    <Image Include="res\idr_main.ico" />
     <Image Include="res\Shell.ico" />
-    <Image Include="res\mainfram.bmp" />
     <Image Include="res\Toolbar.bmp" />
   </ItemGroup>
 

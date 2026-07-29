@@ -28,63 +28,94 @@ Please visit our Website: http://www.httrack.com
 //
 
 #include "stdafx.h"
-
-/* Must follow the PCH include: anything before it is discarded, so defining
-   this above would silently do nothing. */
-#define VIEW_HELP 0
 #include "LaunchHelp.h"
-#include "DialogHtmlHelp.h"
-#include "process.h"
+#include "Shell.h"
 
-#if VIEW_HELP
-#include "htmlfrm.h"
-#endif
+/* The guide is shared with WebHTTrack and Android; the platform in the fragment is
+   what selects our screenshots. */
+#define DOC_GUIDE "guide.html#win"
 
-LaunchHelp::LaunchHelp() {
-  page="";
+/* Unreserved, plus ':' and '/' so the drive letter and the separators survive. */
+static bool IsUrlSafe(unsigned char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+      || c == '-' || c == '_' || c == '.' || c == '~' || c == '/' || c == ':';
 }
-LaunchHelp::~LaunchHelp() {
-  if (b.m_hWnd) {
-    b.EndDialog(IDCANCEL);
+
+static void AppendEscaped(CString& url, const char* s) {
+  for(; *s != '\0' ; s++) {
+    const unsigned char c = (unsigned char) *s;
+    if (IsUrlSafe(c)) {
+      url += (char) c;
+    } else {
+      char hex[4];
+      sprintfbuff(hex, "%%%02X", c);
+      url += hex;
+    }
   }
+}
+
+// Contract in LaunchHelp.h.
+bool BuildDocUrl(const char* dir, const char* page, CString& url) {
+  const char* const frag = strchr(page, '#');
+  CString path(dir);
+  path += (frag != NULL) ? CString(page, (int) (frag - page)) : CString(page);
+  path.Replace('\\', '/');
+
+  /* A browser reads a file: URL's escaped bytes as UTF-8, not as our ANSI codepage. */
+  char* utf8 = strdupt_utf8(path);   /* freet() nulls it, so not const */
+  if (utf8 == NULL)
+    return false;
+  /* A UNC path is already rooted at "//server", so it takes two slashes, not three. */
+  url = (utf8[0] == '/' && utf8[1] == '/') ? "file:" : "file:///";
+  AppendEscaped(url, utf8);
+  freet(utf8);
+
+  if (frag != NULL) {
+    url += '#';
+    AppendEscaped(url, frag + 1);
+  }
+  return true;
+}
+
+/* The doc tree sits beside the executable, where the installer stages it. */
+static bool DocDir(char* dir, size_t size) {
+  const DWORD n = ::GetModuleFileName(NULL, dir, (DWORD) size);
+  if (n == 0 || n >= size)   /* n == size on truncation, which leaves dir unterminated */
+    return false;
+  char* p = dir + n;
+  while(p > dir && p[-1] != '\\' && p[-1] != '/')
+    p--;
+  if ((size_t) (p - dir) + sizeof("html\\") > size)
+    return false;
+  memcpy(p, "html\\", sizeof("html\\"));
+  return true;
 }
 
 void LaunchHelp::Help(CString page) {
-#if VIEW_HELP
-#else
-  if (!b)
-    this->page=page;
-  else {
-    if (b.m_hWnd)
-      this->b.Go(page);
-    else
-      this->page=page;
+  /* The update check hands us a real URL; everything else names a page in html/. */
+  if (page.Left(7) == "http://" || page.Left(8) == "https://") {
+    if (!ShellOpen(page, SW_SHOWNORMAL))
+      AfxMessageBox(LANG(LANG_DIAL1));
+    return;
   }
-#endif
-  GoHelp();
+
+  char dir[1024];
+  CString url;
+  if (!DocDir(dir, sizeof(dir)) || !BuildDocUrl(dir, page, url)
+      || !ShellOpen(url, SW_SHOWNORMAL))
+    AfxMessageBox(LANG(LANG_DIAL1));
+}
+
+void LaunchHelp::HelpTopic(const char* anchor) {
+  CString page(DOC_GUIDE);
+  if (anchor != NULL && *anchor != '\0') {
+    page += '/';
+    page += anchor;
+  }
+  Help(page);
 }
 
 void LaunchHelp::Help() {
-  Help("index.html");
-}
-  
-void LaunchHelp::GoHelp() {
-#if VIEW_HELP
-  CHtmlFrame* frm=new CHtmlFrame;
-	if (!frm->LoadFrame(IDR_HELPFRM))
-		return;
-  frm->ShowWindow(SW_SHOWNORMAL);
-	frm->UpdateWindow();
-#else
-  if (!b.m_hWnd) {
-    b.page=page;
-    RECT rect;
-    rect.bottom=rect.left=rect.right=rect.top=0;
-    b.Create(NULL,NULL,WS_OVERLAPPEDWINDOW,rect,NULL,0);
-    b.ShowWindow(SW_SHOWNORMAL);
-  } else {
-    b.SetForegroundWindow();
-  }
-#endif
+  HelpTopic(NULL);
 }
 
