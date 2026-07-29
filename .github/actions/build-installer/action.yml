@@ -71,22 +71,6 @@ runs:
         $verid = $Matches[1]
         Write-Host "version = $ver ($verid), arch = $arch"
 
-        # The VC++ runtime, bundled so a clean machine can actually start the app.
-        # vs/17 is the VS2022 line (14.4x). NOT vs/18: the 14.5x redistributable
-        # refuses to install on Windows 7, which is still our floor.
-        $redist = "$PWD\vc_redist.$arch.exe"
-        Invoke-WebRequest "https://aka.ms/vs/17/release/vc_redist.$arch.exe" -OutFile $redist
-        if ((Get-Item $redist).Length -lt 1MB) { throw 'vc_redist download looks wrong' }
-
-        # Bundled into a signed installer and run elevated, so verify who produced the
-        # bytes: aka.ms redirects, and TLS only authenticates the host we fetched from.
-        $sig = Get-AuthenticodeSignature $redist
-        if ($sig.Status -ne 'Valid') { throw "vc_redist signature is $($sig.Status)" }
-        if ($sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
-          throw "vc_redist signed by an unexpected party: $($sig.SignerCertificate.Subject)"
-        }
-        Write-Host "vc_redist signer verified: $($sig.SignerCertificate.Subject)"
-
         $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
         if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
         if (-not (Test-Path $iscc)) { throw 'Inno Setup is not available' }
@@ -95,7 +79,7 @@ runs:
           '/Q'
           "/DArch=$arch", "/DAppVersion=$ver", "/DAppVersionNumeric=$verid"
           "/DPayloadDir=$env:PAYLOAD_DIR", "/DEngineDir=$env:ENGINE_DIR", "/DGuiDir=$env:GUI_DIR"
-          "/DRedistFile=$redist", "/DOutDir=$env:OUT_DIR"
+          "/DOutDir=$env:OUT_DIR"
         )
         if ($env:SIGN -eq 'true') {
           if ($env:THUMBPRINT -notmatch '^[0-9A-Fa-f]{40}$') { throw "a 40-hex thumbprint is needed to sign, got '$env:THUMBPRINT'" }
@@ -106,8 +90,6 @@ runs:
           $iargs += ("/Scertum=signtool.exe sign /sha1 $env:THUMBPRINT /fd sha256 /tr http://time.certum.pl /td sha256 " + '$f')
         }
 
-        # ISCC fails if any Source: is missing, so a clean compile also proves the
-        # redistributable really is in the package.
         & $iscc @iargs (Join-Path $env:GUI_DIR 'InnoSetup\httrack.iss')
         if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
 

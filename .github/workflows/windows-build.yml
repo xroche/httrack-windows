@@ -440,9 +440,68 @@ jobs:
               Select-String -Pattern '^\s{4}(\S+\.dll)$' |
               ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
           }
-          # Supplied by Windows itself, or by the VC++ redist (see the README below).
-          $provided = '^(api-ms-win-|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|ucrtbase|vcruntime|msvcp|mfc)'
-          $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\libhttrack.dll") |
+          # CRT, MFC and UCRT ship beside the exe instead of through the 25 MB
+          # redistributable. The UCRT comes too: Windows 10 has it, Windows 7 SP1 only
+          # gets it from KB2999226.
+          $rarch = if ('${{ matrix.platform }}' -eq 'x64') { 'x64' } else { 'x86' }
+          # Matched to the toolset that compiled the binaries rather than to whatever is
+          # newest on the runner: 14.5x is where Windows 7 support ends.
+          $tv = [version]$tools.Name
+          if ($tv -ge [version]'14.50') { throw "toolset $($tools.Name) is past the 14.4x line, which still supports Windows 7" }
+          $vcline = '{0}.{1}.' -f $tv.Major, $tv.Minor
+          $vcver = @(Get-ChildItem "$vs\VC\Redist\MSVC" -Directory |
+            Where-Object { $_.Name.StartsWith($vcline) } | Sort-Object { [version]$_.Name }) | Select-Object -Last 1
+          if (-not $vcver) { throw "no VC++ redist on the $vcline line to match toolset $($tools.Name)" }
+          $vcr = @(Get-ChildItem "$($vcver.FullName)\$rarch" -Directory |
+            Where-Object { $_.Name -match '^Microsoft\.VC\d+\.(CRT|MFC)$' })
+          if ($vcr.Count -lt 2) { throw "no VC++ CRT/MFC redist under $($vcver.FullName)\$rarch" }
+          # Both SDK layouts: Redist\ucrt\DLLs\<arch> and Redist\<sdkver>\ucrt\DLLs\<arch>.
+          # Newest wins -- merging every installed SDK would ship whichever enumerated last,
+          # and the unversioned legacy path sorts first.
+          $ucrt = @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Redist" -Directory -Recurse -Filter $rarch -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\ucrt\\DLLs\\' } |
+            Sort-Object { if ($_.FullName -match '\\Redist\\(\d+(\.\d+){3})\\') { [version]$Matches[1] } else { [version]'0.0.0.0' } }) |
+            Select-Object -Last 1
+          if (-not $ucrt) { throw 'no UCRT redist in the Windows SDK' }
+          $pool = @{}
+          foreach ($d in @($vcr) + @($ucrt)) {
+            Get-ChildItem $d.FullName -Filter *.dll | ForEach-Object { $pool[$_.Name] = $_.FullName }
+          }
+          # Seeded from everything already staged, not just our three binaries: OpenSSL and
+          # friends are built against the same CRT, so their imports are in the closure too.
+          $todo = [Collections.Queue]::new()
+          Get-ChildItem $bin -File | Where-Object { $_.Extension -in '.exe', '.dll' } |
+            ForEach-Object { $todo.Enqueue($_.Name) }
+          # The api-ms-win-crt stubs forward to ucrtbase instead of importing it, so no
+          # dependency walk ever names it.
+          if (-not $pool.ContainsKey('ucrtbase.dll')) { throw 'the SDK UCRT redist has no ucrtbase.dll' }
+          $todo.Enqueue('ucrtbase.dll')
+          $seen = @{}
+          $staged = @{}
+          while ($todo.Count) {
+            $n = $todo.Dequeue()
+            if ($seen.ContainsKey($n)) { continue }
+            $seen[$n] = $true
+            $here = Join-Path $bin $n
+            if (-not (Test-Path $here)) {
+              # Ours to ship if the redist has it; anything else Windows supplies.
+              if (-not $pool.ContainsKey($n)) { continue }
+              Copy-Item $pool[$n] $bin
+              $staged[$n] = $true
+            }
+            Deps $here | ForEach-Object { $todo.Enqueue($_) }
+          }
+          if (-not $staged.Count) { throw 'no runtime DLL was staged: the redist layout moved' }
+          if (-not (Test-Path (Join-Path $bin 'ucrtbase.dll'))) { throw 'ucrtbase.dll was not staged' }
+          Write-Host "--- app-local runtime: $($staged.Count) DLLs from $($vcver.Name) ---"
+          # What the sign job must leave alone. It cannot infer this from signature status:
+          # a Microsoft DLL that fails to verify on the runner would land in our bucket.
+          Set-Content (Join-Path $bin 'runtime-vendored.txt') ($staged.Keys | Sort-Object)
+
+          # Supplied by Windows itself. The CRT names are gone from this list on purpose:
+          # they are ours to ship now, so the check below catches a staging regression.
+          $provided = '^(api-ms-win-(?!crt-)|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32)'
+          $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\httrack.exe") + @(Deps "$bin\libhttrack.dll") |
             Where-Object { $_ -notmatch $provided } | Sort-Object -Unique
           Write-Host "--- must ship: $($needed -join ', ') ---"
           foreach ($d in $needed) {
@@ -467,15 +526,13 @@ jobs:
             Write-Host "::warning::no libhttrack.pdb: engine frames will not resolve"
           }
 
-          # mfc140/vcruntime140/msvcp140 are NOT shipped here; they come from the
-          # VC++ redist. Say so, so nobody wonders why a clean box will not run it.
           Set-Content (Join-Path $bin 'README-artifact.txt') @'
           This is a CI build of WinHTTrack, not an installer.
 
-          It needs the Microsoft Visual C++ 2015-2022 redistributable (x64 or x86 to
-          match), which supplies mfc140.dll, vcruntime140.dll and msvcp140.dll. Those
-          are deliberately not bundled here. Everything else it needs is in this
-          folder: libhttrack.dll, OpenSSL, zlib, and lang/.
+          Everything it needs is in this folder, including the Microsoft Visual C++
+          runtime and the UCRT, so there is no redistributable to install first.
+          Windows 7 SP1 is the exception: the runtime also needs KB2533623, which
+          only Windows Update can supply.
 
           httrack.exe is the command-line version, against the same libhttrack.dll.
           '@
@@ -683,11 +740,28 @@ jobs:
             # Sign what is there rather than a fixed list: OpenSSL is libssl-3.dll on
             # x86 but libssl-3-x64.dll on x64. Recursive because the installer packs
             # subdirectories, so a PE below the top level would otherwise ship unsigned.
-            $pes = @(Get-ChildItem $d.FullName -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+            $all = @(Get-ChildItem $d.FullName -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+            # Whose file it is comes from the build job's manifest, never from whether a
+            # signature verifies here: signtool REPLACES, so an unverifiable Microsoft DLL
+            # would come back carrying our certificate.
+            $manifest = Join-Path $d.FullName 'runtime-vendored.txt'
+            if (-not (Test-Path $manifest)) { throw "$($d.Name) has no runtime-vendored.txt" }
+            $vendored = @{}
+            Get-Content $manifest | Where-Object { $_.Trim() } | ForEach-Object { $vendored[$_.Trim()] = $true }
+            if (-not $vendored.Count) { throw "$($d.Name): runtime-vendored.txt is empty" }
+            $pes = @()
+            foreach ($f in $all) {
+              if (-not $vendored.ContainsKey($f.Name)) { $pes += $f; continue }
+              # Theirs, and it has to still say so: packaging must not have stripped it.
+              $sig = Get-AuthenticodeSignature $f.FullName
+              if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+                throw "$($f.Name) is vendored but carries no valid Microsoft signature ($($sig.Status))"
+              }
+            }
             foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
               if ($f -notin $pes.Name) { throw "$($d.Name) has no $f to sign" }
             }
-            Write-Host "--- $($d.Name): $($pes.Count) binaries ---"
+            Write-Host "--- $($d.Name): $($pes.Count) to sign, $($vendored.Count) vendored ---"
             foreach ($f in $pes) {
               # Every file is a fresh call to the timestamp server; one hiccup should
               # not cost a release.
@@ -786,6 +860,7 @@ jobs:
           thumbprint: ${{ env.THUMBPRINT }}
           require-signature: 'true'
           check-crash-report: 'false'
+          vendored-list: ${{ github.workspace }}\payload\WinHTTrack-x64-Release\runtime-vendored.txt
 
       - name: Install it, run it, uninstall it (x86)
         uses: ./httrack-windows/.github/actions/smoke-test
@@ -795,4 +870,5 @@ jobs:
           thumbprint: ${{ env.THUMBPRINT }}
           require-signature: 'true'
           check-crash-report: 'false'
+          vendored-list: ${{ github.workspace }}\payload\WinHTTrack-Win32-Release\runtime-vendored.txt
 

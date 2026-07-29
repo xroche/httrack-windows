@@ -22,6 +22,9 @@ inputs:
   check-crash-report:
     description: "'false' to skip the crash-report chain, which needs the shipped PDB to resolve."
     default: 'true'
+  vendored-list:
+    description: runtime-vendored.txt from the payload, naming the DLLs that stay signed by Microsoft.
+    default: ''
   install-dir:
     description: Where to install.
     default: C:\WinHTTrackTest
@@ -37,6 +40,7 @@ runs:
         REQUIRE_SIG: ${{ inputs.require-signature }}
         CHECK_CRASH: ${{ inputs.check-crash-report }}
         INSTALL_DIR: ${{ inputs.install-dir }}
+        VENDORED_LIST: ${{ inputs.vendored-list }}
       run: |
         $setup = Get-Item $env:SETUP
         $dir = $env:INSTALL_DIR
@@ -82,7 +86,25 @@ runs:
           $pes = @(Get-ChildItem $dir -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll' })
           Write-Host "--- signatures on the $($pes.Count) installed binaries ---"
           if ($pes.Count -lt 5) { throw "only $($pes.Count) binaries were installed: the check below would prove nothing" }
-          $bad = @($pes | ForEach-Object { Test-Signature $_.FullName } | Where-Object { $_ })
+          # The app-local runtime stays signed by Microsoft, so check it against them. By
+          # name from the manifest: the file cannot say whether it was wrongly re-signed.
+          $vendored = @{}
+          if ($env:VENDORED_LIST) {
+            if (-not (Test-Path $env:VENDORED_LIST)) { throw "no vendored list at $env:VENDORED_LIST" }
+            Get-Content $env:VENDORED_LIST | Where-Object { $_.Trim() } | ForEach-Object { $vendored[$_.Trim()] = $true }
+          }
+          foreach ($n in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
+            if ($vendored.ContainsKey($n)) { throw "$n is listed as vendored: the manifest is wrong" }
+          }
+          $bad = @()
+          foreach ($f in $pes) {
+            if (-not $vendored.ContainsKey($f.Name)) { $bad += Test-Signature $f.FullName; continue }
+            $sig = Get-AuthenticodeSignature $f.FullName
+            if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+              $bad += "$($f.Name) is vendored but carries no valid Microsoft signature ($($sig.Status))"
+            }
+          }
+          $bad = @($bad | Where-Object { $_ })
           if ($bad) { throw ($bad -join "`n") }
         }
 
