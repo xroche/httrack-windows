@@ -1,6 +1,7 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
+#include "version.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -748,8 +749,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 3,49,14,0
- PRODUCTVERSION 3,49,14,0
+ FILEVERSION WINHTTRACK_VERSION_NUM
+ PRODUCTVERSION WINHTTRACK_VERSION_NUM
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -767,13 +768,13 @@ BEGIN
             VALUE "Comments", "Website Copier [Offline Browser]"
             VALUE "CompanyName", "HTTrack"
             VALUE "FileDescription", "WinHTTrack Website Copier, Copy Websites to Your Computer"
-            VALUE "FileVersion", "3.49.14"
+            VALUE "FileVersion", WINHTTRACK_VERSIONID
             VALUE "InternalName", "WinHTTrack"
             VALUE "LegalCopyright", "Copyright (C) 1998-2026 Xavier Roche and other contributors"
             VALUE "LegalTrademarks", "This software is covered by the GNU General Public License version 3"
             VALUE "OriginalFilename", "WinHTTrack.exe"
             VALUE "ProductName", "HTTrack Website Copier"
-            VALUE "ProductVersion", "3.49-14"
+            VALUE "ProductVersion", WINHTTRACK_VERSION
         END
     END
     BLOCK "VarFileInfo"

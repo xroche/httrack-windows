@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "about.h"
+#include "version.h"
 //#include "about_sh.h"
 
 #ifdef _DEBUG
@@ -145,7 +146,7 @@ BOOL Cabout::OnInitDialog()
 
 void Cabout::setlang() {
   const char* avail = hts_is_available();
-  CString info = "WinHTTrack Website Copier ";
+  CString info = "WinHTTrack Website Copier " WINHTTRACK_VERSION ", engine ";
   info+= _HTTRACK_VERSION;
   if (avail && *avail) {
     info+=" (";

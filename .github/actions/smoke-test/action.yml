@@ -11,7 +11,10 @@ inputs:
     description: The installer to test.
     required: true
   version:
-    description: The version every binary must report.
+    description: The version WinHTTrack.exe and the installer must report.
+    required: true
+  engine-version:
+    description: The version httrack.exe must report, which trails the GUI's.
     required: true
   thumbprint:
     description: When set, every signature must be valid, timestamped, and this certificate's.
@@ -36,6 +39,7 @@ runs:
       env:
         SETUP: ${{ inputs.setup }}
         APPVER: ${{ inputs.version }}
+        ENGINEVER: ${{ inputs.engine-version }}
         THUMBPRINT: ${{ inputs.thumbprint }}
         REQUIRE_SIG: ${{ inputs.require-signature }}
         CHECK_CRASH: ${{ inputs.check-crash-report }}
@@ -47,6 +51,7 @@ runs:
         # Without this, an empty version would make [regex]::Escape('') = '' and
         # `-notmatch ''` false: every version assertion below would stop asserting.
         if ([string]::IsNullOrWhiteSpace($env:APPVER)) { throw 'no version was passed: the version checks would be vacuous' }
+        if ([string]::IsNullOrWhiteSpace($env:ENGINEVER)) { throw 'no engine version was passed: the CLI version check would be vacuous' }
         # Skipping the signature checks is the normal shape on every unsigned build,
         # so the release path has to say out loud that it expects them.
         if ($env:REQUIRE_SIG -eq 'true' -and -not $env:THUMBPRINT) { throw 'signatures were required but no thumbprint was passed' }
@@ -167,7 +172,7 @@ runs:
         }
 
         # The CLI is a separate binary against the same DLL: it can be broken while the
-        # GUI is fine. -#h prints the version and exits 0.
+        # GUI is fine. -#h prints the version -- the engine's, which stamps it -- and exits 0.
         $cli = Join-Path $dir 'httrack.exe'
         if (-not (Test-Path $cli)) { throw "the installer did not lay down httrack.exe" }
         $p = Start-Process $cli -ArgumentList '-#h' -Wait -PassThru `
@@ -176,11 +181,11 @@ runs:
         $co1 = ("$co".Trim() -split "\r?\n" | Select-Object -First 1)
         Write-Host "httrack.exe -#h -> exit=$($p.ExitCode), output='$co1'"
         if ($p.ExitCode -ne 0) { throw "httrack.exe -#h exited $($p.ExitCode)" }
-        if ($co -notmatch [regex]::Escape($env:APPVER)) {
-          throw "httrack.exe reported no version, or the wrong one: expected $env:APPVER"
+        if ($co -notmatch [regex]::Escape($env:ENGINEVER)) {
+          throw "httrack.exe reported no version, or the wrong one: expected $env:ENGINEVER"
         }
 
-        Write-Host "::notice::WinHTTrack $env:APPVER installs, starts and runs ($($setup.Name))."
+        Write-Host "::notice::WinHTTrack $env:APPVER (engine $env:ENGINEVER) installs, starts and runs ($($setup.Name))."
 
         $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
         $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'

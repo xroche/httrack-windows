@@ -8,8 +8,8 @@ name: windows-build
 on:
   push:
     branches: [master]
-    # The engine tags releases bare: 3.49.12, 3.49.8-2. Match that, and 'v' too in
-    # case anyone reaches for it. A 'v*'-only filter would silently never fire.
+    # Releases are tagged bare, like the engine's: 3.49.12, 3.50-beta-1. Match that,
+    # and 'v' too in case anyone reaches for it: a 'v*'-only filter never fires.
     tags: ['[0-9]*', 'v*']
   pull_request:
   workflow_dispatch:
@@ -621,29 +621,43 @@ jobs:
           }
           Write-Host '::notice::crash report resolves function, file and line'
 
-      # Self-imposed now that no CA enforces it: every shipped binary and the
-      # installer must agree on product name and version. Cheap to catch here.
+      # Self-imposed now that no CA enforces it: every shipped binary must carry the
+      # product name and the version of the tree that stamped it. The GUI has its own
+      # now, so it is held to version.h and the engine's two binaries to htsglobal.h.
       - name: Check the binaries agree on product name and version
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
           $hg = Get-Content 'httrack\src\htsglobal.h' -Raw
           if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
-          $want = $Matches[1]
+          $engine = $Matches[1]
+          $vh = Get-Content 'httrack-windows\WinHTTrack\version.h' -Raw
+          if ($vh -notmatch '#define\s+WINHTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read WINHTTRACK_VERSION' }
+          $gui = $Matches[1]
           $name = 'HTTrack Website Copier'
 
           $bad = @()
-          foreach ($f in @('WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll')) {
-            $v = (Get-Item (Join-Path $bin $f)).VersionInfo
+          foreach ($f in @(@{n='WinHTTrack.exe'; v=$gui}, @{n='httrack.exe'; v=$engine}, @{n='libhttrack.dll'; v=$engine})) {
+            $v = (Get-Item (Join-Path $bin $f.n)).VersionInfo
             # Trim: resource compilers pad these fields, and Inno certainly does.
             $pn = "$($v.ProductName)".Trim()
             $pv = "$($v.ProductVersion)".Trim()
-            Write-Host "  $f : ProductName='$pn' ProductVersion='$pv'"
-            if ($pn -ne $name) { $bad += "$f names the product '$pn', not '$name'" }
-            if ($pv -ne $want) { $bad += "$f is version '$pv', not '$want'" }
+            Write-Host "  $($f.n) : ProductName='$pn' ProductVersion='$pv'"
+            if ($pn -ne $name) { $bad += "$($f.n) names the product '$pn', not '$name'" }
+            if ($pv -ne $f.v) { $bad += "$($f.n) is version '$pv', not '$($f.v)'" }
           }
           if ($bad) { throw ($bad -join "`n") }
-          Write-Host "::notice::all three binaries report $name $want"
+
+          # The .rc takes its version string and its comma form from two macros, so a
+          # bump that edits one and not the other ships a file disagreeing with itself.
+          if ($vh -notmatch '#define\s+WINHTTRACK_VERSIONID\s+"([^"]+)"') { throw 'cannot read WINHTTRACK_VERSIONID' }
+          $verid = $Matches[1]
+          $fv = (Get-Item (Join-Path $bin 'WinHTTrack.exe')).VersionInfo
+          $num = "$($fv.FileMajorPart).$($fv.FileMinorPart).$($fv.FileBuildPart).$($fv.FilePrivatePart)"
+          if ($num -ne $verid) { throw "WinHTTrack.exe is numbered $num, but WINHTTRACK_VERSIONID says $verid" }
+          if ("$($fv.FileVersion)".Trim() -ne $verid) { throw "WinHTTrack.exe FileVersion is '$($fv.FileVersion)', not '$verid'" }
+
+          Write-Host "::notice::all three binaries report $name, the GUI at $gui and the engine at $engine"
 
       # vcpkg is invisible to Dependabot alerts, CodeQL and the dependency graph, so
       # this is the only thing between a stale OpenSSL and a signed installer. Advisory
@@ -686,6 +700,7 @@ jobs:
         with:
           setup: ${{ steps.installer.outputs.setup }}
           version: ${{ steps.installer.outputs.version }}
+          engine-version: ${{ steps.installer.outputs.engine-version }}
 
       - name: Upload the installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -938,6 +953,7 @@ jobs:
         with:
           setup: ${{ steps.x64.outputs.setup }}
           version: ${{ steps.x64.outputs.version }}
+          engine-version: ${{ steps.x64.outputs.engine-version }}
           thumbprint: ${{ env.THUMBPRINT }}
           require-signature: 'true'
           check-crash-report: 'false'
@@ -948,6 +964,7 @@ jobs:
         with:
           setup: ${{ steps.x86.outputs.setup }}
           version: ${{ steps.x86.outputs.version }}
+          engine-version: ${{ steps.x86.outputs.engine-version }}
           thumbprint: ${{ env.THUMBPRINT }}
           require-signature: 'true'
           check-crash-report: 'false'

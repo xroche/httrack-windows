@@ -53,7 +53,7 @@ Right-click the installer, choose *Properties*, and open the *Digital Signatures
 from PowerShell:
 
 ```powershell
-Get-AuthenticodeSignature .\httrack_x64_3.49-14.exe |
+Get-AuthenticodeSignature .\httrack_x64_3.50-beta-1.exe |
   Format-List Status, SignerCertificate, TimeStamperCertificate
 ```
 
