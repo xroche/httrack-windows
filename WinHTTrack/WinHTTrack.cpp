@@ -45,6 +45,7 @@ Please visit our Website: http://www.httrack.com
 #include "inprogress.h"
 
 #include "CrashReport.h"
+#include "version.h"
 
 // KB955045 (http://support.microsoft.com/kb/955045)
 // To execute an application using this function on earlier versions of Windows
@@ -263,7 +264,7 @@ BOOL CWinHTTrackApp::InitInstance()
   for (int i = 1; __argv != NULL && i < __argc; i++) {
     if (strcmp(__argv[i], "--version") == 0) {
       WhttEnsureConsole();
-      printf("WinHTTrack %s\n", HTTRACK_VERSION);
+      printf("WinHTTrack %s (engine %s)\n", WINHTTRACK_VERSION, HTTRACK_VERSION);
       fflush(stdout);
       ExitProcess(0);
     } else if (strcmp(__argv[i], "--selftest") == 0) {
@@ -450,7 +451,7 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       CrashReportLogException(reason);
     } END_CATCH_ALL
-    printf("WinHTTrack %s: startup ok\n", HTTRACK_VERSION);
+    printf("WinHTTrack %s: startup ok\n", WINHTTRACK_VERSION);
     fflush(stdout);
     ExitProcess(0);
   }

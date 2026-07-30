@@ -227,6 +227,7 @@
     <ClInclude Include="StdAfx.h" />
     <ClInclude Include="trans.h" />
     <ClInclude Include="TreeViewToolTip.h" />
+    <ClInclude Include="version.h" />
     <ClInclude Include="Wid1.h" />
     <ClInclude Include="WinHTTrack.h" />
     <ClInclude Include="WinHTTrackDoc.h" />

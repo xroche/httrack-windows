@@ -3,7 +3,7 @@
 ; Everything comes from the command line, so nothing is tied to one machine and CI
 ; can build this from the very artifact it already publishes:
 ;
-;   ISCC /DArch=x64 /DAppVersion=3.49-12 ^
+;   ISCC /DArch=x64 /DAppVersion=3.50-beta-1 ^
 ;        /DPayloadDir=...\WinHTTrack\bin\x64\Release ^
 ;        /DEngineDir=...\httrack /DGuiDir=...\httrack-windows ^
 ;        /DOutDir=...\out ^
@@ -20,7 +20,7 @@
   #error Arch must be set (x64 or x86)
 #endif
 #ifndef AppVersionNumeric
-  #error AppVersionNumeric must be set (dotted, e.g. 3.49.12)
+  #error AppVersionNumeric must be set (dotted, e.g. 3.49.99.1)
 #endif
 #ifndef AppVersion
   #error AppVersion must be set
@@ -28,6 +28,7 @@
 
 [Setup]
 AppName=WinHTTrack Website Copier
+; The GUI carries its own version (WinHTTrack/version.h); the engine is on its own.
 AppVersion={#AppVersion}
 AppVerName=WinHTTrack Website Copier {#AppVersion}
 VersionInfoProductName=HTTrack Website Copier

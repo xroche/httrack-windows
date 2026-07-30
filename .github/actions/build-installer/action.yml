@@ -29,8 +29,11 @@ inputs:
 
 outputs:
   version:
-    description: HTTRACK_VERSION, read from the engine header.
+    description: WINHTTRACK_VERSION, read from the GUI header. What the installer is stamped with.
     value: ${{ steps.iscc.outputs.version }}
+  engine-version:
+    description: HTTRACK_VERSION, read from the engine header. What httrack.exe and libhttrack.dll report.
+    value: ${{ steps.iscc.outputs.engine-version }}
   setup:
     description: Full path of the installer that was built.
     value: ${{ steps.iscc.outputs.setup }}
@@ -62,14 +65,19 @@ runs:
           throw ('the payload WinHTTrack.exe is machine 0x{0:x}, not the 0x{1:x} an {2} installer needs' -f $machine, $want, $arch)
         }
 
-        # Single source of truth for the version: the engine's own header.
+        # What the installer is stamped with is the GUI's version, not the engine's:
+        # WinHTTrack ships as the 3.50 beta over a 3.49 engine.
+        $vh = Get-Content (Join-Path $env:GUI_DIR 'WinHTTrack\version.h') -Raw
+        if ($vh -notmatch '#define\s+WINHTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read WINHTTRACK_VERSION' }
+        $ver = $Matches[1]
+        # Inno stamps 0.0.0.0 unless it gets a valid version number, and "3.50-beta-1" is not one.
+        if ($vh -notmatch '#define\s+WINHTTRACK_VERSIONID\s+"([^"]+)"') { throw 'cannot read WINHTTRACK_VERSIONID' }
+        $verid = $Matches[1]
+        # Reported alongside for the smoke test, which holds httrack.exe to it.
         $hg = Get-Content (Join-Path $env:ENGINE_DIR 'src\htsglobal.h') -Raw
         if ($hg -notmatch '#define\s+HTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSION' }
-        $ver = $Matches[1]
-        # Inno stamps 0.0.0.0 unless it gets a valid version number, and "3.49-12" is not one.
-        if ($hg -notmatch '#define\s+HTTRACK_VERSIONID\s+"([^"]+)"') { throw 'cannot read HTTRACK_VERSIONID' }
-        $verid = $Matches[1]
-        Write-Host "version = $ver ($verid), arch = $arch"
+        $engver = $Matches[1]
+        Write-Host "version = $ver ($verid), engine = $engver, arch = $arch"
 
         $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
         if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
@@ -109,4 +117,5 @@ runs:
         if ($pv -ne $ver) { throw "the installer is version '$pv', not '$ver'" }
 
         "version=$ver" | Out-File -Append $env:GITHUB_OUTPUT
+        "engine-version=$engver" | Out-File -Append $env:GITHUB_OUTPUT
         "setup=$($setup.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
