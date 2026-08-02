@@ -261,6 +261,7 @@ jobs:
           # The runner's preinstalled C:\vcpkg is frozen at image-build time and never
           # fetches, so every pinned baseline we build against has to be pulled in first.
           # Both manifests are pinned now (the engine got its own in xroche/httrack#643).
+          $baselines = @()
           foreach ($m in 'httrack-windows/WinHTTrack/vcpkg.json', 'httrack/src/vcpkg.json') {
             $baseline = (Get-Content $m -Raw | ConvertFrom-Json).'builtin-baseline'
             if (-not $baseline) { continue }
@@ -268,6 +269,15 @@ jobs:
             git -C C:\vcpkg cat-file -e "${baseline}:versions/baseline.json"
             if ($LASTEXITCODE -ne 0) { throw "vcpkg baseline $baseline ($m) unreachable after fetch" }
             Write-Host "vcpkg baseline $baseline reachable ($m)"
+            $baselines += $baseline
+          }
+          # Fetching only unlocks baseline.json; the version database is read off disk, so a
+          # newer baseline names entries the frozen tree lacks. Not scripts/: it pairs with vcpkg.exe.
+          $newest = $baselines | Sort-Object { [int](git -C C:\vcpkg show -s --format=%ct $_) } | Select-Object -Last 1
+          if ($newest) {
+            git -C C:\vcpkg checkout $newest -- versions
+            if ($LASTEXITCODE -ne 0) { throw "vcpkg version database checkout at $newest failed" }
+            Write-Host "vcpkg version database at $newest"
           }
           vcpkg integrate install
 
@@ -776,7 +786,7 @@ jobs:
 
       # The very binaries the build job smoke-tested, rather than a fresh compile.
       - name: Download the tested binaries
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: WinHTTrack-*-Release
           path: payload
