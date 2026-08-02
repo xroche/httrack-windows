@@ -261,25 +261,30 @@ jobs:
           # The runner's preinstalled C:\vcpkg is frozen at image-build time and never
           # fetches, so every pinned baseline we build against has to be pulled in first.
           # Both manifests are pinned now (the engine got its own in xroche/httrack#643).
-          $baselines = @()
-          foreach ($m in 'httrack-windows/WinHTTrack/vcpkg.json', 'httrack/src/vcpkg.json') {
+          $manifests = [ordered]@{
+            ENGINE = 'httrack/src/vcpkg.json'
+            GUI    = 'httrack-windows/WinHTTrack/vcpkg.json'
+          }
+          foreach ($name in $manifests.Keys) {
+            $m = $manifests[$name]
             $baseline = (Get-Content $m -Raw | ConvertFrom-Json).'builtin-baseline'
             if (-not $baseline) { continue }
             git -C C:\vcpkg fetch --depth 1 origin $baseline
             git -C C:\vcpkg cat-file -e "${baseline}:versions/baseline.json"
             if ($LASTEXITCODE -ne 0) { throw "vcpkg baseline $baseline ($m) unreachable after fetch" }
             Write-Host "vcpkg baseline $baseline reachable ($m)"
-            $baselines += $baseline
-          }
-          # Fetching only unlocks baseline.json; the version database is read off disk, so a
-          # newer baseline names entries the frozen tree lacks. Not scripts/: it pairs with vcpkg.exe.
-          $newest = $baselines | Sort-Object { [int](git -C C:\vcpkg show -s --format=%ct $_) } | Select-Object -Last 1
-          if ($newest) {
-            git -C C:\vcpkg checkout $newest -- versions
-            if ($LASTEXITCODE -ne 0) { throw "vcpkg version database checkout at $newest failed" }
-            Write-Host "vcpkg version database at $newest"
+            Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_BASELINE_${name}=$baseline"
           }
           vcpkg integrate install
+
+      # vcpkg reads baseline.json from the baseline commit but the version database off
+      # disk, so each manifest resolves only once the tree sits at its own pin.
+      - name: Point the vcpkg version database at the engine's baseline
+        shell: pwsh
+        run: |
+          if (-not $env:VCPKG_BASELINE_ENGINE) { Write-Host 'engine manifest unpinned; versions/ left alone'; exit 0 }
+          git -C C:\vcpkg checkout $env:VCPKG_BASELINE_ENGINE -- versions
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg version database checkout at $env:VCPKG_BASELINE_ENGINE failed" }
 
       # WinHTTrack links src\$(Platform)\$(Configuration)\libhttrack.lib, so the
       # engine has to be built first.
@@ -304,6 +309,13 @@ jobs:
             /p:Configuration=${{ matrix.configuration }} `
             /p:Platform=${{ matrix.platform }} `
             /p:VcpkgEnableManifest=true
+
+      - name: Point the vcpkg version database at the GUI's baseline
+        shell: pwsh
+        run: |
+          if (-not $env:VCPKG_BASELINE_GUI) { Write-Host 'GUI manifest unpinned; versions/ left alone'; exit 0 }
+          git -C C:\vcpkg checkout $env:VCPKG_BASELINE_GUI -- versions
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg version database checkout at $env:VCPKG_BASELINE_GUI failed" }
 
       - name: Build WinHTTrack (compile + link)
         working-directory: httrack-windows
