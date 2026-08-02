@@ -261,6 +261,7 @@ jobs:
           # The runner's preinstalled C:\vcpkg is frozen at image-build time and never
           # fetches, so every pinned baseline we build against has to be pulled in first.
           # Both manifests are pinned now (the engine got its own in xroche/httrack#643).
+          $baselines = @()
           foreach ($m in 'httrack-windows/WinHTTrack/vcpkg.json', 'httrack/src/vcpkg.json') {
             $baseline = (Get-Content $m -Raw | ConvertFrom-Json).'builtin-baseline'
             if (-not $baseline) { continue }
@@ -268,6 +269,16 @@ jobs:
             git -C C:\vcpkg cat-file -e "${baseline}:versions/baseline.json"
             if ($LASTEXITCODE -ne 0) { throw "vcpkg baseline $baseline ($m) unreachable after fetch" }
             Write-Host "vcpkg baseline $baseline reachable ($m)"
+            $baselines += $baseline
+          }
+          # Fetching only makes baseline.json readable; the version DATABASE is read off
+          # disk, so a baseline newer than the image names an entry the tree lacks. Move
+          # versions/ alone (append-only, newest serves all) -- scripts/ pairs with vcpkg.exe.
+          $newest = $baselines | Sort-Object { [int](git -C C:\vcpkg show -s --format=%ct $_) } | Select-Object -Last 1
+          if ($newest) {
+            git -C C:\vcpkg checkout $newest -- versions
+            if ($LASTEXITCODE -ne 0) { throw "vcpkg version database checkout at $newest failed" }
+            Write-Host "vcpkg version database at $newest"
           }
           vcpkg integrate install
 
