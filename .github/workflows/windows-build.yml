@@ -271,9 +271,8 @@ jobs:
             Write-Host "vcpkg baseline $baseline reachable ($m)"
             $baselines += $baseline
           }
-          # Fetching only makes baseline.json readable; the version DATABASE is read off
-          # disk, so a baseline newer than the image names an entry the tree lacks. Move
-          # versions/ alone (append-only, newest serves all) -- scripts/ pairs with vcpkg.exe.
+          # Fetching only unlocks baseline.json; the version database is read off disk, so a
+          # newer baseline names entries the frozen tree lacks. Not scripts/: it pairs with vcpkg.exe.
           $newest = $baselines | Sort-Object { [int](git -C C:\vcpkg show -s --format=%ct $_) } | Select-Object -Last 1
           if ($newest) {
             git -C C:\vcpkg checkout $newest -- versions
