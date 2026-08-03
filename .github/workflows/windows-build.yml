@@ -237,6 +237,10 @@ jobs:
           if ($env:GH_REF -like 'refs/tags/*' -and $env:ENGINE_REF -notmatch '^[0-9a-f]{40}$') {
             throw "Tagged build needs HTTRACK_ENGINE_REF pinned to a 40-hex SHA (got '$env:ENGINE_REF')"
           }
+          # That pin outlives the release that needed it, freezing every later build.
+          if ($env:GH_REF -notlike 'refs/tags/*' -and $env:ENGINE_REF) {
+            Write-Host "::warning::engine is pinned to $env:ENGINE_REF; clear the HTTRACK_ENGINE_REF variable unless this build is meant to be frozen"
+          }
 
       # Located with vswhere rather than microsoft/setup-msbuild. A repo that
       # restricts Actions to GitHub-owned ones kills a third-party action as a
