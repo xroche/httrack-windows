@@ -59,6 +59,10 @@ OutputBaseFilename=httrack_{#Arch}_{#AppVersion}
 OutputDir={#OutDir}
 SetupIconFile={#GuiDir}\WinHTTrack\res\Shell.ico
 UninstallIconFile={#GuiDir}\WinHTTrack\res\Shell.ico
+; Unset, Inno draws its own stock artwork; the comma ladder lets it pick per DPI.
+WizardImageFile={#GuiDir}\InnoSetup\res\wizard-202x386.png,{#GuiDir}\InnoSetup\res\wizard-336x643.png,{#GuiDir}\InnoSetup\res\wizard-430x824.png,{#GuiDir}\InnoSetup\res\wizard-534x1022.png
+; One physical size across the ladder, so every rung is the ringless master: rings stop reading below 64 px.
+WizardSmallImageFile={#GuiDir}\InnoSetup\res\wizard-tile-58.png,{#GuiDir}\InnoSetup\res\wizard-tile-97.png,{#GuiDir}\InnoSetup\res\wizard-tile-124.png,{#GuiDir}\InnoSetup\res\wizard-tile-159.png
 ; Add/Remove Programs reads DisplayIcon, which only this directive writes.
 UninstallDisplayIcon={app}\WinHTTrack.exe
 #if Arch == "x64"
