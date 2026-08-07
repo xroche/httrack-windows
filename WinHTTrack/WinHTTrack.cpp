@@ -78,12 +78,10 @@ static char THIS_FILE[] = __FILE__;
 #include "DialogContainer.h"
 #include "InfoUrl.h"
 
-// PAS de domodal a l'exterieur!!!!!
+// No DoModal() outside the main thread!
 #include "wizard.h"
 #include "wizard2.h"
 #include "WizLinks.h"
-extern char WIZ_question[1000];
-extern char WIZ_reponse[1000];
 
 
 extern Wid1* dialog1;
@@ -745,7 +743,9 @@ void CWinHTTrackApp::OnWizRequest1() {
   wizard diawiz;
   diawiz.m_question=WIZ_question;
   diawiz.DoModal();
-  strcpybuff(WIZ_reponse,diawiz.m_reponse);
+  // User-typed, so clip rather than abort on a long one.
+  WIZ_reponse[0] = '\0';
+  strlncatbuff(WIZ_reponse, (LPCTSTR) diawiz.m_reponse, sizeof(WIZ_reponse), sizeof(WIZ_reponse) - 1);
 }
 
 void CWinHTTrackApp::OnWizRequest2() {
