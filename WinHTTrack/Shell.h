@@ -70,6 +70,11 @@ Please visit our Website: http://www.httrack.com
 #define wm_WizRequest2 (WM_USER + 102)
 #define wm_WizRequest3 (WM_USER + 103)
 
+// Wizard question/answer: the question can be a whole URL, which the engine bounds at HTS_URLMAXSIZE*2.
+#define WIZ_QUESTION_SIZE (HTS_URLMAXSIZE * 2)
+extern char WIZ_question[WIZ_QUESTION_SIZE];
+extern char WIZ_reponse[WIZ_QUESTION_SIZE];
+
 // char[] dynamiques
 #define dynstrcpy(dest,src) { \
   if (dest) free(dest);\
