@@ -132,9 +132,9 @@ extern CSplitterFrame* this_CSplitterFrame;
 /* Main WizTab frame */
 #include "WizTab.h"
 extern CWizTab* this_CWizTab;
-/* Argh - pas de domodal dans des autres threads ?!?! */
-char WIZ_question[1000];
-char WIZ_reponse[1000];
+/* Argh - no DoModal() outside the main thread ?!?! */
+char WIZ_question[WIZ_QUESTION_SIZE];
+char WIZ_reponse[WIZ_QUESTION_SIZE];
 
 httrackp *global_opt = NULL;
 
@@ -1625,10 +1625,16 @@ int inprogress_refresh() {
   return 1;
 }
 
-/* Plantages si DoModal() dans un thread != du principal.. passons.. */
+/* The question comes off the wire, so clip it rather than let strcpybuff abort. */
+static void wiz_setquestion(const char* question) {
+  WIZ_question[0] = '\0';
+  strlncatbuff(WIZ_question, question, sizeof(WIZ_question), sizeof(WIZ_question) - 1);
+  WIZ_reponse[0] = '\0';
+}
+
+/* DoModal() from a non-main thread crashes, so never mind.. */
 const char* __cdecl httrackengine_query(t_hts_callbackarg *carg, httrackp *opt, const char* question) {
-  strcpybuff(WIZ_question,question);
-  strcpybuff(WIZ_reponse, "");
+  wiz_setquestion(question);
   // AfxGetMainWnd()
   CWnd* wnd = GetMainWindow();
   if (wnd) {
@@ -1638,8 +1644,7 @@ const char* __cdecl httrackengine_query(t_hts_callbackarg *carg, httrackp *opt, 
 }
 
 const char* __cdecl httrackengine_query2(t_hts_callbackarg *carg, httrackp *opt, const char* question) {
-  strcpybuff(WIZ_question,question);
-  strcpybuff(WIZ_reponse, "");
+  wiz_setquestion(question);
   // AfxGetMainWnd()
   CWnd* wnd = GetMainWindow();
   if (wnd) {
@@ -1649,8 +1654,7 @@ const char* __cdecl httrackengine_query2(t_hts_callbackarg *carg, httrackp *opt,
 }
 
 const char* __cdecl httrackengine_query3(t_hts_callbackarg *carg, httrackp *opt, const char* question) {
-  strcpybuff(WIZ_question,question);
-  strcpybuff(WIZ_reponse, "");
+  wiz_setquestion(question);
   CWnd* wnd = GetMainWindow();
   if (wnd) {
     wnd->SendMessage(WM_COMMAND,wm_WizRequest3,0);
