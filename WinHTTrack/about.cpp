@@ -160,7 +160,7 @@ void Cabout::setlang() {
   info+=HTTRACK_WEB;
   SetDlgItemTextCP(this, IDC_INFOVER,info);
   //
-  // ...CP(): the lang string is in the language file's charset, not the system codepage.
+  // The lang string is in the language file's charset, not the system codepage.
   SetWindowTextCP(this, LANG_K2);
   SetDlgItemTextLang(this, IDOK, LANG(LANG_OK));
   //SetDlgItemTextCP(this, IDC_visit,LANG_K3);

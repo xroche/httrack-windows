@@ -90,7 +90,7 @@ BOOL CWinHTTrackDoc::OnNewDocument()
 	if (!CDocument::OnNewDocument())
 		return FALSE;
 
-	// SetDefaultTitle() ran before us, stamping the untranslated IDR_MAINFRAME doc name.
+	// SetDefaultTitle() runs first and stamps the untranslated IDR_MAINFRAME doc name.
 	SetUntitledDocTitle(this);
 
 	return TRUE;
