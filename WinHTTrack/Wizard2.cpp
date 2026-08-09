@@ -86,6 +86,7 @@ BOOL wizard2::OnInitDialog()
     //SetDlgItemText(,"");
     SetWindowTextCP(this, LANG(LANG_N1)); // "Question du wizard");
     SetDlgItemTextCP(this, IDCANCEL,LANG(LANG_N2)); // "NON");
+    SetDlgItemTextLang(this, IDOK,LANG(LANG_OK));
   }
 
 

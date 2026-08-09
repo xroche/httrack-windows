@@ -116,6 +116,9 @@ BOOL COptionTab9::OnInitDialog()
     SetDlgItemTextCP(this, IDC_logf,LANG(LANG_I36)); // "Fichiers d'audit");
     SetDlgItemTextCP(this, IDC_Cache2,LANG(LANG_I61));
     SetDlgItemTextCP(this, IDC_norecatch,LANG(LANG_I34b));
+    SetDlgItemTextLang(this, IDC_warc,LANG(LANG_WARC));
+    SetDlgItemTextLang(this, IDC_warccdx,LANG(LANG_WARCCDX));
+    SetDlgItemTextLang(this, IDC_wacz,LANG(LANG_WACZ));
     SetDlgItemTextLang(this, IDC_singlefile,LANG(LANG_SINGLEFILE));
     SetDlgItemTextLang(this, IDC_STATIC_singlefilemax,LANG(LANG_SINGLEFILEMAX));
     SetDlgItemTextLang(this, IDC_changes,LANG(LANG_CHANGES));
@@ -205,9 +208,9 @@ const char* COptionTab9::GetTip(int ID)
     case IDC_index_mail:return LANG(LANG_I6c); break;
     case IDC_logf:    return LANG(LANG_I7); break; // "Create log files for error and info report","Générer des fichiers d'audit pour les erreurs et les messages"); break;
     case IDC_Cache2:  return LANG(LANG_I1e); break;
-    case IDC_warc:    return "Write an ISO-28500 WARC archive (.warc.gz)"; break;
-    case IDC_warccdx: return "Also write a sorted CDXJ index next to the archive"; break;
-    case IDC_wacz:    return "Package the archive and its index as a WACZ file"; break;
+    case IDC_warc:    return LANG(LANG_WARCTIP); break;
+    case IDC_warccdx: return LANG(LANG_WARCCDXTIP); break;
+    case IDC_wacz:    return LANG(LANG_WACZTIP); break;
     case IDC_singlefile: return LANG(LANG_SINGLEFILETIP); break;
     case IDC_singlefilemax: return LANG(LANG_SINGLEFILEMAXTIP); break;
     case IDC_changes: return LANG(LANG_CHANGESTIP); break;

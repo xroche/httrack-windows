@@ -36,6 +36,10 @@ Please visit our Website: http://www.httrack.com
 #endif // _MSC_VER > 1000
 
 
+/* Name an empty project in the current language, falling back to English when the
+   language file lacks the key. Call after anything that resets the document title. */
+void SetUntitledDocTitle(CDocument* doc);
+
 class CWinHTTrackDoc : public CDocument
 {
 protected: // create from serialization only

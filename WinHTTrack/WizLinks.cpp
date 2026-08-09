@@ -102,6 +102,7 @@ BOOL WizLinks::OnInitDialog()
     SetDlgItemTextCP(this, IDC_ch5,LANG(LANG_M7)); // "Miroir du site");
     SetDlgItemTextCP(this, IDC_ch6,LANG(LANG_M8)); // "Miroir du domaine entier");
     SetDlgItemTextCP(this, IDskipall,LANG(LANG_M9)); // "Ignorer tout");
+    SetDlgItemTextLang(this, IDOK,LANG(LANG_OK));
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control

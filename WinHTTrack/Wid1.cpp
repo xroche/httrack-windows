@@ -205,6 +205,7 @@ BOOL Wid1::OnInitDialog( ) {
     SetDlgItemTextCP(this, IDC_login2,LANG_G43);
     //SetDlgItemTextCP(this, IDC_urls,LANG_G44);
     SetDlgItemTextCP(this, IDC_STATIC_webaddr,LANG_G44);
+    SetDlgItemTextLang(this, IDC_STATIC_filelist,LANG(LANG_URLLIST));
     SetCombo(this,IDC_todo,LISTDEF_10);
   }
 
