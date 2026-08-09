@@ -84,6 +84,7 @@ BOOL wizard::OnInitDialog()
     //SetDlgItemText(,"");
     SetWindowTextCP(this, LANG(LANG_L1) /*"Question du wizard"*/);
     SetDlgItemTextCP(this, IDC_STATIC_answer,LANG(LANG_L2) /*"Votre réponse:"*/);
+    SetDlgItemTextLang(this, IDOK,LANG(LANG_OK));
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control

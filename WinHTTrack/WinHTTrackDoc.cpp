@@ -79,13 +79,19 @@ CWinHTTrackDoc::~CWinHTTrackDoc()
 {
 }
 
+// Contract in WinHTTrackDoc.h.
+void SetUntitledDocTitle(CDocument* doc) {
+  const char *const name = LANG(LANG_S31);
+  doc->SetTitle(*name != '\0' ? name : "New project");
+}
+
 BOOL CWinHTTrackDoc::OnNewDocument()
 {
 	if (!CDocument::OnNewDocument())
 		return FALSE;
 
-	// TODO: add reinitialization code here
-	// (SDI documents will reuse this document)
+	// SetDefaultTitle() ran before us, stamping the untranslated IDR_MAINFRAME doc name.
+	SetUntitledDocTitle(this);
 
 	return TRUE;
 }

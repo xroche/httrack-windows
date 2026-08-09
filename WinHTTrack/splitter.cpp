@@ -32,6 +32,7 @@ Please visit our Website: http://www.httrack.com
 #include "splitter.h"
 #include "DialogContainer.h"
 #include "cpp_lang.h"
+#include "WinHTTrackDoc.h"
 
 #include "afxpriv.h"
 
@@ -328,7 +329,7 @@ BOOL CSplitterFrame::SetNewView(int row, int col, CRuntimeClass* pViewClass) {
     pWnd->SendMessage(WM_INITIALUPDATE);
 
   GetActiveDocument()->SetModifiedFlag(FALSE);      // Document vide
-  GetActiveDocument()->SetTitle("New Project");
+  SetUntitledDocTitle(GetActiveDocument());
   //SetDefaultTitle(GetActiveDocument());
   return 1;
 }
