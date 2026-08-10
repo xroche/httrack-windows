@@ -76,11 +76,10 @@ CMainTab::~CMainTab()
 {
 }
 
-/* comctl32 builds the sheet's dialog template itself, and a sizing border only works if
-   it is in that template: adding WS_THICKFRAME to the created window draws the border
-   but leaves the window fixed. PSCB_PRECREATE is the one chance to reach the template. */
 static PFNPROPSHEETCALLBACK sheet_callback = NULL;
 
+/* A sizing border only works if it is in the dialog template comctl32 builds: adding
+   WS_THICKFRAME to the created window draws it but leaves the size fixed. */
 static int CALLBACK SheetPreCreate(HWND hWnd, UINT message, LPARAM lParam)
 {
   if (message == PSCB_PRECREATE && lParam != 0) {
@@ -96,15 +95,14 @@ static int CALLBACK SheetPreCreate(HWND hWnd, UINT message, LPARAM lParam)
     else
       ((DLGTEMPLATE*) lParam)->style |= WS_THICKFRAME|WS_MAXIMIZEBOX;
   }
-  // MFC's own callback hooks the sheet at PSCB_INITIALIZED, so it has to keep running.
+  // MFC hooks PSCB_INITIALIZED with its own callback; SheetPreCreate must call it too.
   return (sheet_callback != NULL) ? sheet_callback(hWnd, message, lParam) : 0;
 }
 
 void CMainTab::AddControlPages()
 {
   m_minSize.cx = m_minSize.cy = 0;    // OnInitDialog measures it
-  // Guarded: UnDefineDefaultProxy calls this again, and chaining onto ourselves would
-  // recurse forever.
+  // UnDefineDefaultProxy calls this again; chaining onto ourselves would recurse forever.
   if (m_psh.pfnCallback != SheetPreCreate) {
     sheet_callback = m_psh.pfnCallback;
     m_psh.pfnCallback = SheetPreCreate;
@@ -198,10 +196,8 @@ BOOL CMainTab::OnInitDialog()
   //SetActivePage(GetPageCount()-1);
   SetActivePage(0);
 
-  /* Second half of the sizing border, for the case where the template above was not
-     ours to change: this draws the frame, and the growth below gives back the client
-     area a thicker frame takes from controls placed for the old one. Both are no-ops
-     once SheetPreCreate has done its work. */
+  /* Fallback for a sheet SheetPreCreate could not reach, and a no-op once it did: the
+     thicker border comes out of the client area, so give that back. */
   CRect before, after, frame;
   GetClientRect(before);
   ModifyStyle(0, WS_THICKFRAME|WS_MAXIMIZEBOX);
