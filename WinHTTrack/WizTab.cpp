@@ -280,8 +280,7 @@ void CWizTab::OnSize(UINT nType, int cx, int cy)
 LRESULT CWizTab::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
   const LRESULT r = CPropertySheet::WindowProc(message, wParam, lParam);
-  if (CSheetLayout::IsPageChange(message, wParam, lParam))
-    m_sheetLayout.LayoutActivePage();
+  m_sheetLayout.HandleMessage(message, wParam, lParam);
   return r;
 }
 

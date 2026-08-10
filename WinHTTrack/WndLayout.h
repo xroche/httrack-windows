@@ -104,12 +104,15 @@ public:
      the page had at creation, so this has to run after every page change. */
   void LayoutActivePage();
 
-  /* True once a message the sheet has just handled may have swapped the visible page.
-     Call LayoutActivePage when it is: a page comctl32 creates on demand comes up at the
-     template rect it cached before the sheet grew. */
-  static BOOL IsPageChange(UINT message, WPARAM wParam, LPARAM lParam);
+  /* Re-lay the active page out if this message may have swapped it. Call from the
+     sheet's WindowProc, once the base class has run. */
+  void HandleMessage(UINT message, WPARAM wParam, LPARAM lParam);
 
 private:
+  /* A page comctl32 creates on demand comes up at the rect it cached before the sheet
+     grew, so every way of reaching a new page has to be caught. */
+  static BOOL IsPageChange(UINT message, WPARAM wParam, LPARAM lParam);
+
   CPropertySheet* m_sheet;
   CWndLayout m_layout;
   CRect m_pageBase;              /* page rect, and the client size it was measured at */

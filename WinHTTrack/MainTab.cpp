@@ -77,7 +77,7 @@ CMainTab::~CMainTab()
 }
 
 /* NULL for every sheet here: MFC installs a callback only on the modeless Create path. */
-static PFNPROPSHEETCALLBACK sheet_callback = NULL;
+static PFNPROPSHEETCALLBACK sheetCallback = NULL;
 
 /* A sizing border only works if it is in the dialog template comctl32 builds: adding
    WS_THICKFRAME to the created window draws it but leaves the size fixed. */
@@ -97,7 +97,7 @@ static int CALLBACK SheetPreCreate(HWND hWnd, UINT message, LPARAM lParam)
       ((DLGTEMPLATE*) lParam)->style |= WS_THICKFRAME|WS_MAXIMIZEBOX;
   }
   // Chain whatever was there, so a sheet brought up modeless keeps MFC's own callback.
-  return (sheet_callback != NULL) ? sheet_callback(hWnd, message, lParam) : 0;
+  return (sheetCallback != NULL) ? sheetCallback(hWnd, message, lParam) : 0;
 }
 
 void CMainTab::AddControlPages()
@@ -105,7 +105,7 @@ void CMainTab::AddControlPages()
   m_minSize.cx = m_minSize.cy = 0;    // OnInitDialog measures it
   // UnDefineDefaultProxy calls this again; chaining onto ourselves would recurse forever.
   if (m_psh.pfnCallback != SheetPreCreate) {
-    sheet_callback = m_psh.pfnCallback;
+    sheetCallback = m_psh.pfnCallback;
     m_psh.pfnCallback = SheetPreCreate;
     m_psh.dwFlags |= PSH_USECALLBACK;
   }
@@ -239,8 +239,7 @@ void CMainTab::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 LRESULT CMainTab::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
   const LRESULT r = CPropertySheet::WindowProc(message, wParam, lParam);
-  if (CSheetLayout::IsPageChange(message, wParam, lParam))
-    m_sheetLayout.LayoutActivePage();
+  m_sheetLayout.HandleMessage(message, wParam, lParam);
   return r;
 }
 

@@ -245,6 +245,12 @@ void CSheetLayout::LayoutActivePage()
                      SWP_NOZORDER|SWP_NOACTIVATE);
 }
 
+void CSheetLayout::HandleMessage(UINT message, WPARAM wParam, LPARAM lParam)
+{
+  if (IsPageChange(message, wParam, lParam))
+    LayoutActivePage();
+}
+
 void CSheetLayout::Apply(int cx, int cy)
 {
   m_layout.Apply(cx, cy);
