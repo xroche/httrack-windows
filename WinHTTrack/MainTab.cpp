@@ -168,11 +168,19 @@ BOOL CMainTab::OnInitDialog()
   SetActivePage(0);
 
   /* The template is a fixed dialog; give it a sizing border so the pages holding long
-     text (scan rules, HTTP headers) can be enlarged. Measure afterwards: the new frame
-     is thicker than the one the sheet was created with. */
+     text (scan rules, HTTP headers) can be enlarged. A sizing border is thicker than
+     the one the sheet was created with, so grow the window by what it takes from the
+     client area: the controls were placed for the old one. */
+  CRect before, after, frame;
+  GetClientRect(before);
   ModifyStyle(0, WS_THICKFRAME|WS_MAXIMIZEBOX);
   SetWindowPos(NULL, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_FRAMECHANGED);
-  CRect frame;
+  GetClientRect(after);
+  GetWindowRect(frame);
+  SetWindowPos(NULL, 0, 0,
+               frame.Width()  + before.Width()  - after.Width(),
+               frame.Height() + before.Height() - after.Height(),
+               SWP_NOMOVE|SWP_NOZORDER);
   GetWindowRect(frame);
   m_minSize = frame.Size();
   m_sheetLayout.Build(this);
@@ -199,8 +207,7 @@ void CMainTab::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 LRESULT CMainTab::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
   const LRESULT r = CPropertySheet::WindowProc(message, wParam, lParam);
-  // A page comctl32 has just shown comes back at its creation rect.
-  if (message == PSM_SETCURSEL || message == PSM_SETCURSELID)
+  if (CSheetLayout::IsPageChange(message, wParam, lParam))
     m_sheetLayout.LayoutActivePage();
   return r;
 }

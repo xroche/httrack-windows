@@ -104,6 +104,11 @@ public:
      the page had at creation, so this has to run after every page change. */
   void LayoutActivePage();
 
+  /* True once a message the sheet has just handled may have swapped the visible page.
+     Call LayoutActivePage when it is: a page comctl32 creates on demand comes up at the
+     template rect it cached before the sheet grew. */
+  static BOOL IsPageChange(UINT message, WPARAM wParam, LPARAM lParam);
+
 private:
   CPropertySheet* m_sheet;
   CWndLayout m_layout;

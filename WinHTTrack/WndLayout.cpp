@@ -137,7 +137,29 @@ void CWndLayout::Apply(int cx, int cy) const
 CSheetLayout::CSheetLayout()
 {
   m_sheet = NULL;
+  m_pageBase.SetRectEmpty();
   m_baseClient.cx = m_baseClient.cy = 0;
+}
+
+BOOL CSheetLayout::IsPageChange(UINT message, WPARAM wParam, LPARAM lParam)
+{
+  switch(message) {
+    case PSM_SETCURSEL: case PSM_SETCURSELID:
+      return TRUE;
+    /* comctl32 turns a tab click or a wizard button into its own page switch without
+       ever sending itself PSM_SETCURSEL, so those two have to be watched as well. */
+    case WM_NOTIFY: {
+      const NMHDR* const hdr = (const NMHDR*) lParam;
+      return hdr != NULL && hdr->code == TCN_SELCHANGE;
+    }
+    case WM_COMMAND:
+      switch(LOWORD(wParam)) {
+        case ID_WIZBACK: case ID_WIZNEXT: case ID_WIZFINISH:
+          return TRUE;
+      }
+      break;
+  }
+  return FALSE;
 }
 
 static BOOL IsSheetPage(CPropertySheet* sheet, HWND hwnd)

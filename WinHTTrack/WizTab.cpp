@@ -280,9 +280,8 @@ void CWizTab::OnSize(UINT nType, int cx, int cy)
 LRESULT CWizTab::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
   const LRESULT r = CPropertySheet::WindowProc(message, wParam, lParam);
-  // A page comctl32 has just shown comes back at its creation rect.
-  if (message == PSM_SETCURSEL || message == PSM_SETCURSELID)
-    LayoutActivePage();
+  if (CSheetLayout::IsPageChange(message, wParam, lParam))
+    m_sheetLayout.LayoutActivePage();
   return r;
 }
 
