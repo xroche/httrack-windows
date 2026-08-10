@@ -148,6 +148,7 @@ BEGIN_MESSAGE_MAP(Ctrans, CPropertyPage)
 	ON_CBN_DROPDOWN(IDC_rasid, OnDropdownrasid)
 	ON_WM_SHOWWINDOW()
 	ON_BN_CLICKED(IDC_rasdisc, Onrasdisc)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
 	ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -191,6 +192,7 @@ void Ctrans::OnChangehh()
 BOOL Ctrans::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
 
   ((CButton*)GetDlgItem(IDC_select_start))->SetCheck(1);
   strcpybuff(RasString,"");
@@ -486,4 +488,27 @@ BOOL Ctrans::OnKillActive( ) {
 void Ctrans::Onrasdisc() 
 {
   InitRAS();
+}
+
+void Ctrans::BuildLayout()
+{
+  /* The connection box takes the height; the save-only box rides the bottom. */
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_STATIC_connect, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_select_start, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_ras, 0, 100);
+  m_layout.AddId(this, IDC_cnx, 0, 100);
+  m_layout.AddId(this, IDC_rasid, 0, 100);
+  m_layout.AddId(this, IDC_rasdisc, 0, 100);
+  m_layout.AddId(this, IDC_rasshut, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_delay, 0, 100);
+  m_layout.AddId(this, IDC_wait, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_save, 0, 100, 100, 0);
+  m_layout.AddId(this, IDC_select_save, 0, 100, 100, 0);
+}
+
+void Ctrans::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
 }

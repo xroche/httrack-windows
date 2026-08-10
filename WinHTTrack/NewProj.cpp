@@ -122,6 +122,7 @@ BEGIN_MESSAGE_MAP(CNewProj, CPropertyPage)
 	ON_CBN_EDITCHANGE(IDC_projname, OnChangeprojname)
 	ON_WM_CREATE()
 	ON_CBN_SELCHANGE(IDC_projname, OnSelchangeprojname)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
   ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -257,6 +258,7 @@ void CNewProj::Onbr()
 BOOL CNewProj::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);
   EnableToolTips(true);     // TOOL TIPS
@@ -655,3 +657,24 @@ BOOL CNewProj::OnKillActive( ) {
 }
 
 
+
+void CNewProj::BuildLayout()
+{
+  /* The Info box takes the height; the base-path row rides the bottom. */
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_projname, 0, 100);
+  m_layout.AddId(this, IDC_projcateg, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_projinfo, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_comments, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_basepath, 0, 0, 100, 0);
+  m_layout.AddId(this, IDC_projpath, 0, 100, 100, 0);
+  m_layout.AddId(this, IDC_br, 100, 0, 100, 0);
+  m_layout.AddId(this, IDC_STATIC_mupdate, 0, 0, 100, 0);
+  m_layout.AddId(this, IDC_mupdate, 100, 0, 100, 0);
+}
+
+void CNewProj::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}

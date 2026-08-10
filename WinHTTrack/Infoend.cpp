@@ -106,6 +106,7 @@ BEGIN_MESSAGE_MAP(Cinfoend, CPropertyPage)
 	ON_WM_HELPINFO()
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -118,6 +119,7 @@ END_MESSAGE_MAP()
 
 BOOL Cinfoend::OnInitDialog() 
 {
+  BuildLayout();
   UpdateData(false);      // force to call DoDataExchange
 
 	//CPropertyPage::OnInitDialog();
@@ -322,4 +324,18 @@ void Cinfoend::OnDestroy()
     tm=-1; 
   }
 	CPropertyPage::OnDestroy();
+}
+
+void Cinfoend::BuildLayout()
+{
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_infoend, 0, 100, 0, 100);
+  m_layout.AddId(this, IDlog, 0, 0, 100, 0);
+  m_layout.AddId(this, IDbrowse, 0, 0, 100, 0);
+}
+
+void Cinfoend::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
 }

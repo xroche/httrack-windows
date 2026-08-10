@@ -40,6 +40,8 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // Wid1 dialog
 
+#include "WndLayout.h"
+
 class Wid1 : public CPropertyPage
 {
 	DECLARE_DYNCREATE(Wid1)
@@ -91,6 +93,8 @@ protected:
   int load_after_changes;
   const char* GetTip(int id);
   void AddText(CString add_st);
+	CWndLayout m_layout;
+	void BuildLayout();
 	// Generated message map functions
 	//{{AFX_MSG(Wid1)
 	afx_msg void OnChangeUrl();
@@ -102,6 +106,7 @@ protected:
 	afx_msg void Onlogin2();
 	afx_msg void Onbr();
 	afx_msg void OnChangefilelist();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
   virtual BOOL OnKillActive( );
   virtual BOOL OnQueryCancel( );

@@ -80,6 +80,7 @@ BEGIN_MESSAGE_MAP(CFirstInfo, CPropertyPage)
 	//{{AFX_MSG_MAP(CFirstInfo)
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONDOWN()
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -108,6 +109,7 @@ BOOL CFirstInfo::OnInitDialog()
 {
 
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
 	EnableToolTips(true);     // TOOL TIPS
 
   WINDOWPLACEMENT wp;
@@ -188,3 +190,16 @@ void CFirstInfo::OnLButtonDown(UINT nFlags, CPoint point)
 }
 // !! FIN COPIE DE ABOUT.CPP !!
 
+
+void CFirstInfo::BuildLayout()
+{
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_STATIC_welcome, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_SPLASH, 100, 0);
+}
+
+void CFirstInfo::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}

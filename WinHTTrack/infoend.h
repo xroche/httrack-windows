@@ -36,6 +36,8 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // Cinfoend dialog
 
+#include "WndLayout.h"
+
 class Cinfoend : public CPropertyPage
 {
 public:
@@ -67,6 +69,8 @@ protected:
   void OnBye();
   UINT_PTR tm;
 
+	CWndLayout m_layout;
+	void BuildLayout();
 	// Generated message map functions
 	//{{AFX_MSG(Cinfoend)
 	virtual BOOL OnInitDialog();
@@ -75,6 +79,7 @@ protected:
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnDestroy();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
   virtual BOOL OnSetActive( );

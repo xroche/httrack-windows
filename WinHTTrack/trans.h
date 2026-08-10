@@ -39,6 +39,8 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // Ctrans dialog
 
+#include "WndLayout.h"
+
 class Ctrans : public CPropertyPage
 {
 	DECLARE_DYNCREATE(Ctrans)
@@ -85,6 +87,8 @@ protected:
   void FillProviderList(int fill);
   BOOL isfilled;
 
+	CWndLayout m_layout;
+	void BuildLayout();
 	// Generated message map functions
 	//{{AFX_MSG(Ctrans)
 	afx_msg void OnChangehh();
@@ -93,6 +97,7 @@ protected:
 	afx_msg void OnSelchangerasid();
 	afx_msg void OnDropdownrasid();
 	afx_msg void Onrasdisc();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
   virtual BOOL OnKillActive( );
   virtual BOOL OnQueryCancel( );

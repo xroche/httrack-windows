@@ -40,6 +40,8 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // CNewProj dialog
 
+#include "WndLayout.h"
+
 class CNewProj : public CPropertyPage
 {
 	DECLARE_DYNCREATE(CNewProj)
@@ -77,6 +79,8 @@ protected:
   const char* GetTip(int id);
   void OnHelpInfo2();
   void Changeprojname(CString stl);
+	CWndLayout m_layout;
+	void BuildLayout();
 	// Generated message map functions
 	//{{AFX_MSG(CNewProj)
 	afx_msg void Onbr();
@@ -85,6 +89,7 @@ protected:
 	afx_msg void OnChangeprojname();
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnSelchangeprojname();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
   virtual BOOL OnKillActive( );
   virtual BOOL OnQueryCancel( );

@@ -145,6 +145,7 @@ BEGIN_MESSAGE_MAP(Wid1, CPropertyPage)
 	ON_WM_DRAWITEM()
 	ON_WM_SHOWWINDOW()
 	ON_EN_CHANGE(IDC_filelist, OnChangefilelist)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
 	ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 	ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -168,6 +169,7 @@ END_MESSAGE_MAP()
 
 BOOL Wid1::OnInitDialog( ) {
   CPropertyPage::OnInitDialog();
+  BuildLayout();
   // The URL list has no CEdit member; bound it by handle.
   GetDlgItem(IDC_URL)->SendMessage(EM_SETLIMITTEXT, 32000, 0);
   GetDlgItem(IDC_filelist)->SendMessage(EM_SETLIMITTEXT, 2000, 0);
@@ -896,4 +898,25 @@ void Wid1::OnChangefilelist()
     }
     GetDlgItem(IDC_STATIC_filelist)->RedrawWindow();
   }
+}
+
+void Wid1::BuildLayout()
+{
+  /* The URL box takes the room; the rows under it ride along at the bottom. */
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_INFOMAIN, 0, 100);
+  m_layout.AddId(this, IDC_todo, 0, 100);
+  m_layout.AddId(this, IDC_login2, 100, 0);
+  m_layout.AddId(this, IDC_URL, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_filelist, 0, 0, 100, 0);
+  m_layout.AddId(this, IDC_filelist, 0, 100, 100, 0);
+  m_layout.AddId(this, IDC_br, 100, 0, 100, 0);
+  m_layout.AddId(this, IDC_STATIC_filters2, 0, 0, 100, 0);
+  m_layout.AddId(this, ID_setopt, 100, 0, 100, 0);
+}
+
+void Wid1::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
 }
