@@ -78,12 +78,9 @@ public:
 public:
   virtual ~CWizTab();
   virtual BOOL OnInitDialog();
-  /* Give the page comctl32 has just shown the sheet's current size. comctl32 restores
-     the rect the page had at creation, so this has to run after every page change. */
+  /* CSheetLayout, for the container: BuildLayout once the sheet is built, then
+     LayoutActivePage after every page change. */
   void LayoutActivePage();
-  /* Records template geometry. Run it once the sheet is built and its active page has a
-     window, so the page's own rect is measured instead of the hidden tab control
-     standing in for it. */
   void BuildLayout();
   void ApplyAndSave();
   void Apply();
@@ -98,9 +95,7 @@ protected:
   void ClearInits();
   
   const char* GetTip(int id);
-  CWndLayout m_layout;   /* buttons and the separator; the page is sized separately */
-  CRect m_pageBase;      /* page rect, and the client size it was measured against */
-  CSize m_pageBaseClient;
+  CSheetLayout m_sheetLayout;
   //{{AFX_MSG(CWizTab)
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
 	afx_msg void OnSize(UINT nType, int cx, int cy);

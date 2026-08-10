@@ -133,3 +133,98 @@ void CWndLayout::Apply(int cx, int cy) const
   if (::IsWindow(m_parent))
     ::InvalidateRect(m_parent, NULL, TRUE);
 }
+
+CSheetLayout::CSheetLayout()
+{
+  m_sheet = NULL;
+  m_baseClient.cx = m_baseClient.cy = 0;
+}
+
+static BOOL IsSheetPage(CPropertySheet* sheet, HWND hwnd)
+{
+  for(int i=0 ; i<sheet->GetPageCount() ; i++) {
+    const CPropertyPage* const page = sheet->GetPage(i);
+    if (page != NULL && page->m_hWnd == hwnd)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+void CSheetLayout::Build(CPropertySheet* sheet)
+{
+  m_sheet = NULL;
+  m_pageBase.SetRectEmpty();
+  m_baseClient.cx = m_baseClient.cy = 0;
+  if (sheet == NULL || sheet->m_hWnd == NULL)
+    return;
+  m_sheet = sheet;
+  m_layout.Reset(sheet);
+
+  CRect client;
+  sheet->GetClientRect(client);
+  m_baseClient = client.Size();
+
+  CTabCtrl* const tabs = sheet->GetTabControl();
+  const HWND tabsHwnd = (tabs != NULL) ? tabs->m_hWnd : NULL;
+
+  // Wizard mode hides the tab control but still gives it the page area, so it serves
+  // as the reference before any page has a window.
+  const int active = sheet->GetActiveIndex();
+  CWnd* ref = (active >= 0 && active < sheet->GetPageCount()) ? (CWnd*) sheet->GetPage(active) : NULL;
+  if (ref == NULL || ref->m_hWnd == NULL)
+    ref = tabs;
+  if (ref != NULL && ref->m_hWnd != NULL) {
+    ref->GetWindowRect(m_pageBase);
+    sheet->ScreenToClient(m_pageBase);
+  }
+
+  for(CWnd* child = sheet->GetWindow(GW_CHILD) ; child != NULL ; child = child->GetWindow(GW_HWNDNEXT)) {
+    if (IsSheetPage(sheet, child->m_hWnd))
+      continue;                      // LayoutActivePage owns these
+    if (child->m_hWnd == tabsHwnd) {
+      m_layout.Add(child, 0, 100, 0, 100);   // frames the pages, so it grows with them
+      continue;
+    }
+    switch(child->GetDlgCtrlID()) {
+      case ID_WIZBACK: case ID_WIZNEXT: case ID_WIZFINISH:
+      case IDOK: case IDCANCEL: case IDHELP: case ID_APPLY_NOW:
+        m_layout.Add(child, 100, 0, 100, 0);   // keep the strip in the bottom right
+        break;
+      default: {
+        TCHAR cls[16];
+        // The rule above the buttons is the only other static a sheet owns.
+        if (::GetClassName(child->m_hWnd, cls, (int)_countof(cls)) > 0
+            && _tcsicmp(cls, _T("Static")) == 0)
+          m_layout.Add(child, 0, 100, 100, 0);
+        break;
+      }
+    }
+  }
+}
+
+void CSheetLayout::LayoutActivePage()
+{
+  if (m_sheet == NULL || m_pageBase.IsRectEmpty() || m_baseClient.cx == 0)
+    return;
+  /* Not GetActivePage(): FinalInProgress empties the page array between RemovePage and
+     AddPage, and it then indexes -1 and hands back a wild pointer. */
+  const int active = m_sheet->GetActiveIndex();
+  if (active < 0 || active >= m_sheet->GetPageCount())
+    return;
+  CPropertyPage* const page = m_sheet->GetPage(active);
+  if (page == NULL || page->m_hWnd == NULL)
+    return;
+  CRect client;
+  m_sheet->GetClientRect(client);
+  const int dx = max(client.Width() - m_baseClient.cx, 0);
+  const int dy = max(client.Height() - m_baseClient.cy, 0);
+  page->SetWindowPos(NULL, m_pageBase.left, m_pageBase.top,
+                     m_pageBase.Width() + dx, m_pageBase.Height() + dy,
+                     SWP_NOZORDER|SWP_NOACTIVATE);
+}
+
+void CSheetLayout::Apply(int cx, int cy)
+{
+  m_layout.Apply(cx, cy);
+  LayoutActivePage();
+}
