@@ -109,14 +109,17 @@ BOOL CFirstInfo::OnInitDialog()
 {
 
 	CPropertyPage::OnInitDialog();
-  BuildLayout();
 	EnableToolTips(true);     // TOOL TIPS
 
   WINDOWPLACEMENT wp;
   m_splash.GetWindowPlacement(&wp);
   wp.rcNormalPosition.right=wp.rcNormalPosition.left+300+1;
-  wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1; 
+  wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1;
   m_splash.SetWindowPlacement(&wp);
+
+  /* Only now that the splash has its real size: the anchors are recorded from the rects
+     the controls have at this point, and the template gives it a 20x20 icon box. */
+  BuildLayout();
 
   // Patcher l'interface pour les Français ;-)
   if (LANG_T(-1)) {    // Patcher en français

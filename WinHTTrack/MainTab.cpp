@@ -76,9 +76,40 @@ CMainTab::~CMainTab()
 {
 }
 
+/* comctl32 builds the sheet's dialog template itself, and a sizing border only works if
+   it is in that template: adding WS_THICKFRAME to the created window draws the border
+   but leaves the window fixed. PSCB_PRECREATE is the one chance to reach the template. */
+static PFNPROPSHEETCALLBACK sheet_callback = NULL;
+
+static int CALLBACK SheetPreCreate(HWND hWnd, UINT message, LPARAM lParam)
+{
+  if (message == PSCB_PRECREATE && lParam != 0) {
+    /* Either template shape can turn up. The extended one carries a 0xFFFF signature
+       where the plain one has the top half of its style. */
+    struct DLGTEMPLATEEX_HEAD {
+      WORD dlgVer, signature;
+      DWORD helpID, exStyle, style;
+    };
+    DLGTEMPLATEEX_HEAD* const ex = (DLGTEMPLATEEX_HEAD*) lParam;
+    if (ex->signature == 0xFFFF)
+      ex->style |= WS_THICKFRAME|WS_MAXIMIZEBOX;
+    else
+      ((DLGTEMPLATE*) lParam)->style |= WS_THICKFRAME|WS_MAXIMIZEBOX;
+  }
+  // MFC's own callback hooks the sheet at PSCB_INITIALIZED, so it has to keep running.
+  return (sheet_callback != NULL) ? sheet_callback(hWnd, message, lParam) : 0;
+}
+
 void CMainTab::AddControlPages()
 {
   m_minSize.cx = m_minSize.cy = 0;    // OnInitDialog measures it
+  // Guarded: UnDefineDefaultProxy calls this again, and chaining onto ourselves would
+  // recurse forever.
+  if (m_psh.pfnCallback != SheetPreCreate) {
+    sheet_callback = m_psh.pfnCallback;
+    m_psh.pfnCallback = SheetPreCreate;
+    m_psh.dwFlags |= PSH_USECALLBACK;
+  }
   m_hIcon = httrack_icon;
   m_psh.dwFlags |= PSP_USEHICON;  // utiliser icône
   m_psh.dwFlags &= ~PSH_HASHELP;  // pas de bouton help
@@ -167,10 +198,10 @@ BOOL CMainTab::OnInitDialog()
   //SetActivePage(GetPageCount()-1);
   SetActivePage(0);
 
-  /* The template is a fixed dialog; give it a sizing border so the pages holding long
-     text (scan rules, HTTP headers) can be enlarged. A sizing border is thicker than
-     the one the sheet was created with, so grow the window by what it takes from the
-     client area: the controls were placed for the old one. */
+  /* Second half of the sizing border, for the case where the template above was not
+     ours to change: this draws the frame, and the growth below gives back the client
+     area a thicker frame takes from controls placed for the old one. Both are no-ops
+     once SheetPreCreate has done its work. */
   CRect before, after, frame;
   GetClientRect(before);
   ModifyStyle(0, WS_THICKFRAME|WS_MAXIMIZEBOX);
@@ -201,6 +232,10 @@ void CMainTab::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
   if (m_minSize.cx > 0) {
     lpMMI->ptMinTrackSize.x = m_minSize.cx;
     lpMMI->ptMinTrackSize.y = m_minSize.cy;
+    /* Last word on the maximum as well: a sheet proc that means to stay fixed pins this
+       to the size it computed, and the drag then has nowhere to go. */
+    lpMMI->ptMaxTrackSize.x = max(lpMMI->ptMaxTrackSize.x, ::GetSystemMetrics(SM_CXMAXTRACK));
+    lpMMI->ptMaxTrackSize.y = max(lpMMI->ptMaxTrackSize.y, ::GetSystemMetrics(SM_CYMAXTRACK));
   }
 }
 
