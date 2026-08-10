@@ -76,6 +76,7 @@ CMainTab::~CMainTab()
 {
 }
 
+/* NULL for every sheet here: MFC installs a callback only on the modeless Create path. */
 static PFNPROPSHEETCALLBACK sheet_callback = NULL;
 
 /* A sizing border only works if it is in the dialog template comctl32 builds: adding
@@ -95,7 +96,7 @@ static int CALLBACK SheetPreCreate(HWND hWnd, UINT message, LPARAM lParam)
     else
       ((DLGTEMPLATE*) lParam)->style |= WS_THICKFRAME|WS_MAXIMIZEBOX;
   }
-  // MFC hooks PSCB_INITIALIZED with its own callback; SheetPreCreate must call it too.
+  // Chain whatever was there, so a sheet brought up modeless keeps MFC's own callback.
   return (sheet_callback != NULL) ? sheet_callback(hWnd, message, lParam) : 0;
 }
 
