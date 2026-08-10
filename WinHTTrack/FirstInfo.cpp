@@ -111,11 +111,24 @@ BOOL CFirstInfo::OnInitDialog()
 	CPropertyPage::OnInitDialog();
 	EnableToolTips(true);     // TOOL TIPS
 
+  /* The banner overflows the icon box the template sizes it from, so the right-edge
+     anchor would carry it off the page. Lay it against the margin instead. */
+  CRect client, welcome;
+  CWnd* text=GetDlgItem(IDC_STATIC_welcome);
+  GetClientRect(&client);
+  text->GetWindowRect(&welcome);
+  ScreenToClient(&welcome);
+
   WINDOWPLACEMENT wp;
   m_splash.GetWindowPlacement(&wp);
-  wp.rcNormalPosition.right=wp.rcNormalPosition.left+300+1;
+  wp.rcNormalPosition.right=client.right-welcome.left;
+  wp.rcNormalPosition.left=wp.rcNormalPosition.right-(300+1);
   wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1;
   m_splash.SetWindowPlacement(&wp);
+
+  /* Text and banner both take the growth, so the text must end before the banner. */
+  welcome.right=wp.rcNormalPosition.left-welcome.left;
+  text->MoveWindow(&welcome);
 
   /* After the splash resize: anchors come from the rects now, not the template's box. */
   BuildLayout();
