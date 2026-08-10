@@ -111,9 +111,17 @@ BOOL CFirstInfo::OnInitDialog()
 	CPropertyPage::OnInitDialog();
 	EnableToolTips(true);     // TOOL TIPS
 
+  /* The banner is far wider than the icon box the template sizes it from, so pin it to
+     the margin: kept where the template puts it, the right-edge anchor pushes it off. */
+  CRect client, welcome;
+  GetClientRect(&client);
+  GetDlgItem(IDC_STATIC_welcome)->GetWindowRect(&welcome);
+  ScreenToClient(&welcome);
+
   WINDOWPLACEMENT wp;
   m_splash.GetWindowPlacement(&wp);
-  wp.rcNormalPosition.right=wp.rcNormalPosition.left+300+1;
+  wp.rcNormalPosition.right=client.right-welcome.left;
+  wp.rcNormalPosition.left=wp.rcNormalPosition.right-(300+1);
   wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1;
   m_splash.SetWindowPlacement(&wp);
 
