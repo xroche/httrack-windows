@@ -111,11 +111,12 @@ BOOL CFirstInfo::OnInitDialog()
 	CPropertyPage::OnInitDialog();
 	EnableToolTips(true);     // TOOL TIPS
 
-  /* The banner is far wider than the icon box the template sizes it from, so pin it to
-     the margin: kept where the template puts it, the right-edge anchor pushes it off. */
+  /* The banner overflows the icon box the template sizes it from, so the right-edge
+     anchor would carry it off the page. Lay it against the margin instead. */
   CRect client, welcome;
+  CWnd* text=GetDlgItem(IDC_STATIC_welcome);
   GetClientRect(&client);
-  GetDlgItem(IDC_STATIC_welcome)->GetWindowRect(&welcome);
+  text->GetWindowRect(&welcome);
   ScreenToClient(&welcome);
 
   WINDOWPLACEMENT wp;
@@ -124,6 +125,10 @@ BOOL CFirstInfo::OnInitDialog()
   wp.rcNormalPosition.left=wp.rcNormalPosition.right-(300+1);
   wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1;
   m_splash.SetWindowPlacement(&wp);
+
+  /* Text and banner both take the growth, so the text must end before the banner. */
+  welcome.right=wp.rcNormalPosition.left-welcome.left;
+  text->MoveWindow(&welcome);
 
   /* After the splash resize: anchors come from the rects now, not the template's box. */
   BuildLayout();
