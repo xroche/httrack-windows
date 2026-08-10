@@ -35,6 +35,7 @@ Please visit our Website: http://www.httrack.com
 #define WINHTTRACK_WNDLAYOUT_H
 
 #include <afxtempl.h>   /* CArray; StdAfx.h brings in the rest of MFC */
+#include <afxdlgs.h>    /* CPropertySheet */
 
 /* Lets a dialog laid out from a fixed template follow its parent's size.
    Each control keeps the rect the template gave it and then takes a percentage of
@@ -80,6 +81,42 @@ private:
   CArray<ITEM,ITEM&> m_items;
   HWND m_parent;
   CSize m_base;                  /* client size the rects above were recorded at */
+};
+
+/* The sheet-level half of the same idea: the furniture a property sheet owns (its
+   buttons, the wizard rule, the tab control) follows the sheet, and the active page is
+   stretched to match. Each page still anchors its own controls; this only gives them
+   the room. */
+class CSheetLayout
+{
+public:
+  CSheetLayout();
+
+  /* Record template geometry. Run once the sheet is built and its active page has a
+     window, so the page's own rect is measured instead of the tab control standing in
+     for it. */
+  void Build(CPropertySheet* sheet);
+
+  /* Furniture and active page, for a client area of cx by cy. */
+  void Apply(int cx, int cy);
+
+  /* Give the page comctl32 has just shown the sheet's current size: it restores the rect
+     the page had at creation, so this has to run after every page change. */
+  void LayoutActivePage();
+
+  /* Re-lay the active page out if this message may have swapped it. Call from the
+     sheet's WindowProc, once the base class has run. */
+  void HandleMessage(UINT message, WPARAM wParam, LPARAM lParam);
+
+private:
+  /* A page comctl32 creates on demand comes up at the rect it cached before the sheet
+     grew, so every way of reaching a new page has to be caught. */
+  static BOOL IsPageChange(UINT message, WPARAM wParam, LPARAM lParam);
+
+  CPropertySheet* m_sheet;
+  CWndLayout m_layout;
+  CRect m_pageBase;              /* page rect, and the client size it was measured at */
+  CSize m_baseClient;
 };
 
 #endif

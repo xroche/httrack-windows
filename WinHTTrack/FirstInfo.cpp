@@ -80,6 +80,7 @@ BEGIN_MESSAGE_MAP(CFirstInfo, CPropertyPage)
 	//{{AFX_MSG_MAP(CFirstInfo)
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONDOWN()
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -113,8 +114,11 @@ BOOL CFirstInfo::OnInitDialog()
   WINDOWPLACEMENT wp;
   m_splash.GetWindowPlacement(&wp);
   wp.rcNormalPosition.right=wp.rcNormalPosition.left+300+1;
-  wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1; 
+  wp.rcNormalPosition.bottom=wp.rcNormalPosition.top+69+1;
   m_splash.SetWindowPlacement(&wp);
+
+  /* After the splash resize: anchors come from the rects now, not the template's box. */
+  BuildLayout();
 
   // Patcher l'interface pour les Français ;-)
   if (LANG_T(-1)) {    // Patcher en français
@@ -188,3 +192,16 @@ void CFirstInfo::OnLButtonDown(UINT nFlags, CPoint point)
 }
 // !! FIN COPIE DE ABOUT.CPP !!
 
+
+void CFirstInfo::BuildLayout()
+{
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_STATIC_welcome, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_SPLASH, 100, 0);
+}
+
+void CFirstInfo::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}

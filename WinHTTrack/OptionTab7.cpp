@@ -85,6 +85,7 @@ BEGIN_MESSAGE_MAP(COptionTab7, CPropertyPage)
 	ON_BN_CLICKED(IDC_CHECK1, OnCheck1)
 	ON_BN_CLICKED(IDC_CHECK2, OnCheck2)
 	ON_BN_CLICKED(IDC_CHECK3, OnCheck3)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -246,6 +247,7 @@ void COptionTab7::OnAdd2()
 BOOL COptionTab7::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 
   // mode modif à la volée
@@ -367,4 +369,19 @@ void COptionTab7::OnCheck2()
 void COptionTab7::OnCheck3() 
 {
   EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK3),"+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.mp3 +*.mp2 +*.rm +*.wav +*.vob +*.qt +*.vid +*.ac3 +*.wma +*.wmv");
+}
+
+void COptionTab7::BuildLayout()
+{
+  /* The rules box takes the room; the tip stays under it. */
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_STATIC_finfo, 0, 100);
+  m_layout.AddId(this, IDC_URL2, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_tip, 0, 100, 100, 0);
+}
+
+void COptionTab7::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
 }

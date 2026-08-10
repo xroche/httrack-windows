@@ -37,6 +37,8 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // CFirstInfo dialog
 
+#include "WndLayout.h"
+
 class CFirstInfo : public CPropertyPage
 {
 	DECLARE_DYNCREATE(CFirstInfo)
@@ -63,10 +65,13 @@ public:
 
 // Implementation
 protected:
+	CWndLayout m_layout;
+	void BuildLayout();
 	// Generated message map functions
 	//{{AFX_MSG(CFirstInfo)
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
 	BOOL OnInitDialog();
   BOOL OnSetActive();

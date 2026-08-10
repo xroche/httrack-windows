@@ -184,7 +184,7 @@ IDD_Debut DIALOGEX 0, 0, 256, 205
 STYLE DS_SETFONT | WS_CHILD
 FONT 8, "MS Sans Serif", 0, 0, 0x0
 BEGIN
-    GROUPBOX        "",IDC_STATIC,7,6,242,158
+    GROUPBOX        "",IDC_STATIC_connect,7,6,242,158
     CONTROL         "Please adjust connection parameters if necessary,\nthen press FINISH to launch the mirroring operation.",IDC_select_start,
                     "Button",BS_AUTORADIOBUTTON | BS_MULTILINE,12,16,233,23
     GROUPBOX        "Remote connect",IDC_STATIC_ras,20,42,225,70
@@ -197,7 +197,7 @@ BEGIN
     EDITTEXT        IDC_hh,25,143,16,12,ES_AUTOHSCROLL | ES_NUMBER
     EDITTEXT        IDC_mm,42,143,16,12,ES_AUTOHSCROLL | ES_NUMBER
     EDITTEXT        IDC_ss,60,143,16,12,ES_AUTOHSCROLL | ES_NUMBER
-    GROUPBOX        "",IDC_STATIC,7,167,242,31
+    GROUPBOX        "",IDC_STATIC_save,7,167,242,31
     CONTROL         "Save settings only, do not launch download now.",IDC_select_save,
                     "Button",BS_AUTORADIOBUTTON | BS_MULTILINE,12,174,233,20
 END
@@ -436,7 +436,7 @@ BEGIN
     COMBOBOX        IDC_projname,130,7,185,113,CBS_DROPDOWN | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Project category:",IDC_STATIC_projcateg,7,30,118,13
     COMBOBOX        IDC_projcateg,130,30,102,113,CBS_DROPDOWN | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
-    GROUPBOX        "Info",IDC_STATIC,7,45,308,85
+    GROUPBOX        "Info",IDC_STATIC_projinfo,7,45,308,85
     LTEXT           "",IDC_STATIC_comments,16,60,234,41
     LTEXT           "Base path:",IDC_STATIC_basepath,7,140,118,13,WS_DISABLED
     EDITTEXT        IDC_projpath,125,140,173,12,ES_AUTOHSCROLL

@@ -94,6 +94,7 @@ void COptionTab8::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(COptionTab8, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab8)
 	ON_BN_CLICKED(IDC_cookiesfilebrowse, OnCookiesFileBrowse)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -113,6 +114,7 @@ void COptionTab8::OnCookiesFileBrowse()
 BOOL COptionTab8::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+  BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 
   // mode modif à la volée
@@ -224,3 +226,19 @@ const char* COptionTab8::GetTip(int ID)
 // ------------------------------------------------------------
 
 
+
+void COptionTab8::BuildLayout()
+{
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_checktype, 0, 100);
+  m_layout.AddId(this, IDC_robots, 0, 100);
+  m_layout.AddId(this, IDC_cookiesfile, 0, 100);
+  m_layout.AddId(this, IDC_cookiesfilebrowse, 100, 0);
+  m_layout.AddId(this, IDC_sitemapurl, 0, 100);
+}
+
+void COptionTab8::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}

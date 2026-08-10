@@ -76,8 +76,39 @@ CMainTab::~CMainTab()
 {
 }
 
+/* NULL for every sheet here: MFC installs a callback only on the modeless Create path. */
+static PFNPROPSHEETCALLBACK sheetCallback = NULL;
+
+/* A sizing border only works if it is in the dialog template comctl32 builds: adding
+   WS_THICKFRAME to the created window draws it but leaves the size fixed. */
+static int CALLBACK SheetPreCreate(HWND hWnd, UINT message, LPARAM lParam)
+{
+  if (message == PSCB_PRECREATE && lParam != 0) {
+    /* Either template shape can turn up. The extended one carries a 0xFFFF signature
+       where the plain one has the top half of its style. */
+    struct DLGTEMPLATEEX_HEAD {
+      WORD dlgVer, signature;
+      DWORD helpID, exStyle, style;
+    };
+    DLGTEMPLATEEX_HEAD* const ex = (DLGTEMPLATEEX_HEAD*) lParam;
+    if (ex->signature == 0xFFFF)
+      ex->style |= WS_THICKFRAME|WS_MAXIMIZEBOX;
+    else
+      ((DLGTEMPLATE*) lParam)->style |= WS_THICKFRAME|WS_MAXIMIZEBOX;
+  }
+  // Chain whatever was there, so a sheet brought up modeless keeps MFC's own callback.
+  return (sheetCallback != NULL) ? sheetCallback(hWnd, message, lParam) : 0;
+}
+
 void CMainTab::AddControlPages()
 {
+  m_minSize.cx = m_minSize.cy = 0;    // OnInitDialog measures it
+  // UnDefineDefaultProxy calls this again; chaining onto ourselves would recurse forever.
+  if (m_psh.pfnCallback != SheetPreCreate) {
+    sheetCallback = m_psh.pfnCallback;
+    m_psh.pfnCallback = SheetPreCreate;
+    m_psh.dwFlags |= PSH_USECALLBACK;
+  }
   m_hIcon = httrack_icon;
   m_psh.dwFlags |= PSP_USEHICON;  // utiliser icône
   m_psh.dwFlags &= ~PSH_HASHELP;  // pas de bouton help
@@ -118,6 +149,8 @@ ON_WM_QUERYDRAGICON()
 ON_WM_SYSCOMMAND()
 ON_WM_TIMER()
 ON_WM_HELPINFO()
+ON_WM_SIZE()
+ON_WM_GETMINMAXINFO()
 //}}AFX_MSG_MAP
 ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -164,9 +197,52 @@ BOOL CMainTab::OnInitDialog()
   //SetActivePage(GetPageCount()-1);
   SetActivePage(0);
 
+  /* Fallback for a sheet SheetPreCreate could not reach, and a no-op once it did: the
+     thicker border comes out of the client area, so give that back. */
+  CRect before, after, frame;
+  GetClientRect(before);
+  ModifyStyle(0, WS_THICKFRAME|WS_MAXIMIZEBOX);
+  SetWindowPos(NULL, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_FRAMECHANGED);
+  GetClientRect(after);
+  GetWindowRect(frame);
+  SetWindowPos(NULL, 0, 0,
+               frame.Width()  + before.Width()  - after.Width(),
+               frame.Height() + before.Height() - after.Height(),
+               SWP_NOMOVE|SWP_NOZORDER);
+  GetWindowRect(frame);
+  m_minSize = frame.Size();
+  m_sheetLayout.Build(this);
+
   // mode modif à la volée
   return r;
 }
+
+void CMainTab::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertySheet::OnSize(nType, cx, cy);
+  m_sheetLayout.Apply(cx, cy);
+}
+
+void CMainTab::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
+{
+  CPropertySheet::OnGetMinMaxInfo(lpMMI);
+  if (m_minSize.cx > 0) {
+    lpMMI->ptMinTrackSize.x = m_minSize.cx;
+    lpMMI->ptMinTrackSize.y = m_minSize.cy;
+    /* Last word on the maximum as well: a sheet proc that means to stay fixed pins this
+       to the size it computed, and the drag then has nowhere to go. */
+    lpMMI->ptMaxTrackSize.x = max(lpMMI->ptMaxTrackSize.x, ::GetSystemMetrics(SM_CXMAXTRACK));
+    lpMMI->ptMaxTrackSize.y = max(lpMMI->ptMaxTrackSize.y, ::GetSystemMetrics(SM_CYMAXTRACK));
+  }
+}
+
+LRESULT CMainTab::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+  const LRESULT r = CPropertySheet::WindowProc(message, wParam, lParam);
+  m_sheetLayout.HandleMessage(message, wParam, lParam);
+  return r;
+}
+
 HCURSOR CMainTab::OnQueryDragIcon()
 {
   return (HCURSOR) m_hIcon;

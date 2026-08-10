@@ -90,6 +90,7 @@ BEGIN_MESSAGE_MAP(COptionTab2, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab2)
 	ON_BN_CLICKED(IDC_buildopt, Onbuildopt)
 	ON_CBN_SELCHANGE(IDC_build, OnSelchangebuild)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -110,6 +111,7 @@ void COptionTab2::Onbuildopt()
 BOOL COptionTab2::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 	
   // Patcher l'interface pour les Français ;-)
@@ -224,3 +226,17 @@ void COptionTab2::OnSelchangebuild()
   }
 }
 
+
+void COptionTab2::BuildLayout()
+{
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_STATIC_buildopt, 0, 100);
+  m_layout.AddId(this, IDC_build, 0, 100);
+  m_layout.AddId(this, IDC_buildopt, 100, 0);
+}
+
+void COptionTab2::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}
