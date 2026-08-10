@@ -78,6 +78,7 @@ CMainTab::~CMainTab()
 
 void CMainTab::AddControlPages()
 {
+  m_minSize.cx = m_minSize.cy = 0;    // OnInitDialog measures it
   m_hIcon = httrack_icon;
   m_psh.dwFlags |= PSP_USEHICON;  // utiliser icône
   m_psh.dwFlags &= ~PSH_HASHELP;  // pas de bouton help
@@ -118,6 +119,8 @@ ON_WM_QUERYDRAGICON()
 ON_WM_SYSCOMMAND()
 ON_WM_TIMER()
 ON_WM_HELPINFO()
+ON_WM_SIZE()
+ON_WM_GETMINMAXINFO()
 //}}AFX_MSG_MAP
 ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -164,9 +167,44 @@ BOOL CMainTab::OnInitDialog()
   //SetActivePage(GetPageCount()-1);
   SetActivePage(0);
 
+  /* The template is a fixed dialog; give it a sizing border so the pages holding long
+     text (scan rules, HTTP headers) can be enlarged. Measure afterwards: the new frame
+     is thicker than the one the sheet was created with. */
+  ModifyStyle(0, WS_THICKFRAME|WS_MAXIMIZEBOX);
+  SetWindowPos(NULL, 0,0,0,0, SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_FRAMECHANGED);
+  CRect frame;
+  GetWindowRect(frame);
+  m_minSize = frame.Size();
+  m_sheetLayout.Build(this);
+
   // mode modif à la volée
   return r;
 }
+
+void CMainTab::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertySheet::OnSize(nType, cx, cy);
+  m_sheetLayout.Apply(cx, cy);
+}
+
+void CMainTab::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
+{
+  CPropertySheet::OnGetMinMaxInfo(lpMMI);
+  if (m_minSize.cx > 0) {
+    lpMMI->ptMinTrackSize.x = m_minSize.cx;
+    lpMMI->ptMinTrackSize.y = m_minSize.cy;
+  }
+}
+
+LRESULT CMainTab::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+  const LRESULT r = CPropertySheet::WindowProc(message, wParam, lParam);
+  // A page comctl32 has just shown comes back at its creation rect.
+  if (message == PSM_SETCURSEL || message == PSM_SETCURSELID)
+    m_sheetLayout.LayoutActivePage();
+  return r;
+}
+
 HCURSOR CMainTab::OnQueryDragIcon()
 {
   return (HCURSOR) m_hIcon;

@@ -36,6 +36,8 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab7 dialog
 
+#include "WndLayout.h"
+
 class COptionTab7 : public CPropertyPage
 {
 	DECLARE_DYNCREATE(COptionTab7)
@@ -63,6 +65,8 @@ public:
 
 // Implementation
 protected:
+	CWndLayout m_layout;
+	void BuildLayout();
 	// Generated message map functions
 	//{{AFX_MSG(COptionTab7)
 	afx_msg void OnAdd1();
@@ -71,6 +75,7 @@ protected:
 	afx_msg void OnCheck1();
 	afx_msg void OnCheck2();
 	afx_msg void OnCheck3();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
 	DECLARE_MESSAGE_MAP()

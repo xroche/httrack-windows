@@ -88,6 +88,7 @@ void COptionTab3::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(COptionTab3, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab3)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -98,6 +99,7 @@ END_MESSAGE_MAP()
 BOOL COptionTab3::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 	
   // mode modif à la volée
@@ -199,3 +201,23 @@ const char* COptionTab3::GetTip(int ID)
 // TOOL TIPS
 // ------------------------------------------------------------
 
+
+void COptionTab3::BuildLayout()
+{
+  /* Two columns, each taking half the extra width. */
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_STATIC_warning, 0, 100);
+  m_layout.AddId(this, IDC_filter, 0, 50);
+  m_layout.AddId(this, IDC_travel, 0, 50);
+  m_layout.AddId(this, IDC_travel3, 0, 50);
+  m_layout.AddId(this, IDC_STATIC_travel2, 50, 50);
+  m_layout.AddId(this, IDC_travel2, 50, 50);
+  m_layout.AddId(this, IDC_STATIC_stripquery, 50, 50);
+  m_layout.AddId(this, IDC_stripquery, 50, 50);
+}
+
+void COptionTab3::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}

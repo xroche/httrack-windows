@@ -80,6 +80,7 @@ void COptionTab6::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(COptionTab6, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab6)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -90,6 +91,7 @@ END_MESSAGE_MAP()
 BOOL COptionTab6::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 	
   // Patcher l'interface pour les Français ;-)
@@ -155,3 +157,21 @@ const char* COptionTab6::GetTip(int ID)
 // TOOL TIPS
 // ------------------------------------------------------------
 
+
+void COptionTab6::BuildLayout()
+{
+  /* The headers box takes the height; the referer row stays under it. */
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_user, 0, 100);
+  m_layout.AddId(this, IDC_footer, 0, 100);
+  m_layout.AddId(this, IDC_accept_language, 0, 100);
+  m_layout.AddId(this, IDC_other_headers, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_STATIC_default_referer, 0, 0, 100, 0);
+  m_layout.AddId(this, IDC_default_referer, 0, 100, 100, 0);
+}
+
+void COptionTab6::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}

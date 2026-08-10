@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 // Tab Control Principal
 
 // En-tête pour l'affichage des tabs
+#include "WndLayout.h"
 #include "OptionTab1.h"
 #include "OptionTab2.h"
 #include "OptionTab3.h"
@@ -94,15 +95,20 @@ public:
   void DefineDefaultProxy();
   void UnDefineDefaultProxy();
   
-  // Generated message map functions
 protected:
-  
+
   const char* GetTip(int id);
+  CSheetLayout m_sheetLayout;
+  CSize m_minSize;       /* the template size; the sheet may grow but not shrink */
+  // Generated message map functions
   //{{AFX_MSG(CMainTab)
   afx_msg HCURSOR OnQueryDragIcon();
   afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
+  afx_msg void OnSize(UINT nType, int cx, int cy);
+  afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
   //}}AFX_MSG
+  virtual LRESULT WindowProc(UINT message, WPARAM wParam, LPARAM lParam);
 	afx_msg void OnHelpInfo2();
   //afx_msg void OnOK( );
   //afx_msg void OnCancel( );

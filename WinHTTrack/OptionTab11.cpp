@@ -101,6 +101,7 @@ void COptionTab11::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(COptionTab11, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab11)
+	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -111,6 +112,7 @@ END_MESSAGE_MAP()
 BOOL COptionTab11::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+  BuildLayout();
 	
   EnableToolTips(true);     // TOOL TIPS
 
@@ -236,3 +238,23 @@ const char* COptionTab11::GetTip(int ID)
 // ------------------------------------------------------------
 
 
+
+void COptionTab11::BuildLayout()
+{
+  m_layout.Reset(this);
+  m_layout.AddId(this, IDC_STATIC_asso, 0, 100);
+  m_layout.AddId(this, IDC_mime1, 0, 100);
+  m_layout.AddId(this, IDC_mime2, 0, 100);
+  m_layout.AddId(this, IDC_mime3, 0, 100);
+  m_layout.AddId(this, IDC_mime4, 0, 100);
+  m_layout.AddId(this, IDC_mime5, 0, 100);
+  m_layout.AddId(this, IDC_mime6, 0, 100);
+  m_layout.AddId(this, IDC_mime7, 0, 100);
+  m_layout.AddId(this, IDC_mime8, 0, 100);
+}
+
+void COptionTab11::OnSize(UINT nType, int cx, int cy)
+{
+  CPropertyPage::OnSize(nType, cx, cy);
+  m_layout.Apply(cx, cy);
+}
