@@ -18,11 +18,12 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import win32gui
+from PIL import Image
 from pywinauto.controls.common_controls import TabControlWrapper
 from pywinauto.controls.win32_controls import ComboBoxWrapper
 
-from wincapture import (Timeout, capture, click, controls, find, set_text, slug,
-                        top_level_windows, wait, window_titled)
+from wincapture import (Timeout, capture, click, content_rect, controls, find, grab,
+                        nonblack, set_text, slug, top_level_windows, wait, window_titled)
 
 # MFC's wizard buttons and the property-sheet page selector are standard.
 ID_WIZBACK, ID_WIZNEXT, ID_WIZFINISH = 0x3023, 0x3024, 0x3025
@@ -32,15 +33,15 @@ TCM_GETITEMCOUNT = 0x1304
 
 PROJECT = "Demo Project"
 NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC_URL",
-          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend")
+          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6")
 
 
 class Site(BaseHTTPRequestHandler):
-    """Interlinked pages served slowly, so the crawl is still running with real numbers
-    on it when the progress screen is captured."""
+    """Interlinked pages served slowly, so the crawl is still running with real numbers on
+    it when the progress screen is captured, and for the ten frames that follow it."""
 
-    pages = 24
-    delay = 0.35
+    pages = 120
+    delay = 0.8
     filler = "HTTrack copies a site by following its links, page by page. " * 90
 
     def body(self):
@@ -94,19 +95,89 @@ def resource_ids(path):
 
 
 class Shots:
+    # Ten frames, close enough together to fit inside the crawl the walk already runs.
+    # The panel refreshes every 100ms (HTS_SLEEP_WIN), so every frame is a distinct one.
+    FRAMES, INTERVAL = 10, 0.45
+    # Motion shown alongside body text needs a way to stop it past five seconds (WCAG
+    # 2.2.2), and an APNG in an <img> offers none. One short play is outside that.
+    PLAYS, SECONDS = 1, 5.0
+
     def __init__(self, outdir):
         self.outdir = outdir
         self.taken = []
 
     def take(self, hwnd, name):
         path = os.path.join(self.outdir, f"{name}.png")
-        nonblack = capture(hwnd, path)
-        print(f"  {name}.png  {nonblack:.3f} non-black")
+        img = grab(hwnd)
+        img.save(path)
+        self.check(img, f"{name}.png")
+        self.taken.append(path)
+
+    def check(self, img, what):
+        share = nonblack(img)
+        print(f"  {what}  {share:.3f} non-black")
         # A window that is up but has not painted captures as a black rectangle, which
         # looks like a successful shot until someone opens the artifact.
-        if nonblack < 0.02:
-            raise RuntimeError(f"{name}.png came out blank")
-        self.taken.append(path)
+        if share < 0.02:
+            raise RuntimeError(f"{what} came out blank")
+
+    def animate(self, hwnd, inner, name, over):
+        """A window on a cadence, cropped to what a descendant of it has on it, as an
+        APNG plus frame 1 as a PNG: only the pixels that move cost bytes, and a decoder
+        with no APNG support shows frame 1."""
+        box = content_rect(inner, hwnd)
+        frames = []
+        for i in range(self.FRAMES):
+            if i:
+                time.sleep(self.INTERVAL)
+            if over():
+                break
+            frames.append(grab(hwnd).crop(box))
+        if len(frames) < self.FRAMES:
+            raise RuntimeError(f"{name}: {len(frames)} of {self.FRAMES} frames before the "
+                               "mirror ended -- serve more pages, or serve them slower")
+        self.check(frames[0], f"{name}.apng")
+        still = os.path.join(self.outdir, f"{name}.png")
+        apng = os.path.join(self.outdir, f"{name}.apng")
+        frames[0].save(still)
+        frames[0].save(apng, format="PNG", save_all=True, append_images=frames[1:],
+                       duration=int(self.INTERVAL * 1000), loop=self.PLAYS)
+        # Report the file rather than the capture: two identical frames in a row are
+        # written as one with their delays added, so the counts differ legitimately.
+        stored, seconds = self.plays_once(apng, name)
+        print(f"  {name}.apng  {stored} frames of {len(frames)}, {seconds:.1f}s, "
+              f"{os.path.getsize(apng) / 1024:.0f} KB")
+        self.taken += [still, apng]
+
+    def plays_once(self, path, name):
+        """Read back what was actually written, and return its frames and seconds. Four
+        header bytes are all that separate a short play from one that never stops, and
+        `loop` does not mean the same thing for every format Pillow writes."""
+        shown = Image.open(path)
+        plays, total = shown.info.get("loop"), 0
+        for i in range(shown.n_frames):
+            shown.seek(i)
+            total += shown.info.get("duration", 0)
+        if plays != self.PLAYS or total > self.SECONDS * 1000:
+            raise RuntimeError(f"{name}.apng plays {plays}x for {total / 1000:.1f}s, and has "
+                               f"to play {self.PLAYS}x within {self.SECONDS:.0f}s")
+        return shown.n_frames, total / 1000
+
+
+def warmed_up(main, ids, files=20, seconds=25):
+    """Six seconds in, the engine is still parsing the first page and the counters are
+    barely off zero. Wait for them to climb before filming, and film anyway if they do
+    not -- the wait is the warm-up either way."""
+    written = ids["IDC_i6"]
+
+    def enough():
+        count = win32gui.GetWindowText(find(main, control_id=written))
+        return count.isdigit() and int(count) >= files
+
+    try:
+        wait(enough, f"{files} files written", seconds)
+    except Timeout:
+        print(f"  under {files} files after {seconds}s: filming the sequence regardless")
 
 
 def pane(main, anchor, what, timeout=30):
@@ -170,12 +241,19 @@ def run(pid, ids, shots, url, base_path):
     pane(main, ids["IDC_select_start"], "the ready-to-start pane")
     shots.take(main, "15_ready_to_start")
 
+    started = time.monotonic()
     click(find(main, control_id=ID_WIZFINISH))
-    pane(main, ids["IDC_inforun"], "the progress pane", timeout=60)
+    inforun = pane(main, ids["IDC_inforun"], "the progress pane", timeout=60)
     time.sleep(6)  # let the counters fill, or the shot is a screen of zeros
     shots.take(main, "16_mirror_progress")
+    warmed_up(main, ids)
+    # Framed on the pane's own controls, read from the live layout: the panel is what the
+    # website shows, and a crop box written down here would go stale when the layout moves.
+    shots.animate(main, win32gui.GetParent(inforun), "16_mirror_progress_panel",
+                  lambda: find(main, control_id=ids["IDC_infoend"]))
 
     pane(main, ids["IDC_infoend"], "the finished pane", timeout=300)
+    print(f"  the mirror ran {time.monotonic() - started:.0f}s; the sequence has to fit in it")
     time.sleep(1)
     shots.take(main, "17_mirror_finished")
 

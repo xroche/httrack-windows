@@ -6,6 +6,12 @@ tabs, the ready-to-start pane, and a mirror in progress and finished. The crawl 
 real — the script serves a small site to itself, so the progress screen carries live
 counters rather than zeros.
 
+The progress pane comes out a second time as a ten-frame animation,
+`16_mirror_progress_panel.apng`, with its first frame beside it as a PNG. The website's
+front page uses it to show a mirror actually running rather than a frozen one. It is a
+shot of the pane's own window rather than a crop, so it follows the layout instead of
+going stale with it.
+
 ## Replay
 
 Run the **screenshots** workflow (Actions → Run workflow) and download the
@@ -41,3 +47,12 @@ in `run()`, anchored on a control ID from that pane's dialog.
 - Shots of the main window include the file tree, so on a runner they show that
   machine's `C:\`. A VM with a tidy drive gives nicer full-window shots; the option
   tabs are separate dialogs and carry none of it.
+- Comparing a new set against the previous one byte for byte is what makes the walk
+  worth running before a layout change. The animation cannot take part — its counters
+  differ on every run — so `16_mirror_progress.png` stays the guarded shot of that
+  screen, and the animation is eyeballed.
+- The sequence has to fit inside the crawl: the walk fails rather than write a short
+  animation, and prints how long the mirror ran so the cadence can be matched to it.
+- `PrintWindow` through a child window's own device context dies on the runner with
+  `DeleteDC failed`, so the panel is cropped out of a shot of the whole window rather
+  than captured directly. The crop box still comes from the pane's live rectangle.

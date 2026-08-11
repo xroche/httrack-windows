@@ -87,9 +87,9 @@ def set_text(hwnd, text):
     win32gui.SendMessage(hwnd, WM_SETTEXT, 0, text)
 
 
-def capture(hwnd, path):
+def grab(hwnd):
     """PrintWindow into a memory DC, so the shot carries no taskbar and nothing that
-    happens to overlap. Returns the fraction of the image that is not black."""
+    happens to overlap."""
     left, top, right, bottom = win32gui.GetWindowRect(hwnd)
     w, h = right - left, bottom - top
     if w <= 0 or h <= 0:
@@ -99,15 +99,44 @@ def capture(hwnd, path):
     mem = dc.CreateCompatibleDC()
     bmp = win32ui.CreateBitmap()
     bmp.CreateCompatibleBitmap(dc, w, h)
-    mem.SelectObject(bmp)
+    old = mem.SelectObject(bmp)
     user32.PrintWindow(hwnd, mem.GetSafeHdc(), PW_RENDERFULLCONTENT)
     img = Image.frombuffer("RGB", (w, h), bmp.GetBitmapBits(True), "raw", "BGRX", 0, 1)
+    # Select the original bitmap back before deleting ours: deleting a bitmap that is
+    # still selected fails, and so then does deleting the DC holding it.
+    mem.SelectObject(old)
     win32gui.DeleteObject(bmp.GetHandle())
     mem.DeleteDC()
     dc.DeleteDC()
     win32gui.ReleaseDC(hwnd, src)
-    img.save(path)
+    return img
+
+
+def nonblack(img):
+    """Fraction of the image that is not black."""
+    w, h = img.size
     return 1.0 - sum(img.convert("L").histogram()[:16]) / (w * h)
+
+
+def capture(hwnd, path):
+    """Shoot a window to a PNG. Returns the fraction of the image that is not black."""
+    img = grab(hwnd)
+    img.save(path)
+    return nonblack(img)
+
+
+def content_rect(hwnd, parent, pad=8):
+    """What a window actually has on it, padded and clipped to the window itself, in the
+    coordinates of a shot of one of its ancestors. Its own rectangle is not the answer: a
+    dialog stretched to fill a pane leaves a wide band of nothing under its controls."""
+    boxes = [win32gui.GetWindowRect(c) for c, _, _, _ in controls(hwnd)
+             if win32gui.IsWindowVisible(c)]
+    own = win32gui.GetWindowRect(hwnd)
+    x, y = win32gui.GetWindowRect(parent)[:2]
+    return (max(min(b[0] for b in boxes) - pad, own[0]) - x,
+            max(min(b[1] for b in boxes) - pad, own[1]) - y,
+            min(max(b[2] for b in boxes) + pad, own[2]) - x,
+            min(max(b[3] for b in boxes) + pad, own[3]) - y)
 
 
 def slug(text):
