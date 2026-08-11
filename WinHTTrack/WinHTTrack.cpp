@@ -367,6 +367,76 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("help URLs ok\n");
     }
+    /* Only reachable by typing into the Experts page, so pin the rule splitter here:
+       a rule the engine cannot parse aborts the whole mirror. */
+    {
+      static const struct { const char* field; const char* want; } rules[] = {
+        { "a=b\r\nc=d", "a=b|c=d" },
+        { "a=b  c=d", "a=b|c=d" },
+        { "a=b\tc=d", "a=b|c=d" },
+        { "a=b\vc=d", "a=b|c=d" },
+        { "a=b\fc=d", "a=b|c=d" },
+        { "a=b \r\n\t c=d", "a=b|c=d" },
+        { "  \r\n a=b \r\n  ", "a=b" },
+        { "a.com  ,  b.com  =  c.com", "a.com,b.com=c.com" },
+        /* the separator ending a line glues it to the next, wherever the rule sits */
+        { "a.com,\r\nb.com=c.com", "a.com,b.com=c.com" },
+        { "x=y\r\na.com , b.com = c.com", "x=y|a.com,b.com=c.com" },
+        /* an empty field must not emit --host-alias "", which the engine refuses */
+        { " \r\n\t\v\f ", "" },
+        { "", "" },
+        { NULL, NULL }
+      };
+      for(int k=0 ; rules[k].field != NULL ; k++) {
+        CStringArray got;
+        CString joined;
+        splitRulesInArray(got, rules[k].field);
+        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
+          if (j != 0)
+            joined += "|";
+          joined += got[j];
+        }
+        if (joined != rules[k].want) {
+          fprintf(stderr, "FATAL: rule field '%s' split into '%s', expected '%s'\n",
+                  rules[k].field, (LPCSTR) joined, rules[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("rule splitting ok\n");
+    }
+    /* Copied from the engine's own htsselftest.c: the GUI must refuse exactly what
+       hts_host_alias_rule_ok() refuses, or a rule it lets through aborts the mirror. */
+    {
+      static const struct { const char* rule; BOOL want; } aliases[] = {
+        { "b.com = a.com", TRUE },       { "*://b.com=a.com", TRUE },
+        { "b.com=[::1]", TRUE },         { "b.com=[::1]:8080", TRUE },
+        { "b.com//=a.com//", TRUE },     { "b.com,c.com=a.com", TRUE },
+        { "*.b.com=a.com:8080", TRUE },
+        { "https://www.foo.com=ftp://ftp.foo.com", TRUE },
+        { "https://www.foo.com/=ftp://ftp.foo.com/", TRUE },
+        { "b.com=https://", FALSE },     { "b.com=///", FALSE },
+        { "b.com=primary", FALSE },      { "a.com=user:pw@a.com", FALSE },
+        { "b.com", FALSE },              { "=a.com", FALSE },
+        { "b.com=", FALSE },             { "b.com=a.com,z.com", FALSE },
+        { "b.com=*.a.com", FALSE },      { "b.com=a com", FALSE },
+        { "b.com=a.com#x", FALSE },      { "b.com=http://a.com/x", FALSE },
+        { "https://www.foo.com/=ftp://ftp.foo.com/pub/", FALSE },
+        { "https://www.foo.com/a=ftp://ftp.foo.com", FALSE },
+        { "a.com,b.com/deep=c.com", FALSE },
+        { NULL, FALSE }
+      };
+      for(int k=0 ; aliases[k].rule != NULL ; k++) {
+        if (isHostAliasRule(aliases[k].rule) != aliases[k].want) {
+          fprintf(stderr, "FATAL: host-alias rule '%s' judged %s\n",
+                  aliases[k].rule, aliases[k].want ? "bad, expected good"
+                                                   : "good, expected bad");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("host-alias rules ok\n");
+    }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
        terminator hangs it on the first run, past where --selftest ever reaches. */

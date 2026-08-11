@@ -64,6 +64,7 @@ COptionTab8::COptionTab8() : CPropertyPage(COptionTab8::IDD)
 	m_cookiesfile = _T("");
 	m_sitemap = FALSE;
 	m_sitemapurl = _T("");
+	m_hostalias = _T("");
 	//}}AFX_DATA_INIT
 }
 
@@ -87,6 +88,8 @@ void COptionTab8::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_sitemap, m_sitemap);
 	DDX_Text(pDX, IDC_sitemapurl, m_sitemapurl);
 	DDV_MaxChars(pDX, m_sitemapurl, 1023);  // HTS_URLMAXSIZE, past which the engine aborts the mirror
+	DDX_Text(pDX, IDC_hostalias, m_hostalias);
+	DDV_MaxChars(pDX, m_hostalias, 1023);   // caps the field, so no rule in it can reach the engine's cap
 	//}}AFX_DATA_MAP
 }
 
@@ -132,6 +135,8 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_sitemap)          ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_sitemapurl)       ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_STATIC_sitemapurl)->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_hostalias)        ->ModifyStyle(0,WS_DISABLED);
+    GetDlgItem(IDC_STATIC_hostalias) ->ModifyStyle(0,WS_DISABLED);
   } else {
     GetDlgItem(IDC_cookies)          ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_checktype)        ->ModifyStyle(WS_DISABLED,0);
@@ -146,6 +151,8 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_sitemap)          ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_sitemapurl)       ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_STATIC_sitemapurl)->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_hostalias)        ->ModifyStyle(WS_DISABLED,0);
+    GetDlgItem(IDC_STATIC_hostalias) ->ModifyStyle(WS_DISABLED,0);
   }
 
   if (LANG_T(-1)) {    // Patcher en français
@@ -160,6 +167,7 @@ BOOL COptionTab8::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_cookiesfile,LANG(LANG_COOKIEFILE));
     SetDlgItemTextLang(this, IDC_sitemap,LANG(LANG_SITEMAP));
     SetDlgItemTextLang(this, IDC_STATIC_sitemapurl,LANG(LANG_SITEMAPURL));
+    SetDlgItemTextLang(this, IDC_STATIC_hostalias,LANG(LANG_HOSTALIAS));
     SetCombo(this,IDC_checktype,LISTDEF_7);
     SetCombo(this,IDC_robots,LISTDEF_8);
   }  
@@ -219,6 +227,7 @@ const char* COptionTab8::GetTip(int ID)
     case IDC_cookiesfile: return LANG(LANG_COOKIEFILETIP); break;
     case IDC_sitemap:   return LANG(LANG_SITEMAPTIP); break;
     case IDC_sitemapurl: return LANG(LANG_SITEMAPURLTIP); break;
+    case IDC_hostalias: return LANG(LANG_HOSTALIASTIP); break;
   }
   return "";
 }
@@ -235,6 +244,7 @@ void COptionTab8::BuildLayout()
   m_layout.AddId(this, IDC_cookiesfile, 0, 100);
   m_layout.AddId(this, IDC_cookiesfilebrowse, 100, 0);
   m_layout.AddId(this, IDC_sitemapurl, 0, 100);
+  m_layout.AddId(this, IDC_hostalias, 0, 100);
 }
 
 void COptionTab8::OnSize(UINT nType, int cx, int cy)

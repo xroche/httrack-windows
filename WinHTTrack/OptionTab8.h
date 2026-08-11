@@ -63,6 +63,7 @@ public:
 	CString	m_cookiesfile;
 	BOOL	m_sitemap;
 	CString	m_sitemapurl;
+	CString	m_hostalias;
 	//}}AFX_DATA
 
 
