@@ -18,6 +18,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import win32gui
+from PIL import Image
 from pywinauto.controls.common_controls import TabControlWrapper
 from pywinauto.controls.win32_controls import ComboBoxWrapper
 
@@ -96,7 +97,10 @@ def resource_ids(path):
 class Shots:
     # Ten frames, close enough together to fit inside the crawl the walk already runs.
     # The panel refreshes every 100ms (HTS_SLEEP_WIN), so every frame is a distinct one.
-    FRAMES, INTERVAL = 10, 0.6
+    FRAMES, INTERVAL = 10, 0.45
+    # Motion shown alongside body text needs a way to stop it past five seconds (WCAG
+    # 2.2.2), and an APNG in an <img> offers none. One short play is outside that.
+    PLAYS, SECONDS = 1, 5.0
 
     def __init__(self, outdir):
         self.outdir = outdir
@@ -137,9 +141,23 @@ class Shots:
         apng = os.path.join(self.outdir, f"{name}.apng")
         frames[0].save(still)
         frames[0].save(apng, format="PNG", save_all=True, append_images=frames[1:],
-                       duration=int(self.INTERVAL * 1000), loop=0)
+                       duration=int(self.INTERVAL * 1000), loop=self.PLAYS)
+        self.plays_once(apng, name)
         print(f"  {name}.apng  {len(frames)} frames, {os.path.getsize(apng) / 1024:.0f} KB")
         self.taken += [still, apng]
+
+    def plays_once(self, path, name):
+        """Read back what was actually written. Four header bytes are all that separate a
+        short play from one that never stops, and `loop` does not mean the same thing for
+        every format Pillow writes."""
+        shown = Image.open(path)
+        plays, total = shown.info.get("loop"), 0
+        for i in range(shown.n_frames):
+            shown.seek(i)
+            total += shown.info.get("duration", 0)
+        if plays != self.PLAYS or total > self.SECONDS * 1000:
+            raise RuntimeError(f"{name}.apng plays {plays}x for {total / 1000:.1f}s, and has "
+                               f"to play {self.PLAYS}x within {self.SECONDS:.0f}s")
 
 
 def warmed_up(main, ids, files=20, seconds=25):
