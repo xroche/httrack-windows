@@ -33,34 +33,47 @@ TCM_GETITEMCOUNT = 0x1304
 
 PROJECT = "Demo Project"
 NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC_URL",
-          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6")
+          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6",
+          "IDC_connexion", "IDC_maxrate")
 
 
 class Site(BaseHTTPRequestHandler):
-    """Interlinked pages served slowly, so the crawl is still running with real numbers on
-    it when the progress screen is captured, and for the ten frames that follow it."""
+    """Pages served in pieces, off a root that links to dozens of them at once. Both
+    matter to the progress screen: a body that arrives gradually is what makes the
+    per-file bars fill instead of jumping from nothing to done, and a wide root is what
+    fills all eight connection slots straight away. A narrow root starves them, because
+    the queue then only grows as fast as the pages it is waiting on arrive."""
 
-    pages = 120
-    delay = 0.8
-    filler = "HTTrack copies a site by following its links, page by page. " * 90
+    pages = 300
+    spread = 60
+    fanout = 4
+    size = 240_000
+    chunk = 8192
+    pause = 0.06
+    filler = "HTTrack copies a site by following its links, page by page. "
 
-    def body(self):
+    def children(self):
         if self.path == "/":
-            links = "".join(f'<li><a href="page{i}.html">Page {i}</a></li>'
-                            for i in range(1, self.pages + 1))
-            return ("<html><head><title>Demo site</title></head><body>"
-                    f"<h1>Demo site</h1><ul>{links}</ul></body></html>")
+            return range(1, self.spread + 1)
         m = re.fullmatch(r"/page(\d+)\.html", self.path)
         if not m or not 1 <= int(m.group(1)) <= self.pages:
             return None
         n = int(m.group(1))
-        nxt = n % self.pages + 1
-        return (f"<html><head><title>Page {n}</title></head><body><h1>Page {n}</h1>"
-                f'<p>{self.filler}</p><a href="page{nxt}.html">next</a> <a href="/">home</a>'
-                "</body></html>")
+        return [k for k in range(n * self.fanout + 1, (n + 1) * self.fanout + 1)
+                if k <= self.pages]
+
+    def body(self):
+        kids = self.children()
+        if kids is None:
+            return None
+        links = "".join(f'<li><a href="/page{k}.html">Page {k}</a></li>' for k in kids)
+        head = (f"<html><head><title>Demo site</title></head><body><h1>Demo site</h1>"
+                f'<ul>{links}</ul><p><a href="/">home</a><br>')
+        tail = "</p></body></html>"
+        pad = max(self.size - len(head) - len(tail), 0)
+        return head + (self.filler * (pad // len(self.filler) + 1))[:pad] + tail
 
     def do_GET(self):
-        time.sleep(self.delay)
         body = self.body()
         if body is None:
             self.send_error(404)
@@ -70,7 +83,13 @@ class Site(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
-        self.wfile.write(raw)
+        try:
+            for i in range(0, len(raw), self.chunk):
+                self.wfile.write(raw[i:i + self.chunk])
+                self.wfile.flush()
+                time.sleep(self.pause)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # the walk kills the app mid-crawl, so half the transfers end this way
 
     def log_message(self, *_):
         pass
@@ -95,9 +114,9 @@ def resource_ids(path):
 
 
 class Shots:
-    # Ten frames, close enough together to fit inside the crawl the walk already runs.
+    # Sixteen frames, close enough together to fit inside the crawl the walk already runs.
     # The panel refreshes every 100ms (HTS_SLEEP_WIN), so every frame is a distinct one.
-    FRAMES, INTERVAL = 10, 0.45
+    FRAMES, INTERVAL = 16, 0.3
     # Motion shown alongside body text needs a way to stop it past five seconds (WCAG
     # 2.2.2), and an APNG in an <img> offers none. One short play is outside that.
     PLAYS, SECONDS = 1, 5.0
@@ -137,6 +156,7 @@ class Shots:
             raise RuntimeError(f"{name}: {len(frames)} of {self.FRAMES} frames before the "
                                "mirror ended -- serve more pages, or serve them slower")
         self.check(frames[0], f"{name}.apng")
+        frames = self.one_palette(frames)
         still = os.path.join(self.outdir, f"{name}.png")
         apng = os.path.join(self.outdir, f"{name}.apng")
         frames[0].save(still)
@@ -148,6 +168,27 @@ class Shots:
         print(f"  {name}.apng  {stored} frames of {len(frames)}, {seconds:.1f}s, "
               f"{os.path.getsize(apng) / 1024:.0f} KB")
         self.taken += [still, apng]
+
+    def one_palette(self, frames):
+        """Every frame through a single palette, since an APNG carries one PLTE. A UI
+        screen is a few hundred colours, so this halves the file and loses nothing;
+        converting the frames together is what keeps their palettes identical."""
+        union = set()
+        for f in frames:
+            union |= {colour for _, colour in f.getcolors(maxcolors=1 << 24)}
+        if len(union) > 256:
+            print(f"  {len(union)} colours: more than a palette holds, keeping them RGB")
+            return frames
+        w, h = frames[0].size
+        tall = Image.new("RGB", (w, h * len(frames)))
+        for i, f in enumerate(frames):
+            tall.paste(f, (0, i * h))
+        flat = tall.convert("P", palette=Image.ADAPTIVE, colors=256)
+        if flat.convert("RGB").tobytes() != tall.tobytes():
+            raise RuntimeError(f"the palette lost colours: {len(union)} in, "
+                               f"{len(flat.getpalette()) // 3} out")
+        print(f"  {len(union)} colours, one palette")
+        return [flat.crop((0, i * h, w, (i + 1) * h)) for i in range(len(frames))]
 
     def plays_once(self, path, name):
         """Read back what was actually written, and return its frames and seconds. Four
@@ -186,24 +227,54 @@ def pane(main, anchor, what, timeout=30):
     return wait(lambda: find(main, control_id=anchor), what, timeout)
 
 
-def options(main, pid, ids, shots):
-    """The eleven option tabs, switched through the sheet rather than by clicking the
-    tab control, so a two-row tab layout cannot put a tab under the mouse of another."""
+def open_options(main, pid, ids):
+    """The options sheet, with its tab control and the captions of its pages."""
     before = set(top_level_windows(pid))
     # By class too: ID_setopt is 3, which is also IDABORT, so a bare ID is not distinctive.
     click(find(main, control_id=ids["ID_setopt"], class_name="Button"))
     sheet = wait(lambda: next((h for h in top_level_windows(pid) if h not in before), None),
                  "the options sheet", 30)
     tabs = wait(lambda: find(sheet, class_name="SysTabControl32"), "the option tabs", 15)
+    return sheet, tabs, TabControlWrapper(tabs)
+
+
+def close_options(sheet, pid, button):
+    click(find(sheet, control_id=button, class_name="Button"))
+    wait(lambda: sheet not in top_level_windows(pid), "the options sheet to close", 15)
+
+
+def options(main, pid, ids, shots, connections=8, rate=2_000_000):
+    """The eleven option tabs, switched through the sheet rather than by clicking the tab
+    control, so a two-row tab layout cannot put a tab under the mouse of another.
+
+    The connection count is set on the way out, after every tab has been shot with its
+    defaults, because the sheet only opens once: a second "Set options..." throws
+    "Encountered an improper argument" inside MFC and leaves a message box on screen."""
+    sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
-    captions = TabControlWrapper(tabs)
     print(f"  options sheet {sheet:#x}: {count} tabs")
+    at = {}
     for i in range(count):
         win32gui.SendMessage(sheet, PSM_SETCURSEL, i, 0)
         time.sleep(0.6)
-        shots.take(sheet, f"{4 + i:02d}_options_{slug(captions.get_tab_text(i))}")
-    click(find(sheet, control_id=IDCANCEL))
-    wait(lambda: sheet not in top_level_windows(pid), "the options sheet to close", 15)
+        page = slug(captions.get_tab_text(i))
+        at[page] = i
+        shots.take(sheet, f"{4 + i:02d}_options_{page}")
+    # Eight parallel transfers, so the animation shows a mirror working rather than one
+    # file trickling in. Eight is the engine's ceiling; it clamps anything higher. The
+    # The rate cap goes up with it, since WinHTTrack starts a project at 25 KB/s
+    # (Shell.cpp, the MaxRate profile default) and eight throttled transfers would still
+    # crawl. Each on its own page, since a control on a page that is not on top is not
+    # visible to find().
+    for page, control, value in (("limits", "IDC_maxrate", rate),
+                                 ("flow_control", "IDC_connexion", connections)):
+        if page not in at:
+            raise RuntimeError(f"no {page} tab to set the mirror up on")
+        win32gui.SendMessage(sheet, PSM_SETCURSEL, at[page], 0)
+        time.sleep(0.6)
+        set_text(find(sheet, control_id=ids[control]), str(value))
+    close_options(sheet, pid, IDOK)
+    print(f"  {connections} connections, {rate} B/s")
 
 
 def run(pid, ids, shots, url, base_path):
@@ -252,7 +323,7 @@ def run(pid, ids, shots, url, base_path):
     shots.animate(main, win32gui.GetParent(inforun), "16_mirror_progress_panel",
                   lambda: find(main, control_id=ids["IDC_infoend"]))
 
-    pane(main, ids["IDC_infoend"], "the finished pane", timeout=300)
+    pane(main, ids["IDC_infoend"], "the finished pane", timeout=420)
     print(f"  the mirror ran {time.monotonic() - started:.0f}s; the sequence has to fit in it")
     time.sleep(1)
     shots.take(main, "17_mirror_finished")
