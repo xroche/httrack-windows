@@ -62,15 +62,25 @@ jobs:
           gh run download $id --name WinHTTrack-x64-Release --dir app
           if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
 
+      # The address is on screen in the wizard panes and names the mirror folder, so the
+      # crawl answers to a name rather than to loopback and a port. example.com is the
+      # domain reserved for documentation (RFC 2606).
+      - name: Let the crawl address a named site on port 80
+        shell: pwsh
+        run: Add-Content "$env:SystemRoot\System32\drivers\etc\hosts" "`n127.0.0.1 www.example.com"
+
       - name: Capture
         shell: pwsh
         env:
           MODE: ${{ inputs.mode }}
         run: |
           python -m pip install --quiet pywin32 pillow pywinauto
-          $script = if ($env:MODE -eq 'probe') { 'screenshot-probe.py' } else { 'screenshot-walk.py' }
+          $script = 'screenshot-walk.py'
+          $site = @('--site-host', 'www.example.com', '--site-port', '80')
+          # The probe only answers whether the machine renders at all, and takes neither.
+          if ($env:MODE -eq 'probe') { $script = 'screenshot-probe.py'; $site = @() }
           Write-Host "running $script"
-          python "tools\$script" --exe app\WinHTTrack.exe --out shots
+          python "tools\$script" --exe app\WinHTTrack.exe --out shots @site
 
       - name: Upload the screens
         if: always()
