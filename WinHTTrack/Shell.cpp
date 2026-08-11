@@ -3097,7 +3097,7 @@ void Read_profile(CString path,int load_path) {
                                   MyGetProfileString(path,strSection, "OtherHeaders");
   maintab->m_option6.m_default_referer =
                                   MyGetProfileString(path,strSection, "DefaultReferer");
-  maintab->m_option5.m_maxrate =  MyGetProfileString(path,strSection, "MaxRate", "25000");
+  maintab->m_option5.m_maxrate =  MyGetProfileString(path,strSection, "MaxRate");
   maintab->m_option5.m_maxconn =  MyGetProfileString(path,strSection, "MaxConn");
   maintab->m_option5.m_maxlinks = MyGetProfileString(path,strSection, "MaxLinks");
   
