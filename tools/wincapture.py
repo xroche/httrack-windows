@@ -87,9 +87,9 @@ def set_text(hwnd, text):
     win32gui.SendMessage(hwnd, WM_SETTEXT, 0, text)
 
 
-def capture(hwnd, path):
+def grab(hwnd):
     """PrintWindow into a memory DC, so the shot carries no taskbar and nothing that
-    happens to overlap. Returns the fraction of the image that is not black."""
+    happens to overlap. Takes a child window as readily as a top-level one."""
     left, top, right, bottom = win32gui.GetWindowRect(hwnd)
     w, h = right - left, bottom - top
     if w <= 0 or h <= 0:
@@ -106,8 +106,20 @@ def capture(hwnd, path):
     mem.DeleteDC()
     dc.DeleteDC()
     win32gui.ReleaseDC(hwnd, src)
-    img.save(path)
+    return img
+
+
+def nonblack(img):
+    """Fraction of the image that is not black."""
+    w, h = img.size
     return 1.0 - sum(img.convert("L").histogram()[:16]) / (w * h)
+
+
+def capture(hwnd, path):
+    """Shoot a window to a PNG. Returns the fraction of the image that is not black."""
+    img = grab(hwnd)
+    img.save(path)
+    return nonblack(img)
 
 
 def slug(text):

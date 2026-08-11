@@ -21,8 +21,8 @@ import win32gui
 from pywinauto.controls.common_controls import TabControlWrapper
 from pywinauto.controls.win32_controls import ComboBoxWrapper
 
-from wincapture import (Timeout, capture, click, controls, find, set_text, slug,
-                        top_level_windows, wait, window_titled)
+from wincapture import (Timeout, capture, click, controls, find, grab, nonblack, set_text,
+                        slug, top_level_windows, wait, window_titled)
 
 # MFC's wizard buttons and the property-sheet page selector are standard.
 ID_WIZBACK, ID_WIZNEXT, ID_WIZFINISH = 0x3023, 0x3024, 0x3025
@@ -94,19 +94,50 @@ def resource_ids(path):
 
 
 class Shots:
+    # Ten frames, close enough together to fit inside the crawl the walk already runs.
+    # The panel refreshes every 100ms (HTS_SLEEP_WIN), so every frame is a distinct one.
+    FRAMES, INTERVAL = 10, 0.6
+
     def __init__(self, outdir):
         self.outdir = outdir
         self.taken = []
 
     def take(self, hwnd, name):
         path = os.path.join(self.outdir, f"{name}.png")
-        nonblack = capture(hwnd, path)
-        print(f"  {name}.png  {nonblack:.3f} non-black")
+        img = grab(hwnd)
+        img.save(path)
+        self.check(img, f"{name}.png")
+        self.taken.append(path)
+
+    def check(self, img, what):
+        share = nonblack(img)
+        print(f"  {what}  {share:.3f} non-black")
         # A window that is up but has not painted captures as a black rectangle, which
         # looks like a successful shot until someone opens the artifact.
-        if nonblack < 0.02:
-            raise RuntimeError(f"{name}.png came out blank")
-        self.taken.append(path)
+        if share < 0.02:
+            raise RuntimeError(f"{what} came out blank")
+
+    def animate(self, hwnd, name, over):
+        """A window on a cadence, as an APNG plus frame 1 as an ordinary PNG: only the
+        pixels that move cost bytes, and a decoder with no APNG support shows frame 1."""
+        frames = []
+        for i in range(self.FRAMES):
+            if i:
+                time.sleep(self.INTERVAL)
+            if over():
+                break
+            frames.append(grab(hwnd))
+        if len(frames) < self.FRAMES:
+            raise RuntimeError(f"{name}: {len(frames)} of {self.FRAMES} frames before the "
+                               "mirror ended -- serve more pages, or serve them slower")
+        self.check(frames[0], f"{name}.apng")
+        still = os.path.join(self.outdir, f"{name}.png")
+        apng = os.path.join(self.outdir, f"{name}.apng")
+        frames[0].save(still)
+        frames[0].save(apng, format="PNG", save_all=True, append_images=frames[1:],
+                       duration=int(self.INTERVAL * 1000), loop=0)
+        print(f"  {name}.apng  {len(frames)} frames, {os.path.getsize(apng) / 1024:.0f} KB")
+        self.taken += [still, apng]
 
 
 def pane(main, anchor, what, timeout=30):
@@ -170,12 +201,18 @@ def run(pid, ids, shots, url, base_path):
     pane(main, ids["IDC_select_start"], "the ready-to-start pane")
     shots.take(main, "15_ready_to_start")
 
+    started = time.monotonic()
     click(find(main, control_id=ID_WIZFINISH))
-    pane(main, ids["IDC_inforun"], "the progress pane", timeout=60)
+    inforun = pane(main, ids["IDC_inforun"], "the progress pane", timeout=60)
     time.sleep(6)  # let the counters fill, or the shot is a screen of zeros
     shots.take(main, "16_mirror_progress")
+    # The pane's own hwnd rather than a crop of the window: a crop box would go stale the
+    # next time the layout moves, and the panel is what the website shows.
+    shots.animate(win32gui.GetParent(inforun), "16_mirror_progress_panel",
+                  lambda: find(main, control_id=ids["IDC_infoend"]))
 
     pane(main, ids["IDC_infoend"], "the finished pane", timeout=300)
+    print(f"  the mirror ran {time.monotonic() - started:.0f}s; the sequence has to fit in it")
     time.sleep(1)
     shots.take(main, "17_mirror_finished")
 
