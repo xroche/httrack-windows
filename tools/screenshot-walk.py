@@ -21,8 +21,9 @@ import win32gui
 from pywinauto.controls.common_controls import TabControlWrapper
 from pywinauto.controls.win32_controls import ComboBoxWrapper
 
-from wincapture import (Timeout, capture, click, controls, find, grab, nonblack, set_text,
-                        slug, top_level_windows, wait, window_titled)
+from wincapture import (Timeout, capture, click, controls, find, grab, nonblack,
+                        relative_rect, set_text, slug, top_level_windows, wait,
+                        window_titled)
 
 # MFC's wizard buttons and the property-sheet page selector are standard.
 ID_WIZBACK, ID_WIZNEXT, ID_WIZFINISH = 0x3023, 0x3024, 0x3025
@@ -36,10 +37,10 @@ NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC
 
 
 class Site(BaseHTTPRequestHandler):
-    """Interlinked pages served slowly, so the crawl is still running with real numbers
-    on it when the progress screen is captured."""
+    """Interlinked pages served slowly, so the crawl is still running with real numbers on
+    it when the progress screen is captured, and for the ten frames that follow it."""
 
-    pages = 24
+    pages = 120
     delay = 0.35
     filler = "HTTrack copies a site by following its links, page by page. " * 90
 
@@ -117,16 +118,18 @@ class Shots:
         if share < 0.02:
             raise RuntimeError(f"{what} came out blank")
 
-    def animate(self, hwnd, name, over):
-        """A window on a cadence, as an APNG plus frame 1 as an ordinary PNG: only the
-        pixels that move cost bytes, and a decoder with no APNG support shows frame 1."""
+    def animate(self, hwnd, inner, name, over):
+        """A window on a cadence, cropped to a descendant of it, as an APNG plus frame 1
+        as a PNG: only the pixels that move cost bytes, and a decoder with no APNG
+        support shows frame 1."""
+        box = relative_rect(inner, hwnd)
         frames = []
         for i in range(self.FRAMES):
             if i:
                 time.sleep(self.INTERVAL)
             if over():
                 break
-            frames.append(grab(hwnd))
+            frames.append(grab(hwnd).crop(box))
         if len(frames) < self.FRAMES:
             raise RuntimeError(f"{name}: {len(frames)} of {self.FRAMES} frames before the "
                                "mirror ended -- serve more pages, or serve them slower")
@@ -206,9 +209,9 @@ def run(pid, ids, shots, url, base_path):
     inforun = pane(main, ids["IDC_inforun"], "the progress pane", timeout=60)
     time.sleep(6)  # let the counters fill, or the shot is a screen of zeros
     shots.take(main, "16_mirror_progress")
-    # The pane's own hwnd rather than a crop of the window: a crop box would go stale the
-    # next time the layout moves, and the panel is what the website shows.
-    shots.animate(win32gui.GetParent(inforun), "16_mirror_progress_panel",
+    # Framed on the pane's own rectangle, read from the live layout: the panel is what the
+    # website shows, and a crop box written down here would go stale when the layout moves.
+    shots.animate(main, win32gui.GetParent(inforun), "16_mirror_progress_panel",
                   lambda: find(main, control_id=ids["IDC_infoend"]))
 
     pane(main, ids["IDC_infoend"], "the finished pane", timeout=300)

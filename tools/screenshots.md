@@ -53,3 +53,6 @@ in `run()`, anchored on a control ID from that pane's dialog.
   screen, and the animation is eyeballed.
 - The sequence has to fit inside the crawl: the walk fails rather than write a short
   animation, and prints how long the mirror ran so the cadence can be matched to it.
+- `PrintWindow` through a child window's own device context dies on the runner with
+  `DeleteDC failed`, so the panel is cropped out of a shot of the whole window rather
+  than captured directly. The crop box still comes from the pane's live rectangle.

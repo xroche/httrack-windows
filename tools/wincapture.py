@@ -89,7 +89,7 @@ def set_text(hwnd, text):
 
 def grab(hwnd):
     """PrintWindow into a memory DC, so the shot carries no taskbar and nothing that
-    happens to overlap. Takes a child window as readily as a top-level one."""
+    happens to overlap."""
     left, top, right, bottom = win32gui.GetWindowRect(hwnd)
     w, h = right - left, bottom - top
     if w <= 0 or h <= 0:
@@ -99,9 +99,12 @@ def grab(hwnd):
     mem = dc.CreateCompatibleDC()
     bmp = win32ui.CreateBitmap()
     bmp.CreateCompatibleBitmap(dc, w, h)
-    mem.SelectObject(bmp)
+    old = mem.SelectObject(bmp)
     user32.PrintWindow(hwnd, mem.GetSafeHdc(), PW_RENDERFULLCONTENT)
     img = Image.frombuffer("RGB", (w, h), bmp.GetBitmapBits(True), "raw", "BGRX", 0, 1)
+    # Select the original bitmap back before deleting ours: deleting a bitmap that is
+    # still selected fails, and so then does deleting the DC holding it.
+    mem.SelectObject(old)
     win32gui.DeleteObject(bmp.GetHandle())
     mem.DeleteDC()
     dc.DeleteDC()
@@ -120,6 +123,13 @@ def capture(hwnd, path):
     img = grab(hwnd)
     img.save(path)
     return nonblack(img)
+
+
+def relative_rect(hwnd, parent):
+    """A window's rectangle in the coordinates of a shot of one of its ancestors."""
+    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+    x, y = win32gui.GetWindowRect(parent)[:2]
+    return left - x, top - y, right - x, bottom - y
 
 
 def slug(text):
