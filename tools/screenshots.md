@@ -6,11 +6,18 @@ tabs, the ready-to-start pane, and a mirror in progress and finished. The crawl 
 real — the script serves a small site to itself, so the progress screen carries live
 counters rather than zeros.
 
-The progress pane comes out a second time as a ten-frame animation,
+The progress pane comes out a second time as a sixteen-frame animation,
 `16_mirror_progress_panel.apng`, with its first frame beside it as a PNG. The website's
 front page uses it to show a mirror actually running rather than a frozen one. It is a
 shot of the pane's own window rather than a crop, so it follows the layout instead of
-going stale with it.
+going stale with it, and it plays once in under five seconds so it is not motion a
+reader has no way to stop.
+
+To make that worth looking at, the walk sets eight connections and lifts the transfer
+rate cap on its way out of the options sheet, and serves itself a site of large pages
+in slow pieces off a root that links to sixty of them. Eight transfers then run at
+once with their progress bars part-filled, which is what the panel looks like against
+a real site.
 
 ## Replay
 
@@ -56,3 +63,13 @@ in `run()`, anchored on a control ID from that pane's dialog.
 - `PrintWindow` through a child window's own device context dies on the runner with
   `DeleteDC failed`, so the panel is cropped out of a shot of the whole window rather
   than captured directly. The crop box still comes from the pane's live rectangle.
+- The options sheet opens **once**. A second "Set options..." throws "Encountered an
+  improper argument" inside MFC and leaves a message box over the wizard, so the
+  connection count and rate cap are set on the way out of the first visit, after every
+  tab has been shot with its defaults.
+- Connections alone do nothing: the engine ships a 25 KB/s transfer rate cap and
+  honours it by keeping two or three connections busy however many it is allowed.
+- Frames are written through a single palette, which is lossless while the colour
+  union fits 256 entries and halves the file. Quantising each frame against a shared
+  palette image is **not** lossless even then; converting the frames together as one
+  image and slicing them back out is.
