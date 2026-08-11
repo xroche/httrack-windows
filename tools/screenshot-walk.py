@@ -32,7 +32,7 @@ TCM_GETITEMCOUNT = 0x1304
 
 PROJECT = "Demo Project"
 NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC_URL",
-          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend")
+          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i3")
 
 
 class Site(BaseHTTPRequestHandler):
@@ -142,6 +142,18 @@ class Shots:
         self.taken += [still, apng]
 
 
+def warmed_up(main, ids, seconds=25):
+    """Six seconds in, the engine is still parsing the first page: one connection, and a
+    panel where only the byte counter moves. Wait for it to open more before filming, and
+    film anyway if it never does -- the wait is the warm-up either way."""
+    live = ids["IDC_i3"]
+    try:
+        wait(lambda: win32gui.GetWindowText(find(main, control_id=live)) not in ("", "0", "1"),
+             "more than one connection", seconds)
+    except Timeout:
+        print("  one connection throughout: filming the sequence regardless")
+
+
 def pane(main, anchor, what, timeout=30):
     """Wait for a wizard pane: its own anchor control turns visible only once the page
     is on screen, since the sheet keeps every page's controls alive from the start."""
@@ -208,7 +220,8 @@ def run(pid, ids, shots, url, base_path):
     inforun = pane(main, ids["IDC_inforun"], "the progress pane", timeout=60)
     time.sleep(6)  # let the counters fill, or the shot is a screen of zeros
     shots.take(main, "16_mirror_progress")
-    # Framed on the pane's own rectangle, read from the live layout: the panel is what the
+    warmed_up(main, ids)
+    # Framed on the pane's own controls, read from the live layout: the panel is what the
     # website shows, and a crop box written down here would go stale when the layout moves.
     shots.animate(main, win32gui.GetParent(inforun), "16_mirror_progress_panel",
                   lambda: find(main, control_id=ids["IDC_infoend"]))
