@@ -32,7 +32,7 @@ TCM_GETITEMCOUNT = 0x1304
 
 PROJECT = "Demo Project"
 NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC_URL",
-          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i3")
+          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6")
 
 
 class Site(BaseHTTPRequestHandler):
@@ -142,16 +142,20 @@ class Shots:
         self.taken += [still, apng]
 
 
-def warmed_up(main, ids, seconds=25):
-    """Six seconds in, the engine is still parsing the first page: one connection, and a
-    panel where only the byte counter moves. Wait for it to open more before filming, and
-    film anyway if it never does -- the wait is the warm-up either way."""
-    live = ids["IDC_i3"]
+def warmed_up(main, ids, files=20, seconds=25):
+    """Six seconds in, the engine is still parsing the first page and the counters are
+    barely off zero. Wait for them to climb before filming, and film anyway if they do
+    not -- the wait is the warm-up either way."""
+    written = ids["IDC_i6"]
+
+    def enough():
+        count = win32gui.GetWindowText(find(main, control_id=written))
+        return count.isdigit() and int(count) >= files
+
     try:
-        wait(lambda: win32gui.GetWindowText(find(main, control_id=live)) not in ("", "0", "1"),
-             "more than one connection", seconds)
+        wait(enough, f"{files} files written", seconds)
     except Timeout:
-        print("  one connection throughout: filming the sequence regardless")
+        print(f"  under {files} files after {seconds}s: filming the sequence regardless")
 
 
 def pane(main, anchor, what, timeout=30):
