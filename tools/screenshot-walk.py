@@ -262,9 +262,10 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
         shots.take(sheet, f"{4 + i:02d}_options_{page}")
     # Eight parallel transfers, so the animation shows a mirror working rather than one
     # file trickling in. Eight is the engine's ceiling; it clamps anything higher. The
-    # rate cap has to go up with it: at its default of 25 KB/s the engine keeps only two
-    # or three connections busy, however many it is allowed. Each on its own page, since
-    # a control on a page that is not on top is not visible to find().
+    # rate cap has to go up with it: WinHTTrack starts a project at 25 KB/s (Shell.cpp,
+    # the MaxRate profile default), and the engine honours that by keeping two or three
+    # connections busy however many it is allowed. Each on its own page, since a control
+    # on a page that is not on top is not visible to find().
     for page, control, value in (("limits", "IDC_maxrate", rate),
                                  ("flow_control", "IDC_connexion", connections)):
         if page not in at:

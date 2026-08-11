@@ -67,8 +67,10 @@ in `run()`, anchored on a control ID from that pane's dialog.
   improper argument" inside MFC and leaves a message box over the wizard, so the
   connection count and rate cap are set on the way out of the first visit, after every
   tab has been shot with its defaults.
-- Connections alone do nothing: the engine ships a 25 KB/s transfer rate cap and
-  honours it by keeping two or three connections busy however many it is allowed.
+- Connections alone do nothing: WinHTTrack starts every project at a 25 KB/s transfer
+  rate (`Shell.cpp`, the `MaxRate` profile default, where the engine's own default is
+  100 KB/s), and that is honoured by keeping two or three connections busy however many
+  are allowed.
 - Frames are written through a single palette, which is lossless while the colour
   union fits 256 entries and halves the file. Quantising each frame against a shared
   palette image is **not** lossless even then; converting the frames together as one
