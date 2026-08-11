@@ -62,15 +62,25 @@ jobs:
           gh run download $id --name WinHTTrack-x64-Release --dir app
           if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
 
+      # The address shows in the wizard panes and in the mirror folder name, so the crawl
+      # uses a real host. example.com is reserved for documentation (RFC 2606). The port
+      # stays: http.sys holds 80 for WinRM, and the runner excludes it from binding.
+      - name: Let the crawl address a named site
+        shell: pwsh
+        run: Add-Content "$env:SystemRoot\System32\drivers\etc\hosts" "`n127.0.0.1 www.example.com"
+
       - name: Capture
         shell: pwsh
         env:
           MODE: ${{ inputs.mode }}
         run: |
           python -m pip install --quiet pywin32 pillow pywinauto
-          $script = if ($env:MODE -eq 'probe') { 'screenshot-probe.py' } else { 'screenshot-walk.py' }
+          $script = 'screenshot-walk.py'
+          $site = @('--site-host', 'www.example.com')
+          # The probe only answers whether the machine renders at all, and takes no site.
+          if ($env:MODE -eq 'probe') { $script = 'screenshot-probe.py'; $site = @() }
           Write-Host "running $script"
-          python "tools\$script" --exe app\WinHTTrack.exe --out shots
+          python "tools\$script" --exe app\WinHTTrack.exe --out shots @site
 
       - name: Upload the screens
         if: always()

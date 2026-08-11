@@ -95,10 +95,13 @@ class Site(BaseHTTPRequestHandler):
         pass
 
 
-def serve(port):
+def serve(host, port):
+    """Serve on loopback, addressed as `host` so the shots read like a site rather than
+    a developer's machine. `host` has to resolve to 127.0.0.1 for the crawl to reach it."""
     server = ThreadingHTTPServer(("127.0.0.1", port), Site)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server
+    bound = server.socket.getsockname()[1]
+    return server, "http://%s/" % (host if bound == 80 else f"{host}:{bound}")
 
 
 def resource_ids(path):
@@ -349,7 +352,10 @@ def main():
     ap.add_argument("--exe", required=True)
     ap.add_argument("--out", default="shots")
     ap.add_argument("--resource-h", default=os.path.join("WinHTTrack", "resource.h"))
-    ap.add_argument("--port", type=int, default=8099)
+    ap.add_argument("--site-host", default="127.0.0.1",
+                    help="name the crawled site answers to; must resolve to 127.0.0.1")
+    ap.add_argument("--site-port", type=int, default=8099,
+                    help="port to serve it on (0 picks a free one)")
     ap.add_argument("--base-path", default=r"C:\shots-mirror")
     args = ap.parse_args()
 
@@ -358,13 +364,13 @@ def main():
     # An existing mirror finishes from cache in no time, which turns the progress shot
     # into a second copy of the finished screen.
     shutil.rmtree(args.base_path, ignore_errors=True)
-    serve(args.port)
+    _, site_url = serve(args.site_host, args.site_port)
 
     shots = Shots(args.out)
     exe = os.path.abspath(args.exe)
     proc = subprocess.Popen([exe], cwd=os.path.dirname(exe))
     try:
-        run(proc.pid, ids, shots, f"http://127.0.0.1:{args.port}/", args.base_path)
+        run(proc.pid, ids, shots, site_url, args.base_path)
     except Exception as e:
         print(f"FAILED: {e}")
         diagnose(proc.pid, args.out)
