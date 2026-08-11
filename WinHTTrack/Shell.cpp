@@ -561,6 +561,7 @@ void compute_options() {
   if(maintab->m_option9.m_wacz) ShellOptions->wacz = "1"; else ShellOptions->wacz = "";
   if(maintab->m_option8.m_sitemap) ShellOptions->sitemap = "1"; else ShellOptions->sitemap = "";
   ShellOptions->sitemapurl = maintab->m_option8.m_sitemapurl;
+  ShellOptions->hostalias = maintab->m_option8.m_hostalias;
   if(maintab->m_option9.m_singlefile) ShellOptions->singlefile = "1"; else ShellOptions->singlefile = "";
   ShellOptions->singlefilemax = maintab->m_option9.m_singlefilemax;
   if(maintab->m_option9.m_changes) ShellOptions->changes = "1"; else ShellOptions->changes = "";
@@ -639,7 +640,6 @@ void compute_options() {
   else if (maintab->m_option3.m_travel3==2) ShellOptions->filtre += "K3";
   else if (maintab->m_option3.m_travel3==3) ShellOptions->filtre += "K4";
   ShellOptions->stripquery = maintab->m_option3.m_stripquery;
-  ShellOptions->hostalias = maintab->m_option3.m_hostalias;
 
   if (maintab->m_option9.m_logf) ShellOptions->log = "f2"; else ShellOptions->log = "Q"; 
   
@@ -1872,9 +1872,8 @@ static inline BOOL isRuleSpace(const char c) {
   return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
 
-// Split a rule field the way WebHTTrack does, since both front ends read the same
-// winprofile.ini: any whitespace separates two rules, except beside a ',' or an '='
-// where it belongs to the rule and comes out of it, so "a , b = c" is one rule "a,b=c".
+// Split a rule field the way WebHTTrack does; both read the same winprofile.ini.
+// Whitespace splits rules, except beside a ',' or '=': "a , b = c" is one "a,b=c".
 void splitRulesInArray(CStringArray &rules, const CString &str) {
   const int size = str.GetLength();
   int p = 0;
@@ -1910,11 +1909,58 @@ static BOOL isEngineArgument(const CString &value) {
   return fits;
 }
 
-// The engine aborts the whole mirror on a malformed rule, and its message reaches no
-// window here. Looser than its own unexported check: never drop a rule it would take.
-static BOOL isHostAliasRule(const CString &rule) {
+// One side of a rule: a bare host, optionally behind its scheme. Mirrors the engine's
+// hts_host_alias_token_ok(), which is not exported from libhttrack.
+static BOOL isHostAliasToken(CString token, BOOL glob) {
+  static const char *const schemes[] = { "http:", "ftp:", "https:", "file:",
+                                         "socks5h:", "socks5:", "connect:", NULL };
+  CString host;
+  int n, scheme;
+
+  token.Trim(_T(" \t"));
+  for(n = token.GetLength() ; n > 0 && token[n - 1] == '/' ; n--);
+  token = token.Left(n);            // the matcher strips the whole trailing run
+  // the scheme may itself be a glob on the alias side, so cut on "://"
+  scheme = token.Find(_T("://"));
+  if (scheme >= 0) {
+    host = token.Mid(scheme + 3);
+  } else {
+    host = token;
+    for(int i = 0 ; schemes[i] != NULL ; i++) {
+      const int len = (int) strlen(schemes[i]);
+      if (host.Left(len).CompareNoCase(schemes[i]) == 0) {
+        host = host.Mid(len);
+        break;
+      }
+    }
+    if (host.Left(2) == _T("//"))
+      host = host.Mid(2);
+  }
+  // a scheme with no host behind it, and the engine's own pseudo-host, name nothing
+  if (host.IsEmpty() || host == _T("primary"))
+    return FALSE;
+  if (host.Find('/') >= 0)          // a path belongs to no part of an address
+    return FALSE;
+  return host.FindOneOf(glob ? _T("=# \t") : _T("=,*?();\\#@ \t")) < 0;
+}
+
+// see Shell.h
+BOOL isHostAliasRule(const CString &rule) {
   const int eq = rule.Find('=');
-  return eq > 0 && eq < rule.GetLength() - 1;
+
+  if (eq <= 0 || eq == rule.GetLength() - 1)
+    return FALSE;
+  if (!isHostAliasToken(rule.Mid(eq + 1), FALSE))
+    return FALSE;
+  for(int pat = 0 ; pat < eq ; ) {
+    const int sep = rule.Find(',', pat);
+    const int end = (sep >= 0 && sep < eq) ? sep : eq;
+
+    if (!isHostAliasToken(rule.Mid(pat, end - pat), TRUE))
+      return FALSE;
+    pat = end + 1;
+  }
+  return TRUE;
 }
 
 static BOOL isAllDigits(const CString &value) {
@@ -2112,7 +2158,7 @@ void lance(void) {
     args.Add(ShellOptions->stripquery);
   }
 
-  // fold other hostnames of one site onto it: one --host-alias per rule, accumulated
+  // fold a site's other hostnames onto one: one --host-alias per rule, accumulated
   if (ShellOptions->hostalias.GetLength() != 0) {
     CStringArray rules;
     splitRulesInArray(rules, ShellOptions->hostalias);
@@ -2637,6 +2683,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "Wacz",maintab->m_option9.m_wacz);
     MyWriteProfileInt(path,strSection, "Sitemap",maintab->m_option8.m_sitemap);
     MyWriteProfileString(path,strSection, "SitemapUrl",maintab->m_option8.m_sitemapurl);
+    MyWriteProfileString(path,strSection, "HostAlias",maintab->m_option8.m_hostalias);
     MyWriteProfileInt(path,strSection, "SingleFile",maintab->m_option9.m_singlefile);
     MyWriteProfileString(path,strSection, "SingleFileMaxSize",maintab->m_option9.m_singlefilemax);
     MyWriteProfileInt(path,strSection, "Changes",maintab->m_option9.m_changes);
@@ -2660,7 +2707,6 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "GlobalTravel",maintab->m_option3.m_travel2);
     MyWriteProfileInt(path,strSection, "RewriteLinks",maintab->m_option3.m_travel3);
     MyWriteProfileString(path,strSection, "StripQuery",maintab->m_option3.m_stripquery);
-    MyWriteProfileString(path,strSection, "HostAlias",maintab->m_option3.m_hostalias);
     MyWriteProfileString(path,strSection, "BuildString",maintab->m_option2.Bopt.m_BuildString);
     
     // champs
@@ -2775,8 +2821,6 @@ void Write_profile(CString path,int load_path) {
       MyWriteProfileInt(path,strSection, "RewriteLinks", n);
     maintab->m_option3.GetDlgItemText(IDC_stripquery,st);
     MyWriteProfileString(path,strSection, "StripQuery", st);
-    maintab->m_option3.GetDlgItemText(IDC_hostalias,st);
-    MyWriteProfileString(path,strSection, "HostAlias", st);
     //
     maintab->m_option8.GetDlgItemText(IDC_robots,st);
     MyWriteProfileString(path,strSection, "FollowRobotsTxt", st);
@@ -2853,6 +2897,8 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "Sitemap", n);
     maintab->m_option8.GetDlgItemText(IDC_sitemapurl,st);
     MyWriteProfileString(path,strSection, "SitemapUrl", st);
+    maintab->m_option8.GetDlgItemText(IDC_hostalias,st);
+    MyWriteProfileString(path,strSection, "HostAlias", st);
     maintab->m_option4.GetDlgItemText(IDC_pausefiles,st);
     MyWriteProfileString(path,strSection, "PauseFiles", st);
     // 9
@@ -3004,6 +3050,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option9.m_wacz      = MyGetProfileInt(path,strSection, "Wacz",0);
   maintab->m_option8.m_sitemap   = MyGetProfileInt(path,strSection, "Sitemap",0);
   maintab->m_option8.m_sitemapurl = MyGetProfileString(path,strSection, "SitemapUrl");
+  maintab->m_option8.m_hostalias = MyGetProfileString(path,strSection, "HostAlias");
   maintab->m_option9.m_singlefile = MyGetProfileInt(path,strSection, "SingleFile",0);
   maintab->m_option9.m_singlefilemax = MyGetProfileString(path,strSection, "SingleFileMaxSize");
   maintab->m_option9.m_changes   = MyGetProfileInt(path,strSection, "Changes",0);
@@ -3026,7 +3073,6 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option3.m_travel2 = MyGetProfileInt(path,strSection, "GlobalTravel",0);
   maintab->m_option3.m_travel3 = MyGetProfileInt(path,strSection, "RewriteLinks",0);
   maintab->m_option3.m_stripquery = MyGetProfileString(path,strSection, "StripQuery");
-  maintab->m_option3.m_hostalias = MyGetProfileString(path,strSection, "HostAlias");
   maintab->m_option2.Bopt.m_BuildString = MyGetProfileString(path,strSection, "BuildString","%h%p/%n%q.%t");
   
   // champs

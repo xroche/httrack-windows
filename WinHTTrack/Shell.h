@@ -211,9 +211,13 @@ void Read_profile(CString path,int load_path);
 int MyWriteProfileInt(CString path,CString dummy,CString name,int value);
 int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 
-/* Split a multi-line rule field into the rules a repeatable option carries, one per
-   flag. Exposed for --selftest; see the definition for the separator rule. */
+/* Split a rule field into the rules a repeatable option carries, one per flag.
+   Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
+
+/* TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host". Mirrors the
+   engine's unexported hts_host_alias_rule_ok(); a rule it refuses aborts the mirror. */
+BOOL isHostAliasRule(const CString &rule);
 
 void Build_TopIndex(BOOL check_empty=TRUE);
 

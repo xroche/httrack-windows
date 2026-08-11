@@ -64,7 +64,6 @@ public:
 	BOOL	m_cache;
 	int		m_travel3;
 	CString	m_stripquery;
-	CString	m_hostalias;
 	//}}AFX_DATA
 
 
