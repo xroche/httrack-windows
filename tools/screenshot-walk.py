@@ -34,7 +34,7 @@ TCM_GETITEMCOUNT = 0x1304
 PROJECT = "Demo Project"
 NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC_URL",
           "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6",
-          "IDC_connexion")
+          "IDC_connexion", "IDC_maxrate")
 
 
 class Site(BaseHTTPRequestHandler):
@@ -47,7 +47,7 @@ class Site(BaseHTTPRequestHandler):
     pages = 300
     spread = 60
     fanout = 4
-    size = 120_000
+    size = 240_000
     chunk = 8192
     pause = 0.06
     filler = "HTTrack copies a site by following its links, page by page. "
@@ -243,7 +243,7 @@ def close_options(sheet, pid, button):
     wait(lambda: sheet not in top_level_windows(pid), "the options sheet to close", 15)
 
 
-def options(main, pid, ids, shots, connections=8):
+def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     """The eleven option tabs, switched through the sheet rather than by clicking the tab
     control, so a two-row tab layout cannot put a tab under the mouse of another.
 
@@ -253,23 +253,27 @@ def options(main, pid, ids, shots, connections=8):
     sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
     print(f"  options sheet {sheet:#x}: {count} tabs")
-    flow = None
+    at = {}
     for i in range(count):
         win32gui.SendMessage(sheet, PSM_SETCURSEL, i, 0)
         time.sleep(0.6)
         page = slug(captions.get_tab_text(i))
+        at[page] = i
         shots.take(sheet, f"{4 + i:02d}_options_{page}")
-        if page == "flow_control":
-            flow = i
-    if flow is None:
-        raise RuntimeError("no Flow Control tab to set the connection count on")
     # Eight parallel transfers, so the animation shows a mirror working rather than one
-    # file trickling in. Eight is the engine's ceiling; it clamps anything higher.
-    win32gui.SendMessage(sheet, PSM_SETCURSEL, flow, 0)
-    time.sleep(0.6)
-    set_text(find(sheet, control_id=ids["IDC_connexion"]), str(connections))
+    # file trickling in. Eight is the engine's ceiling; it clamps anything higher. The
+    # rate cap has to go up with it: at its default of 25 KB/s the engine keeps only two
+    # or three connections busy, however many it is allowed. Each on its own page, since
+    # a control on a page that is not on top is not visible to find().
+    for page, control, value in (("limits", "IDC_maxrate", rate),
+                                 ("flow_control", "IDC_connexion", connections)):
+        if page not in at:
+            raise RuntimeError(f"no {page} tab to set the mirror up on")
+        win32gui.SendMessage(sheet, PSM_SETCURSEL, at[page], 0)
+        time.sleep(0.6)
+        set_text(find(sheet, control_id=ids[control]), str(value))
     close_options(sheet, pid, IDOK)
-    print(f"  connections set to {connections}")
+    print(f"  {connections} connections, {rate} B/s")
 
 
 def run(pid, ids, shots, url, base_path):
