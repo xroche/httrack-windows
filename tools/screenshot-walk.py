@@ -241,34 +241,33 @@ def close_options(sheet, pid, button):
     wait(lambda: sheet not in top_level_windows(pid), "the options sheet to close", 15)
 
 
-def options(main, pid, ids, shots):
-    """The eleven option tabs, switched through the sheet rather than by clicking the
-    tab control, so a two-row tab layout cannot put a tab under the mouse of another."""
+def options(main, pid, ids, shots, connections=8):
+    """The eleven option tabs, switched through the sheet rather than by clicking the tab
+    control, so a two-row tab layout cannot put a tab under the mouse of another.
+
+    The connection count is set on the way out, after every tab has been shot with its
+    defaults, because the sheet only opens once: a second "Set options..." throws
+    "Encountered an improper argument" inside MFC and leaves a message box on screen."""
     sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
     print(f"  options sheet {sheet:#x}: {count} tabs")
+    flow = None
     for i in range(count):
         win32gui.SendMessage(sheet, PSM_SETCURSEL, i, 0)
         time.sleep(0.6)
-        shots.take(sheet, f"{4 + i:02d}_options_{slug(captions.get_tab_text(i))}")
-    close_options(sheet, pid, IDCANCEL)
-
-
-def set_connections(main, pid, ids, count=8):
-    """Eight parallel transfers, so the animation shows a mirror working rather than one
-    file trickling in. Eight is the engine's own ceiling: it clamps anything higher and
-    says so in the log. This runs after the option tabs are shot, so the documentation
-    set still shows the defaults."""
-    sheet, tabs, captions = open_options(main, pid, ids)
-    page = next((i for i in range(win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0))
-                 if slug(captions.get_tab_text(i)) == "flow_control"), None)
-    if page is None:
+        page = slug(captions.get_tab_text(i))
+        shots.take(sheet, f"{4 + i:02d}_options_{page}")
+        if page == "flow_control":
+            flow = i
+    if flow is None:
         raise RuntimeError("no Flow Control tab to set the connection count on")
-    win32gui.SendMessage(sheet, PSM_SETCURSEL, page, 0)
+    # Eight parallel transfers, so the animation shows a mirror working rather than one
+    # file trickling in. Eight is the engine's ceiling; it clamps anything higher.
+    win32gui.SendMessage(sheet, PSM_SETCURSEL, flow, 0)
     time.sleep(0.6)
-    set_text(find(sheet, control_id=ids["IDC_connexion"]), str(count))
+    set_text(find(sheet, control_id=ids["IDC_connexion"]), str(connections))
     close_options(sheet, pid, IDOK)
-    print(f"  connections set to {count}")
+    print(f"  connections set to {connections}")
 
 
 def run(pid, ids, shots, url, base_path):
@@ -301,7 +300,6 @@ def run(pid, ids, shots, url, base_path):
     shots.take(main, "03_project_setup")
 
     options(main, pid, ids, shots)
-    set_connections(main, pid, ids)
 
     click(find(main, control_id=ID_WIZNEXT))
     pane(main, ids["IDC_select_start"], "the ready-to-start pane")
