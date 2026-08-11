@@ -100,7 +100,8 @@ def serve(host, port):
     a developer's machine. `host` has to resolve to 127.0.0.1 for the crawl to reach it."""
     server = ThreadingHTTPServer(("127.0.0.1", port), Site)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server, "http://%s/" % (host if port == 80 else f"{host}:{port}")
+    bound = server.socket.getsockname()[1]
+    return server, "http://%s/" % (host if bound == 80 else f"{host}:{bound}")
 
 
 def resource_ids(path):
