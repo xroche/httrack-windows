@@ -639,6 +639,7 @@ void compute_options() {
   else if (maintab->m_option3.m_travel3==2) ShellOptions->filtre += "K3";
   else if (maintab->m_option3.m_travel3==3) ShellOptions->filtre += "K4";
   ShellOptions->stripquery = maintab->m_option3.m_stripquery;
+  ShellOptions->hostalias = maintab->m_option3.m_hostalias;
 
   if (maintab->m_option9.m_logf) ShellOptions->log = "f2"; else ShellOptions->log = "Q"; 
   
@@ -1867,6 +1868,34 @@ static void splitStringInArray(CSimpleArray<CString> &args,
   }
 }
 
+static inline BOOL isRuleSpace(const char c) {
+  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+// Split a rule field the way WebHTTrack does, since both front ends read the same
+// winprofile.ini: any whitespace separates two rules, except beside a ',' or an '='
+// where it belongs to the rule and comes out of it, so "a , b = c" is one rule "a,b=c".
+void splitRulesInArray(CStringArray &rules, const CString &str) {
+  const int size = str.GetLength();
+  int p = 0;
+  while (p < size && isRuleSpace(str[p])) p++;
+  while (p < size) {
+    CString rule;
+    BOOL more = TRUE;
+    while (more) {                         // p is always on a non-space here
+      int end = p;
+      while (end < size && !isRuleSpace(str[end])) end++;
+      int next = end;
+      while (next < size && isRuleSpace(str[next])) next++;
+      rule += str.Mid(p, end - p);
+      more = next < size && (str[next] == ',' || str[next] == '=' ||
+                             str[end - 1] == ',' || str[end - 1] == '=');
+      p = next;
+    }
+    rules.Add(rule);
+  }
+}
+
 // A value restored from a profile never met the dialog's validation, so an option's
 // argument is checked here as well: the engine aborts the whole mirror on one that is
 // over-long, or that starts with a dash, which it reads as the argument being missing.
@@ -1879,6 +1908,13 @@ static BOOL isEngineArgument(const CString &value) {
   if (utf8 != NULL)
     freet(utf8);
   return fits;
+}
+
+// The engine aborts the whole mirror on a malformed rule, and its message reaches no
+// window here. Looser than its own unexported check: never drop a rule it would take.
+static BOOL isHostAliasRule(const CString &rule) {
+  const int eq = rule.Find('=');
+  return eq > 0 && eq < rule.GetLength() - 1;
 }
 
 static BOOL isAllDigits(const CString &value) {
@@ -2074,6 +2110,18 @@ void lance(void) {
   if (ShellOptions->stripquery.GetLength() != 0) {
     args.Add("--strip-query");
     args.Add(ShellOptions->stripquery);
+  }
+
+  // fold other hostnames of one site onto it: one --host-alias per rule, accumulated
+  if (ShellOptions->hostalias.GetLength() != 0) {
+    CStringArray rules;
+    splitRulesInArray(rules, ShellOptions->hostalias);
+    for(INT_PTR i = 0 ; i < rules.GetSize() ; i++) {
+      if (isHostAliasRule(rules[i]) && isEngineArgument(rules[i])) {
+        args.Add("--host-alias");
+        args.Add(rules[i]);
+      }
+    }
   }
   
   // mode spider, mettre après options
@@ -2612,6 +2660,7 @@ void Write_profile(CString path,int load_path) {
     MyWriteProfileInt(path,strSection, "GlobalTravel",maintab->m_option3.m_travel2);
     MyWriteProfileInt(path,strSection, "RewriteLinks",maintab->m_option3.m_travel3);
     MyWriteProfileString(path,strSection, "StripQuery",maintab->m_option3.m_stripquery);
+    MyWriteProfileString(path,strSection, "HostAlias",maintab->m_option3.m_hostalias);
     MyWriteProfileString(path,strSection, "BuildString",maintab->m_option2.Bopt.m_BuildString);
     
     // champs
@@ -2726,6 +2775,8 @@ void Write_profile(CString path,int load_path) {
       MyWriteProfileInt(path,strSection, "RewriteLinks", n);
     maintab->m_option3.GetDlgItemText(IDC_stripquery,st);
     MyWriteProfileString(path,strSection, "StripQuery", st);
+    maintab->m_option3.GetDlgItemText(IDC_hostalias,st);
+    MyWriteProfileString(path,strSection, "HostAlias", st);
     //
     maintab->m_option8.GetDlgItemText(IDC_robots,st);
     MyWriteProfileString(path,strSection, "FollowRobotsTxt", st);
@@ -2975,6 +3026,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option3.m_travel2 = MyGetProfileInt(path,strSection, "GlobalTravel",0);
   maintab->m_option3.m_travel3 = MyGetProfileInt(path,strSection, "RewriteLinks",0);
   maintab->m_option3.m_stripquery = MyGetProfileString(path,strSection, "StripQuery");
+  maintab->m_option3.m_hostalias = MyGetProfileString(path,strSection, "HostAlias");
   maintab->m_option2.Bopt.m_BuildString = MyGetProfileString(path,strSection, "BuildString","%h%p/%n%q.%t");
   
   // champs

@@ -367,6 +367,39 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("help URLs ok\n");
     }
+    /* Only reachable by typing into the Experts page, so pin the rule splitter here:
+       a rule the engine cannot parse aborts the whole mirror. */
+    {
+      static const struct { const char* field; const char* want; } rules[] = {
+        { "a=b\r\nc=d", "a=b|c=d" },
+        { "a=b  c=d", "a=b|c=d" },
+        { "a=b\tc=d", "a=b|c=d" },
+        { "  \r\n a=b \r\n  ", "a=b" },
+        /* whitespace beside a ',' or an '=' belongs to the rule, and comes out of it */
+        { "a.com  ,  b.com  =  c.com", "a.com,b.com=c.com" },
+        /* an empty field must not emit --host-alias "", which the engine refuses */
+        { " \r\n\t ", "" },
+        { "", "" },
+        { NULL, NULL }
+      };
+      for(int k=0 ; rules[k].field != NULL ; k++) {
+        CStringArray got;
+        CString joined;
+        splitRulesInArray(got, rules[k].field);
+        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
+          if (j != 0)
+            joined += "|";
+          joined += got[j];
+        }
+        if (joined != rules[k].want) {
+          fprintf(stderr, "FATAL: rule field '%s' split into '%s', expected '%s'\n",
+                  rules[k].field, (LPCSTR) joined, rules[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("rule splitting ok\n");
+    }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
        terminator hangs it on the first run, past where --selftest ever reaches. */

@@ -211,6 +211,10 @@ void Read_profile(CString path,int load_path);
 int MyWriteProfileInt(CString path,CString dummy,CString name,int value);
 int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 
+/* Split a multi-line rule field into the rules a repeatable option carries, one per
+   flag. Exposed for --selftest; see the definition for the separator rule. */
+void splitRulesInArray(CStringArray &rules, const CString &str);
+
 void Build_TopIndex(BOOL check_empty=TRUE);
 
 void InitRAS();
@@ -267,8 +271,8 @@ public:
     maxconn, maxlinks, hh, mm, ss, buff_filtres, buff_MIME, 
     _RasString, accept_language, other_headers, default_referer,
     cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder,
-    stripquery, sitemap, sitemapurl, singlefile, singlefilemax, changes,
-    warccdx, wacz;
+    stripquery, hostalias, sitemap, sitemapurl, singlefile, singlefilemax,
+    changes, warccdx, wacz;
   CString LINE_back;
   RASDIALPARAMS _dial;
 };
