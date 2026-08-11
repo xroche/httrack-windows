@@ -21,9 +21,8 @@ import win32gui
 from pywinauto.controls.common_controls import TabControlWrapper
 from pywinauto.controls.win32_controls import ComboBoxWrapper
 
-from wincapture import (Timeout, capture, click, controls, find, grab, nonblack,
-                        relative_rect, set_text, slug, top_level_windows, wait,
-                        window_titled)
+from wincapture import (Timeout, capture, click, content_rect, controls, find, grab,
+                        nonblack, set_text, slug, top_level_windows, wait, window_titled)
 
 # MFC's wizard buttons and the property-sheet page selector are standard.
 ID_WIZBACK, ID_WIZNEXT, ID_WIZFINISH = 0x3023, 0x3024, 0x3025
@@ -41,7 +40,7 @@ class Site(BaseHTTPRequestHandler):
     it when the progress screen is captured, and for the ten frames that follow it."""
 
     pages = 120
-    delay = 0.35
+    delay = 0.8
     filler = "HTTrack copies a site by following its links, page by page. " * 90
 
     def body(self):
@@ -119,10 +118,10 @@ class Shots:
             raise RuntimeError(f"{what} came out blank")
 
     def animate(self, hwnd, inner, name, over):
-        """A window on a cadence, cropped to a descendant of it, as an APNG plus frame 1
-        as a PNG: only the pixels that move cost bytes, and a decoder with no APNG
-        support shows frame 1."""
-        box = relative_rect(inner, hwnd)
+        """A window on a cadence, cropped to what a descendant of it has on it, as an
+        APNG plus frame 1 as a PNG: only the pixels that move cost bytes, and a decoder
+        with no APNG support shows frame 1."""
+        box = content_rect(inner, hwnd)
         frames = []
         for i in range(self.FRAMES):
             if i:

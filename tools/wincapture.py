@@ -125,11 +125,18 @@ def capture(hwnd, path):
     return nonblack(img)
 
 
-def relative_rect(hwnd, parent):
-    """A window's rectangle in the coordinates of a shot of one of its ancestors."""
-    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+def content_rect(hwnd, parent, pad=8):
+    """What a window actually has on it, padded and clipped to the window itself, in the
+    coordinates of a shot of one of its ancestors. Its own rectangle is not the answer: a
+    dialog stretched to fill a pane leaves a wide band of nothing under its controls."""
+    boxes = [win32gui.GetWindowRect(c) for c, _, _, _ in controls(hwnd)
+             if win32gui.IsWindowVisible(c)]
+    own = win32gui.GetWindowRect(hwnd)
     x, y = win32gui.GetWindowRect(parent)[:2]
-    return left - x, top - y, right - x, bottom - y
+    return (max(min(b[0] for b in boxes) - pad, own[0]) - x,
+            max(min(b[1] for b in boxes) - pad, own[1]) - y,
+            min(max(b[2] for b in boxes) + pad, own[2]) - x,
+            min(max(b[3] for b in boxes) + pad, own[3]) - y)
 
 
 def slug(text):
