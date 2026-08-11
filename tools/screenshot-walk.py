@@ -38,21 +38,23 @@ NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC
 
 
 class Site(BaseHTTPRequestHandler):
-    """A tree of pages wide enough that the queue never drains, served in pieces so every
-    transfer spans a few seconds. Both matter to the progress screen: the fan-out keeps
-    all eight connections busy, and a body that arrives gradually is what makes the
-    per-file bars fill instead of jumping from nothing to done."""
+    """Pages served in pieces, off a root that links to dozens of them at once. Both
+    matter to the progress screen: a body that arrives gradually is what makes the
+    per-file bars fill instead of jumping from nothing to done, and a wide root is what
+    fills all eight connection slots straight away. A narrow root starves them, because
+    the queue then only grows as fast as the pages it is waiting on arrive."""
 
-    pages = 400
-    fanout = 6
-    size = 200_000
+    pages = 300
+    spread = 60
+    fanout = 4
+    size = 120_000
     chunk = 8192
     pause = 0.06
     filler = "HTTrack copies a site by following its links, page by page. "
 
     def children(self):
         if self.path == "/":
-            return range(1, self.fanout + 1)
+            return range(1, self.spread + 1)
         m = re.fullmatch(r"/page(\d+)\.html", self.path)
         if not m or not 1 <= int(m.group(1)) <= self.pages:
             return None
@@ -316,7 +318,7 @@ def run(pid, ids, shots, url, base_path):
     shots.animate(main, win32gui.GetParent(inforun), "16_mirror_progress_panel",
                   lambda: find(main, control_id=ids["IDC_infoend"]))
 
-    pane(main, ids["IDC_infoend"], "the finished pane", timeout=300)
+    pane(main, ids["IDC_infoend"], "the finished pane", timeout=420)
     print(f"  the mirror ran {time.monotonic() - started:.0f}s; the sequence has to fit in it")
     time.sleep(1)
     shots.take(main, "17_mirror_finished")
