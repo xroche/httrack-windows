@@ -142,14 +142,17 @@ class Shots:
         frames[0].save(still)
         frames[0].save(apng, format="PNG", save_all=True, append_images=frames[1:],
                        duration=int(self.INTERVAL * 1000), loop=self.PLAYS)
-        self.plays_once(apng, name)
-        print(f"  {name}.apng  {len(frames)} frames, {os.path.getsize(apng) / 1024:.0f} KB")
+        # Report the file rather than the capture: two identical frames in a row are
+        # written as one with their delays added, so the counts differ legitimately.
+        stored, seconds = self.plays_once(apng, name)
+        print(f"  {name}.apng  {stored} frames of {len(frames)}, {seconds:.1f}s, "
+              f"{os.path.getsize(apng) / 1024:.0f} KB")
         self.taken += [still, apng]
 
     def plays_once(self, path, name):
-        """Read back what was actually written. Four header bytes are all that separate a
-        short play from one that never stops, and `loop` does not mean the same thing for
-        every format Pillow writes."""
+        """Read back what was actually written, and return its frames and seconds. Four
+        header bytes are all that separate a short play from one that never stops, and
+        `loop` does not mean the same thing for every format Pillow writes."""
         shown = Image.open(path)
         plays, total = shown.info.get("loop"), 0
         for i in range(shown.n_frames):
@@ -158,6 +161,7 @@ class Shots:
         if plays != self.PLAYS or total > self.SECONDS * 1000:
             raise RuntimeError(f"{name}.apng plays {plays}x for {total / 1000:.1f}s, and has "
                                f"to play {self.PLAYS}x within {self.SECONDS:.0f}s")
+        return shown.n_frames, total / 1000
 
 
 def warmed_up(main, ids, files=20, seconds=25):
