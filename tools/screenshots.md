@@ -35,10 +35,11 @@ pip install pywin32 pillow pywinauto
 python tools\screenshot-walk.py --exe path\to\WinHTTrack.exe --out shots
 ```
 
-That serves the crawl on `127.0.0.1:8099`, and that address is on screen in the wizard
-panes and names the mirror folder. Shots meant for publication want `--site-host` and
-`--site-port` as the workflow passes them: `www.example.com`, mapped to loopback in
-`%SystemRoot%\System32\drivers\etc\hosts` and answering on 80 so no port shows either.
+That serves the crawl on `127.0.0.1:8099`, and that address shows in the wizard panes
+and in the mirror folder name. For publication, pass `--site-host` as the workflow does:
+`www.example.com`, mapped to loopback in `%SystemRoot%\System32\drivers\etc\hosts`. The
+port stays visible, since `http.sys` holds 80 on the runner and 80 is excluded from
+binding there.
 
 ## Adding an option page
 

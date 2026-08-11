@@ -354,7 +354,8 @@ def main():
     ap.add_argument("--resource-h", default=os.path.join("WinHTTrack", "resource.h"))
     ap.add_argument("--site-host", default="127.0.0.1",
                     help="name the crawled site answers to; must resolve to 127.0.0.1")
-    ap.add_argument("--site-port", type=int, default=8099)
+    ap.add_argument("--site-port", type=int, default=8099,
+                    help="port to serve it on (0 picks a free one)")
     ap.add_argument("--base-path", default=r"C:\shots-mirror")
     args = ap.parse_args()
 
