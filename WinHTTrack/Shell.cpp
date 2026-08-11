@@ -1868,8 +1868,10 @@ static void splitStringInArray(CSimpleArray<CString> &args,
   }
 }
 
+// isspace()'s C-locale set, so a rules box splits the same here, in WebHTTrack and in
+// the Android app, whose Java \s covers \v and \f too.
 static inline BOOL isRuleSpace(const char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
 }
 
 // Split a rule field the way WebHTTrack does; both read the same winprofile.ini.

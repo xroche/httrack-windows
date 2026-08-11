@@ -374,6 +374,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "a=b\r\nc=d", "a=b|c=d" },
         { "a=b  c=d", "a=b|c=d" },
         { "a=b\tc=d", "a=b|c=d" },
+        { "a=b\vc=d", "a=b|c=d" },
+        { "a=b\fc=d", "a=b|c=d" },
         { "a=b \r\n\t c=d", "a=b|c=d" },
         { "  \r\n a=b \r\n  ", "a=b" },
         { "a.com  ,  b.com  =  c.com", "a.com,b.com=c.com" },
@@ -381,7 +383,7 @@ BOOL CWinHTTrackApp::InitInstance()
         { "a.com,\r\nb.com=c.com", "a.com,b.com=c.com" },
         { "x=y\r\na.com , b.com = c.com", "x=y|a.com,b.com=c.com" },
         /* an empty field must not emit --host-alias "", which the engine refuses */
-        { " \r\n\t ", "" },
+        { " \r\n\t\v\f ", "" },
         { "", "" },
         { NULL, NULL }
       };
