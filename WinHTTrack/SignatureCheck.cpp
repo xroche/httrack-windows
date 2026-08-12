@@ -178,7 +178,9 @@ WhttSigVerdict WhttSigVerifyFile(const char *path, char *publisher,
     return named ? WHTT_SIG_UNKNOWN : WHTT_SIG_NONE;
   default:
     /* An untrusted root, an unknown digest algorithm and an expired chain all land
-       here, and so do our own binaries on an un-updated Windows 7. Never an accusation. */
+       here, and so do our own binaries on an un-updated Windows 7. So does a corrupt
+       certificate (TRUST_E_CERT_SIGNATURE), which a system too old for the signing
+       algorithm cannot be told apart from. Never an accusation. */
     return WHTT_SIG_UNKNOWN;
   }
 }

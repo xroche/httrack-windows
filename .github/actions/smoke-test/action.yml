@@ -143,14 +143,17 @@ runs:
             throw "nothing was signed, yet: $line"
           }
         }
+        # The biggest one, and a byte near its front. Halfway into a small PE lands inside
+        # the certificate blob, which breaks the certificate rather than the image and
+        # answers a different question (0x80096004, not the 0x80096010 we are asking for).
         $signed = Get-ChildItem $dir -File -Filter '*.dll' |
-                    Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -eq 'Valid' } |
-                    Select-Object -First 1
-        if (-not $signed) { throw 'nothing installed carries a valid signature: the probe below would prove nothing' }
+                    Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -eq 'Valid' -and $_.Length -gt 65536 } |
+                    Sort-Object Length -Descending | Select-Object -First 1
+        if (-not $signed) { throw 'no signed DLL over 64 KB was installed: the probe below would prove nothing' }
         $tampered = Join-Path $PWD 'tampered.bin'
         Copy-Item $signed.FullName $tampered
         $bytes = [System.IO.File]::ReadAllBytes($tampered)
-        $at = [int]($bytes.Length / 2)
+        $at = 0x1000
         $bytes[$at] = $bytes[$at] -bxor 0xFF
         [System.IO.File]::WriteAllBytes($tampered, $bytes)
         Start-Process $exe -ArgumentList '--check-signature', $signed.FullName -Wait `
