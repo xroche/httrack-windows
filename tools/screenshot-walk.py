@@ -250,25 +250,34 @@ def reopen_options(main, pid, ids):
     """#112: reopening Options must not inherit the previous window's geometry."""
     before = set(top_level_windows(pid))
     click(find(main, control_id=ids["ID_setopt"], class_name="Button"))
-    sheet = wait(lambda: next((h for h in top_level_windows(pid) if h not in before), None),
-                 "the options sheet to open again", 30)
-    # Report the box's own text; it has no tab control to wait for.
-    if find(sheet, class_name="SysTabControl32") is None:
-        said = " / ".join(text for _, _, cls, text in controls(sheet)
+    wait(lambda: [h for h in top_level_windows(pid) if h not in before],
+         "the options sheet to open again", 30)
+    time.sleep(1.0)   # a box can trail the sheet rather than replace it
+    opened = [h for h in top_level_windows(pid) if h not in before]
+    sheets = [h for h in opened if find(h, class_name="SysTabControl32")]
+    strays = [h for h in opened if h not in sheets]
+    if strays:
+        said = " / ".join(text for h in strays for _, _, cls, text in controls(h)
                           if cls == "Static" and text)
-        raise RuntimeError(f"the second Set options put up a box instead of the sheet: {said}")
+        raise RuntimeError(f"the second Set options put up a box: {said}")
+    if len(sheets) != 1:
+        raise RuntimeError(f"the second Set options opened {len(sheets)} sheets")
+    sheet = sheets[0]
+    # Containment, not size: a sheet that merely fits can still hang off the bottom.
     box = win32gui.GetWindowRect(sheet)
-    screen = win32gui.GetWindowRect(win32gui.GetDesktopWindow())
-    if box[2] - box[0] > screen[2] or box[3] - box[1] > screen[3]:
-        raise RuntimeError(f"the second Set options sized the sheet {box[2]-box[0]}x"
-                           f"{box[3]-box[1]}, past the {screen[2]}x{screen[3]} screen")
+    desk = win32gui.GetWindowRect(win32gui.GetDesktopWindow())
+    if box[0] < desk[0] or box[1] < desk[1] or box[2] > desk[2] or box[3] > desk[3]:
+        raise RuntimeError(f"the second Set options put the sheet at {box}, "
+                           f"outside the desktop {desk}")
     # The buttons sit on the bottom edge, where a grown page can cover them.
     for button in (IDOK, IDCANCEL):
         hwnd = find(sheet, control_id=button, class_name="Button")
+        if hwnd is None:
+            raise RuntimeError(f"the second Set options has no button {button}")
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
         if win32gui.WindowFromPoint(((left + right) // 2, (top + bottom) // 2)) != hwnd:
             raise RuntimeError(f"button {button} is covered on the second Set options")
-    close_options(sheet, pid, IDCANCEL)
+    close_options(sheet, pid, IDOK)
     print("  second Set options: clean")
 
 
