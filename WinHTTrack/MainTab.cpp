@@ -224,9 +224,8 @@ void CMainTab::OnSize(UINT nType, int cx, int cy)
   m_sheetLayout.Apply(cx, cy);
 }
 
-/* OptPannel re-shows the one CMainTab, so everything measured for this window has to go
-   with it: kept, it clamps the next window's creation size and is applied to it before
-   OnInitDialog can measure anything. */
+/* OptPannel re-shows this sheet, so what was measured for one window must not reach the
+   next: it clamps that window's size and is applied before Build can measure it. */
 void CMainTab::OnDestroy()
 {
   m_sheetLayout.Build(NULL);

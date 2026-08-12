@@ -177,8 +177,8 @@ void CSheetLayout::Build(CPropertySheet* sheet)
   m_sheet = NULL;
   m_pageBase.SetRectEmpty();
   m_baseClient.cx = m_baseClient.cy = 0;
-  /* A re-shown sheet is a new window in the same object, so the furniture measured for
-     the old one must go: an OnSize before the next Build has to find nothing to apply. */
+  /* A re-shown sheet is a new window in the same object; drop what was measured for the
+     old one, so an OnSize before the next Build finds nothing to apply. */
   m_layout.Reset(NULL);
   if (sheet == NULL || sheet->m_hWnd == NULL)
     return;
