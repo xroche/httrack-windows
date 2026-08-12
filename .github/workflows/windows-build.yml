@@ -24,10 +24,10 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded runs on the same branch or PR -- but never a tag's, which signs.
+# Cancel superseded PR and branch-push runs. Never a tag or a dispatch: those can sign.
 concurrency:
   group: windows-build-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type != 'tag') }}
 
 jobs:
   # Cheap guard for the rules .gitattributes cannot enforce on its own.
@@ -188,7 +188,7 @@ jobs:
         platform: [x64, Win32]
         configuration: [Release]
     # Windows runs from other branches starve this one's runner (xroche/httrack#1213),
-    # so cap them repo-wide at one per platform.
+    # so cap them at one per platform. queue: max, as the default cancels a waiter.
     concurrency:
       group: windows-build-${{ matrix.platform }}
       queue: max
@@ -774,8 +774,8 @@ jobs:
     needs: build
     runs-on: windows-2022
     environment: signing
-    # Two tags pushed at once would fight over the signing session. queue: max, as
-    # the shorthand's default cancels the waiting run instead of holding it.
+    # Two tags pushed at once would fight over the signing session; queue: max holds
+    # the waiter the shorthand would have cancelled.
     concurrency:
       group: certum-signing
       queue: max

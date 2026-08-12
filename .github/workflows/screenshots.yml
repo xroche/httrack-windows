@@ -31,8 +31,7 @@ jobs:
   capture:
     runs-on: windows-2022
     timeout-minutes: 20
-    # Competes for the same Windows runners as the build; queue: max, as the default
-    # cancels a waiter rather than holding it.
+    # Shares the Windows runners with the build; queue: max, as the default cancels a waiter.
     concurrency:
       group: screenshots-capture
       queue: max
