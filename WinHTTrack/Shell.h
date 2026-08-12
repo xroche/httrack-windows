@@ -216,7 +216,7 @@ int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 void splitRulesInArray(CStringArray &rules, const CString &str);
 
 /* TRUE if RULE may be handed to --host-alias: well-formed per the engine's
-   hts_host_alias_rule_ok(), and short enough for argv. One it refuses aborts the mirror. */
+   hts_host_alias_rule_ok(), and short enough for argv. A rule it refuses aborts the mirror. */
 BOOL isHostAliasArgument(const CString &rule);
 
 void Build_TopIndex(BOOL check_empty=TRUE);

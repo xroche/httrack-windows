@@ -1910,7 +1910,7 @@ static BOOL fitsEngineArgument(const CString &value) {
   return fits;
 }
 
-// A leading dash reads as the argument being missing: the engine takes the next option for it.
+// A leading dash reads as the argument being missing, which aborts the mirror.
 static BOOL isEngineArgument(const CString &value) {
   return fitsEngineArgument(value) && value[0] != '-';
 }

@@ -405,8 +405,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok\n");
     }
-    /* Pins the engine's grammar through the DLL: a rule that passes here but not
-       there aborts the mirror. */
+    /* Pins the engine's grammar through the DLL, so a change to it lands here and
+       not in a mirror. */
     {
       static const struct { const char* rule; BOOL want; } aliases[] = {
         { "b.com = a.com", TRUE },       { "*://b.com=a.com", TRUE },
@@ -429,8 +429,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "b.com=a\vcom", FALSE },       { "b.com=a\fcom", FALSE },
         { "b.com=a.com\x7f", FALSE },    { "b\v.com=a.com", FALSE },
         { "b.com=a.com\nc.com", FALSE }, { "b.com=ftp://a.com", TRUE },
-        /* an accented or IDN host is high bytes, which the engine passes through */
-        { "b.com=caf\xC3\xA9.example", TRUE },
+        /* an accented host reaches the engine as UTF-8 high bytes, which it passes through */
+        { "b.com=caf\xE9.example", TRUE },
         /* the engine takes an alias starting with a dash (#1179) */
         { "-legacy.example.com=example.com", TRUE },
         { NULL, FALSE }
