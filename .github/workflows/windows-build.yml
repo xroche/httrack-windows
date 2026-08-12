@@ -24,6 +24,11 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on the same branch or PR -- but never a tag's, which signs.
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
 jobs:
   # Cheap guard for the rules .gitattributes cannot enforce on its own.
   encoding:
@@ -182,6 +187,11 @@ jobs:
       matrix:
         platform: [x64, Win32]
         configuration: [Release]
+    # Windows runs from other branches starve this one's runner (xroche/httrack#1213),
+    # so cap them repo-wide at one per platform.
+    concurrency:
+      group: windows-build-${{ matrix.platform }}
+      queue: max
     steps:
       - name: Checkout httrack-windows
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -764,8 +774,11 @@ jobs:
     needs: build
     runs-on: windows-2022
     environment: signing
-    # Two tags pushed at once would fight over the signing session.
-    concurrency: certum-signing
+    # Two tags pushed at once would fight over the signing session. queue: max, as
+    # the shorthand's default cancels the waiting run instead of holding it.
+    concurrency:
+      group: certum-signing
+      queue: max
     permissions:
       contents: read
       # download-artifact reads this run's artifacts through the Actions API.
