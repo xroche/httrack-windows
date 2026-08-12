@@ -405,8 +405,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok\n");
     }
-    /* Copied from the engine's own htsselftest.c: the GUI must refuse exactly what
-       hts_host_alias_rule_ok() refuses, or a rule it lets through aborts the mirror. */
+    /* Pins the engine's grammar through the DLL: a rule the field lets through and
+       the engine then refuses aborts the mirror. */
     {
       static const struct { const char* rule; BOOL want; } aliases[] = {
         { "b.com = a.com", TRUE },       { "*://b.com=a.com", TRUE },
@@ -424,6 +424,9 @@ BOOL CWinHTTrackApp::InitInstance()
         { "https://www.foo.com/=ftp://ftp.foo.com/pub/", FALSE },
         { "https://www.foo.com/a=ftp://ftp.foo.com", FALSE },
         { "a.com,b.com/deep=c.com", FALSE },
+        /* an unknown scheme is not one, and a control byte names no host */
+        { "b.com=x://a.com", FALSE },    { "b.com=a\vcom", FALSE },
+        { "b.com=a\fcom", FALSE },       { "b.com=a.com\x7f", FALSE },
         { NULL, FALSE }
       };
       for(int k=0 ; aliases[k].rule != NULL ; k++) {
