@@ -151,6 +151,7 @@ ON_WM_TIMER()
 ON_WM_HELPINFO()
 ON_WM_SIZE()
 ON_WM_GETMINMAXINFO()
+ON_WM_DESTROY()
 //}}AFX_MSG_MAP
 ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -221,6 +222,16 @@ void CMainTab::OnSize(UINT nType, int cx, int cy)
 {
   CPropertySheet::OnSize(nType, cx, cy);
   m_sheetLayout.Apply(cx, cy);
+}
+
+/* OptPannel re-shows the one CMainTab, so everything measured for this window has to go
+   with it: kept, it clamps the next window's creation size and is applied to it before
+   OnInitDialog can measure anything. */
+void CMainTab::OnDestroy()
+{
+  m_sheetLayout.Build(NULL);
+  m_minSize.cx = m_minSize.cy = 0;
+  CPropertySheet::OnDestroy();
 }
 
 void CMainTab::OnGetMinMaxInfo(MINMAXINFO* lpMMI)

@@ -177,6 +177,9 @@ void CSheetLayout::Build(CPropertySheet* sheet)
   m_sheet = NULL;
   m_pageBase.SetRectEmpty();
   m_baseClient.cx = m_baseClient.cy = 0;
+  /* A re-shown sheet is a new window in the same object, so the furniture measured for
+     the old one must go: an OnSize before the next Build has to find nothing to apply. */
+  m_layout.Reset(NULL);
   if (sheet == NULL || sheet->m_hWnd == NULL)
     return;
   m_sheet = sheet;
@@ -226,7 +229,8 @@ void CSheetLayout::Build(CPropertySheet* sheet)
 
 void CSheetLayout::LayoutActivePage()
 {
-  if (m_sheet == NULL || m_pageBase.IsRectEmpty() || m_baseClient.cx == 0)
+  if (m_sheet == NULL || !::IsWindow(m_sheet->m_hWnd)
+      || m_pageBase.IsRectEmpty() || m_baseClient.cx == 0)
     return;
   /* Not GetActivePage(): FinalInProgress empties the page array between RemovePage and
      AddPage, and it then indexes -1 and hands back a wild pointer. */
@@ -234,7 +238,7 @@ void CSheetLayout::LayoutActivePage()
   if (active < 0 || active >= m_sheet->GetPageCount())
     return;
   CPropertyPage* const page = m_sheet->GetPage(active);
-  if (page == NULL || page->m_hWnd == NULL)
+  if (page == NULL || !::IsWindow(page->m_hWnd))
     return;
   CRect client;
   m_sheet->GetClientRect(client);

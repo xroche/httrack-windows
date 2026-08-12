@@ -246,13 +246,33 @@ def close_options(sheet, pid, button):
     wait(lambda: sheet not in top_level_windows(pid), "the options sheet to close", 15)
 
 
+def reopen_options(main, pid, ids):
+    """#112: the sheet outlives its window, so a second open used to be laid out from the
+    previous one's geometry before anything was measured again."""
+    sheet, _, _ = open_options(main, pid, ids)
+    strays = [h for h in top_level_windows(pid)
+              if h not in (sheet, main) and win32gui.IsWindowVisible(h)]
+    if strays:
+        titles = ", ".join(repr(win32gui.GetWindowText(h)) for h in strays)
+        raise RuntimeError(f"the second Set options put {len(strays)} window(s) up: {titles}")
+    box = win32gui.GetWindowRect(sheet)
+    screen = win32gui.GetWindowRect(win32gui.GetDesktopWindow())
+    if box[2] - box[0] > screen[2] or box[3] - box[1] > screen[3]:
+        raise RuntimeError(f"the second Set options sized the sheet {box[2]-box[0]}x"
+                           f"{box[3]-box[1]}, past the {screen[2]}x{screen[3]} screen")
+    # The buttons ride the bottom edge; the grown page used to cover them mid-window.
+    for button in (IDOK, IDCANCEL):
+        hwnd = find(sheet, control_id=button, class_name="Button")
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        if win32gui.WindowFromPoint(((left + right) // 2, (top + bottom) // 2)) != hwnd:
+            raise RuntimeError(f"button {button} is covered on the second Set options")
+    close_options(sheet, pid, IDCANCEL)
+    print("  second Set options: clean")
+
+
 def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     """The eleven option tabs, switched through the sheet rather than by clicking the tab
-    control, so a two-row tab layout cannot put a tab under the mouse of another.
-
-    The connection count is set on the way out, after every tab has been shot with its
-    defaults, because the sheet only opens once: a second "Set options..." throws
-    "Encountered an improper argument" inside MFC and leaves a message box on screen."""
+    control, so a two-row tab layout cannot put a tab under the mouse of another."""
     sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
     print(f"  options sheet {sheet:#x}: {count} tabs")
@@ -277,6 +297,7 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
         set_text(find(sheet, control_id=ids[control]), str(value))
     close_options(sheet, pid, IDOK)
     print(f"  {connections} connections, {rate} B/s")
+    reopen_options(main, pid, ids)
 
 
 def run(pid, ids, shots, url, base_path):
