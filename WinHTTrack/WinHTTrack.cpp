@@ -405,8 +405,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok\n");
     }
-    /* Copied from the engine's own htsselftest.c: the GUI must refuse exactly what
-       hts_host_alias_rule_ok() refuses, or a rule it lets through aborts the mirror. */
+    /* Pins the engine's grammar through the DLL, so a change to it lands here and
+       not in a mirror. */
     {
       static const struct { const char* rule; BOOL want; } aliases[] = {
         { "b.com = a.com", TRUE },       { "*://b.com=a.com", TRUE },
@@ -424,10 +424,19 @@ BOOL CWinHTTrackApp::InitInstance()
         { "https://www.foo.com/=ftp://ftp.foo.com/pub/", FALSE },
         { "https://www.foo.com/a=ftp://ftp.foo.com", FALSE },
         { "a.com,b.com/deep=c.com", FALSE },
+        /* an unknown scheme and a control byte both name no host */
+        { "b.com=x://a.com", FALSE },    { "b.com=a.com://c.com", FALSE },
+        { "b.com=a\vcom", FALSE },       { "b.com=a\fcom", FALSE },
+        { "b.com=a.com\x7f", FALSE },    { "b\v.com=a.com", FALSE },
+        { "b.com=a.com\nc.com", FALSE }, { "b.com=ftp://a.com", TRUE },
+        /* an accented host reaches the engine as UTF-8 high bytes, which it passes through */
+        { "b.com=caf\xE9.example", TRUE },
+        /* the engine takes an alias starting with a dash (#1179) */
+        { "-legacy.example.com=example.com", TRUE },
         { NULL, FALSE }
       };
       for(int k=0 ; aliases[k].rule != NULL ; k++) {
-        if (isHostAliasRule(aliases[k].rule) != aliases[k].want) {
+        if (isHostAliasArgument(aliases[k].rule) != aliases[k].want) {
           fprintf(stderr, "FATAL: host-alias rule '%s' judged %s\n",
                   aliases[k].rule, aliases[k].want ? "bad, expected good"
                                                    : "good, expected bad");

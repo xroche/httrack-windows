@@ -215,9 +215,9 @@ int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
 
-/* TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host". Mirrors the
-   engine's unexported hts_host_alias_rule_ok(); a rule it refuses aborts the mirror. */
-BOOL isHostAliasRule(const CString &rule);
+/* TRUE if RULE may be handed to --host-alias: well-formed per the engine's
+   hts_host_alias_rule_ok(), and short enough for argv. A rule it refuses aborts the mirror. */
+BOOL isHostAliasArgument(const CString &rule);
 
 void Build_TopIndex(BOOL check_empty=TRUE);
 
