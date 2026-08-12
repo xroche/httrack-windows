@@ -335,10 +335,17 @@ BOOL WhttSigTakeWarning(void) {
 static void WhttSigReportOne(FILE *out, const char *path) {
   char publisher[256];
   LONG status = 0;
-  const WhttSigVerdict verdict = WhttSigVerifyFile(path, publisher, sizeof(publisher),
-                                                   &status);
   const char *const leaf = strrchr(path, '\\');
+  WhttSigVerdict verdict;
 
+  /* A path that cannot be opened answers TRUST_E_NOSIGNATURE like a genuinely unsigned
+     file does, so say which it was: a mistyped path otherwise reads as a verdict. */
+  if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) {
+    fprintf(out, "%s: cannot be opened (0x%08lX)\n", leaf != NULL ? leaf + 1 : path,
+            (unsigned long) HRESULT_FROM_WIN32(GetLastError()));
+    return;
+  }
+  verdict = WhttSigVerifyFile(path, publisher, sizeof(publisher), &status);
   fprintf(out, "%s: %s", leaf != NULL ? leaf + 1 : path, WhttSigWord(verdict));
   if (publisher[0] != '\0') {
     fprintf(out, " [%s]", publisher);
