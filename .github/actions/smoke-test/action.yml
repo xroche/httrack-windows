@@ -122,6 +122,47 @@ runs:
         Write-Host "WinHTTrack.exe --version -> exit=$($p.ExitCode), output='$out'"
         if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --version exited $($p.ExitCode): it does not start" }
         if ($out -notmatch [regex]::Escape($env:APPVER)) { throw "expected version $env:APPVER, got '$out'" }
+        # --check-signature, and then the same question with one byte changed. A checker
+        # that answers "verified" whatever it is given passes every other assertion here,
+        # so the flipped copy is the one that proves something. Run on unsigned builds
+        # too: the app-local runtime is signed by Microsoft whoever signed the rest.
+        $p = Start-Process $exe -ArgumentList '--check-signature' -Wait -PassThru `
+               -RedirectStandardOutput "$PWD\sig.txt"
+        $sig = (Get-Content "$PWD\sig.txt" -Raw).Trim()
+        Write-Host "WinHTTrack.exe --check-signature ->"
+        Write-Host $sig
+        if ($p.ExitCode -ne 0) { throw "--check-signature exited $($p.ExitCode)" }
+        foreach ($n in 'WinHTTrack.exe', 'libhttrack.dll') {
+          if ($sig -notmatch [regex]::Escape($n)) { throw "--check-signature never looked at $n" }
+        }
+        foreach ($line in ($sig -split "\r?\n")) {
+          if (-not $line.Trim()) { continue }
+          if ($env:THUMBPRINT) {
+            if ($line -notmatch 'verified') { throw "this build was signed, yet: $line" }
+          } elseif ($line -match 'verified') {
+            throw "nothing was signed, yet: $line"
+          }
+        }
+        $signed = Get-ChildItem $dir -File -Filter '*.dll' |
+                    Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -eq 'Valid' } |
+                    Select-Object -First 1
+        if (-not $signed) { throw 'nothing installed carries a valid signature: the probe below would prove nothing' }
+        $tampered = Join-Path $PWD 'tampered.bin'
+        Copy-Item $signed.FullName $tampered
+        $bytes = [System.IO.File]::ReadAllBytes($tampered)
+        $at = [int]($bytes.Length / 2)
+        $bytes[$at] = $bytes[$at] -bxor 0xFF
+        [System.IO.File]::WriteAllBytes($tampered, $bytes)
+        Start-Process $exe -ArgumentList '--check-signature', $signed.FullName -Wait `
+               -RedirectStandardOutput "$PWD\sig-intact.txt"
+        Start-Process $exe -ArgumentList '--check-signature', $tampered -Wait `
+               -RedirectStandardOutput "$PWD\sig-broken.txt"
+        $intact = (Get-Content "$PWD\sig-intact.txt" -Raw).Trim()
+        $broken = (Get-Content "$PWD\sig-broken.txt" -Raw).Trim()
+        Write-Host "  intact:   $intact"
+        Write-Host "  tampered: $broken"
+        if ($intact -match 'unsigned|unverifiable') { throw "the control file reads as unsigned: $intact" }
+        if ($broken -notmatch 'MODIFIED') { throw "one byte was flipped and the verdict did not follow: $broken" }
         # --version only proves the binary LOADS: it exits before any data file is
         # touched. That is exactly why a missing lang.def shipped. --selftest runs
         # the real startup, through LANG_INIT, and exits before showing a window.

@@ -65,6 +65,23 @@ Source releases of the engine are a separate matter: they are signed with the HT
 key `rsa4096/60C3AA7180598EFB`, which has nothing to do with Authenticode and is
 documented on [httrack.com](https://www.httrack.com/).
 
+## What WinHTTrack checks about itself
+
+At startup WinHTTrack verifies its own signature and the engine's beside it, and names
+the publisher in the About box. `WinHTTrack.exe --check-signature` prints the same
+verdict per file, with the raw status code, which is the useful thing to paste into a
+bug report.
+
+It never blocks anything. A copy signed by somebody else, or one whose signature no
+longer matches its own bytes, says so in a warning at startup; everything else passes
+without comment, including an unsigned build from source. Windows 7 mostly lands in that
+second group, because it does not carry Certum's root unless it has been updated, and a
+check that cannot tell our binaries from anybody else's must not accuse anyone.
+
+None of it is a security boundary. Whoever repackages the program can strip the check as
+easily as they added their adware, and the source shows them where. What they cannot do
+is go on calling the result HTTrack.
+
 ## Privacy policy
 
 This program will not transfer any information to other networked systems unless

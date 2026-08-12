@@ -79,7 +79,7 @@
     </ResourceCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>Ws2_32.lib;Winmm.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Ws2_32.lib;Winmm.lib;Shlwapi.lib;Wintrust.lib;Crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
@@ -156,7 +156,9 @@
     <ClCompile Include="ProxyId.cpp" />
     <ClCompile Include="RasLoad.cpp" />
     <ClCompile Include="Shell.cpp" />
+    <ClCompile Include="SignatureCheck.cpp" />
     <ClCompile Include="splitter.cpp" />
+    <ClCompile Include="Unofficial.cpp" />
     <ClCompile Include="trans.cpp" />
     <ClCompile Include="TreeViewToolTip.cpp" />
     <ClCompile Include="Wid1.cpp" />
@@ -223,7 +225,9 @@
     <ClInclude Include="RasLoad.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Shell.h" />
+    <ClInclude Include="SignatureCheck.h" />
     <ClInclude Include="splitter.h" />
+    <ClInclude Include="Unofficial.h" />
     <ClInclude Include="StdAfx.h" />
     <ClInclude Include="trans.h" />
     <ClInclude Include="TreeViewToolTip.h" />

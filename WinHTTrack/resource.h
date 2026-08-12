@@ -95,6 +95,7 @@ Please visit our Website: http://www.httrack.com
 #define IDR_WINHTTTYPE                  222
 #define IDD_OPTION11                    222
 #define IDD_BatchUpdate                 223
+#define IDD_UNOFFICIAL                  247
 #define IDB_SPLASH                      236
 #define IDC_CURSWWW                     237
 #define IDI_SPLASH                      242
@@ -545,6 +546,11 @@ Please visit our Website: http://www.httrack.com
 #define IDC_STATIC_save                 1333
 #define IDC_hostalias                   1334
 #define IDC_STATIC_hostalias            1335
+#define IDC_SIGSTATUS                   1336
+#define IDC_SIGWARN                     1337
+#define IDC_SIGWHO                      1338
+#define IDC_SIGBODY                     1339
+#define IDC_SIGVISIT                    1340
 #define ID_MENUITEM32771                32771
 #define ID_MENUITEM32772                32772
 #define ID_EXIT                         32772
@@ -614,9 +620,9 @@ Please visit our Website: http://www.httrack.com
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_3D_CONTROLS                     1
-#define _APS_NEXT_RESOURCE_VALUE        247
+#define _APS_NEXT_RESOURCE_VALUE        248
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1336
+#define _APS_NEXT_CONTROL_VALUE         1341
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif

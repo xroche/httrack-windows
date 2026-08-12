@@ -84,6 +84,8 @@ private:
 	public:
 	virtual BOOL InitInstance();
 	virtual int ExitInstance();
+	// Shows the signature warning once the background check has an answer.
+	virtual BOOL OnIdle(LONG lCount);
 	// Log a stack trace for exceptions MFC catches in a window procedure.
 	virtual LRESULT ProcessWndProcException(CException* e, const MSG* pMsg);
 	//}}AFX_VIRTUAL

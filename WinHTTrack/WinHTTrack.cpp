@@ -45,6 +45,8 @@ Please visit our Website: http://www.httrack.com
 #include "inprogress.h"
 
 #include "CrashReport.h"
+#include "SignatureCheck.h"
+#include "Unofficial.h"
 #include "version.h"
 
 // KB955045 (http://support.microsoft.com/kb/955045)
@@ -265,6 +267,12 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("WinHTTrack %s (engine %s)\n", WINHTTRACK_VERSION, HTTRACK_VERSION);
       fflush(stdout);
       ExitProcess(0);
+    } else if (strcmp(__argv[i], "--check-signature") == 0) {
+      /* Who signed what, with the raw status: a support answer, and what proves in CI
+         that a modified binary really is noticed. */
+      WhttEnsureConsole();
+      WhttSigReport(stdout, (i + 1 < __argc) ? __argv[i + 1] : NULL);
+      ExitProcess(0);
     } else if (strcmp(__argv[i], "--selftest") == 0) {
       /* Carry on through the real startup and report from there. --version only
          proves the binary loads; it says nothing about whether the installation
@@ -277,8 +285,22 @@ BOOL CWinHTTrackApp::InitInstance()
   /* See <https://msdn.microsoft.com/library/ff919712> */
 #if (defined(_WIN32) && (!defined(_DEBUG)))
   {
-    /* See KB 2389418
-    "If this parameter is an empty string (""), the call removes the 
+    /* Narrow the search to the application directory and System32; it matters most to
+       the ZIP package, which people unpack into Downloads. Resolved and not imported: a
+       Windows 7 without KB2533623 has no such export and would fail to load at all. */
+#ifndef LOAD_LIBRARY_SEARCH_DEFAULT_DIRS
+#define LOAD_LIBRARY_SEARCH_DEFAULT_DIRS 0x00001000
+#endif
+    BOOL (WINAPI*const k32_SetDefaultDllDirectories)(DWORD) =
+      (BOOL (WINAPI *)(DWORD))
+      GetProcAddress(GetModuleHandle("kernel32.dll"), "SetDefaultDllDirectories");
+    if (k32_SetDefaultDllDirectories != NULL) {
+      k32_SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+    }
+
+    /* Still worth doing where the above is missing, and harmless where it is not.
+    See KB 2389418
+    "If this parameter is an empty string (""), the call removes the
     current directory from the default DLL search order" */
     BOOL (WINAPI*const k32_SetDllDirectoryA)(LPCSTR) = 
       (BOOL (WINAPI *)(LPCSTR))
@@ -711,9 +733,27 @@ BOOL CWinHTTrackApp::InitInstance()
 #endif
 #endif
 
+  /* Last, and on a thread of its own: none of it may delay startup. OnIdle() collects
+     the answer. */
+  WhttSigCheckStart(m_pMainWnd != NULL ? m_pMainWnd->GetSafeHwnd() : NULL);
+
   return TRUE;
 }
 
+
+/* Where the signature verdict reaches the user. Only while the main window is enabled:
+   MFC disables it under a modal dialog, and opening a second one on top of the first is
+   how this program has broken before. The one-shot is not consumed until then, so the
+   warning waits rather than being lost. */
+BOOL CWinHTTrackApp::OnIdle(LONG lCount) {
+  CWnd *const main = AfxGetMainWnd();
+
+  if (main != NULL && main->IsWindowEnabled() && WhttSigTakeWarning()) {
+    CUnofficial warning(main);
+    warning.DoModal();
+  }
+  return CWinApp::OnIdle(lCount);
+}
 
 BOOL CWinHTTrackApp::WSockInit() {
   // Initialiser WINSOCK
