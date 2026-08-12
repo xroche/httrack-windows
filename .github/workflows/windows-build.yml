@@ -24,10 +24,11 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded PR and branch-push runs. Never a tag or a dispatch: those can sign.
+# Cancel superseded runs on a branch or PR, never a tag's: that run signs. A dispatch can
+# sign too, and cancel-in-progress is the arriving run's flag, so it needs a group of its own.
 concurrency:
-  group: windows-build-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type != 'tag') }}
+  group: windows-build-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 jobs:
   # Cheap guard for the rules .gitattributes cannot enforce on its own.
