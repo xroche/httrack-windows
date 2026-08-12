@@ -249,12 +249,16 @@ def close_options(sheet, pid, button):
 def reopen_options(main, pid, ids):
     """#112: the sheet outlives its window, so a second open used to be laid out from the
     previous one's geometry before anything was measured again."""
-    sheet, _, _ = open_options(main, pid, ids)
-    strays = [h for h in top_level_windows(pid)
-              if h not in (sheet, main) and win32gui.IsWindowVisible(h)]
-    if strays:
-        titles = ", ".join(repr(win32gui.GetWindowText(h)) for h in strays)
-        raise RuntimeError(f"the second Set options put {len(strays)} window(s) up: {titles}")
+    before = set(top_level_windows(pid))
+    click(find(main, control_id=ids["ID_setopt"], class_name="Button"))
+    sheet = wait(lambda: next((h for h in top_level_windows(pid) if h not in before), None),
+                 "the options sheet to open again", 30)
+    # An MFC error box is what comes up instead, so say what it said rather than timing
+    # out later on a tab control the box does not have.
+    if find(sheet, class_name="SysTabControl32") is None:
+        said = " / ".join(text for _, _, cls, text in controls(sheet)
+                          if cls == "Static" and text)
+        raise RuntimeError(f"the second Set options put up a box instead of the sheet: {said}")
     box = win32gui.GetWindowRect(sheet)
     screen = win32gui.GetWindowRect(win32gui.GetDesktopWindow())
     if box[2] - box[0] > screen[2] or box[3] - box[1] > screen[3]:
