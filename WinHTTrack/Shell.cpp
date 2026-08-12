@@ -1898,10 +1898,9 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
 }
 
 // A value restored from a profile never met the dialog's validation, so an option's
-// argument is checked here as well: the engine aborts the whole mirror on one that is
-// over-long, or that starts with a dash, which it reads as the argument being missing.
-static BOOL isEngineArgument(const CString &value) {
-  if (value.IsEmpty() || value[0] == '-')
+// argument is checked here as well: the engine aborts the whole mirror on an over-long one.
+static BOOL fitsEngineArgument(const CString &value) {
+  if (value.IsEmpty())
     return FALSE;
   // the engine measures the UTF-8 bytes strdupt_utf8() will hand it, not these characters
   char *utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());  // freet() nulls it, so not const
@@ -1911,14 +1910,25 @@ static BOOL isEngineArgument(const CString &value) {
   return fits;
 }
 
-// see Shell.h
-BOOL isHostAliasRule(const CString &rule) {
+// A leading dash reads as the argument being missing: the engine takes the next option for it.
+static BOOL isEngineArgument(const CString &value) {
+  return fitsEngineArgument(value) && value[0] != '-';
+}
+
+// TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".
+static BOOL isHostAliasRule(const CString &rule) {
   // ask the engine about the very bytes argv will carry, not the ANSI ones MFC holds
   char *utf8 = strdupt_utf8(rule);   // freet() nulls it, so not const
   const BOOL ok = hts_host_alias_rule_ok(utf8) ? TRUE : FALSE;
 
   freet(utf8);
   return ok;
+}
+
+// see Shell.h
+BOOL isHostAliasArgument(const CString &rule) {
+  // --host-alias takes an alias starting with a dash, so no dash test here (engine #1179)
+  return isHostAliasRule(rule) && fitsEngineArgument(rule);
 }
 
 static BOOL isAllDigits(const CString &value) {
@@ -2121,7 +2131,7 @@ void lance(void) {
     CStringArray rules;
     splitRulesInArray(rules, ShellOptions->hostalias);
     for(INT_PTR i = 0 ; i < rules.GetSize() ; i++) {
-      if (isHostAliasRule(rules[i]) && isEngineArgument(rules[i])) {
+      if (isHostAliasArgument(rules[i])) {
         args.Add("--host-alias");
         args.Add(rules[i]);
       }
