@@ -178,7 +178,7 @@ HBRUSH Cabout::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
   COLORREF colour;
 
   if (nCtlColor == CTLCOLOR_STATIC && pWnd->GetDlgCtrlID() == IDC_SIGSTATUS
-      && WhttSigIsUnofficial() && WhttWarningColour(&colour)) {
+      && WhttSigLineColour(&colour)) {
     pDC->SetTextColor(colour);
   }
   return brush;

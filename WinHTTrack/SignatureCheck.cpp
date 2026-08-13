@@ -63,7 +63,7 @@ static const char *const WhttSigSiblings[] = {
 
 static volatile LONG WhttSigDone = 0;
 static volatile LONG WhttSigWarned = 0;
-static BOOL WhttSigUnofficial = FALSE;
+static WhttSigVerdict WhttSigWorstVerdict = WHTT_SIG_OURS;
 static char WhttSigLine[512] = "";
 
 /* The signer's common name, read straight from the file. Filled in even when the chain
@@ -290,7 +290,7 @@ static unsigned __stdcall WhttSigThread(void *arg) {
                 "Verified publisher: %s", ourWho);
     break;
   }
-  WhttSigUnofficial = (worst == WHTT_SIG_TAMPERED || worst == WHTT_SIG_OTHERS);
+  WhttSigWorstVerdict = worst;
   /* Publishes both of the above: Interlocked is a full barrier, so whoever sees the
      flag set sees the results that were written before it. */
   InterlockedExchange(&WhttSigDone, 1);
@@ -314,8 +314,15 @@ void WhttSigCheckStart(HWND notify) {
   }
 }
 
+WhttSigVerdict WhttSigOverall(void) {
+  return InterlockedCompareExchange(&WhttSigDone, 0, 0) != 0 ? WhttSigWorstVerdict
+                                                             : WHTT_SIG_OURS;
+}
+
 BOOL WhttSigIsUnofficial(void) {
-  return InterlockedCompareExchange(&WhttSigDone, 0, 0) != 0 && WhttSigUnofficial;
+  const WhttSigVerdict worst = WhttSigOverall();
+
+  return worst == WHTT_SIG_TAMPERED || worst == WHTT_SIG_OTHERS;
 }
 
 const char *WhttSigSummary(void) {

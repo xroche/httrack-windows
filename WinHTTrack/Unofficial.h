@@ -41,6 +41,10 @@ Please visit our Website: http://www.httrack.com
    to carry the warning by itself anyway. */
 BOOL WhttWarningColour(COLORREF* colour);
 
+/* The colour for the summary line, by verdict: red where it accuses, amber where it
+   only cannot vouch. FALSE for a verified copy, leaving the dialog's own colour. */
+BOOL WhttSigLineColour(COLORREF* colour);
+
 /* Shown once per run when the binaries carry somebody else's signature, or none of
    ours any more. It informs and then gets out of the way: the program is free software
    and a modified build has every right to run, it just may not pass itself off as

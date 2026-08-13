@@ -50,7 +50,7 @@ static const char WhttUnofficialBody[] =
   "HTTrack and WinHTTrack are the project's own names, and this build carries no "
   "endorsement from it. The official version is always at www.httrack.com.";
 
-BOOL WhttWarningColour(COLORREF* colour)
+static BOOL WhttThemeColour(COLORREF wanted, COLORREF* colour)
 {
 	HIGHCONTRAST hc;
 
@@ -60,8 +60,28 @@ BOOL WhttWarningColour(COLORREF* colour)
 	    && (hc.dwFlags & HCF_HIGHCONTRASTON) != 0) {
 		return FALSE;
 	}
-	*colour = RGB(192, 0, 0);
+	*colour = wanted;
 	return TRUE;
+}
+
+BOOL WhttWarningColour(COLORREF* colour)
+{
+	return WhttThemeColour(RGB(192, 0, 0), colour);
+}
+
+BOOL WhttSigLineColour(COLORREF* colour)
+{
+	switch (WhttSigOverall()) {
+	case WHTT_SIG_TAMPERED:
+	case WHTT_SIG_OTHERS:
+		return WhttWarningColour(colour);
+	case WHTT_SIG_NONE:
+	case WHTT_SIG_UNKNOWN:
+		/* Amber, not red: unverifiable is not the accusation that a wrong name is. */
+		return WhttThemeColour(RGB(176, 88, 0), colour);
+	default:
+		return FALSE;
+	}
 }
 
 CUnofficial::CUnofficial(CWnd* pParent)

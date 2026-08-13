@@ -60,6 +60,10 @@ WhttSigVerdict WhttSigVerifyFile(const char *path, char *publisher,
    given, is woken once the verdict is in so an idle message pump comes back to it. */
 void WhttSigCheckStart(HWND notify);
 
+/* The install as a whole, described by its worst file. WHTT_SIG_OURS while the check is
+   still running: the same "nothing to say yet" that the empty summary means. */
+WhttSigVerdict WhttSigOverall(void);
+
 /* TRUE once the check has finished and it found another publisher, or tampering. */
 BOOL WhttSigIsUnofficial(void);
 
