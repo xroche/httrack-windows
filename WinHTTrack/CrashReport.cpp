@@ -45,8 +45,20 @@ Please visit our Website: http://www.httrack.com
 
 #include "htsglobal.h"
 
+#include "SignatureCheck.h"
+
 /* Defined in WinHTTrack.cpp; set by --selftest. */
 extern int WhttSelfTest;
+
+/* A report from a repackaged build has to say so: it redirects the investigation, and
+   the reporter has no way of knowing it. */
+static void ReportBuild(FILE *fp) {
+  const char *const signature = WhttSigSummary();
+
+  if (*signature != '\0') {
+    fprintf(fp, "Build: %s\r\n", signature);
+  }
+}
 
 static BOOL ShowFile(const CHAR *const filename) {
   //Load Shell helper
@@ -379,6 +391,7 @@ void CrashReportLogException(const char* msg) {
     if ((fp = fopen(path, "ab")) != NULL) {
       fprintf(fp, "HTTrack " HTTRACK_VERSIONID " caught: %s\r\n",
               msg != NULL ? msg : "(no description)");
+      ReportBuild(fp);
       if (trace != NULL) {
         fprintf(fp, "Stack trace (%s):\r\n%s",
                 thrown ? "throw site" : "handler", trace);
@@ -409,7 +422,9 @@ void CrashReportReportEx(const char* msg, const char* file, int line, const char
     if ((fp = fopen(path, "wb")) != NULL) {
       fprintf(fp, "HTTrack " HTTRACK_VERSIONID " closed at '%s', line %d\r\n",
         file, line);
-      fprintf(fp, "Reason: %s\r\n\r\n", msg);
+      fprintf(fp, "Reason: %s\r\n", msg);
+      ReportBuild(fp);
+      fprintf(fp, "\r\n");
       if (trace != NULL) {
         fprintf(fp, "Stack trace:\r\n%s", trace);
       }

@@ -31,6 +31,8 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "about.h"
 #include "version.h"
+#include "SignatureCheck.h"
+#include "Unofficial.h"
 //#include "about_sh.h"
 
 #ifdef _DEBUG
@@ -86,6 +88,7 @@ BEGIN_MESSAGE_MAP(Cabout, CDialog)
 	ON_WM_HELPINFO()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_MOUSEMOVE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -164,6 +167,21 @@ void Cabout::setlang() {
   SetWindowTextCP(this, LANG_K2);
   SetDlgItemTextLang(this, IDOK, LANG(LANG_OK));
   //SetDlgItemTextCP(this, IDC_visit,LANG_K3);
+  /* Who signed this copy, in every case and not only the bad ones: naming the
+     publisher is what turns a support thread into a diagnosis. */
+  SetDlgItemTextCP(this, IDC_SIGSTATUS, WhttSigSummary());
+}
+
+HBRUSH Cabout::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  HBRUSH brush = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+  COLORREF colour;
+
+  if (nCtlColor == CTLCOLOR_STATIC && pWnd->GetDlgCtrlID() == IDC_SIGSTATUS
+      && WhttSigLineColour(&colour)) {
+    pDC->SetTextColor(colour);
+  }
+  return brush;
 }
 
 void Cabout::OnOK() 
