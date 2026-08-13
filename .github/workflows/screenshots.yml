@@ -46,22 +46,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run-id }}
           BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         run: |
-          $id = $env:RUN_ID
-          $from = 'the run given'
-          if (-not $id) {
-            foreach ($b in @($env:BRANCH, 'master') | Select-Object -Unique) {
-              $id = gh run list --workflow windows-build.yml --branch $b --status success `
-                      --limit 1 --json databaseId -q '.[0].databaseId'
-              if ($id) { $from = $b; break }
-            }
+          function Get-Builds($ref) {
+            gh run list --workflow windows-build.yml --branch $ref --status success `
+              --limit 20 --json databaseId,headSha | ConvertFrom-Json
           }
-          if (-not $id) { throw 'no green windows-build run to take binaries from' }
-          Write-Host "binaries from run $id ($from)"
-          # The walk reads control IDs out of the checked-out resource.h, so binaries
-          # built from another branch can disagree with it.
-          if ($from -ne $env:BRANCH -and $from -ne 'the run given') {
-            Write-Warning "no build for $($env:BRANCH): these are $from's binaries, which may not match this checkout"
+          $id = $env:RUN_ID
+          if ($id) {
+            $sha = gh run view $id --json headSha -q '.headSha'
+            Write-Host "binaries from run $id (given), built from $sha"
+            if ($sha -ne $env:SHA) { Write-Warning "run $id was built from $sha, not this checkout's $($env:SHA)" }
+          } else {
+            # A moved tag keeps the old build attached to the ref, so match the commit, not the ref name.
+            foreach ($ref in @($env:BRANCH, 'master') | Select-Object -Unique) {
+              $run = Get-Builds $ref | Where-Object { $_.headSha -eq $env:SHA } | Select-Object -First 1
+              if ($run) { $id = $run.databaseId; Write-Host "binaries from run $id ($ref), built from this commit $($env:SHA)"; break }
+            }
+            if (-not $id) {
+              $run = Get-Builds 'master' | Select-Object -First 1
+              if (-not $run) { throw "no green windows-build run to take binaries from" }
+              $id = $run.databaseId
+              # The walk reads control IDs out of the checked-out resource.h, so another tree's binaries can disagree with it.
+              Write-Host "binaries from run $id (master), built from $($run.headSha)"
+              Write-Warning "no build of $($env:SHA): these are master's binaries from $($run.headSha), which may not match this checkout"
+            }
           }
           gh run download $id --name WinHTTrack-x64-Release --dir app
           if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
