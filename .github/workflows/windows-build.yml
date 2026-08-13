@@ -196,7 +196,8 @@ jobs:
     env:
       # vcpkg calls a codeload 503 (curl error 56) non-transient and gives up at once (#115), so
       # downloads retry through curl; still SHA512-checked, and a failed script falls back to vcpkg.
-      X_VCPKG_ASSET_SOURCES: 'x-script,curl.exe --location --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 --output {dst} {url}'
+      # --create-dirs: the first download of a run lands in a downloads/ vcpkg has not made yet.
+      X_VCPKG_ASSET_SOURCES: 'x-script,curl.exe --location --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 --create-dirs --output {dst} {url}'
     steps:
       - name: Checkout httrack-windows
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
