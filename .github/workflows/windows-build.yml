@@ -24,6 +24,12 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on a branch or PR, never a tag's: that run signs. A dispatch can
+# sign too, and cancel-in-progress is the arriving run's flag, so it needs a group of its own.
+concurrency:
+  group: windows-build-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
 jobs:
   # Cheap guard for the rules .gitattributes cannot enforce on its own.
   encoding:
@@ -182,6 +188,16 @@ jobs:
       matrix:
         platform: [x64, Win32]
         configuration: [Release]
+    # Windows runs from other branches starve this one's runner (xroche/httrack#1213),
+    # so cap them at one per platform. queue: max, as the default cancels a waiter.
+    concurrency:
+      group: windows-build-${{ matrix.platform }}
+      queue: max
+    env:
+      # vcpkg calls a codeload 503 (curl error 56) non-transient and gives up at once (#115), so
+      # downloads retry through curl; still SHA512-checked, and a failed script falls back to vcpkg.
+      # --create-dirs: the first download of a run lands in a downloads/ vcpkg has not made yet.
+      X_VCPKG_ASSET_SOURCES: 'x-script,curl.exe --location --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 --create-dirs --output {dst} {url}'
     steps:
       - name: Checkout httrack-windows
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -764,8 +780,11 @@ jobs:
     needs: build
     runs-on: windows-2022
     environment: signing
-    # Two tags pushed at once would fight over the signing session.
-    concurrency: certum-signing
+    # Two tags pushed at once would fight over the signing session; queue: max holds
+    # the waiter the shorthand would have cancelled.
+    concurrency:
+      group: certum-signing
+      queue: max
     permissions:
       contents: read
       # download-artifact reads this run's artifacts through the Actions API.

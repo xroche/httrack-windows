@@ -246,13 +246,44 @@ def close_options(sheet, pid, button):
     wait(lambda: sheet not in top_level_windows(pid), "the options sheet to close", 15)
 
 
+def reopen_options(main, pid, ids):
+    """#112: reopening Options must not inherit the previous window's geometry."""
+    before = set(top_level_windows(pid))
+    click(find(main, control_id=ids["ID_setopt"], class_name="Button"))
+    wait(lambda: [h for h in top_level_windows(pid) if h not in before],
+         "the options sheet to open again", 30)
+    time.sleep(1.0)   # a box can trail the sheet rather than replace it
+    opened = [h for h in top_level_windows(pid) if h not in before]
+    sheets = [h for h in opened if find(h, class_name="SysTabControl32")]
+    strays = [h for h in opened if h not in sheets]
+    if strays:
+        said = " / ".join(text for h in strays for _, _, cls, text in controls(h)
+                          if cls == "Static" and text)
+        raise RuntimeError(f"the second Set options put up a box: {said}")
+    if len(sheets) != 1:
+        raise RuntimeError(f"the second Set options opened {len(sheets)} sheets")
+    sheet = sheets[0]
+    # Containment, not size: a sheet that merely fits can still hang off the bottom.
+    box = win32gui.GetWindowRect(sheet)
+    desk = win32gui.GetWindowRect(win32gui.GetDesktopWindow())
+    if box[0] < desk[0] or box[1] < desk[1] or box[2] > desk[2] or box[3] > desk[3]:
+        raise RuntimeError(f"the second Set options put the sheet at {box}, "
+                           f"outside the desktop {desk}")
+    # The buttons sit on the bottom edge, where a grown page can cover them.
+    for button in (IDOK, IDCANCEL):
+        hwnd = find(sheet, control_id=button, class_name="Button")
+        if hwnd is None:
+            raise RuntimeError(f"the second Set options has no button {button}")
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        if win32gui.WindowFromPoint(((left + right) // 2, (top + bottom) // 2)) != hwnd:
+            raise RuntimeError(f"button {button} is covered on the second Set options")
+    close_options(sheet, pid, IDOK)
+    print("  second Set options: clean")
+
+
 def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     """The eleven option tabs, switched through the sheet rather than by clicking the tab
-    control, so a two-row tab layout cannot put a tab under the mouse of another.
-
-    The connection count is set on the way out, after every tab has been shot with its
-    defaults, because the sheet only opens once: a second "Set options..." throws
-    "Encountered an improper argument" inside MFC and leaves a message box on screen."""
+    control, so a two-row tab layout cannot put a tab under the mouse of another."""
     sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
     print(f"  options sheet {sheet:#x}: {count} tabs")
@@ -277,6 +308,7 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
         set_text(find(sheet, control_id=ids[control]), str(value))
     close_options(sheet, pid, IDOK)
     print(f"  {connections} connections, {rate} B/s")
+    reopen_options(main, pid, ids)
 
 
 def run(pid, ids, shots, url, base_path):

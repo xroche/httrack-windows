@@ -107,6 +107,7 @@ protected:
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
   afx_msg void OnSize(UINT nType, int cx, int cy);
   afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
+  afx_msg void OnDestroy();
   //}}AFX_MSG
   virtual LRESULT WindowProc(UINT message, WPARAM wParam, LPARAM lParam);
 	afx_msg void OnHelpInfo2();

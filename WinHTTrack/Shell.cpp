@@ -1898,10 +1898,9 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
 }
 
 // A value restored from a profile never met the dialog's validation, so an option's
-// argument is checked here as well: the engine aborts the whole mirror on one that is
-// over-long, or that starts with a dash, which it reads as the argument being missing.
-static BOOL isEngineArgument(const CString &value) {
-  if (value.IsEmpty() || value[0] == '-')
+// argument is checked here as well: the engine aborts the whole mirror on an over-long one.
+static BOOL fitsEngineArgument(const CString &value) {
+  if (value.IsEmpty())
     return FALSE;
   // the engine measures the UTF-8 bytes strdupt_utf8() will hand it, not these characters
   char *utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());  // freet() nulls it, so not const
@@ -1911,58 +1910,25 @@ static BOOL isEngineArgument(const CString &value) {
   return fits;
 }
 
-// One side of a rule: a bare host, optionally behind its scheme. Mirrors the engine's
-// hts_host_alias_token_ok(), which is not exported from libhttrack.
-static BOOL isHostAliasToken(CString token, BOOL glob) {
-  static const char *const schemes[] = { "http:", "ftp:", "https:", "file:",
-                                         "socks5h:", "socks5:", "connect:", NULL };
-  CString host;
-  int n, scheme;
+// A leading dash reads as the argument being missing, which aborts the mirror.
+static BOOL isEngineArgument(const CString &value) {
+  return fitsEngineArgument(value) && value[0] != '-';
+}
 
-  token.Trim(_T(" \t"));
-  for(n = token.GetLength() ; n > 0 && token[n - 1] == '/' ; n--);
-  token = token.Left(n);            // the matcher strips the whole trailing run
-  // the scheme may itself be a glob on the alias side, so cut on "://"
-  scheme = token.Find(_T("://"));
-  if (scheme >= 0) {
-    host = token.Mid(scheme + 3);
-  } else {
-    host = token;
-    for(int i = 0 ; schemes[i] != NULL ; i++) {
-      const int len = (int) strlen(schemes[i]);
-      if (host.Left(len).CompareNoCase(schemes[i]) == 0) {
-        host = host.Mid(len);
-        break;
-      }
-    }
-    if (host.Left(2) == _T("//"))
-      host = host.Mid(2);
-  }
-  // a scheme with no host behind it, and the engine's own pseudo-host, name nothing
-  if (host.IsEmpty() || host == _T("primary"))
-    return FALSE;
-  if (host.Find('/') >= 0)          // a path belongs to no part of an address
-    return FALSE;
-  return host.FindOneOf(glob ? _T("=# \t") : _T("=,*?();\\#@ \t")) < 0;
+// TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".
+static BOOL isHostAliasRule(const CString &rule) {
+  // ask the engine about the very bytes argv will carry, not the ANSI ones MFC holds
+  char *utf8 = strdupt_utf8(rule);   // freet() nulls it, so not const
+  const BOOL ok = hts_host_alias_rule_ok(utf8) ? TRUE : FALSE;
+
+  freet(utf8);
+  return ok;
 }
 
 // see Shell.h
-BOOL isHostAliasRule(const CString &rule) {
-  const int eq = rule.Find('=');
-
-  if (eq <= 0 || eq == rule.GetLength() - 1)
-    return FALSE;
-  if (!isHostAliasToken(rule.Mid(eq + 1), FALSE))
-    return FALSE;
-  for(int pat = 0 ; pat < eq ; ) {
-    const int sep = rule.Find(',', pat);
-    const int end = (sep >= 0 && sep < eq) ? sep : eq;
-
-    if (!isHostAliasToken(rule.Mid(pat, end - pat), TRUE))
-      return FALSE;
-    pat = end + 1;
-  }
-  return TRUE;
+BOOL isHostAliasArgument(const CString &rule) {
+  // --host-alias takes an alias starting with a dash, so no dash test here (engine #1179)
+  return isHostAliasRule(rule) && fitsEngineArgument(rule);
 }
 
 static BOOL isAllDigits(const CString &value) {
@@ -2165,7 +2131,7 @@ void lance(void) {
     CStringArray rules;
     splitRulesInArray(rules, ShellOptions->hostalias);
     for(INT_PTR i = 0 ; i < rules.GetSize() ; i++) {
-      if (isHostAliasRule(rules[i]) && isEngineArgument(rules[i])) {
+      if (isHostAliasArgument(rules[i])) {
         args.Add("--host-alias");
         args.Add(rules[i]);
       }

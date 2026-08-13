@@ -634,15 +634,15 @@ BEGIN
     CONTROL         "Update hack (limit re-transfers)",IDC_updhack,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,80,237,9
     CONTROL         "URL hacks (join similar URLs)",IDC_urlhack,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,95,237,9
     LTEXT           "Host aliases (alias=host):",IDC_STATIC_hostalias,16,108,120,8
-    EDITTEXT        IDC_hostalias,140,106,116,12,ES_AUTOHSCROLL
-    CONTROL         "Tolerant requests (for servers)",IDC_toler,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,123,244,9
-    CONTROL         "Force old HTTP/1.0 requests (no 1.1)",IDC_http10,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,137,237,9
-    LTEXT           "Load cookies from file:",IDC_STATIC_cookiesfile,16,153,120,8
-    EDITTEXT        IDC_cookiesfile,140,151,96,12,ES_AUTOHSCROLL
-    PUSHBUTTON      "...",IDC_cookiesfilebrowse,240,151,16,12
-    CONTROL         "Seed the crawl from the site's sitemap",IDC_sitemap,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,168,244,9
-    LTEXT           "Sitemap address:",IDC_STATIC_sitemapurl,16,184,120,8
-    EDITTEXT        IDC_sitemapurl,140,182,116,12,ES_AUTOHSCROLL
+    EDITTEXT        IDC_hostalias,140,106,116,26,ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL
+    CONTROL         "Tolerant requests (for servers)",IDC_toler,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,134,244,9
+    CONTROL         "Force old HTTP/1.0 requests (no 1.1)",IDC_http10,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,146,237,9
+    LTEXT           "Load cookies from file:",IDC_STATIC_cookiesfile,16,160,120,8
+    EDITTEXT        IDC_cookiesfile,140,158,96,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "...",IDC_cookiesfilebrowse,240,158,16,12
+    CONTROL         "Seed the crawl from the site's sitemap",IDC_sitemap,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,172,244,9
+    LTEXT           "Sitemap address:",IDC_STATIC_sitemapurl,16,186,120,8
+    EDITTEXT        IDC_sitemapurl,140,184,116,12,ES_AUTOHSCROLL
 END
 
 IDD_OPTION9 DIALOGEX 0, 0, 325, 198
