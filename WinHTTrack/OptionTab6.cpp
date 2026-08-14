@@ -83,9 +83,12 @@ void COptionTab6::DoDataExchange(CDataExchange* pDX)
 	//{{AFX_DATA_MAP(COptionTab6)
 	DDX_CBString(pDX, IDC_user, m_user);
 	DDX_CBString(pDX, IDC_footer, m_footer);
+	DDV_MaxChars(pDX, m_footer, FOOTER_MAXBYTES - 1);   // says so, where the argv guard can only drop it
 	DDX_Text(pDX, IDC_accept_language, m_accept_language);
+	DDV_MaxChars(pDX, m_accept_language, LANGISO_MAXBYTES - 1);
 	DDX_Text(pDX, IDC_other_headers, m_other_headers);
 	DDX_Text(pDX, IDC_default_referer, m_default_referer);
+	DDV_MaxChars(pDX, m_default_referer, REFERER_MAXBYTES - 1);
 	//}}AFX_DATA_MAP
 }
 

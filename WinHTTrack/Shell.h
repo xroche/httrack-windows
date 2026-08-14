@@ -219,6 +219,16 @@ void splitRulesInArray(CStringArray &rules, const CString &str);
    hts_host_alias_rule_ok(), and short enough for argv. A rule it refuses aborts the mirror. */
 BOOL isHostAliasArgument(const CString &rule);
 
+/* What the engine takes on the options whose argument the shell quotes, in UTF-8 bytes
+   (htscoremain.c, cases %F, %l and %R; -F has no cap of its own). */
+#define FOOTER_MAXBYTES   254
+#define LANGISO_MAXBYTES  62
+#define REFERER_MAXBYTES  254
+
+/* TRUE if VALUE may be handed to such an option: under MAXBYTES, and opening with neither a
+   dash nor a quote — the engine takes neither. Exposed for --selftest. */
+BOOL isQuotedArgument(const CString &value, size_t maxBytes);
+
 void Build_TopIndex(BOOL check_empty=TRUE);
 
 void InitRAS();

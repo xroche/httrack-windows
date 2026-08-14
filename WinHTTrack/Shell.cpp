@@ -718,19 +718,21 @@ void compute_options() {
     ShellOptions->rate += maintab->m_option4.m_rate;
   } else ShellOptions->rate = "";
   
-  if(strcmp(maintab->m_option6.m_user,"")!=0){
+  /* These four reach the engine as quoted arguments, and a value it will not take aborts the
+     mirror (a dash, an over-long one) or comes back mangled from doit.log (a quote). */
+  if (isQuotedArgument(maintab->m_option6.m_user, HTS_URLMAXSIZE)) {
     ShellOptions->user = "\"";
     ShellOptions->user += maintab->m_option6.m_user;
     ShellOptions->user += "\"";
   } else ShellOptions->user = "";
-  
-  if(strcmp(maintab->m_option6.m_footer,"")!=0){
+
+  if (isQuotedArgument(maintab->m_option6.m_footer, FOOTER_MAXBYTES)) {
     ShellOptions->footer = "\"";
     ShellOptions->footer += maintab->m_option6.m_footer;
     ShellOptions->footer += "\"";
   } else ShellOptions->footer = "";
-  
-  if(strcmp(maintab->m_option6.m_accept_language,"")!=0){
+
+  if (isQuotedArgument(maintab->m_option6.m_accept_language, LANGISO_MAXBYTES)) {
     ShellOptions->accept_language = "\"";
     ShellOptions->accept_language += maintab->m_option6.m_accept_language;
     ShellOptions->accept_language += "\"";
@@ -740,7 +742,7 @@ void compute_options() {
     ShellOptions->other_headers += maintab->m_option6.m_other_headers;
   } else ShellOptions->other_headers = "";
 
-  if(strcmp(maintab->m_option6.m_default_referer,"")!=0){
+  if (isQuotedArgument(maintab->m_option6.m_default_referer, REFERER_MAXBYTES)) {
     ShellOptions->default_referer = "\"";
     ShellOptions->default_referer += maintab->m_option6.m_default_referer;
     ShellOptions->default_referer += "\"";
@@ -1899,12 +1901,12 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
 
 // A value restored from a profile never met the dialog's validation, so an option's
 // argument is checked here as well: the engine aborts the whole mirror on an over-long one.
-static BOOL fitsEngineArgument(const CString &value) {
+static BOOL fitsEngineArgument(const CString &value, size_t maxBytes) {
   if (value.IsEmpty())
     return FALSE;
   // the engine measures the UTF-8 bytes strdupt_utf8() will hand it, not these characters
   char *utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());  // freet() nulls it, so not const
-  const BOOL fits = utf8 == NULL || strlen(utf8) < HTS_URLMAXSIZE;
+  const BOOL fits = utf8 == NULL || strlen(utf8) < maxBytes;
   if (utf8 != NULL)
     freet(utf8);
   return fits;
@@ -1912,7 +1914,14 @@ static BOOL fitsEngineArgument(const CString &value) {
 
 // A leading dash reads as the argument being missing, which aborts the mirror.
 static BOOL isEngineArgument(const CString &value) {
-  return fitsEngineArgument(value) && value[0] != '-';
+  return fitsEngineArgument(value, HTS_URLMAXSIZE) && value[0] != '-';
+}
+
+// see Shell.h
+BOOL isQuotedArgument(const CString &value, size_t maxBytes) {
+  // interior quotes are escaped into doit.log, a leading one is not: the update run that
+  // replays it reads the rest of the line as the value, options included
+  return fitsEngineArgument(value, maxBytes) && value[0] != '-' && value[0] != '"';
 }
 
 // TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".

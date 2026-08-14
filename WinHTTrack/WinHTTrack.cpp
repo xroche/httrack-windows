@@ -468,6 +468,38 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("host-alias rules ok\n");
     }
+    /* Pin what the shell agrees to hand the options taking a quoted argument: a value the
+       engine refuses costs the whole mirror, or the update that replays it. */
+    {
+      static const struct { const char* value; int repeat; size_t max; BOOL want; } quoted[] = {
+        { HTS_DEFAULT_FOOTER, 1, FOOTER_MAXBYTES, TRUE },
+        { HTS_NOPARAM, 1, FOOTER_MAXBYTES, TRUE },   /* asks for no footer at all */
+        { "", 1, FOOTER_MAXBYTES, FALSE },
+        { "-<!-- x -->", 1, FOOTER_MAXBYTES, FALSE },  /* reads as the argument being missing */
+        { "\"<!-- x -->\"", 1, FOOTER_MAXBYTES, FALSE },  /* doit.log writes a leading quote back unescaped */
+        { "<!-- \"x\" -->", 1, FOOTER_MAXBYTES, TRUE },   /* only a leading quote hurts */
+        { "en, fr", 1, LANGISO_MAXBYTES, TRUE },
+        { "x", FOOTER_MAXBYTES - 1, FOOTER_MAXBYTES, TRUE },   /* the cap excludes itself */
+        { "x", FOOTER_MAXBYTES, FOOTER_MAXBYTES, FALSE },
+        { "x", LANGISO_MAXBYTES, LANGISO_MAXBYTES, FALSE },
+        /* under the character cap, over the byte one: an accent is at least two UTF-8 bytes */
+        { "\xE9", 200, FOOTER_MAXBYTES, FALSE },
+        { NULL, 0, 0, FALSE }
+      };
+      for(int k=0 ; quoted[k].value != NULL ; k++) {
+        CString value;
+        for(int n=0 ; n<quoted[k].repeat ; n++)
+          value += quoted[k].value;
+        if (isQuotedArgument(value, quoted[k].max) != quoted[k].want) {
+          fprintf(stderr, "FATAL: quoted argument '%s' (%d chars, cap %d bytes) judged %s\n",
+                  (LPCSTR) value.Left(40), (int) value.GetLength(), (int) quoted[k].max,
+                  quoted[k].want ? "bad, expected good" : "good, expected bad");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("quoted arguments ok\n");
+    }
     /* Only reachable by opening the Browser ID page, so pin the presets here: a
        stray %s or a misspelt {field} would reach every mirrored page. */
     {
@@ -483,6 +515,11 @@ BOOL CWinHTTrackApp::InitInstance()
         const char* p = FooterPresets[k];
         if (strstr(p, "%s") != NULL) {
           fprintf(stderr, "FATAL: footer preset '%s' uses the legacy %%s model\n", p);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        if (!isQuotedArgument(p, FOOTER_MAXBYTES)) {
+          fprintf(stderr, "FATAL: footer preset '%s' is one the shell would drop\n", p);
           fflush(stderr);
           ExitProcess(3);
         }
