@@ -221,13 +221,16 @@ BOOL isHostAliasArgument(const CString &rule);
 
 /* What the engine takes on the options whose argument the shell quotes, in UTF-8 bytes
    (htscoremain.c, cases %F, %l and %R; -F takes whatever a whole argument may be). */
-#define FOOTER_MAXBYTES   254
-#define LANGISO_MAXBYTES  62
-#define REFERER_MAXBYTES  254
+#define WHTT_FOOTER_MAXBYTES   254
+#define WHTT_LANGISO_MAXBYTES  62
+#define WHTT_REFERER_MAXBYTES  254
 
-/* TRUE if VALUE may be handed to such an option: under MAXBYTES, and opening with neither a
-   dash nor a quote — the engine takes neither. Exposed for --selftest. */
-BOOL isQuotedArgument(const CString &value, size_t maxBytes);
+/* TRUE if VALUE may be handed to the option each one names: short enough once converted, and
+   opening with neither a dash nor a quote. Exposed for --selftest. */
+BOOL isUserAgentArgument(const CString &value);
+BOOL isFooterArgument(const CString &value);
+BOOL isLangIsoArgument(const CString &value);
+BOOL isRefererArgument(const CString &value);
 
 void Build_TopIndex(BOOL check_empty=TRUE);
 

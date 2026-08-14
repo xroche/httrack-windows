@@ -468,38 +468,47 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("host-alias rules ok\n");
     }
-    /* Pin what the shell agrees to hand the options taking a quoted argument: a value the
-       engine refuses costs the whole mirror, or the update that replays it. */
+    /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
+       refuses costs the whole mirror, and each field carries its own cap. */
     {
-      static const struct { const char* value; int repeat; size_t max; BOOL want; } quoted[] = {
-        { HTS_DEFAULT_FOOTER, 1, FOOTER_MAXBYTES, TRUE },
-        { HTS_NOPARAM, 1, FOOTER_MAXBYTES, TRUE },   /* asks for no footer at all */
-        { "", 1, FOOTER_MAXBYTES, FALSE },
-        { "-<!-- x -->", 1, FOOTER_MAXBYTES, FALSE },  /* reads as the argument being missing */
-        { "\"<!-- x -->\"", 1, FOOTER_MAXBYTES, FALSE },  /* doit.log writes a leading quote back unescaped */
-        { "<!-- \"x\" -->", 1, FOOTER_MAXBYTES, TRUE },   /* only a leading quote hurts */
-        { "en, fr", 1, LANGISO_MAXBYTES, TRUE },
-        { "x", FOOTER_MAXBYTES - 1, FOOTER_MAXBYTES, TRUE },   /* the cap excludes itself */
-        { "x", FOOTER_MAXBYTES, FOOTER_MAXBYTES, FALSE },
-        { "x", LANGISO_MAXBYTES, LANGISO_MAXBYTES, FALSE },
-        /* the user-agent has only the argument cap, which the two quotes eat into */
-        { "x", HTS_CDLMAXSIZE - 2, HTS_CDLMAXSIZE, FALSE },
-        { "x", HTS_CDLMAXSIZE - 3, HTS_CDLMAXSIZE, TRUE },
-        /* under the character cap, over the byte one: an accent is at least two UTF-8 bytes */
-        { "\xE9", 200, FOOTER_MAXBYTES, FALSE },
-        { NULL, 0, 0, FALSE }
+      static const struct { BOOL (*ok)(const CString &); const char* field;
+                            const char* value; int repeat; BOOL want; } quoted[] = {
+        { isFooterArgument, "footer", HTS_DEFAULT_FOOTER, 1, TRUE },
+        { isFooterArgument, "footer", HTS_NOPARAM, 1, TRUE },   /* asks for no footer at all */
+        { isFooterArgument, "footer", "", 1, FALSE },
+        { isFooterArgument, "footer", "-<!-- x -->", 1, FALSE },  /* reads as the argument being missing */
+        { isFooterArgument, "footer", "\"<!-- x -->\"", 1, FALSE },  /* doit.log echoes it unescaped */
+        { isFooterArgument, "footer", "<!-- \"x\" -->", 1, TRUE },   /* only a leading quote hurts */
+        { isFooterArgument, "footer", "x", WHTT_FOOTER_MAXBYTES - 1, TRUE },  /* one under the cap fits */
+        { isFooterArgument, "footer", "x", WHTT_FOOTER_MAXBYTES, FALSE },
+        { isLangIsoArgument, "accept-language", "en, fr", 1, TRUE },
+        { isLangIsoArgument, "accept-language", "x", WHTT_LANGISO_MAXBYTES - 1, TRUE },
+        { isLangIsoArgument, "accept-language", "x", WHTT_LANGISO_MAXBYTES, FALSE },
+        { isRefererArgument, "referer", "x", WHTT_REFERER_MAXBYTES - 1, TRUE },
+        { isRefererArgument, "referer", "x", WHTT_REFERER_MAXBYTES, FALSE },
+        /* the user-agent has no cap of its own, only the argument one the quotes eat into */
+        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 3, TRUE },
+        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 2, FALSE },
+        { NULL, NULL, NULL, 0, FALSE }
       };
-      for(int k=0 ; quoted[k].value != NULL ; k++) {
+      for(int k=0 ; quoted[k].field != NULL ; k++) {
         CString value;
         for(int n=0 ; n<quoted[k].repeat ; n++)
           value += quoted[k].value;
-        if (isQuotedArgument(value, quoted[k].max) != quoted[k].want) {
-          fprintf(stderr, "FATAL: quoted argument '%s' (%d chars, cap %d bytes) judged %s\n",
-                  (LPCSTR) value.Left(40), (int) value.GetLength(), (int) quoted[k].max,
+        if (quoted[k].ok(value) != quoted[k].want) {
+          fprintf(stderr, "FATAL: %s argument '%s' (%d chars) judged %s\n",
+                  quoted[k].field, (LPCSTR) value.Left(40), (int) value.GetLength(),
                   quoted[k].want ? "bad, expected good" : "good, expected bad");
           fflush(stderr);
           ExitProcess(3);
         }
+      }
+      /* The caps count the UTF-8 bytes the engine will see: 200 accented characters are 400 of
+         them. Under a UTF-8 ANSI codepage the conversion is a copy, and 200 stay 200. */
+      if (GetACP() != CP_UTF8 && isFooterArgument(CString('\xE9', 200))) {
+        fprintf(stderr, "FATAL: a 400-byte accented footer was judged short enough\n");
+        fflush(stderr);
+        ExitProcess(3);
       }
       printf("quoted arguments ok\n");
     }
@@ -579,7 +588,7 @@ BOOL CWinHTTrackApp::InitInstance()
           fflush(stderr);
           ExitProcess(3);
         }
-        if (!isQuotedArgument(p, FOOTER_MAXBYTES)) {
+        if (!isFooterArgument(p)) {
           fprintf(stderr, "FATAL: footer preset '%s' is one the shell would drop\n", p);
           fflush(stderr);
           ExitProcess(3);

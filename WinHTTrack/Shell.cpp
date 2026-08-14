@@ -718,21 +718,20 @@ void compute_options() {
     ShellOptions->rate += maintab->m_option4.m_rate;
   } else ShellOptions->rate = "";
   
-  /* These four reach the engine as quoted arguments, and a value it will not take aborts the
-     mirror (a dash, an over-long one) or comes back mangled from doit.log (a quote). */
-  if (isQuotedArgument(maintab->m_option6.m_user, HTS_CDLMAXSIZE)) {
+  // a value these four cannot carry is left out: passing it would abort the mirror
+  if (isUserAgentArgument(maintab->m_option6.m_user)) {
     ShellOptions->user = "\"";
     ShellOptions->user += maintab->m_option6.m_user;
     ShellOptions->user += "\"";
   } else ShellOptions->user = "";
 
-  if (isQuotedArgument(maintab->m_option6.m_footer, FOOTER_MAXBYTES)) {
+  if (isFooterArgument(maintab->m_option6.m_footer)) {
     ShellOptions->footer = "\"";
     ShellOptions->footer += maintab->m_option6.m_footer;
     ShellOptions->footer += "\"";
   } else ShellOptions->footer = "";
 
-  if (isQuotedArgument(maintab->m_option6.m_accept_language, LANGISO_MAXBYTES)) {
+  if (isLangIsoArgument(maintab->m_option6.m_accept_language)) {
     ShellOptions->accept_language = "\"";
     ShellOptions->accept_language += maintab->m_option6.m_accept_language;
     ShellOptions->accept_language += "\"";
@@ -742,7 +741,7 @@ void compute_options() {
     ShellOptions->other_headers += maintab->m_option6.m_other_headers;
   } else ShellOptions->other_headers = "";
 
-  if (isQuotedArgument(maintab->m_option6.m_default_referer, REFERER_MAXBYTES)) {
+  if (isRefererArgument(maintab->m_option6.m_default_referer)) {
     ShellOptions->default_referer = "\"";
     ShellOptions->default_referer += maintab->m_option6.m_default_referer;
     ShellOptions->default_referer += "\"";
@@ -1899,8 +1898,8 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
   }
 }
 
-// A value restored from a profile never met the dialog's validation, so an option's
-// argument is checked here as well: the engine aborts the whole mirror on an over-long one.
+// A value restored from a profile never met the dialog, so it is checked here instead,
+// against the cap of the option carrying it.
 static BOOL fitsEngineArgument(const CString &value, size_t maxBytes) {
   if (value.IsEmpty())
     return FALSE;
@@ -1917,15 +1916,30 @@ static BOOL isEngineArgument(const CString &value) {
   return fitsEngineArgument(value, HTS_URLMAXSIZE) && value[0] != '-';
 }
 
-// see Shell.h
-BOOL isQuotedArgument(const CString &value, size_t maxBytes) {
-  // the quotes wrapped around it count toward the engine's cap on a whole argument
-  const size_t quoted = (size_t) HTS_CDLMAXSIZE - 2;
+// A leading dash reads as the argument being missing, and doit.log echoes a leading quote
+// unescaped, so the run replaying it swallows the rest of the line.
+static BOOL isQuotedArgument(const CString &value, size_t maxBytes) {
+  const size_t quoted = (size_t) HTS_CDLMAXSIZE - 2;   // the quotes count as argument too
   const size_t cap = maxBytes < quoted ? maxBytes : quoted;
 
-  // interior quotes are escaped into doit.log, a leading one is not: the update run that
-  // replays it reads the rest of the line as the value, options included
   return fitsEngineArgument(value, cap) && value[0] != '-' && value[0] != '"';
+}
+
+// see Shell.h
+BOOL isUserAgentArgument(const CString &value) {
+  return isQuotedArgument(value, HTS_CDLMAXSIZE);
+}
+
+BOOL isFooterArgument(const CString &value) {
+  return isQuotedArgument(value, WHTT_FOOTER_MAXBYTES);
+}
+
+BOOL isLangIsoArgument(const CString &value) {
+  return isQuotedArgument(value, WHTT_LANGISO_MAXBYTES);
+}
+
+BOOL isRefererArgument(const CString &value) {
+  return isQuotedArgument(value, WHTT_REFERER_MAXBYTES);
 }
 
 // TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".
@@ -1941,7 +1955,7 @@ static BOOL isHostAliasRule(const CString &rule) {
 // see Shell.h
 BOOL isHostAliasArgument(const CString &rule) {
   // --host-alias takes an alias starting with a dash, so no dash test here (engine #1179)
-  return isHostAliasRule(rule) && fitsEngineArgument(rule);
+  return isHostAliasRule(rule) && fitsEngineArgument(rule, HTS_URLMAXSIZE);
 }
 
 static BOOL isAllDigits(const CString &value) {
