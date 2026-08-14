@@ -1920,7 +1920,8 @@ static BOOL isEngineArgument(const CString &value) {
 // see Shell.h
 BOOL isQuotedArgument(const CString &value, size_t maxBytes) {
   // the quotes wrapped around it count toward the engine's cap on a whole argument
-  const size_t cap = maxBytes < HTS_CDLMAXSIZE - 2 ? maxBytes : HTS_CDLMAXSIZE - 2;
+  const size_t quoted = (size_t) HTS_CDLMAXSIZE - 2;
+  const size_t cap = maxBytes < quoted ? maxBytes : quoted;
 
   // interior quotes are escaped into doit.log, a leading one is not: the update run that
   // replays it reads the rest of the line as the value, options included
