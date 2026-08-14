@@ -37,6 +37,18 @@ Please visit our Website: http://www.httrack.com
 static char THIS_FILE[] = __FILE__;
 #endif
 
+extern const char *const FooterPresets[] = {
+  HTS_DEFAULT_FOOTER,
+  "<!-- Mirrored by HTTrack Website Copier/" HTTRACK_AFF_VERSION
+    " " HTTRACK_AFF_AUTHORS " -->",
+  "<!-- Mirrored from {addr}{path} by HTTrack Website Copier/{version} "
+    HTTRACK_AFF_AUTHORS ", {date} -->",
+  "<!-- Mirrored from {url} by HTTrack Website Copier/{version} "
+    HTTRACK_AFF_AUTHORS ", {date}; last modified: {lastmodified} -->",
+  HTS_NOPARAM,   /* the engine reads this sentinel as an empty parameter */
+  NULL
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab6 property page
 
@@ -93,7 +105,17 @@ BOOL COptionTab6::OnInitDialog()
 	CPropertyPage::OnInitDialog();
   BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
-	
+
+  /* Filled after the base call: DDX_CBString selects by PREFIX, so an already
+     filled list would rewrite a footer that merely starts like a preset. */
+  {
+    CComboBox *const footer = (CComboBox*) GetDlgItem(IDC_footer);
+    if (footer != NULL) {
+      for(int k=0 ; FooterPresets[k] != NULL ; k++)
+        footer->AddString(FooterPresets[k]);
+    }
+  }
+
   // Patcher l'interface pour les Français ;-)
   if (LANG_T(-1)) {    // Patcher en français
     SetDlgItemTextCP(this, IDC_STATIC_browsid,LANG(LANG_I43)); // "Identité");
