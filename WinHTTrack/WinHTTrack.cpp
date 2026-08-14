@@ -482,6 +482,9 @@ BOOL CWinHTTrackApp::InitInstance()
         { "x", FOOTER_MAXBYTES - 1, FOOTER_MAXBYTES, TRUE },   /* the cap excludes itself */
         { "x", FOOTER_MAXBYTES, FOOTER_MAXBYTES, FALSE },
         { "x", LANGISO_MAXBYTES, LANGISO_MAXBYTES, FALSE },
+        /* the user-agent has only the argument cap, which the two quotes eat into */
+        { "x", HTS_CDLMAXSIZE - 2, HTS_CDLMAXSIZE, FALSE },
+        { "x", HTS_CDLMAXSIZE - 3, HTS_CDLMAXSIZE, TRUE },
         /* under the character cap, over the byte one: an accent is at least two UTF-8 bytes */
         { "\xE9", 200, FOOTER_MAXBYTES, FALSE },
         { NULL, 0, 0, FALSE }

@@ -220,7 +220,7 @@ void splitRulesInArray(CStringArray &rules, const CString &str);
 BOOL isHostAliasArgument(const CString &rule);
 
 /* What the engine takes on the options whose argument the shell quotes, in UTF-8 bytes
-   (htscoremain.c, cases %F, %l and %R; -F has no cap of its own). */
+   (htscoremain.c, cases %F, %l and %R; -F takes whatever a whole argument may be). */
 #define FOOTER_MAXBYTES   254
 #define LANGISO_MAXBYTES  62
 #define REFERER_MAXBYTES  254

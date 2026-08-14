@@ -720,7 +720,7 @@ void compute_options() {
   
   /* These four reach the engine as quoted arguments, and a value it will not take aborts the
      mirror (a dash, an over-long one) or comes back mangled from doit.log (a quote). */
-  if (isQuotedArgument(maintab->m_option6.m_user, HTS_URLMAXSIZE)) {
+  if (isQuotedArgument(maintab->m_option6.m_user, HTS_CDLMAXSIZE)) {
     ShellOptions->user = "\"";
     ShellOptions->user += maintab->m_option6.m_user;
     ShellOptions->user += "\"";
@@ -1919,9 +1919,12 @@ static BOOL isEngineArgument(const CString &value) {
 
 // see Shell.h
 BOOL isQuotedArgument(const CString &value, size_t maxBytes) {
+  // the quotes wrapped around it count toward the engine's cap on a whole argument
+  const size_t cap = maxBytes < HTS_CDLMAXSIZE - 2 ? maxBytes : HTS_CDLMAXSIZE - 2;
+
   // interior quotes are escaped into doit.log, a leading one is not: the update run that
   // replays it reads the rest of the line as the value, options included
-  return fitsEngineArgument(value, maxBytes) && value[0] != '-' && value[0] != '"';
+  return fitsEngineArgument(value, cap) && value[0] != '-' && value[0] != '"';
 }
 
 // TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".
