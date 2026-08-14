@@ -219,14 +219,8 @@ void splitRulesInArray(CStringArray &rules, const CString &str);
    hts_host_alias_rule_ok(), and short enough for argv. A rule it refuses aborts the mirror. */
 BOOL isHostAliasArgument(const CString &rule);
 
-/* What the engine takes on the options whose argument the shell quotes, in UTF-8 bytes
-   (htscoremain.c, cases %F, %l and %R; -F takes whatever a whole argument may be). */
-#define WHTT_FOOTER_MAXBYTES   254
-#define WHTT_LANGISO_MAXBYTES  62
-#define WHTT_REFERER_MAXBYTES  254
-
-/* TRUE if VALUE may be handed to the option each one names: short enough once converted, and
-   opening with neither a dash nor a quote. Exposed for --selftest. */
+/* TRUE if VALUE may be handed to the option each one names: short enough once converted,
+   and not opening with a dash. Exposed for --selftest. */
 BOOL isUserAgentArgument(const CString &value);
 BOOL isFooterArgument(const CString &value);
 BOOL isLangIsoArgument(const CString &value);

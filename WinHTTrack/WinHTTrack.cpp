@@ -477,15 +477,14 @@ BOOL CWinHTTrackApp::InitInstance()
         { isFooterArgument, "footer", HTS_NOPARAM, 1, TRUE },   /* asks for no footer at all */
         { isFooterArgument, "footer", "", 1, FALSE },
         { isFooterArgument, "footer", "-<!-- x -->", 1, FALSE },  /* reads as the argument being missing */
-        { isFooterArgument, "footer", "\"<!-- x -->\"", 1, FALSE },  /* doit.log echoes it unescaped */
-        { isFooterArgument, "footer", "<!-- \"x\" -->", 1, TRUE },   /* only a leading quote hurts */
-        { isFooterArgument, "footer", "x", WHTT_FOOTER_MAXBYTES - 1, TRUE },  /* one under the cap fits */
-        { isFooterArgument, "footer", "x", WHTT_FOOTER_MAXBYTES, FALSE },
+        { isFooterArgument, "footer", "\"<!-- x -->\"", 1, TRUE },   /* the quote is the engine's to escape */
+        { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE - 1, TRUE },  /* one under the cap fits */
+        { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE, FALSE },
         { isLangIsoArgument, "accept-language", "en, fr", 1, TRUE },
-        { isLangIsoArgument, "accept-language", "x", WHTT_LANGISO_MAXBYTES - 1, TRUE },
-        { isLangIsoArgument, "accept-language", "x", WHTT_LANGISO_MAXBYTES, FALSE },
-        { isRefererArgument, "referer", "x", WHTT_REFERER_MAXBYTES - 1, TRUE },
-        { isRefererArgument, "referer", "x", WHTT_REFERER_MAXBYTES, FALSE },
+        { isLangIsoArgument, "accept-language", "x", HTS_LANGISO_MAXSIZE - 1, TRUE },
+        { isLangIsoArgument, "accept-language", "x", HTS_LANGISO_MAXSIZE, FALSE },
+        { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE - 1, TRUE },
+        { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE, FALSE },
         /* the user-agent has no cap of its own, only the argument one the quotes eat into */
         { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 3, TRUE },
         { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 2, FALSE },
@@ -573,8 +572,6 @@ BOOL CWinHTTrackApp::InitInstance()
     /* Only reachable by opening the Browser ID page, so pin the presets here: a
        stray %s or a misspelt {field} would reach every mirrored page. */
     {
-      static const char *const known[] = { "addr", "path", "url", "date",
-        "lastmodified", "version", "mime", "charset", "status", "size", NULL };
       if (strcmp(FooterPresets[0], HTS_DEFAULT_FOOTER) != 0) {
         fprintf(stderr, "FATAL: first footer preset is '%s', expected the engine default '%s'\n",
                 FooterPresets[0], HTS_DEFAULT_FOOTER);
@@ -606,14 +603,15 @@ BOOL CWinHTTrackApp::InitInstance()
           if (*p == '{' && p[1] == '{') {
             p++;                  /* the engine emits a literal brace for "{{" */
           } else if (*p == '{') {
+            char name[32];                        /* longer than any field the engine expands */
             const char *const end = strchr(p + 1, '}');
-            const size_t len = (end != NULL) ? (size_t) (end - p - 1) : 0;
-            int j;
-            for(j=0 ; end != NULL && known[j] != NULL ; j++) {
-              if (strlen(known[j]) == len && strncmp(known[j], p + 1, len) == 0)
-                break;
-            }
-            if (end == NULL || known[j] == NULL) {
+            const size_t len = (end != NULL) ? (size_t) (end - p - 1) : sizeof(name);
+
+            name[0] = '\0';
+            if (len < sizeof(name))
+              strncatbuff(name, p + 1, len);
+            /* ask the engine's own expander, so a field added there needs no edit here */
+            if (!hts_footer_field_ok(name)) {
               fprintf(stderr, "FATAL: footer preset '%s' names no engine field at '%s'\n",
                       FooterPresets[k], p);
               fflush(stderr);

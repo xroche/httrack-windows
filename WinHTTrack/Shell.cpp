@@ -1912,34 +1912,33 @@ static BOOL fitsEngineArgument(const CString &value, size_t maxBytes) {
 }
 
 // A leading dash reads as the argument being missing, which aborts the mirror.
-static BOOL isEngineArgument(const CString &value) {
-  return fitsEngineArgument(value, HTS_URLMAXSIZE) && value[0] != '-';
+static BOOL isEngineArgument(const CString &value, size_t maxBytes) {
+  return fitsEngineArgument(value, maxBytes) && value[0] != '-';
 }
 
-// A leading dash reads as the argument being missing, and doit.log echoes a leading quote
-// unescaped, so the run replaying it swallows the rest of the line.
+// Same, for the options whose argument the shell wraps in quotes of its own.
 static BOOL isQuotedArgument(const CString &value, size_t maxBytes) {
-  const size_t quoted = (size_t) HTS_CDLMAXSIZE - 2;   // the quotes count as argument too
+  const size_t quoted = (size_t) HTS_CDLMAXSIZE - 2;   // those quotes count as argument too
   const size_t cap = maxBytes < quoted ? maxBytes : quoted;
 
-  return fitsEngineArgument(value, cap) && value[0] != '-' && value[0] != '"';
+  return isEngineArgument(value, cap);
 }
 
 // see Shell.h
 BOOL isUserAgentArgument(const CString &value) {
-  return isQuotedArgument(value, HTS_CDLMAXSIZE);
+  return isQuotedArgument(value, HTS_CDLMAXSIZE);   // -F has no cap of its own
 }
 
 BOOL isFooterArgument(const CString &value) {
-  return isQuotedArgument(value, WHTT_FOOTER_MAXBYTES);
+  return isQuotedArgument(value, HTS_FOOTER_MAXSIZE);
 }
 
 BOOL isLangIsoArgument(const CString &value) {
-  return isQuotedArgument(value, WHTT_LANGISO_MAXBYTES);
+  return isQuotedArgument(value, HTS_LANGISO_MAXSIZE);
 }
 
 BOOL isRefererArgument(const CString &value) {
-  return isQuotedArgument(value, WHTT_REFERER_MAXBYTES);
+  return isQuotedArgument(value, HTS_REFERER_MAXSIZE);
 }
 
 // TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".
@@ -2077,7 +2076,7 @@ void lance(void) {
     CString sitemapurl = ShellOptions->sitemapurl;
     sitemapurl.Trim();
     // an address given here replaces the robots.txt then /sitemap.xml probe
-    if (isEngineArgument(sitemapurl)) {
+    if (isEngineArgument(sitemapurl, HTS_URLMAXSIZE)) {
       args.Add("--sitemap-url");
       args.Add(sitemapurl);
     } else {
@@ -2090,7 +2089,7 @@ void lance(void) {
     CString singlefilemax = ShellOptions->singlefilemax;
     singlefilemax.Trim();
     // the cap implies --single-file, so it must not leak out on its own
-    if (isAllDigits(singlefilemax) && isEngineArgument(singlefilemax)) {
+    if (isAllDigits(singlefilemax) && isEngineArgument(singlefilemax, HTS_URLMAXSIZE)) {
       args.Add("--single-file-max-size");
       args.Add(singlefilemax);
     }
