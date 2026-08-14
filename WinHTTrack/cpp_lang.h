@@ -369,6 +369,9 @@ Please visit our Website: http://www.httrack.com
 #define LANG_M7 LANGSEL("LANG_M7")
 #define LANG_M8 LANGSEL("LANG_M8")
 #define LANG_M9 LANGSEL("LANG_M9")
+/* No lang file carries M10/M11 yet; the .rc English caption stands in. */
+#define LANG_M10 LANGSEL("LANG_M10")
+#define LANG_M11 LANGSEL("LANG_M11")
 #define LANG_N1 LANGSEL("LANG_N1")
 #define LANG_N2 LANGSEL("LANG_N2")
 #define LANG_O1 LANGSEL("LANG_O1")
