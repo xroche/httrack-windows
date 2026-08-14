@@ -46,25 +46,35 @@ extern HICON httrack_icon;
 // WizLinks dialog
 
 
+int WizHostScopes(const char* url, CStringArray& out)
+{
+  char scope[HTS_URLMAXSIZE];
+  int k;
+
+  for(k=0 ; hts_wizard_host_scope(url, k, scope, sizeof(scope)) ; k++)
+    out.Add(scope);
+  return k;
+}
+
+
 bool WizLinkAnswer(int lnk, int scope, char *dst, size_t dstsize)
 {
   /* Radio rows 0..5 of IDD_wizard_lnk; the engine has no answer 3. */
   static const char *const fixed[] = { "0", "1", "2", "4", "5", "6" };
+  int n = -1;
 
   if (dstsize == 0)
     return false;
   dst[0] = '\0';
-  if (lnk >= 0 && lnk < (int) (sizeof(fixed) / sizeof(*fixed))) {
-    _snprintf_s(dst, dstsize, _TRUNCATE, "%s", fixed[lnk]);
-    return true;
-  }
+  if (lnk >= 0 && lnk < (int) (sizeof(fixed) / sizeof(*fixed)))
+    n = _snprintf_s(dst, dstsize, _TRUNCATE, "%s", fixed[lnk]);
   /* The last two rows carry the scope combo's index; an empty menu disables them. */
-  if ((lnk == 6 || lnk == 7) && scope >= 0) {
-    _snprintf_s(dst, dstsize, _TRUNCATE, "%d",
-                (lnk == 6 ? HTS_WIZARD_SCOPE_EXCLUDE : HTS_WIZARD_SCOPE_INCLUDE) + scope);
-    return true;
-  }
-  return false;
+  else if ((lnk == 6 || lnk == 7) && scope >= 0)
+    n = _snprintf_s(dst, dstsize, _TRUNCATE, "%d",
+                    (lnk == 6 ? HTS_WIZARD_SCOPE_EXCLUDE : HTS_WIZARD_SCOPE_INCLUDE) + scope);
+  if (n < 0)     /* a truncated answer would be a valid-looking different one */
+    dst[0] = '\0';
+  return n >= 0;
 }
 
 
@@ -84,6 +94,7 @@ void WizLinks::DoDataExchange(CDataExchange* pDX)
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(WizLinks)
 	DDX_Radio(pDX, IDC_ch1, m_lnk);
+	DDX_Control(pDX, IDC_hostscope, m_ctl_hostscope);
 	DDX_CBIndex(pDX, IDC_hostscope, m_scope);
 	DDX_Text(pDX, IDC_URL, m_url);
 	//}}AFX_DATA_MAP
@@ -135,21 +146,22 @@ BOOL WizLinks::OnInitDialog()
     SetDlgItemTextLang(this, IDOK,LANG(LANG_OK));
   }
 
-  // Let the engine split the host, or the menu and the filter it later applies
-  // drift. The combo is unsorted, so its index is the engine's k.
+  // The engine splits the host, so the menu and the filter it later applies agree.
+  // The combo is unsorted, so its index is the engine's k.
   {
-    CComboBox* combo = (CComboBox*) GetDlgItem(IDC_hostscope);
-    char scope[HTS_URLMAXSIZE];
+    CStringArray scopes;
+    const int n = WizHostScopes((LPCTSTR) m_url, scopes);
     int k;
 
-    for(k=0 ; hts_wizard_host_scope((LPCTSTR) m_url, k, scope, sizeof(scope)) ; k++)
-      combo->AddString(scope);
+    for(k=0 ; k<n ; k++)
+      if (m_ctl_hostscope.AddString(scopes[k]) < 0)   // a dropped label shifts every later index
+        break;
     if (k == 0) {
       GetDlgItem(IDC_ch7)->EnableWindow(FALSE);
       GetDlgItem(IDC_ch8)->EnableWindow(FALSE);
-      combo->EnableWindow(FALSE);
+      m_ctl_hostscope.EnableWindow(FALSE);
     } else
-      combo->SetCurSel(0);
+      m_ctl_hostscope.SetCurSel(0);
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control

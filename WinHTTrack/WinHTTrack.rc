@@ -320,13 +320,13 @@ BEGIN
     LTEXT           "",IDC_question,7,7,183,72
 END
 
-IDD_wizard_lnk DIALOG  0, 0, 320, 146
+IDD_wizard_lnk DIALOG  0, 0, 320, 150
 STYLE DS_SETFONT | WS_CAPTION | WS_SYSMENU
 CAPTION "Link detected.."
 FONT 8, "MS Sans Serif"
 BEGIN
     EDITTEXT        IDC_URL,7,7,306,32,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | NOT WS_TABSTOP
-    GROUPBOX        "Choose a rule",IDC_STATIC_rule,7,46,306,72
+    GROUPBOX        "Choose a rule",IDC_STATIC_rule,7,46,306,76
     CONTROL         "Ignore this link",IDC_ch1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,14,58,140,10
     CONTROL         "Ignore links in this subdir",IDC_ch2,"Button",BS_AUTORADIOBUTTON,14,70,140,10
     CONTROL         "Ignore all domain",IDC_ch3,"Button",BS_AUTORADIOBUTTON,14,82,140,10
@@ -335,9 +335,9 @@ BEGIN
     CONTROL         "Mirror the whole domain",IDC_ch6,"Button",BS_AUTORADIOBUTTON,162,82,145,10
     CONTROL         "Ignore this domain and below:",IDC_ch7,"Button",BS_AUTORADIOBUTTON,14,94,140,10
     CONTROL         "Mirror this domain and below:",IDC_ch8,"Button",BS_AUTORADIOBUTTON,162,94,145,10
-    COMBOBOX        IDC_hostscope,14,106,293,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Skip All",IDskipall,7,124,50,14
-    DEFPUSHBUTTON   "Ok",IDOK,263,124,50,14
+    COMBOBOX        IDC_hostscope,14,106,293,80,CBS_DROPDOWNLIST | WS_GROUP | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Skip All",IDskipall,7,128,50,14
+    DEFPUSHBUTTON   "Ok",IDOK,263,128,50,14
 END
 
 IDD_ABOUT DIALOG  0, 0, 235, 226
@@ -926,7 +926,7 @@ BEGIN
         VERTGUIDE, 14
         VERTGUIDE, 162
         TOPMARGIN, 7
-        BOTTOMMARGIN, 124
+        BOTTOMMARGIN, 142
         HORZGUIDE, 46
         HORZGUIDE, 58
         HORZGUIDE, 70

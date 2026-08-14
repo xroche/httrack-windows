@@ -36,9 +36,14 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // WizLinks dialog
 
-/** Write into dst the query3 answer for radio row 'lnk' and scope row 'scope'
-    (-1 meaning unset), returning whether the pair means anything; dst is
-    emptied when it does not. Split out so --selftest can pin the wire values. */
+// Append to out the host scopes the engine offers for url, widest last, and return
+// how many. None for an IP literal, so an empty menu is normal.
+// Public only for --selftest.
+int WizHostScopes(const char* url, CStringArray& out);
+
+// Write into dst (one byte at least) the wizard answer for radio row lnk and scope
+// row scope, -1 when unset. False, and dst emptied, if the pair means nothing.
+// Public only for --selftest.
 bool WizLinkAnswer(int lnk, int scope, char *dst, size_t dstsize);
 
 class WizLinks : public CDialog
@@ -54,6 +59,7 @@ public:
 // Dialog Data
 	//{{AFX_DATA(WizLinks)
 	enum { IDD = IDD_wizard_lnk };
+	CComboBox	m_ctl_hostscope;
 	int		m_lnk;
 	int		m_scope;
 	CString	m_url;

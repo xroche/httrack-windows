@@ -474,10 +474,13 @@ BOOL CWinHTTrackApp::InitInstance()
       static const struct { int lnk; int scope; const char* want; } answers[] = {
         { 0, -1, "0" }, { 1, -1, "1" }, { 2, -1, "2" },
         { 3, -1, "4" }, { 4, -1, "5" }, { 5, -1, "6" },   /* the engine has no 3 */
+        /* a populated combo leaves scope at 0, so the plain rows must ignore it */
+        { 0, 0, "0" },  { 1, 0, "1" },  { 2, 0, "2" },
+        { 3, 0, "4" },  { 4, 0, "5" },  { 5, 0, "6" },
         { 6, 0, "2000" }, { 6, 12, "2012" },              /* drop the k-th scope */
         { 7, 0, "1000" }, { 7, 12, "1012" },              /* take it */
         { 6, -1, "" },  { 7, -1, "" },                    /* empty scope menu */
-        { -1, -1, "" }, { 8, 0, "" },                     /* nothing selected */
+        { -1, -1, "" }, { -1, 0, "" }, { 8, 0, "" },      /* nothing selected */
         { 0, 0, NULL }
       };
       for(int k=0 ; answers[k].want != NULL ; k++) {
@@ -490,7 +493,38 @@ BOOL CWinHTTrackApp::InitInstance()
           ExitProcess(3);
         }
       }
+      {   /* "1012" cut to "10" would name a different scope, so it must fail */
+        char tiny[3];
+        if (WizLinkAnswer(7, 12, tiny, sizeof(tiny)) || tiny[0] != '\0') {
+          fprintf(stderr, "FATAL: wizard answer truncated to '%s' instead of failing\n", tiny);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
       printf("wizard answers ok\n");
+    }
+    /* The answer is an index into this menu, so it must be the engine's list in the
+       engine's order. Same cases as the engine's 292_engine-wizard-scope.test. */
+    {
+      CStringArray scopes;
+
+      if (WizHostScopes("download.example.co.uk/x", scopes) != 3
+          || scopes[0] != "download.example.co.uk" || scopes[1] != "example.co.uk"
+          || scopes[2] != "co.uk") {
+        fprintf(stderr, "FATAL: wizard scopes gave %d entries, first '%s'\n",
+                (int) scopes.GetSize(),
+                scopes.GetSize() != 0 ? (LPCSTR) scopes[0] : "(none)");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      scopes.RemoveAll();
+      if (WizHostScopes("192.168.1.1/x", scopes) != 0) {   /* an IP literal has none */
+        fprintf(stderr, "FATAL: wizard offered %d scopes for an IP literal\n",
+                (int) scopes.GetSize());
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("wizard scopes ok\n");
     }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
