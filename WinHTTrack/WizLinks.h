@@ -36,6 +36,11 @@ Please visit our Website: http://www.httrack.com
 /////////////////////////////////////////////////////////////////////////////
 // WizLinks dialog
 
+/** Write into dst the query3 answer for radio row 'lnk' and scope row 'scope'
+    (-1 meaning unset), returning whether the pair means anything; dst is
+    emptied when it does not. Split out so --selftest can pin the wire values. */
+bool WizLinkAnswer(int lnk, int scope, char *dst, size_t dstsize);
+
 class WizLinks : public CDialog
 {
   // gestion timer flash
@@ -50,6 +55,7 @@ public:
 	//{{AFX_DATA(WizLinks)
 	enum { IDD = IDD_wizard_lnk };
 	int		m_lnk;
+	int		m_scope;
 	CString	m_url;
 	//}}AFX_DATA
 

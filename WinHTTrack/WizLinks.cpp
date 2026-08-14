@@ -31,6 +31,10 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "WizLinks.h"
 
+extern "C" {
+  #include "httrack-library.h"
+}
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #undef THIS_FILE
@@ -42,11 +46,34 @@ extern HICON httrack_icon;
 // WizLinks dialog
 
 
+bool WizLinkAnswer(int lnk, int scope, char *dst, size_t dstsize)
+{
+  /* Radio rows 0..5 of IDD_wizard_lnk; the engine has no answer 3. */
+  static const char *const fixed[] = { "0", "1", "2", "4", "5", "6" };
+
+  if (dstsize == 0)
+    return false;
+  dst[0] = '\0';
+  if (lnk >= 0 && lnk < (int) (sizeof(fixed) / sizeof(*fixed))) {
+    _snprintf_s(dst, dstsize, _TRUNCATE, "%s", fixed[lnk]);
+    return true;
+  }
+  /* The last two rows carry the scope combo's index; an empty menu disables them. */
+  if ((lnk == 6 || lnk == 7) && scope >= 0) {
+    _snprintf_s(dst, dstsize, _TRUNCATE, "%d",
+                (lnk == 6 ? HTS_WIZARD_SCOPE_EXCLUDE : HTS_WIZARD_SCOPE_INCLUDE) + scope);
+    return true;
+  }
+  return false;
+}
+
+
 WizLinks::WizLinks(CWnd* pParent /*=NULL*/)
 	: CDialog(WizLinks::IDD, pParent)
 {
 	//{{AFX_DATA_INIT(WizLinks)
 	m_lnk = -1;
+	m_scope = -1;
 	m_url = _T("");
 	//}}AFX_DATA_INIT
 }
@@ -57,6 +84,7 @@ void WizLinks::DoDataExchange(CDataExchange* pDX)
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(WizLinks)
 	DDX_Radio(pDX, IDC_ch1, m_lnk);
+	DDX_CBIndex(pDX, IDC_hostscope, m_scope);
 	DDX_Text(pDX, IDC_URL, m_url);
 	//}}AFX_DATA_MAP
 }
@@ -102,7 +130,26 @@ BOOL WizLinks::OnInitDialog()
     SetDlgItemTextCP(this, IDC_ch5,LANG(LANG_M7)); // "Miroir du site");
     SetDlgItemTextCP(this, IDC_ch6,LANG(LANG_M8)); // "Miroir du domaine entier");
     SetDlgItemTextCP(this, IDskipall,LANG(LANG_M9)); // "Ignorer tout");
+    SetDlgItemTextLang(this, IDC_ch7,LANG(LANG_M10));
+    SetDlgItemTextLang(this, IDC_ch8,LANG(LANG_M11));
     SetDlgItemTextLang(this, IDOK,LANG(LANG_OK));
+  }
+
+  // Let the engine split the host, or the menu and the filter it later applies
+  // drift. The combo is unsorted, so its index is the engine's k.
+  {
+    CComboBox* combo = (CComboBox*) GetDlgItem(IDC_hostscope);
+    char scope[HTS_URLMAXSIZE];
+    int k;
+
+    for(k=0 ; hts_wizard_host_scope((LPCTSTR) m_url, k, scope, sizeof(scope)) ; k++)
+      combo->AddString(scope);
+    if (k == 0) {
+      GetDlgItem(IDC_ch7)->EnableWindow(FALSE);
+      GetDlgItem(IDC_ch8)->EnableWindow(FALSE);
+      combo->EnableWindow(FALSE);
+    } else
+      combo->SetCurSel(0);
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control

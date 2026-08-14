@@ -468,6 +468,30 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("host-alias rules ok\n");
     }
+    /* The wizard's answer only reaches the engine through a modal dialog, and a
+       wrong number there quietly applies the wrong filter rather than failing. */
+    {
+      static const struct { int lnk; int scope; const char* want; } answers[] = {
+        { 0, -1, "0" }, { 1, -1, "1" }, { 2, -1, "2" },
+        { 3, -1, "4" }, { 4, -1, "5" }, { 5, -1, "6" },   /* the engine has no 3 */
+        { 6, 0, "2000" }, { 6, 12, "2012" },              /* drop the k-th scope */
+        { 7, 0, "1000" }, { 7, 12, "1012" },              /* take it */
+        { 6, -1, "" },  { 7, -1, "" },                    /* empty scope menu */
+        { -1, -1, "" }, { 8, 0, "" },                     /* nothing selected */
+        { 0, 0, NULL }
+      };
+      for(int k=0 ; answers[k].want != NULL ; k++) {
+        char got[16] = "unset";
+        const bool ok = WizLinkAnswer(answers[k].lnk, answers[k].scope, got, sizeof(got));
+        if (ok != (answers[k].want[0] != '\0') || strcmp(got, answers[k].want) != 0) {
+          fprintf(stderr, "FATAL: wizard answer for row %d scope %d is '%s', expected '%s'\n",
+                  answers[k].lnk, answers[k].scope, got, answers[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("wizard answers ok\n");
+    }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
        terminator hangs it on the first run, past where --selftest ever reaches. */
@@ -882,29 +906,7 @@ void CWinHTTrackApp::OnWizRequest3() {
   if (diawiz3.DoModal()==IDskipall)
     strcpybuff(WIZ_reponse,"*");
   else
-    switch(diawiz3.m_lnk) {
-    case 0:
-      strcpybuff(WIZ_reponse,"0");
-      break;
-    case 1:
-      strcpybuff(WIZ_reponse,"1");
-      break;
-    case 2:
-      strcpybuff(WIZ_reponse,"2");
-      break;
-    case 3:
-      strcpybuff(WIZ_reponse,"4");
-      break;
-    case 4:
-      strcpybuff(WIZ_reponse,"5");
-      break;
-    case 5:
-      strcpybuff(WIZ_reponse,"6");
-      break;
-    default:
-      strcpybuff(WIZ_reponse,"");
-      break;
-  }
+    WizLinkAnswer(diawiz3.m_lnk, diawiz3.m_scope, WIZ_reponse, sizeof(WIZ_reponse));
 }
 
 
