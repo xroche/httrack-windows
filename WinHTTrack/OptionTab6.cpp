@@ -109,10 +109,10 @@ BOOL COptionTab6::OnInitDialog()
   /* Filled after the base call: DDX_CBString selects by PREFIX, so an already
      filled list would rewrite a footer that merely starts like a preset. */
   {
-    CComboBox *const footer = (CComboBox *) GetDlgItem(IDC_footer);
+    CComboBox *const footer = (CComboBox*) GetDlgItem(IDC_footer);
     if (footer != NULL) {
-      for(int i = 0 ; FooterPresets[i] != NULL ; i++)
-        footer->AddString(FooterPresets[i]);
+      for(int k=0 ; FooterPresets[k] != NULL ; k++)
+        footer->AddString(FooterPresets[k]);
     }
   }
 

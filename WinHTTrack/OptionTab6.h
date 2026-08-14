@@ -38,9 +38,8 @@ Please visit our Website: http://www.httrack.com
 
 #include "WndLayout.h"
 
-/* NULL-terminated footer templates offered in the drop-down, the engine default
-   first. Named fields only: one "%s" anywhere would revert the whole template to
-   the engine's legacy positional model. Public only for --selftest. */
+/* NULL-terminated footer templates offered in the drop-down, HTS_DEFAULT_FOOTER
+   first and no "%s" in any of them; --selftest checks both. Extern only for it. */
 extern const char *const FooterPresets[];
 
 class COptionTab6 : public CPropertyPage

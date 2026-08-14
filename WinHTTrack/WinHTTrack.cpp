@@ -468,9 +468,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("host-alias rules ok\n");
     }
-    /* The footer drop-down is only reachable by opening the Browser ID page: a
-       "%s" in a preset would switch the whole template back to the engine's
-       positional model, and a misspelt {field} reaches every mirrored page. */
+    /* Only reachable by opening the Browser ID page, so pin the presets here: a
+       stray %s or a misspelt {field} would reach every mirrored page. */
     {
       static const char *const known[] = { "addr", "path", "url", "date",
         "lastmodified", "version", "mime", "charset", "status", "size", NULL };
@@ -487,8 +486,19 @@ BOOL CWinHTTrackApp::InitInstance()
           fflush(stderr);
           ExitProcess(3);
         }
+        /* An unterminated comment, or one closed early, swallows the page. */
+        if (strcmp(p, HTS_NOPARAM) != 0) {
+          const char *const tail = strstr(p, "-->");
+          if (strncmp(p, "<!--", 4) != 0 || tail == NULL || tail[3] != '\0') {
+            fprintf(stderr, "FATAL: footer preset '%s' is not one well-formed HTML comment\n", p);
+            fflush(stderr);
+            ExitProcess(3);
+          }
+        }
         for( ; *p != '\0' ; p++) {
-          if (*p == '{') {
+          if (*p == '{' && p[1] == '{') {
+            p++;                  /* the engine emits a literal brace for "{{" */
+          } else if (*p == '{') {
             const char *const end = strchr(p + 1, '}');
             const size_t len = (end != NULL) ? (size_t) (end - p - 1) : 0;
             int j;
