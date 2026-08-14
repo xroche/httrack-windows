@@ -468,6 +468,46 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("host-alias rules ok\n");
     }
+    /* The footer drop-down is only reachable by opening the Browser ID page: a
+       "%s" in a preset would switch the whole template back to the engine's
+       positional model, and a misspelt {field} reaches every mirrored page. */
+    {
+      static const char *const known[] = { "addr", "path", "url", "date",
+        "lastmodified", "version", "mime", "charset", "status", "size", NULL };
+      if (strcmp(FooterPresets[0], HTS_DEFAULT_FOOTER) != 0) {
+        fprintf(stderr, "FATAL: first footer preset is '%s', expected the engine default '%s'\n",
+                FooterPresets[0], HTS_DEFAULT_FOOTER);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      for(int k=0 ; FooterPresets[k] != NULL ; k++) {
+        const char* p = FooterPresets[k];
+        if (strstr(p, "%s") != NULL) {
+          fprintf(stderr, "FATAL: footer preset '%s' uses the legacy %%s model\n", p);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        for( ; *p != '\0' ; p++) {
+          if (*p == '{') {
+            const char *const end = strchr(p + 1, '}');
+            const size_t len = (end != NULL) ? (size_t) (end - p - 1) : 0;
+            int j;
+            for(j=0 ; end != NULL && known[j] != NULL ; j++) {
+              if (strlen(known[j]) == len && strncmp(known[j], p + 1, len) == 0)
+                break;
+            }
+            if (end == NULL || known[j] == NULL) {
+              fprintf(stderr, "FATAL: footer preset '%s' names no engine field at '%s'\n",
+                      FooterPresets[k], p);
+              fflush(stderr);
+              ExitProcess(3);
+            }
+            p = end;
+          }
+        }
+      }
+      printf("footer presets ok\n");
+    }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
        terminator hangs it on the first run, past where --selftest ever reaches. */

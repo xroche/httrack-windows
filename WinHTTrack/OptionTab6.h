@@ -38,6 +38,11 @@ Please visit our Website: http://www.httrack.com
 
 #include "WndLayout.h"
 
+/* NULL-terminated footer templates offered in the drop-down, the engine default
+   first. Named fields only: one "%s" anywhere would revert the whole template to
+   the engine's legacy positional model. Public only for --selftest. */
+extern const char *const FooterPresets[];
+
 class COptionTab6 : public CPropertyPage
 {
 	DECLARE_DYNCREATE(COptionTab6)
