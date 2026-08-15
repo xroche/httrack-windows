@@ -219,6 +219,13 @@ void splitRulesInArray(CStringArray &rules, const CString &str);
    hts_host_alias_rule_ok(), and short enough for argv. A rule it refuses aborts the mirror. */
 BOOL isHostAliasArgument(const CString &rule);
 
+/* TRUE if VALUE may be handed to the option each one names: short enough once converted,
+   and not opening with a dash. Exposed for --selftest. */
+BOOL isUserAgentArgument(const CString &value);
+BOOL isFooterArgument(const CString &value);
+BOOL isLangIsoArgument(const CString &value);
+BOOL isRefererArgument(const CString &value);
+
 void Build_TopIndex(BOOL check_empty=TRUE);
 
 void InitRAS();

@@ -468,6 +468,50 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("host-alias rules ok\n");
     }
+    /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
+       refuses costs the whole mirror, and each field carries its own cap. */
+    {
+      static const struct { BOOL (*ok)(const CString &); const char* field;
+                            const char* value; int repeat; BOOL want; } quoted[] = {
+        { isFooterArgument, "footer", HTS_DEFAULT_FOOTER, 1, TRUE },
+        { isFooterArgument, "footer", HTS_NOPARAM, 1, TRUE },   /* asks for no footer at all */
+        { isFooterArgument, "footer", "", 1, FALSE },
+        { isFooterArgument, "footer", "-<!-- x -->", 1, FALSE },  /* reads as the argument being missing */
+        { isFooterArgument, "footer", "\"<!-- x -->\"", 1, TRUE },   /* the quote is the engine's to escape */
+        { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE - 1, TRUE },  /* one under the cap fits */
+        { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE, FALSE },
+        { isLangIsoArgument, "accept-language", "en, fr", 1, TRUE },
+        { isLangIsoArgument, "accept-language", "x", HTS_LANGISO_MAXSIZE - 1, TRUE },
+        { isLangIsoArgument, "accept-language", "x", HTS_LANGISO_MAXSIZE, FALSE },
+        { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE - 1, TRUE },
+        { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE, FALSE },
+        /* the user-agent has no cap of its own, only the argument one the quotes eat into */
+        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 3, TRUE },
+        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 2, FALSE },
+        { NULL, NULL, NULL, 0, FALSE }
+      };
+      for(int k=0 ; quoted[k].field != NULL ; k++) {
+        CString value;
+        for(int n=0 ; n<quoted[k].repeat ; n++)
+          value += quoted[k].value;
+        if (quoted[k].ok(value) != quoted[k].want) {
+          fprintf(stderr, "FATAL: %s argument '%s' (%d chars) judged %s\n",
+                  quoted[k].field, (LPCSTR) value.Left(40), (int) value.GetLength(),
+                  quoted[k].want ? "bad, expected good" : "good, expected bad");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      /* The caps count the UTF-8 bytes the engine will see: 200 accented characters are 400 of
+         them. Under a UTF-8 ANSI codepage the conversion is a copy, and 200 stay 200. */
+      const BOOL mbcs = GetACP() != CP_UTF8;
+      if (mbcs && isFooterArgument(CString('\xE9', 200))) {
+        fprintf(stderr, "FATAL: a 400-byte accented footer was judged short enough\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("quoted arguments ok%s\n", mbcs ? "" : " (accented case skipped)");
+    }
     /* The wizard's answer only reaches the engine through a modal dialog, and a
        wrong number there quietly applies the wrong filter rather than failing. */
     {
@@ -529,8 +573,12 @@ BOOL CWinHTTrackApp::InitInstance()
     /* Only reachable by opening the Browser ID page, so pin the presets here: a
        stray %s or a misspelt {field} would reach every mirrored page. */
     {
-      static const char *const known[] = { "addr", "path", "url", "date",
-        "lastmodified", "version", "mime", "charset", "status", "size", NULL };
+      /* "{}", "{{", an unterminated "{" and an over-long name all reach the engine as "" */
+      if (hts_footer_field_ok("")) {
+        fprintf(stderr, "FATAL: the engine expands an empty footer field name\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
       if (strcmp(FooterPresets[0], HTS_DEFAULT_FOOTER) != 0) {
         fprintf(stderr, "FATAL: first footer preset is '%s', expected the engine default '%s'\n",
                 FooterPresets[0], HTS_DEFAULT_FOOTER);
@@ -541,6 +589,11 @@ BOOL CWinHTTrackApp::InitInstance()
         const char* p = FooterPresets[k];
         if (strstr(p, "%s") != NULL) {
           fprintf(stderr, "FATAL: footer preset '%s' uses the legacy %%s model\n", p);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        if (!isFooterArgument(p)) {
+          fprintf(stderr, "FATAL: footer preset '%s' is one the shell would drop\n", p);
           fflush(stderr);
           ExitProcess(3);
         }
@@ -557,14 +610,15 @@ BOOL CWinHTTrackApp::InitInstance()
           if (*p == '{' && p[1] == '{') {
             p++;                  /* the engine emits a literal brace for "{{" */
           } else if (*p == '{') {
+            char name[32];                        /* longer than any field the engine expands */
             const char *const end = strchr(p + 1, '}');
-            const size_t len = (end != NULL) ? (size_t) (end - p - 1) : 0;
-            int j;
-            for(j=0 ; end != NULL && known[j] != NULL ; j++) {
-              if (strlen(known[j]) == len && strncmp(known[j], p + 1, len) == 0)
-                break;
-            }
-            if (end == NULL || known[j] == NULL) {
+            const size_t len = (end != NULL) ? (size_t) (end - p - 1) : sizeof(name);
+
+            name[0] = '\0';
+            if (len < sizeof(name))
+              strncatbuff(name, p + 1, len);
+            /* ask the engine's own expander, so a field added there needs no edit here */
+            if (!hts_footer_field_ok(name)) {
               fprintf(stderr, "FATAL: footer preset '%s' names no engine field at '%s'\n",
                       FooterPresets[k], p);
               fflush(stderr);
