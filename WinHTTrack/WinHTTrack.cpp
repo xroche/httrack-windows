@@ -504,12 +504,13 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       /* The caps count the UTF-8 bytes the engine will see: 200 accented characters are 400 of
          them. Under a UTF-8 ANSI codepage the conversion is a copy, and 200 stay 200. */
-      if (GetACP() != CP_UTF8 && isFooterArgument(CString('\xE9', 200))) {
+      const BOOL mbcs = GetACP() != CP_UTF8;
+      if (mbcs && isFooterArgument(CString('\xE9', 200))) {
         fprintf(stderr, "FATAL: a 400-byte accented footer was judged short enough\n");
         fflush(stderr);
         ExitProcess(3);
       }
-      printf("quoted arguments ok\n");
+      printf("quoted arguments ok%s\n", mbcs ? "" : " (accented case skipped)");
     }
     /* The wizard's answer only reaches the engine through a modal dialog, and a
        wrong number there quietly applies the wrong filter rather than failing. */
@@ -572,6 +573,12 @@ BOOL CWinHTTrackApp::InitInstance()
     /* Only reachable by opening the Browser ID page, so pin the presets here: a
        stray %s or a misspelt {field} would reach every mirrored page. */
     {
+      /* "{}", "{{", an unterminated "{" and an over-long name all reach the engine as "" */
+      if (hts_footer_field_ok("")) {
+        fprintf(stderr, "FATAL: the engine expands an empty footer field name\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
       if (strcmp(FooterPresets[0], HTS_DEFAULT_FOOTER) != 0) {
         fprintf(stderr, "FATAL: first footer preset is '%s', expected the engine default '%s'\n",
                 FooterPresets[0], HTS_DEFAULT_FOOTER);
