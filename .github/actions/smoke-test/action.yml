@@ -204,6 +204,15 @@ runs:
         if ("$so" -notmatch 'lang\.indexes offset checked on [1-9]\d* locales') {
           throw "selftest did not check the lang.indexes offset"
         }
+        # The option caps count UTF-8 bytes, so the accented value is the case that matters;
+        # it carries an ANSI-codepage guard and names itself when it skips.
+        if ("$so" -notmatch 'quoted arguments ok(?! \(accented)') {
+          throw "selftest did not check the quoted arguments against an accented value"
+        }
+        # A footer preset is only reachable by opening the Browser ID page.
+        if ("$so" -notmatch 'footer presets ok') {
+          throw "selftest did not check the footer presets"
+        }
 
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
         # ran and caught the throw stack; the build job checks resolution against staged.
