@@ -36,12 +36,12 @@ Please visit our Website: http://www.httrack.com
 
 /* The GUI ships ahead of the 3.49 engine as the 3.50 beta, so it carries its own
    version. Bump it here only: the .rc, the installer and CI all read this file. */
-#define WINHTTRACK_VERSION "3.50-beta-4"
+#define WINHTTRACK_VERSION "3.50-beta-5"
 
 /* Dotted, for Inno and the FileVersion field. Below 3.50.0.0 so 3.50 outranks its betas. */
-#define WINHTTRACK_VERSIONID "3.49.99.4"
+#define WINHTTRACK_VERSIONID "3.49.99.5"
 
 /* WINHTTRACK_VERSIONID in the resource compiler's comma form. */
-#define WINHTTRACK_VERSION_NUM 3, 49, 99, 4
+#define WINHTTRACK_VERSION_NUM 3, 49, 99, 5
 
 #endif
