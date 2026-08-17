@@ -427,6 +427,49 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok\n");
     }
+    /* winprofile.ini escaping: WebHTTrack writes the same file, so what we decode
+       is a cross-front-end contract (httrack doc/winprofile-ini.md). */
+    {
+      static const struct { const char* in; const char* want; } vals[] = {
+        { "%%", "%" }, { "%3d", "=" }, { "%0d", "\r" }, { "%0a", "\n" }, { "%09", "\t" },
+        /* every other escape degrades to a space, an uppercase hex digit included */
+        { "%3D", " " }, { "%41", " " },
+        { "a%%b%3dc", "a%b=c" },
+        { NULL, NULL }
+      };
+      static const char *const roundtrip[] = { "a=b\r\n\tc%d", "%", "100% =", "", NULL };
+      for(int k=0 ; vals[k].in != NULL ; k++) {
+        if (profile_decode(vals[k].in) != vals[k].want) {
+          fprintf(stderr, "FATAL: profile value '%s' decoded to '%s'\n",
+                  vals[k].in, (LPCSTR) profile_decode(vals[k].in));
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      for(int k=0 ; roundtrip[k] != NULL ; k++) {
+        const CString coded = profile_code(roundtrip[k]);
+        if (profile_decode(coded) != roundtrip[k]) {
+          fprintf(stderr, "FATAL: profile value '%s' coded to '%s' and back to '%s'\n",
+                  roundtrip[k], (LPCSTR) coded, (LPCSTR) profile_decode(coded));
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      /* A truncated escape used to step over the terminator; the bytes past it are what it then appended. */
+      {
+        char buf[8];
+        memcpy(buf, "x%\0zzzz", 8);
+        const CString got = profile_decode(buf);
+        memcpy(buf, "x%0\0zzz", 8);
+        if (got != "x " || profile_decode(buf) != "x ") {
+          fprintf(stderr, "FATAL: truncated escape decoded to '%s' and '%s'\n",
+                  (LPCSTR) got, (LPCSTR) profile_decode(buf));
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("profile escaping ok\n");
+    }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */
     {

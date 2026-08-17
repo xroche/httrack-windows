@@ -2413,7 +2413,7 @@ void SetCombo(CWnd* _this,int id,const char* lang_string) {
 
 
 // Ecriture profiles
-CString profile_code(char* from) {
+CString profile_code(const char* from) {
   int i;
   CString result;
   for(i = 0 ; from[i] != '\0' ; i++) {
@@ -2449,7 +2449,7 @@ CString profile_code(char* from) {
   }
   return result;
 }
-CString profile_decode(char* from) {
+CString profile_decode(const char* from) {
   int j;
   CString result;
   for(j = 0 ; from[j] != '\0' ; ) {  // oui oui
@@ -2457,6 +2457,9 @@ CString profile_decode(char* from) {
       if (from[j + 1] == '%') {
         result += '%';
         j+=2;
+      } else if (from[j + 1] == '\0' || from[j + 2] == '\0') {
+        result += ' ';    // a truncated escape has no second digit to step over
+        break;
       } else {
         if (strncmp(from+j+1,"0d", 2)==0)
           result += (char) 13;
@@ -2614,6 +2617,11 @@ CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value
   } else return value;
 }
 
+// The combo's 0-based selection, or CB_ERR when nothing is selected.
+static int comboSel(CWnd& page, int id) {
+  return (int) page.SendDlgItemMessage(id, CB_GETCURSEL);
+}
+
 //
 // Get_profile et Write_profile eux mêmes
 //
@@ -2642,6 +2650,10 @@ void Write_profile(CString path,int load_path) {
       fclose(fp);
   }
   
+  /* Written for WebHTTrack, which reads it: rewriting the file from our own key
+     list would otherwise drop the marker it wrote. We never interpret it. */
+  MyWriteProfileInt(path,strSection, "ProfileFormat", 1);
+
   //if (dialog3.m_hWnd == NULL) {    // pas initialisé
   if (maintab->m_hWnd == NULL) {    // pas initialisé
     // checkboxes
@@ -2816,8 +2828,8 @@ void Write_profile(CString path,int load_path) {
     maintab->m_option3.GetDlgItemText(IDC_stripquery,st);
     MyWriteProfileString(path,strSection, "StripQuery", st);
     //
-    maintab->m_option8.GetDlgItemText(IDC_robots,st);
-    MyWriteProfileString(path,strSection, "FollowRobotsTxt", st);
+    if ((n=comboSel(maintab->m_option8, IDC_robots)) != CB_ERR)
+      MyWriteProfileInt(path,strSection, "FollowRobotsTxt", n);
     // 4
     maintab->m_option4.GetDlgItemText(IDC_connexion,st);
     MyWriteProfileString(path,strSection, "Sockets", st);
@@ -2871,10 +2883,10 @@ void Write_profile(CString path,int load_path) {
     maintab->m_option7.GetDlgItemText(IDC_URL2,st);
     MyWriteProfileString(path,strSection, "WildCardFilters", st);
     // 8
-    maintab->m_option8.GetDlgItemText(IDC_cookies,st);
-    MyWriteProfileString(path,strSection, "Cookies", st);
-    maintab->m_option8.GetDlgItemText(IDC_checktype,st);
-    MyWriteProfileString(path,strSection, "CheckType", st);
+    n=maintab->m_option8.IsDlgButtonChecked(IDC_cookies);
+    MyWriteProfileInt(path,strSection, "Cookies", n);
+    if ((n=comboSel(maintab->m_option8, IDC_checktype)) != CB_ERR)
+      MyWriteProfileInt(path,strSection, "CheckType", n);
     n=maintab->m_option8.IsDlgButtonChecked(IDC_parsejava);
     MyWriteProfileInt(path,strSection, "ParseJava", n);
     n=maintab->m_option8.IsDlgButtonChecked(IDC_http10);
@@ -2896,10 +2908,10 @@ void Write_profile(CString path,int load_path) {
     maintab->m_option4.GetDlgItemText(IDC_pausefiles,st);
     MyWriteProfileString(path,strSection, "PauseFiles", st);
     // 9
-    maintab->m_option9.GetDlgItemText(IDC_Cache2,st);
-    MyWriteProfileString(path,strSection, "StoreAllInCache", st);
-    maintab->m_option9.GetDlgItemText(IDC_logtype,st);
-    MyWriteProfileString(path,strSection, "LogType", st);
+    n=maintab->m_option9.IsDlgButtonChecked(IDC_Cache2);
+    MyWriteProfileInt(path,strSection, "StoreAllInCache", n);
+    if ((n=comboSel(maintab->m_option9, IDC_logtype)) != CB_ERR)
+      MyWriteProfileInt(path,strSection, "LogType", n);
     n=maintab->m_option9.IsDlgButtonChecked(IDC_singlefile);
     MyWriteProfileInt(path,strSection, "SingleFile", n);
     maintab->m_option9.GetDlgItemText(IDC_singlefilemax,st);
