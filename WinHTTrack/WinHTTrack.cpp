@@ -450,7 +450,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "" },
         { NULL, NULL }
       };
-      int nchecks = 0;
+      /* One count per block, not one sum: a sum stays positive when a whole block goes. */
+      int ndecodes = 0, nroundtrips = 0, nterminators = 0;
       for(int k=0 ; vals[k].in != NULL ; k++) {
         if (profile_decode(vals[k].in) != vals[k].want) {
           fprintf(stderr, "FATAL: profile value '%s' decoded to '%s'\n",
@@ -458,7 +459,7 @@ BOOL CWinHTTrackApp::InitInstance()
           fflush(stderr);
           ExitProcess(3);
         } else
-          nchecks++;
+          ndecodes++;
       }
       for(int k=0 ; pairs[k].plain != NULL ; k++) {
         const CString coded = profile_code(pairs[k].plain);
@@ -468,23 +469,26 @@ BOOL CWinHTTrackApp::InitInstance()
           fflush(stderr);
           ExitProcess(3);
         } else
-          nchecks++;
+          nroundtrips++;
       }
       /* the bytes past the NUL are poison: decoding must stop at the terminator */
       {
-        char buf[8];
-        memcpy(buf, "x%\0zzzz", 8);
-        const CString got = profile_decode(buf);
-        memcpy(buf, "x%0\0zzz", 8);
-        if (got != "x " || profile_decode(buf) != "x ") {
-          fprintf(stderr, "FATAL: truncated escape decoded to '%s' and '%s'\n",
-                  (LPCSTR) got, (LPCSTR) profile_decode(buf));
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
+        static const char truncated[2][8] = { "x%\0zzzz", "x%0\0zzz" };
+
+        for(int k=0 ; k<2 ; k++) {
+          const CString got = profile_decode(truncated[k]);
+
+          if (got != "x ") {
+            fprintf(stderr, "FATAL: truncated escape '%s' decoded to '%s'\n",
+                    truncated[k], (LPCSTR) got);
+            fflush(stderr);
+            ExitProcess(3);
+          } else
+            nterminators++;
+        }
       }
-      printf("profile escaping ok on %d checks\n", nchecks);
+      printf("profile escaping ok on %d decodes, %d round trips and %d terminators\n",
+             ndecodes, nroundtrips, nterminators);
     }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */

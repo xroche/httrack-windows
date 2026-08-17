@@ -218,7 +218,7 @@ runs:
           throw "selftest did not check the Experts rule splitter"
         }
         # winprofile.ini is a cross-front-end contract: WebHTTrack and Android read what we write.
-        if ("$so" -notmatch 'profile escaping ok on [1-9]\d* checks') {
+        if ("$so" -notmatch 'profile escaping ok on [1-9]\d* decodes, [1-9]\d* round trips and [1-9]\d* terminators') {
           throw "selftest did not check the winprofile.ini escaping"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
