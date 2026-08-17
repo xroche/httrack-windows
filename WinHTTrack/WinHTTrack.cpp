@@ -409,7 +409,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "" },
         { NULL, NULL }
       };
-      for(int k=0 ; rules[k].field != NULL ; k++) {
+      int k;
+      for(k=0 ; rules[k].field != NULL ; k++) {
         CStringArray got;
         CString joined;
         splitRulesInArray(got, rules[k].field);
@@ -425,7 +426,7 @@ BOOL CWinHTTrackApp::InitInstance()
           ExitProcess(3);
         }
       }
-      printf("rule splitting ok\n");
+      printf("rule splitting ok on %d fields\n", k);
     }
     /* winprofile.ini escaping: WebHTTrack writes the same file, so both what we
        emit and what we accept are a cross-front-end contract. */
@@ -445,19 +446,20 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "" },
         { NULL, NULL }
       };
-      for(int k=0 ; vals[k].in != NULL ; k++) {
-        if (profile_decode(vals[k].in) != vals[k].want) {
+      int nvals, npairs;
+      for(nvals=0 ; vals[nvals].in != NULL ; nvals++) {
+        if (profile_decode(vals[nvals].in) != vals[nvals].want) {
           fprintf(stderr, "FATAL: profile value '%s' decoded to '%s'\n",
-                  vals[k].in, (LPCSTR) profile_decode(vals[k].in));
+                  vals[nvals].in, (LPCSTR) profile_decode(vals[nvals].in));
           fflush(stderr);
           ExitProcess(3);
         }
       }
-      for(int k=0 ; pairs[k].plain != NULL ; k++) {
-        const CString coded = profile_code(pairs[k].plain);
-        if (coded != pairs[k].coded || profile_decode(coded) != pairs[k].plain) {
+      for(npairs=0 ; pairs[npairs].plain != NULL ; npairs++) {
+        const CString coded = profile_code(pairs[npairs].plain);
+        if (coded != pairs[npairs].coded || profile_decode(coded) != pairs[npairs].plain) {
           fprintf(stderr, "FATAL: profile value '%s' coded to '%s', expected '%s', decoded back to '%s'\n",
-                  pairs[k].plain, (LPCSTR) coded, pairs[k].coded, (LPCSTR) profile_decode(coded));
+                  pairs[npairs].plain, (LPCSTR) coded, pairs[npairs].coded, (LPCSTR) profile_decode(coded));
           fflush(stderr);
           ExitProcess(3);
         }
@@ -475,7 +477,7 @@ BOOL CWinHTTrackApp::InitInstance()
           ExitProcess(3);
         }
       }
-      printf("profile escaping ok\n");
+      printf("profile escaping ok on %d values and %d round trips\n", nvals, npairs);
     }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */
@@ -507,7 +509,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "-legacy.example.com=example.com", TRUE },
         { NULL, FALSE }
       };
-      for(int k=0 ; aliases[k].rule != NULL ; k++) {
+      int k;
+      for(k=0 ; aliases[k].rule != NULL ; k++) {
         if (isHostAliasArgument(aliases[k].rule) != aliases[k].want) {
           fprintf(stderr, "FATAL: host-alias rule '%s' judged %s\n",
                   aliases[k].rule, aliases[k].want ? "bad, expected good"
@@ -516,7 +519,7 @@ BOOL CWinHTTrackApp::InitInstance()
           ExitProcess(3);
         }
       }
-      printf("host-alias rules ok\n");
+      printf("host-alias rules ok on %d rules\n", k);
     }
     /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
        refuses costs the whole mirror, and each field carries its own cap. */
@@ -577,7 +580,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { -1, -1, "" }, { -1, 0, "" }, { 8, 0, "" },      /* nothing selected */
         { 0, 0, NULL }
       };
-      for(int k=0 ; answers[k].want != NULL ; k++) {
+      int k;
+      for(k=0 ; answers[k].want != NULL ; k++) {
         char got[16] = "unset";
         const bool ok = WizLinkAnswer(answers[k].lnk, answers[k].scope, got, sizeof(got));
         if (ok != (answers[k].want[0] != '\0') || strcmp(got, answers[k].want) != 0) {
@@ -595,7 +599,7 @@ BOOL CWinHTTrackApp::InitInstance()
           ExitProcess(3);
         }
       }
-      printf("wizard answers ok\n");
+      printf("wizard answers ok on %d rows\n", k);
     }
     /* The answer is an index into this menu, so it must be the engine's list in the
        engine's order. Same cases as the engine's 292_engine-wizard-scope.test. */
