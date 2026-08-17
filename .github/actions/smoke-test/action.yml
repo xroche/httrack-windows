@@ -183,54 +183,57 @@ runs:
         if ($se) { Write-Host "  stderr: $($se.Trim())" }
         if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe --selftest exited $($p.ExitCode): the installation is incomplete" }
         if ("$so" -notmatch 'startup ok') { throw "selftest did not report startup ok" }
+        # The counts below are exact, not lower bounds: adding a case must move the number
+        # here too, since a deleted one otherwise hides behind a still-positive total.
         # The MBCS->UTF-8 conversion the engine depends on is only reachable by typing into
         # a dialog. --selftest exercises it; assert it actually RAN, or the check silently
         # skips (its ANSI-codepage guard) and proves nothing.
-        if ("$so" -notmatch 'MBCS->UTF-8 ok') {
+        if ("$so" -notmatch 'MBCS->UTF-8 ok on 2 checks') {
           throw "selftest did not exercise the MBCS->UTF-8 conversion"
         }
         # Every help button hands one of these to the browser: an unescaped space truncates
         # the path, an unescaped '#' names a file, since NTFS allows one in a filename.
-        if ("$so" -notmatch 'help URLs ok on [1-9]\d* checks') {
+        if ("$so" -notmatch 'help URLs ok on 5 checks') {
           throw "selftest did not check the help URLs"
         }
         # Guards the empty-name terminator (newlang.h); losing it hangs the first-run About
-        # box. [1-9] not \d: "after 0 entries" would pass while proving nothing.
+        # box. The only count left loose: it is the size of the engine's lang.def, so pinning
+        # it would turn an engine translation into a red build here.
         if ("$so" -notmatch 'language list ends after [1-9]\d* entries') {
           throw "selftest did not check that the language list terminates"
         }
         # lang.indexes counts from LANGUAGE_1 and our indices from 0: an unchecked
         # off-by-one would seed the first run in the neighbouring language.
-        if ("$so" -notmatch 'lang\.indexes offset checked on [1-9]\d* locales') {
+        if ("$so" -notmatch 'lang\.indexes offset checked on 4 locales and 9 checks') {
           throw "selftest did not check the lang.indexes offset"
         }
         # The option caps count UTF-8 bytes, so the accented value is the case that matters;
         # it carries an ANSI-codepage guard and names itself when it skips.
-        if ("$so" -notmatch 'quoted arguments ok on [1-9]\d* checks(?! \(accented)') {
+        if ("$so" -notmatch 'quoted arguments ok on 15 checks(?! \(accented)') {
           throw "selftest did not check the quoted arguments against an accented value"
         }
         # A footer preset is only reachable by opening the Browser ID page.
-        if ("$so" -notmatch 'footer presets ok on [1-9]\d* checks') {
+        if ("$so" -notmatch 'footer presets ok on 26 checks') {
           throw "selftest did not check the footer presets"
         }
         # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.
-        if ("$so" -notmatch 'rule splitting ok on [1-9]\d* checks') {
+        if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
         # winprofile.ini is a cross-front-end contract: WebHTTrack and Android read what we write.
-        if ("$so" -notmatch 'profile escaping ok on [1-9]\d* decodes, [1-9]\d* round trips and [1-9]\d* terminators') {
+        if ("$so" -notmatch 'profile escaping ok on 8 decodes, 4 round trips and 2 terminators') {
           throw "selftest did not check the winprofile.ini escaping"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
-        if ("$so" -notmatch 'host-alias rules ok on [1-9]\d* checks') {
+        if ("$so" -notmatch 'host-alias rules ok on 34 checks') {
           throw "selftest did not check the host-alias grammar"
         }
         # A wrong wizard answer quietly applies the wrong filter rather than failing.
-        if ("$so" -notmatch 'wizard answers ok on [1-9]\d* checks') {
+        if ("$so" -notmatch 'wizard answers ok on 22 checks') {
           throw "selftest did not check the wizard answers"
         }
         # The answer indexes this menu, so it must stay the engine's list in the engine's order.
-        if ("$so" -notmatch 'wizard scopes ok on [1-9]\d* checks') {
+        if ("$so" -notmatch 'wizard scopes ok on 2 checks') {
           throw "selftest did not check the wizard host scopes"
         }
 

@@ -342,15 +342,16 @@ BOOL CWinHTTrackApp::InitInstance()
       const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, ansi, sizeof(ansi),
                                         NULL, plost);
       if (n > 0 && !lost) {   /* skip where the ANSI codepage cannot hold it at all */
+        int nchecks = 0;
         char *got = strdupt_utf8(ansi);   /* freet() nulls it, so not const */
         if (got == NULL || strcmp(got, "caf\xc3\xa9") != 0) {
           fprintf(stderr, "FATAL: MBCS->UTF-8 gave '%s', expected caf\xc3\xa9\n",
                   got != NULL ? got : "(null)");
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
         freet(got);
-        printf("MBCS->UTF-8 ok\n");
         /* The install path is where a non-ASCII byte reaches the help URL. */
         {
           char dir[64];
@@ -360,8 +361,11 @@ BOOL CWinHTTrackApp::InitInstance()
             fprintf(stderr, "FATAL: non-ASCII help path gave '%s'\n", (LPCSTR) url);
             fflush(stderr);
             ExitProcess(3);
-          }
+          } else
+            nchecks++;
         }
+        /* Printed after both checks, so neither can be dropped unnoticed. */
+        printf("MBCS->UTF-8 ok on %d checks\n", nchecks);
       }
     }
     /* An unescaped space truncates the path, and an unescaped '#' names a file rather
@@ -759,7 +763,7 @@ BOOL CWinHTTrackApp::InitInstance()
         { "pt_br", "Portugues-Brasil" }, { NULL, NULL }
       };
       const int saved = QLANG_T(-1);
-      int k;
+      int k, nchecks = 0;
       for(k=0 ; expect[k].tag != NULL ; k++) {
         char name[1024];
         const int index = LANG_INDEX_OF(expect[k].tag);
@@ -768,7 +772,8 @@ BOOL CWinHTTrackApp::InitInstance()
                   expect[k].tag, index);
           fflush(stderr);
           ExitProcess(5);
-        }
+        } else
+          nchecks++;
         QLANG_T(index);
         strcpybuff(name, "LANGUAGE_NAME");
         LANG_LOAD(name,sizeof(name));
@@ -777,15 +782,17 @@ BOOL CWinHTTrackApp::InitInstance()
                   expect[k].tag, name, expect[k].name);
           fflush(stderr);
           ExitProcess(5);
-        }
+        } else
+          nchecks++;
       }
       QLANG_T(saved);
       if (LANG_INDEX_OF("zz") >= 0) {
         fprintf(stderr, "FATAL: lang.indexes matched the bogus tag 'zz'\n");
         fflush(stderr);
         ExitProcess(5);
-      }
-      printf("lang.indexes offset checked on %d locales\n", k);
+      } else
+        nchecks++;
+      printf("lang.indexes offset checked on %d locales and %d checks\n", k, nchecks);
     }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
