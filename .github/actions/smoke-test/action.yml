@@ -212,8 +212,9 @@ runs:
         if ("$so" -notmatch 'quoted arguments ok on 15 checks(?! \(accented)') {
           throw "selftest did not check the quoted arguments against an accented value"
         }
-        # A footer preset is only reachable by opening the Browser ID page.
-        if ("$so" -notmatch 'footer presets ok on 26 checks') {
+        # A footer preset is only reachable by opening the Browser ID page. The field count
+        # is loose: they come from the engine's default footer, not from our table.
+        if ("$so" -notmatch 'footer presets ok on 16 checks and [1-9]\d* fields') {
           throw "selftest did not check the footer presets"
         }
         # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.

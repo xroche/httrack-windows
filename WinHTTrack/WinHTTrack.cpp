@@ -656,7 +656,9 @@ BOOL CWinHTTrackApp::InitInstance()
     /* Only reachable by opening the Browser ID page, so pin the presets here: a
        stray %s or a misspelt {field} would reach every mirrored page. */
     {
-      int nchecks = 0;
+      /* Fields counted apart: HTS_DEFAULT_FOOTER is the engine's, so how many it names
+         is not ours to pin. */
+      int nchecks = 0, nfields = 0;
 
       /* "{}", "{{", an unterminated "{" and an over-long name all reach the engine as "" */
       if (hts_footer_field_ok("")) {
@@ -714,12 +716,12 @@ BOOL CWinHTTrackApp::InitInstance()
               fflush(stderr);
               ExitProcess(3);
             } else
-              nchecks++;
+              nfields++;
             p = end;
           }
         }
       }
-      printf("footer presets ok on %d checks\n", nchecks);
+      printf("footer presets ok on %d checks and %d fields\n", nchecks, nfields);
     }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
