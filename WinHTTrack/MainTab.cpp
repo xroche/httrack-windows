@@ -288,9 +288,8 @@ void CMainTab::OnApplyNow()
   EnableWindow(true);
 }
 
-/* MFC syncs a page on the way out of it, so the page on top still holds the values it
-   had on entry. Pages the user never opened were never created, and their members
-   already hold what was loaded into them. */
+/* MFC syncs a page on the way out of it, so the one on top still holds what it had on
+   entry. A page never opened was never created, and its members are already current. */
 void CMainTab::UpdateFromControls() {
   CPropertyPage *const pages[] = {
     &m_option1, &m_option2, &m_option3, &m_option4, &m_option5, &m_option6,

@@ -2656,8 +2656,8 @@ void Write_profile(CString path,int load_path) {
      write ourselves. Nothing here reads it back. */
   MyWriteProfileInt(path,strSection, "ProfileFormat", 1);
 
-  /* One writer, from the members. With the sheet up, each page's controls are copied
-     into them first, so the file cannot depend on which transcription ran. */
+  /* The members are what gets written, so refresh them from the controls whenever the
+     sheet is up. */
   if (maintab->m_hWnd != NULL)
     maintab->UpdateFromControls();
   // checkboxes
