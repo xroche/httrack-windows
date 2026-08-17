@@ -191,7 +191,7 @@ runs:
         }
         # Every help button hands one of these to the browser: an unescaped space truncates
         # the path, an unescaped '#' names a file, since NTFS allows one in a filename.
-        if ("$so" -notmatch 'help URLs ok') {
+        if ("$so" -notmatch 'help URLs ok on [1-9]\d* checks') {
           throw "selftest did not check the help URLs"
         }
         # Guards the empty-name terminator (newlang.h); losing it hangs the first-run About
@@ -206,31 +206,31 @@ runs:
         }
         # The option caps count UTF-8 bytes, so the accented value is the case that matters;
         # it carries an ANSI-codepage guard and names itself when it skips.
-        if ("$so" -notmatch 'quoted arguments ok(?! \(accented)') {
+        if ("$so" -notmatch 'quoted arguments ok on [1-9]\d* checks(?! \(accented)') {
           throw "selftest did not check the quoted arguments against an accented value"
         }
         # A footer preset is only reachable by opening the Browser ID page.
-        if ("$so" -notmatch 'footer presets ok') {
+        if ("$so" -notmatch 'footer presets ok on [1-9]\d* checks') {
           throw "selftest did not check the footer presets"
         }
         # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.
-        if ("$so" -notmatch 'rule splitting ok on [1-9]\d* fields') {
+        if ("$so" -notmatch 'rule splitting ok on [1-9]\d* checks') {
           throw "selftest did not check the Experts rule splitter"
         }
         # winprofile.ini is a cross-front-end contract: WebHTTrack and Android read what we write.
-        if ("$so" -notmatch 'profile escaping ok on [1-9]\d* values and [1-9]\d* round trips') {
+        if ("$so" -notmatch 'profile escaping ok on [1-9]\d* checks') {
           throw "selftest did not check the winprofile.ini escaping"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
-        if ("$so" -notmatch 'host-alias rules ok on [1-9]\d* rules') {
+        if ("$so" -notmatch 'host-alias rules ok on [1-9]\d* checks') {
           throw "selftest did not check the host-alias grammar"
         }
         # A wrong wizard answer quietly applies the wrong filter rather than failing.
-        if ("$so" -notmatch 'wizard answers ok on [1-9]\d* rows') {
+        if ("$so" -notmatch 'wizard answers ok on [1-9]\d* checks') {
           throw "selftest did not check the wizard answers"
         }
         # The answer indexes this menu, so it must stay the engine's list in the engine's order.
-        if ("$so" -notmatch 'wizard scopes ok') {
+        if ("$so" -notmatch 'wizard scopes ok on [1-9]\d* checks') {
           throw "selftest did not check the wizard host scopes"
         }
 
