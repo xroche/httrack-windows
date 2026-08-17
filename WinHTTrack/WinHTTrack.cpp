@@ -378,6 +378,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "\\\\srv\\share\\html\\", "guide.html#win", "file://srv/share/html/guide.html#win" },
         { NULL, NULL, NULL }
       };
+      /* Counted in the else of each check, so deleting a check takes its count with it. */
+      int nchecks = 0;
       for(int k=0 ; urls[k].dir != NULL ; k++) {
         CString url;
         if (!BuildDocUrl(urls[k].dir, urls[k].page, url) || url != urls[k].want) {
@@ -385,9 +387,10 @@ BOOL CWinHTTrackApp::InitInstance()
                   urls[k].dir, urls[k].page, (LPCSTR) url, urls[k].want);
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
       }
-      printf("help URLs ok\n");
+      printf("help URLs ok on %d checks\n", nchecks);
     }
     /* Only reachable by typing into the Experts page, so pin the rule splitter here:
        a rule the engine cannot parse aborts the whole mirror. */
@@ -409,8 +412,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "" },
         { NULL, NULL }
       };
-      int k;
-      for(k=0 ; rules[k].field != NULL ; k++) {
+      int nchecks = 0;
+      for(int k=0 ; rules[k].field != NULL ; k++) {
         CStringArray got;
         CString joined;
         splitRulesInArray(got, rules[k].field);
@@ -424,9 +427,10 @@ BOOL CWinHTTrackApp::InitInstance()
                   rules[k].field, (LPCSTR) joined, rules[k].want);
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
       }
-      printf("rule splitting ok on %d fields\n", k);
+      printf("rule splitting ok on %d checks\n", nchecks);
     }
     /* winprofile.ini escaping: WebHTTrack writes the same file, so both what we
        emit and what we accept are a cross-front-end contract. */
@@ -446,38 +450,45 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "" },
         { NULL, NULL }
       };
-      int nvals, npairs;
-      for(nvals=0 ; vals[nvals].in != NULL ; nvals++) {
-        if (profile_decode(vals[nvals].in) != vals[nvals].want) {
+      /* Each block counts separately, so dropping one shows up as a zero. */
+      int ndecodes = 0, nroundtrips = 0, nterminators = 0;
+      for(int k=0 ; vals[k].in != NULL ; k++) {
+        if (profile_decode(vals[k].in) != vals[k].want) {
           fprintf(stderr, "FATAL: profile value '%s' decoded to '%s'\n",
-                  vals[nvals].in, (LPCSTR) profile_decode(vals[nvals].in));
+                  vals[k].in, (LPCSTR) profile_decode(vals[k].in));
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          ndecodes++;
       }
-      for(npairs=0 ; pairs[npairs].plain != NULL ; npairs++) {
-        const CString coded = profile_code(pairs[npairs].plain);
-        if (coded != pairs[npairs].coded || profile_decode(coded) != pairs[npairs].plain) {
+      for(int k=0 ; pairs[k].plain != NULL ; k++) {
+        const CString coded = profile_code(pairs[k].plain);
+        if (coded != pairs[k].coded || profile_decode(coded) != pairs[k].plain) {
           fprintf(stderr, "FATAL: profile value '%s' coded to '%s', expected '%s', decoded back to '%s'\n",
-                  pairs[npairs].plain, (LPCSTR) coded, pairs[npairs].coded, (LPCSTR) profile_decode(coded));
+                  pairs[k].plain, (LPCSTR) coded, pairs[k].coded, (LPCSTR) profile_decode(coded));
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nroundtrips++;
       }
       /* the bytes past the NUL are poison: decoding must stop at the terminator */
       {
-        char buf[8];
-        memcpy(buf, "x%\0zzzz", 8);
-        const CString got = profile_decode(buf);
-        memcpy(buf, "x%0\0zzz", 8);
-        if (got != "x " || profile_decode(buf) != "x ") {
-          fprintf(stderr, "FATAL: truncated escape decoded to '%s' and '%s'\n",
-                  (LPCSTR) got, (LPCSTR) profile_decode(buf));
-          fflush(stderr);
-          ExitProcess(3);
+        static const char truncated[2][8] = { "x%\0zzzz", "x%0\0zzz" };
+
+        for(size_t k=0 ; k<sizeof(truncated)/sizeof(truncated[0]) ; k++) {
+          const CString got = profile_decode(truncated[k]);
+
+          if (got != "x ") {
+            fprintf(stderr, "FATAL: truncated escape '%s' decoded to '%s'\n",
+                    truncated[k], (LPCSTR) got);
+            fflush(stderr);
+            ExitProcess(3);
+          } else
+            nterminators++;
         }
       }
-      printf("profile escaping ok on %d values and %d round trips\n", nvals, npairs);
+      printf("profile escaping ok on %d decodes, %d round trips and %d terminators\n",
+             ndecodes, nroundtrips, nterminators);
     }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */
@@ -509,17 +520,18 @@ BOOL CWinHTTrackApp::InitInstance()
         { "-legacy.example.com=example.com", TRUE },
         { NULL, FALSE }
       };
-      int k;
-      for(k=0 ; aliases[k].rule != NULL ; k++) {
+      int nchecks = 0;
+      for(int k=0 ; aliases[k].rule != NULL ; k++) {
         if (isHostAliasArgument(aliases[k].rule) != aliases[k].want) {
           fprintf(stderr, "FATAL: host-alias rule '%s' judged %s\n",
                   aliases[k].rule, aliases[k].want ? "bad, expected good"
                                                    : "good, expected bad");
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
       }
-      printf("host-alias rules ok on %d rules\n", k);
+      printf("host-alias rules ok on %d checks\n", nchecks);
     }
     /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
        refuses costs the whole mirror, and each field carries its own cap. */
@@ -543,6 +555,7 @@ BOOL CWinHTTrackApp::InitInstance()
         { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 2, FALSE },
         { NULL, NULL, NULL, 0, FALSE }
       };
+      int nchecks = 0;
       for(int k=0 ; quoted[k].field != NULL ; k++) {
         CString value;
         for(int n=0 ; n<quoted[k].repeat ; n++)
@@ -553,17 +566,24 @@ BOOL CWinHTTrackApp::InitInstance()
                   quoted[k].want ? "bad, expected good" : "good, expected bad");
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
       }
       /* The caps count the UTF-8 bytes the engine will see: 200 accented characters are 400 of
          them. Under a UTF-8 ANSI codepage the conversion is a copy, and 200 stay 200. */
       const BOOL mbcs = GetACP() != CP_UTF8;
-      if (mbcs && isFooterArgument(CString('\xE9', 200))) {
-        fprintf(stderr, "FATAL: a 400-byte accented footer was judged short enough\n");
-        fflush(stderr);
-        ExitProcess(3);
+      if (mbcs) {
+        if (isFooterArgument(CString('\xE9', 200))) {
+          fprintf(stderr, "FATAL: a 400-byte accented footer was judged short enough\n");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
       }
-      printf("quoted arguments ok%s\n", mbcs ? "" : " (accented case skipped)");
+      /* Count before the suffix: the CI guard rejects the suffix right after it, so a skip
+         is still visible. */
+      printf("quoted arguments ok on %d checks%s\n", nchecks,
+             mbcs ? "" : " (accented case skipped)");
     }
     /* The wizard's answer only reaches the engine through a modal dialog, and a
        wrong number there quietly applies the wrong filter rather than failing. */
@@ -580,8 +600,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { -1, -1, "" }, { -1, 0, "" }, { 8, 0, "" },      /* nothing selected */
         { 0, 0, NULL }
       };
-      int k;
-      for(k=0 ; answers[k].want != NULL ; k++) {
+      int nchecks = 0;
+      for(int k=0 ; answers[k].want != NULL ; k++) {
         char got[16] = "unset";
         const bool ok = WizLinkAnswer(answers[k].lnk, answers[k].scope, got, sizeof(got));
         if (ok != (answers[k].want[0] != '\0') || strcmp(got, answers[k].want) != 0) {
@@ -589,7 +609,8 @@ BOOL CWinHTTrackApp::InitInstance()
                   answers[k].lnk, answers[k].scope, got, answers[k].want);
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
       }
       {   /* "1012" cut to "10" would name a different scope, so it must fail */
         char tiny[3];
@@ -597,14 +618,16 @@ BOOL CWinHTTrackApp::InitInstance()
           fprintf(stderr, "FATAL: wizard answer truncated to '%s' instead of failing\n", tiny);
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
       }
-      printf("wizard answers ok on %d rows\n", k);
+      printf("wizard answers ok on %d checks\n", nchecks);
     }
     /* The answer is an index into this menu, so it must be the engine's list in the
        engine's order. Same cases as the engine's 292_engine-wizard-scope.test. */
     {
       CStringArray scopes;
+      int nchecks = 0;
 
       if (WizHostScopes("download.example.co.uk/x", scopes) != 3
           || scopes[0] != "download.example.co.uk" || scopes[1] != "example.co.uk"
@@ -614,43 +637,51 @@ BOOL CWinHTTrackApp::InitInstance()
                 scopes.GetSize() != 0 ? (LPCSTR) scopes[0] : "(none)");
         fflush(stderr);
         ExitProcess(3);
-      }
+      } else
+        nchecks++;
       scopes.RemoveAll();
       if (WizHostScopes("192.168.1.1/x", scopes) != 0) {   /* an IP literal has none */
         fprintf(stderr, "FATAL: wizard offered %d scopes for an IP literal\n",
                 (int) scopes.GetSize());
         fflush(stderr);
         ExitProcess(3);
-      }
-      printf("wizard scopes ok\n");
+      } else
+        nchecks++;
+      printf("wizard scopes ok on %d checks\n", nchecks);
     }
     /* Only reachable by opening the Browser ID page, so pin the presets here: a
        stray %s or a misspelt {field} would reach every mirrored page. */
     {
+      int nchecks = 0;
+
       /* "{}", "{{", an unterminated "{" and an over-long name all reach the engine as "" */
       if (hts_footer_field_ok("")) {
         fprintf(stderr, "FATAL: the engine expands an empty footer field name\n");
         fflush(stderr);
         ExitProcess(3);
-      }
+      } else
+        nchecks++;
       if (strcmp(FooterPresets[0], HTS_DEFAULT_FOOTER) != 0) {
         fprintf(stderr, "FATAL: first footer preset is '%s', expected the engine default '%s'\n",
                 FooterPresets[0], HTS_DEFAULT_FOOTER);
         fflush(stderr);
         ExitProcess(3);
-      }
+      } else
+        nchecks++;
       for(int k=0 ; FooterPresets[k] != NULL ; k++) {
         const char* p = FooterPresets[k];
         if (strstr(p, "%s") != NULL) {
           fprintf(stderr, "FATAL: footer preset '%s' uses the legacy %%s model\n", p);
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
         if (!isFooterArgument(p)) {
           fprintf(stderr, "FATAL: footer preset '%s' is one the shell would drop\n", p);
           fflush(stderr);
           ExitProcess(3);
-        }
+        } else
+          nchecks++;
         /* An unterminated comment, or one closed early, swallows the page. */
         if (strcmp(p, HTS_NOPARAM) != 0) {
           const char *const tail = strstr(p, "-->");
@@ -658,7 +689,8 @@ BOOL CWinHTTrackApp::InitInstance()
             fprintf(stderr, "FATAL: footer preset '%s' is not one well-formed HTML comment\n", p);
             fflush(stderr);
             ExitProcess(3);
-          }
+          } else
+            nchecks++;
         }
         for( ; *p != '\0' ; p++) {
           if (*p == '{' && p[1] == '{') {
@@ -677,12 +709,13 @@ BOOL CWinHTTrackApp::InitInstance()
                       FooterPresets[k], p);
               fflush(stderr);
               ExitProcess(3);
-            }
+            } else
+              nchecks++;
             p = end;
           }
         }
       }
-      printf("footer presets ok\n");
+      printf("footer presets ok on %d checks\n", nchecks);
     }
     int nlangs = 0;
     /* Walk the languages as the About box does: losing LANG_LOAD()'s empty-name
