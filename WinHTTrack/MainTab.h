@@ -88,6 +88,9 @@ public:
 public:
   virtual ~CMainTab();
   virtual BOOL OnInitDialog();
+  /* Copy every created page's controls into its members, so a caller reading the
+     members sees what the user last typed. Pages never opened are left alone. */
+  void UpdateFromControls();
   void ApplyAndSave();
   void Apply();
   void LoadPrefs();

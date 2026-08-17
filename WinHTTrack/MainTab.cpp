@@ -288,6 +288,21 @@ void CMainTab::OnApplyNow()
   EnableWindow(true);
 }
 
+/* MFC syncs a page on the way out of it, so the page on top still holds the values it
+   had on entry. Pages the user never opened were never created, and their members
+   already hold what was loaded into them. */
+void CMainTab::UpdateFromControls() {
+  CPropertyPage *const pages[] = {
+    &m_option1, &m_option2, &m_option3, &m_option4, &m_option5, &m_option6,
+    &m_option7, &m_option8, &m_option9, &m_option10, &m_option11
+  };
+
+  for(size_t i=0 ; i<sizeof(pages)/sizeof(pages[0]) ; i++) {
+    if (pages[i]->m_hWnd != NULL)
+      pages[i]->UpdateData(TRUE);   /* a DDV that fails leaves that page's members be */
+  }
+}
+
 // Sauver et appliquer les préférences
 void CMainTab::ApplyAndSave() {
   CWaitCursor wait;      // Afficher curseur sablier
