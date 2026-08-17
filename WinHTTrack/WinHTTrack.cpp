@@ -427,6 +427,56 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok\n");
     }
+    /* winprofile.ini escaping: WebHTTrack writes the same file, so both what we
+       emit and what we accept are a cross-front-end contract. */
+    {
+      static const struct { const char* in; const char* want; } vals[] = {
+        { "%%", "%" }, { "%3d", "=" }, { "%0d", "\r" }, { "%0a", "\n" }, { "%09", "\t" },
+        /* today's decoder turns every other escape into a space, uppercase hex included */
+        { "%3D", " " }, { "%41", " " },
+        { "a%%b%3dc", "a%b=c" },
+        { NULL, NULL }
+      };
+      /* the coded form is what the other reader sees, so pin it and not just the round trip */
+      static const struct { const char* plain; const char* coded; } pairs[] = {
+        { "a=b\r\n\tc%d", "a%3db%0d%0a%09c%%d" },
+        { "%", "%%" },
+        { "100% =", "100%% %3d" },
+        { "", "" },
+        { NULL, NULL }
+      };
+      for(int k=0 ; vals[k].in != NULL ; k++) {
+        if (profile_decode(vals[k].in) != vals[k].want) {
+          fprintf(stderr, "FATAL: profile value '%s' decoded to '%s'\n",
+                  vals[k].in, (LPCSTR) profile_decode(vals[k].in));
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      for(int k=0 ; pairs[k].plain != NULL ; k++) {
+        const CString coded = profile_code(pairs[k].plain);
+        if (coded != pairs[k].coded || profile_decode(coded) != pairs[k].plain) {
+          fprintf(stderr, "FATAL: profile value '%s' coded to '%s', expected '%s', decoded back to '%s'\n",
+                  pairs[k].plain, (LPCSTR) coded, pairs[k].coded, (LPCSTR) profile_decode(coded));
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      /* the bytes past the NUL are poison: decoding must stop at the terminator */
+      {
+        char buf[8];
+        memcpy(buf, "x%\0zzzz", 8);
+        const CString got = profile_decode(buf);
+        memcpy(buf, "x%0\0zzz", 8);
+        if (got != "x " || profile_decode(buf) != "x ") {
+          fprintf(stderr, "FATAL: truncated escape decoded to '%s' and '%s'\n",
+                  (LPCSTR) got, (LPCSTR) profile_decode(buf));
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      printf("profile escaping ok\n");
+    }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */
     {

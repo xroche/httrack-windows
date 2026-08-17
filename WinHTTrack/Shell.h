@@ -211,6 +211,11 @@ void Read_profile(CString path,int load_path);
 int MyWriteProfileInt(CString path,CString dummy,CString name,int value);
 int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 
+/* winprofile.ini value escaping: '%', '=', TAB, CR and LF only, everything else
+   unchanged. Decoding is lossy, so the pair is not a bijection. For --selftest. */
+CString profile_code(const char* from);
+CString profile_decode(const char* from);
+
 /* Split a rule field into the rules a repeatable option carries, one per flag.
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
