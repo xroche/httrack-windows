@@ -450,7 +450,7 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "" },
         { NULL, NULL }
       };
-      /* One count per block, not one sum: a sum stays positive when a whole block goes. */
+      /* Each block counts separately, so dropping one shows up as a zero. */
       int ndecodes = 0, nroundtrips = 0, nterminators = 0;
       for(int k=0 ; vals[k].in != NULL ; k++) {
         if (profile_decode(vals[k].in) != vals[k].want) {
@@ -475,7 +475,7 @@ BOOL CWinHTTrackApp::InitInstance()
       {
         static const char truncated[2][8] = { "x%\0zzzz", "x%0\0zzz" };
 
-        for(int k=0 ; k<2 ; k++) {
+        for(size_t k=0 ; k<sizeof(truncated)/sizeof(truncated[0]) ; k++) {
           const CString got = profile_decode(truncated[k]);
 
           if (got != "x ") {
