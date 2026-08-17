@@ -763,7 +763,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "pt_br", "Portugues-Brasil" }, { NULL, NULL }
       };
       const int saved = QLANG_T(-1);
-      int k, nchecks = 0;
+      int nchecks = 0;
+      int k;
       for(k=0 ; expect[k].tag != NULL ; k++) {
         char name[1024];
         const int index = LANG_INDEX_OF(expect[k].tag);
