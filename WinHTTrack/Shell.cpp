@@ -2617,9 +2617,11 @@ CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value
   } else return value;
 }
 
-// The combo's 0-based selection, or CB_ERR when nothing is selected.
+// The combo's 0-based selection, or CB_ERR when there is none. A missing control
+// must not read as CB_GETCURSEL's 0, which is a valid entry.
 static int comboSel(CWnd& page, int id) {
-  return (int) page.SendDlgItemMessage(id, CB_GETCURSEL);
+  const CComboBox* const combo = (const CComboBox*) page.GetDlgItem(id);
+  return combo != NULL ? combo->GetCurSel() : CB_ERR;
 }
 
 //
@@ -2650,8 +2652,8 @@ void Write_profile(CString path,int load_path) {
       fclose(fp);
   }
   
-  /* Written for WebHTTrack, which reads it: rewriting the file from our own key
-     list would otherwise drop the marker it wrote. We never interpret it. */
+  /* Format stamp for the other front end: our rewrite drops any key we do not
+     write ourselves. Nothing here reads it back. */
   MyWriteProfileInt(path,strSection, "ProfileFormat", 1);
 
   //if (dialog3.m_hWnd == NULL) {    // pas initialisé

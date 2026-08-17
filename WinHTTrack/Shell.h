@@ -212,7 +212,7 @@ int MyWriteProfileInt(CString path,CString dummy,CString name,int value);
 int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 
 /* winprofile.ini value escaping: '%', '=', TAB, CR and LF only, everything else
-   verbatim. Exposed for --selftest. */
+   unchanged. Decoding is lossy, so the pair is not a bijection. For --selftest. */
 CString profile_code(const char* from);
 CString profile_decode(const char* from);
 
