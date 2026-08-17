@@ -298,7 +298,8 @@ void CMainTab::UpdateFromControls() {
 
   for(size_t i=0 ; i<sizeof(pages)/sizeof(pages[0]) ; i++) {
     if (pages[i]->m_hWnd != NULL)
-      pages[i]->UpdateData(TRUE);   /* a DDV that fails leaves that page's members be */
+      pages[i]->UpdateData(TRUE);   /* a failed DDV stops that page's map, leaving the
+                                       fields after it stale */
   }
 }
 
