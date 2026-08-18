@@ -2656,297 +2656,113 @@ void Write_profile(CString path,int load_path) {
      write ourselves. Nothing here reads it back. */
   MyWriteProfileInt(path,strSection, "ProfileFormat", 1);
 
-  //if (dialog3.m_hWnd == NULL) {    // pas initialisé
-  if (maintab->m_hWnd == NULL) {    // pas initialisé
-    // checkboxes
-    MyWriteProfileInt(path,strSection, "Near",maintab->m_option1.m_link);
-    MyWriteProfileInt(path,strSection, "Test",maintab->m_option1.m_testall);
-    MyWriteProfileInt(path,strSection, "ParseAll",maintab->m_option1.m_parseall);
-    MyWriteProfileInt(path,strSection, "HTMLFirst",maintab->m_option1.m_htmlfirst);
-    MyWriteProfileInt(path,strSection, "KeepWww",maintab->m_option1.m_keepwww);
-    MyWriteProfileInt(path,strSection, "KeepSlashes",maintab->m_option1.m_keepslashes);
-    MyWriteProfileInt(path,strSection, "KeepQueryOrder",maintab->m_option1.m_keepqueryorder);
-    MyWriteProfileInt(path,strSection, "Cache",maintab->m_option3.m_cache);
-    MyWriteProfileInt(path,strSection, "NoRecatch",maintab->m_option9.m_norecatch);
-    MyWriteProfileInt(path,strSection, "Dos",
-      ((maintab->m_option2.m_dos)?1:0)
-      +
-      (((maintab->m_option2.m_iso9660)?1:0)<<1)
-      );
-    MyWriteProfileInt(path,strSection, "Index",maintab->m_option9.m_index);
-    MyWriteProfileInt(path,strSection, "WordIndex",maintab->m_option9.m_index2);
-    MyWriteProfileInt(path,strSection, "MailIndex",maintab->m_option9.m_index_mail);
-    MyWriteProfileInt(path,strSection, "Log",maintab->m_option9.m_logf);
-    MyWriteProfileInt(path,strSection, "RemoveTimeout",maintab->m_option4.m_remt);
-    MyWriteProfileInt(path,strSection, "RemoveRateout",maintab->m_option4.m_rems);
-    MyWriteProfileInt(path,strSection, "KeepAlive",maintab->m_option4.m_ka);
-    MyWriteProfileInt(path,strSection, "FollowRobotsTxt",maintab->m_option8.m_robots);
-    MyWriteProfileInt(path,strSection, "NoErrorPages",maintab->m_option2.m_errpage);
-    MyWriteProfileInt(path,strSection, "NoExternalPages",maintab->m_option2.m_external);
-    MyWriteProfileInt(path,strSection, "NoPwdInPages",maintab->m_option2.m_hidepwd);
-    MyWriteProfileInt(path,strSection, "NoQueryStrings",maintab->m_option2.m_hidequery);
-    MyWriteProfileInt(path,strSection, "NoPurgeOldFiles",maintab->m_option2.m_nopurge);
-    MyWriteProfileInt(path,strSection, "Warc",maintab->m_option9.m_warc);
-    MyWriteProfileInt(path,strSection, "WarcCdx",maintab->m_option9.m_warccdx);
-    MyWriteProfileInt(path,strSection, "Wacz",maintab->m_option9.m_wacz);
-    MyWriteProfileInt(path,strSection, "Sitemap",maintab->m_option8.m_sitemap);
-    MyWriteProfileString(path,strSection, "SitemapUrl",maintab->m_option8.m_sitemapurl);
-    MyWriteProfileString(path,strSection, "HostAlias",maintab->m_option8.m_hostalias);
-    MyWriteProfileInt(path,strSection, "SingleFile",maintab->m_option9.m_singlefile);
-    MyWriteProfileString(path,strSection, "SingleFileMaxSize",maintab->m_option9.m_singlefilemax);
-    MyWriteProfileInt(path,strSection, "Changes",maintab->m_option9.m_changes);
-    MyWriteProfileInt(path,strSection, "Cookies",maintab->m_option8.m_cookies);
-    MyWriteProfileInt(path,strSection, "CheckType",maintab->m_option8.m_checktype);
-    MyWriteProfileInt(path,strSection, "ParseJava",maintab->m_option8.m_parsejava);
-    MyWriteProfileInt(path,strSection, "HTTP10",maintab->m_option8.m_http10);
-    MyWriteProfileInt(path,strSection, "TolerantRequests",maintab->m_option8.m_toler);
-    MyWriteProfileInt(path,strSection, "UpdateHack",maintab->m_option8.m_updhack);
-    MyWriteProfileInt(path,strSection, "URLHack",maintab->m_option8.m_urlhack);
-    MyWriteProfileString(path,strSection, "CookiesFile",maintab->m_option8.m_cookiesfile);
-    MyWriteProfileString(path,strSection, "PauseFiles",maintab->m_option4.m_pausefiles);
-    MyWriteProfileInt(path,strSection, "StoreAllInCache",maintab->m_option9.m_Cache2);
-    MyWriteProfileInt(path,strSection, "LogType",maintab->m_option9.m_logtype);
-    MyWriteProfileInt(path,strSection, "UseHTTPProxyForFTP",maintab->m_option10.m_ftpprox);
-    
-    // menus
-    MyWriteProfileInt(path,strSection, "Build",maintab->m_option2.m_build);
-    MyWriteProfileInt(path,strSection, "PrimaryScan",maintab->m_option3.m_filter);
-    MyWriteProfileInt(path,strSection, "Travel",maintab->m_option3.m_travel);
-    MyWriteProfileInt(path,strSection, "GlobalTravel",maintab->m_option3.m_travel2);
-    MyWriteProfileInt(path,strSection, "RewriteLinks",maintab->m_option3.m_travel3);
-    MyWriteProfileString(path,strSection, "StripQuery",maintab->m_option3.m_stripquery);
-    MyWriteProfileString(path,strSection, "BuildString",maintab->m_option2.Bopt.m_BuildString);
-    
-    // champs
-    MyWriteProfileString(path,strSection, "Category", this_CSplitterFrame->GetCurrentCategory());
+  /* The members are what gets written, so refresh them from the controls whenever the
+     sheet is up. */
+  if (maintab->m_hWnd != NULL)
+    maintab->UpdateFromControls();
+  // checkboxes
+  MyWriteProfileInt(path,strSection, "Near",maintab->m_option1.m_link);
+  MyWriteProfileInt(path,strSection, "Test",maintab->m_option1.m_testall);
+  MyWriteProfileInt(path,strSection, "ParseAll",maintab->m_option1.m_parseall);
+  MyWriteProfileInt(path,strSection, "HTMLFirst",maintab->m_option1.m_htmlfirst);
+  MyWriteProfileInt(path,strSection, "KeepWww",maintab->m_option1.m_keepwww);
+  MyWriteProfileInt(path,strSection, "KeepSlashes",maintab->m_option1.m_keepslashes);
+  MyWriteProfileInt(path,strSection, "KeepQueryOrder",maintab->m_option1.m_keepqueryorder);
+  MyWriteProfileInt(path,strSection, "Cache",maintab->m_option3.m_cache);
+  MyWriteProfileInt(path,strSection, "NoRecatch",maintab->m_option9.m_norecatch);
+  MyWriteProfileInt(path,strSection, "Dos",
+    ((maintab->m_option2.m_dos)?1:0)
+    +
+    (((maintab->m_option2.m_iso9660)?1:0)<<1)
+    );
+  MyWriteProfileInt(path,strSection, "Index",maintab->m_option9.m_index);
+  MyWriteProfileInt(path,strSection, "WordIndex",maintab->m_option9.m_index2);
+  MyWriteProfileInt(path,strSection, "MailIndex",maintab->m_option9.m_index_mail);
+  MyWriteProfileInt(path,strSection, "Log",maintab->m_option9.m_logf);
+  MyWriteProfileInt(path,strSection, "RemoveTimeout",maintab->m_option4.m_remt);
+  MyWriteProfileInt(path,strSection, "RemoveRateout",maintab->m_option4.m_rems);
+  MyWriteProfileInt(path,strSection, "KeepAlive",maintab->m_option4.m_ka);
+  MyWriteProfileInt(path,strSection, "FollowRobotsTxt",maintab->m_option8.m_robots);
+  MyWriteProfileInt(path,strSection, "NoErrorPages",maintab->m_option2.m_errpage);
+  MyWriteProfileInt(path,strSection, "NoExternalPages",maintab->m_option2.m_external);
+  MyWriteProfileInt(path,strSection, "NoPwdInPages",maintab->m_option2.m_hidepwd);
+  MyWriteProfileInt(path,strSection, "NoQueryStrings",maintab->m_option2.m_hidequery);
+  MyWriteProfileInt(path,strSection, "NoPurgeOldFiles",maintab->m_option2.m_nopurge);
+  MyWriteProfileInt(path,strSection, "Warc",maintab->m_option9.m_warc);
+  MyWriteProfileInt(path,strSection, "WarcCdx",maintab->m_option9.m_warccdx);
+  MyWriteProfileInt(path,strSection, "Wacz",maintab->m_option9.m_wacz);
+  MyWriteProfileInt(path,strSection, "Sitemap",maintab->m_option8.m_sitemap);
+  MyWriteProfileString(path,strSection, "SitemapUrl",maintab->m_option8.m_sitemapurl);
+  MyWriteProfileString(path,strSection, "HostAlias",maintab->m_option8.m_hostalias);
+  MyWriteProfileInt(path,strSection, "SingleFile",maintab->m_option9.m_singlefile);
+  MyWriteProfileString(path,strSection, "SingleFileMaxSize",maintab->m_option9.m_singlefilemax);
+  MyWriteProfileInt(path,strSection, "Changes",maintab->m_option9.m_changes);
+  MyWriteProfileInt(path,strSection, "Cookies",maintab->m_option8.m_cookies);
+  MyWriteProfileInt(path,strSection, "CheckType",maintab->m_option8.m_checktype);
+  MyWriteProfileInt(path,strSection, "ParseJava",maintab->m_option8.m_parsejava);
+  MyWriteProfileInt(path,strSection, "HTTP10",maintab->m_option8.m_http10);
+  MyWriteProfileInt(path,strSection, "TolerantRequests",maintab->m_option8.m_toler);
+  MyWriteProfileInt(path,strSection, "UpdateHack",maintab->m_option8.m_updhack);
+  MyWriteProfileInt(path,strSection, "URLHack",maintab->m_option8.m_urlhack);
+  MyWriteProfileString(path,strSection, "CookiesFile",maintab->m_option8.m_cookiesfile);
+  MyWriteProfileString(path,strSection, "PauseFiles",maintab->m_option4.m_pausefiles);
+  MyWriteProfileInt(path,strSection, "StoreAllInCache",maintab->m_option9.m_Cache2);
+  MyWriteProfileInt(path,strSection, "LogType",maintab->m_option9.m_logtype);
+  MyWriteProfileInt(path,strSection, "UseHTTPProxyForFTP",maintab->m_option10.m_ftpprox);
+  
+  // menus
+  MyWriteProfileInt(path,strSection, "Build",maintab->m_option2.m_build);
+  MyWriteProfileInt(path,strSection, "PrimaryScan",maintab->m_option3.m_filter);
+  MyWriteProfileInt(path,strSection, "Travel",maintab->m_option3.m_travel);
+  MyWriteProfileInt(path,strSection, "GlobalTravel",maintab->m_option3.m_travel2);
+  MyWriteProfileInt(path,strSection, "RewriteLinks",maintab->m_option3.m_travel3);
+  MyWriteProfileString(path,strSection, "StripQuery",maintab->m_option3.m_stripquery);
+  MyWriteProfileString(path,strSection, "BuildString",maintab->m_option2.Bopt.m_BuildString);
+  
+  // champs
+  MyWriteProfileString(path,strSection, "Category", this_CSplitterFrame->GetCurrentCategory());
 
-    MyWriteProfileString(path,strSection, "MaxHtml",maintab->m_option5.m_maxhtml);
-    MyWriteProfileString(path,strSection, "MaxOther",maintab->m_option5.m_othermax);
-    MyWriteProfileString(path,strSection, "MaxAll",maintab->m_option5.m_sizemax);
-    MyWriteProfileString(path,strSection, "MaxWait",maintab->m_option5.m_pausebytes);
-    MyWriteProfileString(path,strSection, "Sockets",maintab->m_option4.m_connexion);
-    MyWriteProfileString(path,strSection, "Retry",maintab->m_option4.m_retry);
-    MyWriteProfileString(path,strSection, "MaxTime",maintab->m_option5.m_maxtime);
-    MyWriteProfileString(path,strSection, "TimeOut",maintab->m_option4.m_timeout);
-    MyWriteProfileString(path,strSection, "RateOut",maintab->m_option4.m_rate);
-    MyWriteProfileString(path,strSection, "UserID",maintab->m_option6.m_user);
-    MyWriteProfileString(path,strSection, "Footer",maintab->m_option6.m_footer);
-    MyWriteProfileString(path,strSection, "AcceptLanguage",maintab->m_option6.m_accept_language);
-    MyWriteProfileString(path,strSection, "OtherHeaders",maintab->m_option6.m_other_headers);
-    MyWriteProfileString(path,strSection, "DefaultReferer",maintab->m_option6.m_default_referer);
-    MyWriteProfileString(path,strSection, "MaxRate",maintab->m_option5.m_maxrate);
-    MyWriteProfileString(path,strSection, "WildCardFilters",maintab->m_option7.m_url2);
-    MyWriteProfileString(path,strSection, "Proxy",maintab->m_option10.m_proxy);
-    MyWriteProfileString(path,strSection, "Port",maintab->m_option10.m_port);
-    MyWriteProfileInt(path,strSection, "ProxyType",maintab->m_option10.m_proxytype);
-    MyWriteProfileString(path,strSection, "Depth",maintab->m_option5.m_depth);
-    MyWriteProfileString(path,strSection, "ExtDepth",maintab->m_option5.m_depth2);
-    MyWriteProfileString(path,strSection, "MaxConn",maintab->m_option5.m_maxconn);    
-    MyWriteProfileString(path,strSection, "MaxLinks",maintab->m_option5.m_maxlinks);    
-    
-    // 11
-    MyWriteProfileString(path,strSection, "MIMEDefsExt1",maintab->m_option11.m_ext1);    
-    MyWriteProfileString(path,strSection, "MIMEDefsExt2",maintab->m_option11.m_ext2);    
-    MyWriteProfileString(path,strSection, "MIMEDefsExt3",maintab->m_option11.m_ext3);    
-    MyWriteProfileString(path,strSection, "MIMEDefsExt4",maintab->m_option11.m_ext4);    
-    MyWriteProfileString(path,strSection, "MIMEDefsExt5",maintab->m_option11.m_ext5);    
-    MyWriteProfileString(path,strSection, "MIMEDefsExt6",maintab->m_option11.m_ext6);    
-    MyWriteProfileString(path,strSection, "MIMEDefsExt7",maintab->m_option11.m_ext7);    
-    MyWriteProfileString(path,strSection, "MIMEDefsExt8",maintab->m_option11.m_ext8);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime1",maintab->m_option11.m_mime1);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime2",maintab->m_option11.m_mime2);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime3",maintab->m_option11.m_mime3);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime4",maintab->m_option11.m_mime4);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime5",maintab->m_option11.m_mime5);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime6",maintab->m_option11.m_mime6);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime7",maintab->m_option11.m_mime7);    
-    MyWriteProfileString(path,strSection, "MIMEDefsMime8",maintab->m_option11.m_mime8);
-  } else {
-    st = this_CSplitterFrame->GetCurrentCategory(); MyWriteProfileString(path,strSection,"Category",st);
-
-    // checkboxes
-    // 1
-    n=maintab->m_option1.IsDlgButtonChecked(IDC_link);
-    MyWriteProfileInt(path,strSection,"Near", n);
-    n=maintab->m_option1.IsDlgButtonChecked(IDC_testall);
-    MyWriteProfileInt(path,strSection,"Test", n);
-    n=maintab->m_option1.IsDlgButtonChecked(IDC_parseall);
-    MyWriteProfileInt(path,strSection,"ParseAll", n);
-    n=maintab->m_option1.IsDlgButtonChecked(IDC_htmlfirst);
-    MyWriteProfileInt(path,strSection,"HTMLFirst", n);
-    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepwww);
-    MyWriteProfileInt(path,strSection,"KeepWww", n);
-    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepslashes);
-    MyWriteProfileInt(path,strSection,"KeepSlashes", n);
-    n=maintab->m_option1.IsDlgButtonChecked(IDC_keepqueryorder);
-    MyWriteProfileInt(path,strSection,"KeepQueryOrder", n);
-    // 2
-    n=maintab->m_option3.IsDlgButtonChecked(IDC_Cache);
-    MyWriteProfileInt(path,strSection,"Cache", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_norecatch);
-    MyWriteProfileInt(path,strSection,"NoRecatch", n);
-    n = ((maintab->m_option2.IsDlgButtonChecked(IDC_dos))?1:0)
-      + ((maintab->m_option2.IsDlgButtonChecked(IDC_iso9660)?1:0)<<1);
-    MyWriteProfileInt(path,strSection,"Dos", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_index);
-    MyWriteProfileInt(path,strSection,"Index", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_index2);
-    MyWriteProfileInt(path,strSection,"WordIndex", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_index_mail);
-    MyWriteProfileInt(path,strSection,"MailIndex", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_logf);
-    MyWriteProfileInt(path,strSection,"Log", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_errpage);
-    MyWriteProfileInt(path,strSection,"NoErrorPages", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_hidepwd);
-    MyWriteProfileInt(path,strSection,"NoPwdInPages", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_hidequery);
-    MyWriteProfileInt(path,strSection,"NoQueryStrings", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_external);
-    MyWriteProfileInt(path,strSection,"NoExternalPages", n);
-    n=maintab->m_option2.IsDlgButtonChecked(IDC_nopurge);
-    MyWriteProfileInt(path,strSection,"NoPurgeOldFiles", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_warc);
-    MyWriteProfileInt(path,strSection,"Warc", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_warccdx);
-    MyWriteProfileInt(path,strSection,"WarcCdx", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_wacz);
-    MyWriteProfileInt(path,strSection,"Wacz", n);
-    if ((n=maintab->m_option2.m_ctl_build.GetCurSel()) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "Build", n);
-    st = maintab->m_option2.Bopt.m_BuildString;
-    if (st.GetLength()>0)
-      MyWriteProfileString(path,strSection, "BuildString",st);
-    // 3
-    // menus
-    if ((n=maintab->m_option3.m_ctl_filter.GetCurSel()) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "PrimaryScan", n);
-    if ((n=maintab->m_option3.m_ctl_travel.GetCurSel()) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "Travel", n);
-    if ((n=maintab->m_option3.m_ctl_travel2.GetCurSel()) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "GlobalTravel", n);
-    if ((n=maintab->m_option3.m_ctl_travel3.GetCurSel()) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "RewriteLinks", n);
-    maintab->m_option3.GetDlgItemText(IDC_stripquery,st);
-    MyWriteProfileString(path,strSection, "StripQuery", st);
-    //
-    if ((n=comboSel(maintab->m_option8, IDC_robots)) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "FollowRobotsTxt", n);
-    // 4
-    maintab->m_option4.GetDlgItemText(IDC_connexion,st);
-    MyWriteProfileString(path,strSection, "Sockets", st);
-    maintab->m_option4.GetDlgItemText(IDC_timeout,st);
-    MyWriteProfileString(path,strSection, "TimeOut", st);
-    n=maintab->m_option4.IsDlgButtonChecked(IDC_remt);
-    MyWriteProfileInt(path,strSection,"RemoveTimeout", n);
-    maintab->m_option4.GetDlgItemText(IDC_retry,st);
-    MyWriteProfileString(path,strSection, "Retry", st);
-    maintab->m_option4.GetDlgItemText(IDC_rate,st);
-    MyWriteProfileString(path,strSection, "RateOut", st);
-    n=maintab->m_option4.IsDlgButtonChecked(IDC_rems);
-    MyWriteProfileInt(path,strSection,"RemoveRateout", n);
-    n=maintab->m_option4.IsDlgButtonChecked(IDC_ka);
-    MyWriteProfileInt(path,strSection,"KeepAlive", n);
-    // 5
-    maintab->m_option5.GetDlgItemText(IDC_maxhtml,st);
-    MyWriteProfileString(path,strSection, "MaxHtml", st);
-    maintab->m_option5.GetDlgItemText(IDC_othermax,st);
-    MyWriteProfileString(path,strSection, "MaxOther", st);
-    maintab->m_option5.GetDlgItemText(IDC_sizemax,st);
-    MyWriteProfileString(path,strSection, "MaxAll", st);
-    maintab->m_option5.GetDlgItemText(IDC_pausebytes,st);
-    MyWriteProfileString(path,strSection, "MaxWait", st);
-    maintab->m_option5.GetDlgItemText(IDC_maxtime,st);
-    MyWriteProfileString(path,strSection, "MaxTime", st);
-    maintab->m_option5.GetDlgItemText(IDC_maxrate,st);
-    MyWriteProfileString(path,strSection, "MaxRate", st);
-    maintab->m_option5.GetDlgItemText(IDC_depth,st);
-    MyWriteProfileString(path,strSection,"Depth",st);
-    maintab->m_option5.GetDlgItemText(IDC_depth2,st);
-    MyWriteProfileString(path,strSection,"ExtDepth",st);
-    maintab->m_option5.GetDlgItemText(IDC_maxconn,st);
-    MyWriteProfileString(path,strSection, "MaxConn", st);
-    maintab->m_option5.GetDlgItemText(IDC_maxlinks,st);
-    MyWriteProfileString(path,strSection, "MaxLinks", st);
-    // 6
-    maintab->m_option6.GetDlgItemText(IDC_user,st);
-    MyWriteProfileString(path,strSection, "UserID", st);
-    maintab->m_option6.GetDlgItemText(IDC_footer,st);
-    MyWriteProfileString(path,strSection, "Footer", st);
-    maintab->m_option6.GetDlgItemText(IDC_accept_language, st);
-    MyWriteProfileString(path,strSection, "AcceptLanguage", st);
-    maintab->m_option6.GetDlgItemText(IDC_other_headers, st);
-    // FIXME SHOULD BE MULTILINE!!
-    st.Replace("\n", " ");
-    MyWriteProfileString(path,strSection, "OtherHeaders", st);
-    maintab->m_option6.GetDlgItemText(IDC_default_referer, st);
-    MyWriteProfileString(path,strSection, "DefaultReferer", st);
-    // 7
-    maintab->m_option7.GetDlgItemText(IDC_URL2,st);
-    MyWriteProfileString(path,strSection, "WildCardFilters", st);
-    // 8
-    n=maintab->m_option8.IsDlgButtonChecked(IDC_cookies);
-    MyWriteProfileInt(path,strSection, "Cookies", n);
-    if ((n=comboSel(maintab->m_option8, IDC_checktype)) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "CheckType", n);
-    n=maintab->m_option8.IsDlgButtonChecked(IDC_parsejava);
-    MyWriteProfileInt(path,strSection, "ParseJava", n);
-    n=maintab->m_option8.IsDlgButtonChecked(IDC_http10);
-    MyWriteProfileInt(path,strSection, "HTTP10", n);
-    n=maintab->m_option8.IsDlgButtonChecked(IDC_toler);
-    MyWriteProfileInt(path,strSection, "TolerantRequests", n);
-    n=maintab->m_option8.IsDlgButtonChecked(IDC_updhack);
-    MyWriteProfileInt(path,strSection, "UpdateHack", n);
-    n=maintab->m_option8.IsDlgButtonChecked(IDC_urlhack);
-    MyWriteProfileInt(path,strSection, "URLHack", n);
-    maintab->m_option8.GetDlgItemText(IDC_cookiesfile,st);
-    MyWriteProfileString(path,strSection, "CookiesFile", st);
-    n=maintab->m_option8.IsDlgButtonChecked(IDC_sitemap);
-    MyWriteProfileInt(path,strSection, "Sitemap", n);
-    maintab->m_option8.GetDlgItemText(IDC_sitemapurl,st);
-    MyWriteProfileString(path,strSection, "SitemapUrl", st);
-    maintab->m_option8.GetDlgItemText(IDC_hostalias,st);
-    MyWriteProfileString(path,strSection, "HostAlias", st);
-    maintab->m_option4.GetDlgItemText(IDC_pausefiles,st);
-    MyWriteProfileString(path,strSection, "PauseFiles", st);
-    // 9
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_Cache2);
-    MyWriteProfileInt(path,strSection, "StoreAllInCache", n);
-    if ((n=comboSel(maintab->m_option9, IDC_logtype)) != CB_ERR)
-      MyWriteProfileInt(path,strSection, "LogType", n);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_singlefile);
-    MyWriteProfileInt(path,strSection, "SingleFile", n);
-    maintab->m_option9.GetDlgItemText(IDC_singlefilemax,st);
-    MyWriteProfileString(path,strSection, "SingleFileMaxSize", st);
-    n=maintab->m_option9.IsDlgButtonChecked(IDC_changes);
-    MyWriteProfileInt(path,strSection, "Changes", n);
-    // 10
-    maintab->m_option10.GetDlgItemText(IDC_prox,st);
-    MyWriteProfileString(path,strSection,"Proxy",st);
-    maintab->m_option10.GetDlgItemText(IDC_portprox,st);  // IDC_proxport is the ProxyId dialog's
-    MyWriteProfileString(path,strSection,"Port",st);
-    MyWriteProfileInt(path,strSection,"ProxyType", maintab->m_option10.m_proxytype);
-    n=maintab->m_option10.IsDlgButtonChecked(IDC_ftpprox);
-    MyWriteProfileInt(path,strSection,"UseHTTPProxyForFTP", n);
-    
-    // 11
-    maintab->m_option11.GetDlgItemText(IDC_ext1,st); MyWriteProfileString(path,strSection,"MIMEDefsExt1",st);
-    maintab->m_option11.GetDlgItemText(IDC_ext2,st); MyWriteProfileString(path,strSection,"MIMEDefsExt2",st);
-    maintab->m_option11.GetDlgItemText(IDC_ext3,st); MyWriteProfileString(path,strSection,"MIMEDefsExt3",st);
-    maintab->m_option11.GetDlgItemText(IDC_ext4,st); MyWriteProfileString(path,strSection,"MIMEDefsExt4",st);
-    maintab->m_option11.GetDlgItemText(IDC_ext5,st); MyWriteProfileString(path,strSection,"MIMEDefsExt5",st);
-    maintab->m_option11.GetDlgItemText(IDC_ext6,st); MyWriteProfileString(path,strSection,"MIMEDefsExt6",st);
-    maintab->m_option11.GetDlgItemText(IDC_ext7,st); MyWriteProfileString(path,strSection,"MIMEDefsExt7",st);
-    maintab->m_option11.GetDlgItemText(IDC_ext8,st); MyWriteProfileString(path,strSection,"MIMEDefsExt8",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime1,st); MyWriteProfileString(path,strSection,"MIMEDefsMime1",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime2,st); MyWriteProfileString(path,strSection,"MIMEDefsMime2",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime3,st); MyWriteProfileString(path,strSection,"MIMEDefsMime3",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime4,st); MyWriteProfileString(path,strSection,"MIMEDefsMime4",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime5,st); MyWriteProfileString(path,strSection,"MIMEDefsMime5",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime6,st); MyWriteProfileString(path,strSection,"MIMEDefsMime6",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime7,st); MyWriteProfileString(path,strSection,"MIMEDefsMime7",st);
-    maintab->m_option11.GetDlgItemText(IDC_mime8,st); MyWriteProfileString(path,strSection,"MIMEDefsMime8",st);
-  }
+  MyWriteProfileString(path,strSection, "MaxHtml",maintab->m_option5.m_maxhtml);
+  MyWriteProfileString(path,strSection, "MaxOther",maintab->m_option5.m_othermax);
+  MyWriteProfileString(path,strSection, "MaxAll",maintab->m_option5.m_sizemax);
+  MyWriteProfileString(path,strSection, "MaxWait",maintab->m_option5.m_pausebytes);
+  MyWriteProfileString(path,strSection, "Sockets",maintab->m_option4.m_connexion);
+  MyWriteProfileString(path,strSection, "Retry",maintab->m_option4.m_retry);
+  MyWriteProfileString(path,strSection, "MaxTime",maintab->m_option5.m_maxtime);
+  MyWriteProfileString(path,strSection, "TimeOut",maintab->m_option4.m_timeout);
+  MyWriteProfileString(path,strSection, "RateOut",maintab->m_option4.m_rate);
+  MyWriteProfileString(path,strSection, "UserID",maintab->m_option6.m_user);
+  MyWriteProfileString(path,strSection, "Footer",maintab->m_option6.m_footer);
+  MyWriteProfileString(path,strSection, "AcceptLanguage",maintab->m_option6.m_accept_language);
+  MyWriteProfileString(path,strSection, "OtherHeaders",maintab->m_option6.m_other_headers);
+  MyWriteProfileString(path,strSection, "DefaultReferer",maintab->m_option6.m_default_referer);
+  MyWriteProfileString(path,strSection, "MaxRate",maintab->m_option5.m_maxrate);
+  MyWriteProfileString(path,strSection, "WildCardFilters",maintab->m_option7.m_url2);
+  MyWriteProfileString(path,strSection, "Proxy",maintab->m_option10.m_proxy);
+  MyWriteProfileString(path,strSection, "Port",maintab->m_option10.m_port);
+  MyWriteProfileInt(path,strSection, "ProxyType",maintab->m_option10.m_proxytype);
+  MyWriteProfileString(path,strSection, "Depth",maintab->m_option5.m_depth);
+  MyWriteProfileString(path,strSection, "ExtDepth",maintab->m_option5.m_depth2);
+  MyWriteProfileString(path,strSection, "MaxConn",maintab->m_option5.m_maxconn);    
+  MyWriteProfileString(path,strSection, "MaxLinks",maintab->m_option5.m_maxlinks);    
+  
+  // 11
+  MyWriteProfileString(path,strSection, "MIMEDefsExt1",maintab->m_option11.m_ext1);    
+  MyWriteProfileString(path,strSection, "MIMEDefsExt2",maintab->m_option11.m_ext2);    
+  MyWriteProfileString(path,strSection, "MIMEDefsExt3",maintab->m_option11.m_ext3);    
+  MyWriteProfileString(path,strSection, "MIMEDefsExt4",maintab->m_option11.m_ext4);    
+  MyWriteProfileString(path,strSection, "MIMEDefsExt5",maintab->m_option11.m_ext5);    
+  MyWriteProfileString(path,strSection, "MIMEDefsExt6",maintab->m_option11.m_ext6);    
+  MyWriteProfileString(path,strSection, "MIMEDefsExt7",maintab->m_option11.m_ext7);    
+  MyWriteProfileString(path,strSection, "MIMEDefsExt8",maintab->m_option11.m_ext8);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime1",maintab->m_option11.m_mime1);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime2",maintab->m_option11.m_mime2);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime3",maintab->m_option11.m_mime3);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime4",maintab->m_option11.m_mime4);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime5",maintab->m_option11.m_mime5);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime6",maintab->m_option11.m_mime6);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime7",maintab->m_option11.m_mime7);    
+  MyWriteProfileString(path,strSection, "MIMEDefsMime8",maintab->m_option11.m_mime8);
   // liens, jokers etc. si mirror merge
   if (!(path.IsEmpty())) {
     if (dialog1->m_hWnd == NULL) {    // pas initialisé

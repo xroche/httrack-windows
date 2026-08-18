@@ -288,6 +288,21 @@ void CMainTab::OnApplyNow()
   EnableWindow(true);
 }
 
+/* MFC syncs a page on the way out of it, so the one on top still holds what it had on
+   entry. A page never opened was never created, and its members are already current. */
+void CMainTab::UpdateFromControls() {
+  CPropertyPage *const pages[] = {
+    &m_option1, &m_option2, &m_option3, &m_option4, &m_option5, &m_option6,
+    &m_option7, &m_option8, &m_option9, &m_option10, &m_option11
+  };
+
+  for(size_t i=0 ; i<sizeof(pages)/sizeof(pages[0]) ; i++) {
+    if (pages[i]->m_hWnd != NULL)
+      pages[i]->UpdateData(TRUE);   /* a failed DDV stops that page's map, leaving the
+                                       fields after it stale */
+  }
+}
+
 // Sauver et appliquer les préférences
 void CMainTab::ApplyAndSave() {
   CWaitCursor wait;      // Afficher curseur sablier
