@@ -61,6 +61,8 @@ COptionTab1::COptionTab1() : CPropertyPage(COptionTab1::IDD)
 	m_keepslashes = FALSE;
 	m_keepqueryorder = FALSE;
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab1::~COptionTab1()

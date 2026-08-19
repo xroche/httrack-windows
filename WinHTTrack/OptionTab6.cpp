@@ -71,6 +71,8 @@ COptionTab6::COptionTab6() : CPropertyPage(COptionTab6::IDD)
 	m_other_headers = _T("");
 	m_default_referer = _T("");
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab6::~COptionTab6()
