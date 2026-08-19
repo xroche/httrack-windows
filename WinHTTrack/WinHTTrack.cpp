@@ -516,6 +516,14 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "", "", "", "", "1", "1000", "--single-file|--single-file-max-size|1000" },
         /* a cap that fails validation is dropped, and the box still emits --single-file */
         { "", "", "", "", "", "1", "abc", "--single-file" },
+        /* the engine aborts the mirror on a cap it cannot use, so none may leave here */
+        { "", "", "", "", "", "1", "0", "--single-file" },
+        { "", "", "", "", "", "1", "0000", "--single-file" },
+        { "", "", "", "", "", "1", "99999999999999999999", "--single-file" },
+        /* in range despite its length, so the guard cannot be a digit count */
+        { "", "", "", "", "", "1", "0000000000000000000001",
+          "--single-file|--single-file-max-size|0000000000000000000001" },
+        { "", "", "", "", "", "1", "1", "--single-file|--single-file-max-size|1" },
         /* one sub-option only, so swapping the two branch bodies cannot pass */
         { "1", "1", "", "", "", "", "", "--warc|--warc-cdx" },
         /* all three groups at once: pins their order, and that they are not exclusive */

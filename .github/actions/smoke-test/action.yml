@@ -226,7 +226,7 @@ runs:
           throw "selftest did not check the winprofile.ini escaping"
         }
         # Pins the checkbox-gating contract (see WinHTTrack/Shell.h).
-        if ("$so" -notmatch 'option gating ok on 14 checks') {
+        if ("$so" -notmatch 'option gating ok on 19 checks') {
           throw "selftest did not check the checkbox gating"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
