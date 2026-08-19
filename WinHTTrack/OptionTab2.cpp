@@ -62,6 +62,8 @@ COptionTab2::COptionTab2() : CPropertyPage(COptionTab2::IDD)
 	m_hidequery = FALSE;
 	m_iso9660 = FALSE;
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab2::~COptionTab2()

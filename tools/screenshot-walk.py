@@ -22,8 +22,9 @@ from PIL import Image
 from pywinauto.controls.common_controls import TabControlWrapper
 from pywinauto.controls.win32_controls import ComboBoxWrapper
 
-from wincapture import (Timeout, capture, click, content_rect, controls, find, grab,
-                        nonblack, set_text, slug, top_level_windows, wait, window_titled)
+from wincapture import (Timeout, capture, checked, click, content_rect, controls, find,
+                        grab, nonblack, set_text, slug, top_level_windows, wait,
+                        window_titled)
 
 # MFC's wizard buttons and the property-sheet page selector are standard.
 ID_WIZBACK, ID_WIZNEXT, ID_WIZFINISH = 0x3023, 0x3024, 0x3025
@@ -281,6 +282,45 @@ def reopen_options(main, pid, ids):
     print("  second Set options: clean")
 
 
+def toggle(box, want, parent):
+    """click() posts the message, so the settled state is the only thing worth waiting on."""
+    click(box)
+    wait(lambda: checked(box) == want, f"{parent} to turn {'on' if want else 'off'}", 5)
+
+
+def gated(sheet, ids, count):
+    """A sub-option under a clear box emits nothing, so it must look unavailable. The parent
+    is toggled both ways: greying on tick alone would pass a handler that never re-greys."""
+    groups = (("IDC_warc", ("IDC_warccdx", "IDC_wacz")),
+              ("IDC_singlefile", ("IDC_singlefilemax", "IDC_STATIC_singlefilemax")),
+              ("IDC_sitemap", ("IDC_sitemapurl", "IDC_STATIC_sitemapurl")))
+    seen = set()
+    for i in range(count):
+        win32gui.SendMessage(sheet, PSM_SETCURSEL, i, 0)
+        time.sleep(0.6)
+        for parent, children in groups:
+            box = find(sheet, control_id=ids[parent], class_name="Button")
+            if box is None:
+                continue
+            seen.add(parent)
+            kids = [find(sheet, control_id=ids[c]) for c in children]
+            if not all(kids):
+                raise RuntimeError(f"{parent}: a child control is missing from the page")
+            if checked(box):
+                raise RuntimeError(f"{parent} opens ticked, so the greyed case went untested")
+            if any(win32gui.IsWindowEnabled(k) for k in kids):
+                raise RuntimeError(f"{parent} is clear but a child is still available")
+            toggle(box, True, parent)
+            wait(lambda: all(win32gui.IsWindowEnabled(k) for k in kids),
+                 f"{parent}'s children to become available", 5)
+            toggle(box, False, parent)   # leave the page as the shots found it
+            wait(lambda: not any(win32gui.IsWindowEnabled(k) for k in kids),
+                 f"{parent}'s children to grey out again", 5)
+    if len(seen) != len(groups):
+        raise RuntimeError(f"checked {sorted(seen)}, expected {sorted(g[0] for g in groups)}")
+    print(f"  gated controls follow their box, on {len(seen)} groups")
+
+
 def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     """The eleven option tabs, switched through the sheet rather than by clicking the tab
     control, so a two-row tab layout cannot put a tab under the mouse of another."""
@@ -294,6 +334,7 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
         page = slug(captions.get_tab_text(i))
         at[page] = i
         shots.take(sheet, f"{4 + i:02d}_options_{page}")
+    gated(sheet, ids, count)
     # Eight parallel transfers, so the animation shows a mirror working rather than one
     # file trickling in. Eight is the engine's ceiling; it clamps anything higher. The
     # rate cap goes up with it: eight transfers sharing the engine's 100 KB/s default

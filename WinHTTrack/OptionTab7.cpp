@@ -63,6 +63,8 @@ COptionTab7::COptionTab7() : CPropertyPage(COptionTab7::IDD)
 	//{{AFX_DATA_INIT(COptionTab7)
 	m_url2 = _T("");
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab7::~COptionTab7()

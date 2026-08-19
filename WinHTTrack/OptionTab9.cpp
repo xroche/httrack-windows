@@ -67,6 +67,8 @@ COptionTab9::COptionTab9() : CPropertyPage(COptionTab9::IDD)
 	m_singlefilemax = _T("");
 	m_changes = FALSE;
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab9::~COptionTab9()
@@ -99,10 +101,33 @@ BEGIN_MESSAGE_MAP(COptionTab9, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab9)
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
+  ON_BN_CLICKED(IDC_warc, OnGateClicked)
+  ON_BN_CLICKED(IDC_singlefile, OnGateClicked)
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab9 message handlers
+
+void COptionTab9::OnGateClicked() 
+{
+  UpdateGatedControls();
+}
+
+// see OptionTab9.h
+void COptionTab9::UpdateGatedControls() 
+{
+  if (modify == 1)   // a running mirror already disabled the whole page
+    return;
+
+  const BOOL warc = IsDlgButtonChecked(IDC_warc);
+  const BOOL singlefile = IsDlgButtonChecked(IDC_singlefile);
+
+  // EnableWindow, not the ModifyStyle above: this one runs with the page on screen
+  GetDlgItem(IDC_warccdx)->EnableWindow(warc);
+  GetDlgItem(IDC_wacz)->EnableWindow(warc);
+  GetDlgItem(IDC_singlefilemax)->EnableWindow(singlefile);
+  GetDlgItem(IDC_STATIC_singlefilemax)->EnableWindow(singlefile);
+}
 
 BOOL COptionTab9::OnInitDialog() 
 {
@@ -158,6 +183,7 @@ BOOL COptionTab9::OnInitDialog()
     GetDlgItem(IDC_logtype) ->ModifyStyle(WS_DISABLED,0);
   }
 
+  UpdateGatedControls();
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE

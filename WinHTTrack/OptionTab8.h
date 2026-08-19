@@ -85,6 +85,9 @@ protected:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
+  afx_msg void OnGateClicked();
+  /* Grey the address out under a clear Sitemap box, which emits nothing for it. */
+  void UpdateGatedControls();
   DECLARE_MESSAGE_MAP()
 
 };
