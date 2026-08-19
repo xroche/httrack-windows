@@ -494,6 +494,69 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("profile escaping ok on %d decodes, %d round trips and %d terminators\n",
              ndecodes, nroundtrips, nterminators);
     }
+    /* lance() is out of reach here, so this is the only pin on the gating
+       contract declared in Shell.h. */
+    {
+      static const struct {
+        const char *warc, *warccdx, *wacz, *sitemap, *sitemapurl,
+                   *singlefile, *singlefilemax;
+        const char *want;
+      } gated[] = {
+        /* every box clear with its field filled: the state the front ends read apart */
+        { "", "1", "1", "", "http://e/sitemap.xml", "", "1000", "" },
+        { "", "1", "1", "", "", "", "", "" },
+        { "", "", "", "", "http://e/sitemap.xml", "", "", "" },
+        { "", "", "", "", "", "", "1000", "" },
+        /* ticked, so the very same fields must come through: else the rows above pass vacuously */
+        { "1", "1", "1", "", "", "", "", "--warc|--warc-cdx|--wacz" },
+        { "1", "", "", "", "", "", "", "--warc" },
+        { "", "", "", "1", "http://e/sitemap.xml", "", "", "--sitemap-url|http://e/sitemap.xml" },
+        /* a blank address falls back to the probe, never --sitemap-url "" */
+        { "", "", "", "1", " \t ", "", "", "--sitemap" },
+        { "", "", "", "", "", "1", "1000", "--single-file|--single-file-max-size|1000" },
+        /* a cap that fails validation is dropped, and the box still emits --single-file */
+        { "", "", "", "", "", "1", "abc", "--single-file" },
+        /* one sub-option only, so swapping the two branch bodies cannot pass */
+        { "1", "1", "", "", "", "", "", "--warc|--warc-cdx" },
+        /* all three groups at once: pins their order, and that they are not exclusive */
+        { "1", "", "", "1", "http://e/sitemap.xml", "1", "1000",
+          "--warc|--sitemap-url|http://e/sitemap.xml|--single-file|--single-file-max-size|1000" },
+        { "", "", "", "", "", "1", " 1000 ", "--single-file|--single-file-max-size|1000" },
+        /* a leading dash reads to the engine as the argument being missing */
+        { "", "", "", "1", "-http://e/", "", "", "--sitemap" },
+        { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; gated[k].want != NULL ; k++) {
+        CShellOptions opt;
+        CSimpleArray<CString> got;
+        CString joined;
+
+        opt.warc = gated[k].warc;
+        opt.warccdx = gated[k].warccdx;
+        opt.wacz = gated[k].wacz;
+        opt.sitemap = gated[k].sitemap;
+        opt.sitemapurl = gated[k].sitemapurl;
+        opt.singlefile = gated[k].singlefile;
+        opt.singlefilemax = gated[k].singlefilemax;
+        addGatedOptions(got, opt);
+        for(int j=0 ; j<got.GetSize() ; j++) {
+          if (j != 0)
+            joined += "|";
+          joined += got[j];
+        }
+        if (joined != gated[k].want) {
+          fprintf(stderr, "FATAL: gated row %d [%s,%s,%s,%s,%s,%s,%s] emitted '%s', expected '%s'\n",
+                  k, gated[k].warc, gated[k].warccdx, gated[k].wacz, gated[k].sitemap,
+                  gated[k].sitemapurl, gated[k].singlefile, gated[k].singlefilemax,
+                  (LPCSTR) joined, gated[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("option gating ok on %d checks\n", nchecks);
+    }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */
     {

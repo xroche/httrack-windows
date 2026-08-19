@@ -1965,6 +1965,45 @@ static BOOL isAllDigits(const CString &value) {
   return !value.IsEmpty();
 }
 
+void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt) {
+  // WARC: emit --warc as its own token, not in the compacted -%... string, whose
+  // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
+  if (opt.warc.GetLength() != 0) {
+    args.Add("--warc");
+    // child boxes of the WARC one: the parent box is the user's on/off for the group
+    if (opt.warccdx.GetLength() != 0) {
+      args.Add("--warc-cdx");
+    }
+    if (opt.wacz.GetLength() != 0) {
+      args.Add("--wacz");
+    }
+  }
+
+  // Long forms, own tokens: same reason as --warc above.
+  if (opt.sitemap.GetLength() != 0) {
+    CString sitemapurl = opt.sitemapurl;
+    sitemapurl.Trim();
+    // an address given here replaces the robots.txt then /sitemap.xml probe
+    if (isEngineArgument(sitemapurl, HTS_URLMAXSIZE)) {
+      args.Add("--sitemap-url");
+      args.Add(sitemapurl);
+    } else {
+      args.Add("--sitemap");
+    }
+  }
+
+  if (opt.singlefile.GetLength() != 0) {
+    args.Add("--single-file");
+    CString singlefilemax = opt.singlefilemax;
+    singlefilemax.Trim();
+    // the cap implies --single-file, so it must not leak out on its own
+    if (isAllDigits(singlefilemax) && isEngineArgument(singlefilemax, HTS_URLMAXSIZE)) {
+      args.Add("--single-file-max-size");
+      args.Add(singlefilemax);
+    }
+  }
+}
+
 // Lancement
 void lance(void) {
   char **argv;
@@ -2057,43 +2096,7 @@ void lance(void) {
   single += ShellOptions->proxyftp;  
   single += "#f";  // flush
 
-  // WARC: emit --warc as its own token, not in the compacted -%... string, whose
-  // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
-  if (ShellOptions->warc.GetLength() != 0) {
-    args.Add("--warc");
-    // neither sub-option names an archive on its own, so both stay gated on --warc
-    if (ShellOptions->warccdx.GetLength() != 0) {
-      args.Add("--warc-cdx");
-    }
-    if (ShellOptions->wacz.GetLength() != 0) {
-      args.Add("--wacz");
-    }
-  }
-
-  // Long forms, own tokens: same reason as --warc above. Each option's own checkbox
-  // gates it, so an unticked box never reaches the engine through a field left filled.
-  if (ShellOptions->sitemap.GetLength() != 0) {
-    CString sitemapurl = ShellOptions->sitemapurl;
-    sitemapurl.Trim();
-    // an address given here replaces the robots.txt then /sitemap.xml probe
-    if (isEngineArgument(sitemapurl, HTS_URLMAXSIZE)) {
-      args.Add("--sitemap-url");
-      args.Add(sitemapurl);
-    } else {
-      args.Add("--sitemap");
-    }
-  }
-
-  if (ShellOptions->singlefile.GetLength() != 0) {
-    args.Add("--single-file");
-    CString singlefilemax = ShellOptions->singlefilemax;
-    singlefilemax.Trim();
-    // the cap implies --single-file, so it must not leak out on its own
-    if (isAllDigits(singlefilemax) && isEngineArgument(singlefilemax, HTS_URLMAXSIZE)) {
-      args.Add("--single-file-max-size");
-      args.Add(singlefilemax);
-    }
-  }
+  addGatedOptions(args, *ShellOptions);
 
   if (ShellOptions->changes.GetLength() != 0) {
     args.Add("--changes");
