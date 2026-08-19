@@ -19,7 +19,7 @@ on:
         options: [walk, probe]
         default: walk
       run-id:
-        description: 'windows-build run to take the binaries from (default: this branch, else master)'
+        description: 'windows-build run to take the binaries from (default: the build of this commit)'
         required: false
 
 permissions:
@@ -28,7 +28,64 @@ permissions:
   actions: read
 
 jobs:
+  # The walk reads control IDs out of the checked-out resource.h, so it must drive the build
+  # of this commit. windows-build starts on the same event; wait for it on a cheap runner.
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    outputs:
+      run-id: ${{ steps.pick.outputs.run-id }}
+    steps:
+      - name: Find the build of this commit
+        id: pick
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ inputs.run-id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${RUN_ID}" ]; then
+            sha=$(gh run view "${RUN_ID}" --json headSha -q .headSha)
+            echo "binaries from run ${RUN_ID} (given), built from ${sha}"
+            [ "${sha}" = "${SHA}" ] ||
+              echo "::warning::run ${RUN_ID} was built from ${sha}, not this checkout's ${SHA}"
+            echo "run-id=${RUN_ID}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Match the commit, not the ref: a moved tag keeps the old build attached to the ref,
+          # and a pull_request build of this head is not on the branch name at all.
+          seen=0
+          for i in $(seq 1 80); do
+            rows=$(gh run list --workflow windows-build.yml --limit 40 \
+                     --json databaseId,headSha,status,conclusion \
+                     --jq ".[] | select(.headSha == \"${SHA}\") | [.databaseId, .status, .conclusion] | @tsv") ||
+              { sleep 30; continue; }   # a rate limit or a 502 must not discard the wait
+            id=$(printf '%s\n' "${rows}" | awk -F'\t' '$2 == "completed" && $3 == "success" { print $1; exit }')
+            if [ -n "${id}" ]; then
+              echo "binaries from run ${id}, the build of ${SHA}"
+              echo "run-id=${id}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ -n "${rows}" ]; then
+              seen=1
+              if [ "$(printf '%s\n' "${rows}" | awk -F'\t' '$2 != "completed"' | wc -l)" -eq 0 ]; then
+                echo "::error::no green windows-build of ${SHA}: it failed, or a newer push superseded it"
+                exit 1
+              fi
+            elif [ "${seen}" -eq 0 ] && [ "${i}" -ge 10 ]; then
+              # Both workflows fire on the same event, so one that is coming is listed by now.
+              echo "::error::no windows-build of ${SHA}: open its pull request first, or dispatch with run-id"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::the windows-build of ${SHA} was still running after 40 minutes"
+          exit 1
+
   capture:
+    needs: resolve
     runs-on: windows-2022
     timeout-minutes: 20
     # Shares the Windows runners with the build; queue: max, as the default cancels a waiter.
@@ -44,36 +101,11 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ inputs.run-id }}
-          BRANCH: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
+          RUN_ID: ${{ needs.resolve.outputs.run-id }}
         run: |
-          function Get-Builds($ref) {
-            gh run list --workflow windows-build.yml --branch $ref --status success `
-              --limit 20 --json databaseId,headSha | ConvertFrom-Json
-          }
-          $id = $env:RUN_ID
-          if ($id) {
-            $sha = gh run view $id --json headSha -q '.headSha'
-            Write-Host "binaries from run $id (given), built from $sha"
-            if ($sha -ne $env:SHA) { Write-Host "::warning::run $id was built from $sha, not this checkout's $($env:SHA)" }
-          } else {
-            # A moved tag keeps the old build attached to the ref, so match the commit, not the ref name.
-            foreach ($ref in @($env:BRANCH, 'master') | Select-Object -Unique) {
-              $run = Get-Builds $ref | Where-Object { $_.headSha -eq $env:SHA } | Select-Object -First 1
-              # "of", not "from": a pull_request build is of the merge commit for this head.
-              if ($run) { $id = $run.databaseId; Write-Host "binaries from run $id ($ref), the build of $($env:SHA)"; break }
-            }
-            if (-not $id) {
-              $run = Get-Builds 'master' | Select-Object -First 1
-              if (-not $run) { throw "no green windows-build run to take binaries from" }
-              $id = $run.databaseId
-              # The walk reads control IDs out of the checked-out resource.h, so another tree's binaries can disagree with it.
-              Write-Host "binaries from run $id (master), built from $($run.headSha)"
-              Write-Host "::warning::no build of $($env:SHA): these are master's binaries from $($run.headSha), which may not match this checkout"
-            }
-          }
-          gh run download $id --name WinHTTrack-x64-Release --dir app
+          # gh reads an empty id as "any run in the repo", so never let one through.
+          if (-not $env:RUN_ID) { throw 'resolve named no build to walk' }
+          gh run download $env:RUN_ID --name WinHTTrack-x64-Release --dir app
           if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
 
       # The address shows in the wizard panes and in the mirror folder name, so the crawl
