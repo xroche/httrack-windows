@@ -226,8 +226,12 @@ runs:
           throw "selftest did not check the winprofile.ini escaping"
         }
         # Pins the checkbox-gating contract (see WinHTTrack/Shell.h).
-        if ("$so" -notmatch 'option gating ok on 19 checks') {
+        if ("$so" -notmatch 'option gating ok on 16 checks') {
           throw "selftest did not check the checkbox gating"
+        }
+        # A cap the engine refuses aborts the mirror, so the shell must never build one.
+        if ("$so" -notmatch 'single-file caps ok on 7 checks') {
+          throw "selftest did not check the single-file cap"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
         if ("$so" -notmatch 'host-alias rules ok on 34 checks') {

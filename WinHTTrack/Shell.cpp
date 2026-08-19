@@ -1965,9 +1965,8 @@ static BOOL isAllDigits(const CString &value) {
   return !value.IsEmpty();
 }
 
-// TRUE if VALUE is a cap the engine accepts; it aborts the mirror on one it does not.
-// Anything accepted is 19 digits at most, hence no length or leading-dash test.
-static BOOL isSingleFileMaxArgument(const CString &value) {
+// see Shell.h
+BOOL isSingleFileMaxArgument(const CString &value) {
   char *end;
   LLint v;
 
@@ -1975,7 +1974,8 @@ static BOOL isSingleFileMaxArgument(const CString &value) {
     return FALSE;
   errno = 0;
   v = strtoll((LPCSTR) value, &end, 10);
-  return *end == '\0' && errno != ERANGE && v > 0;
+  // leading zeros keep the value small however long the string is, so argv still caps it
+  return *end == '\0' && errno != ERANGE && v > 0 && fitsEngineArgument(value, HTS_CDLMAXSIZE);
 }
 
 void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt) {
