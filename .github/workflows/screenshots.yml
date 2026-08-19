@@ -71,7 +71,7 @@ jobs:
             if [ -n "${rows}" ]; then
               seen=1
               if [ "$(printf '%s\n' "${rows}" | awk -F'\t' '$2 != "completed"' | wc -l)" -eq 0 ]; then
-                echo "::error::the windows-build of ${SHA} did not go green: fix it and push again"
+                echo "::error::no green windows-build of ${SHA}: it failed, or a newer push superseded it"
                 exit 1
               fi
             elif [ "${seen}" -eq 0 ] && [ "${i}" -ge 10 ]; then
