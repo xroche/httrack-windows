@@ -69,6 +69,8 @@ COptionTab11::COptionTab11() : CPropertyPage(COptionTab11::IDD)
 	m_mime7 = _T("");
 	m_mime8 = _T("");
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab11::~COptionTab11()

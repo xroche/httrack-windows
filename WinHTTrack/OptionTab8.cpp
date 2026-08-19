@@ -66,6 +66,8 @@ COptionTab8::COptionTab8() : CPropertyPage(COptionTab8::IDD)
 	m_sitemapurl = _T("");
 	m_hostalias = _T("");
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab8::~COptionTab8()

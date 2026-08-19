@@ -13,6 +13,7 @@ user32 = ctypes.windll.user32
 PW_RENDERFULLCONTENT = 2
 WM_SETTEXT = 0x000C
 BM_CLICK = 0x00F5
+BM_GETCHECK = 0x00F0
 
 
 class Timeout(Exception):
@@ -76,6 +77,11 @@ def find(parent, control_id=None, class_name=None, visible=True):
             continue
         return hwnd
     return None
+
+
+def checked(hwnd):
+    """True if a checkbox or radio button is ticked."""
+    return bool(win32gui.SendMessage(hwnd, BM_GETCHECK, 0, 0))
 
 
 def click(hwnd):

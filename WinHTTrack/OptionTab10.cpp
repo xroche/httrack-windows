@@ -72,6 +72,8 @@ COptionTab10::COptionTab10() : CPropertyPage(COptionTab10::IDD)
 	m_ftpprox = FALSE;
 	//}}AFX_DATA_INIT
   m_proxytype = 0;
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab10::~COptionTab10()

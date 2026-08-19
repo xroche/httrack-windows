@@ -67,6 +67,8 @@ COptionTab9::COptionTab9() : CPropertyPage(COptionTab9::IDD)
 	m_singlefilemax = _T("");
 	m_changes = FALSE;
 	//}}AFX_DATA_INIT
+  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
+  modify = 0;
 }
 
 COptionTab9::~COptionTab9()
