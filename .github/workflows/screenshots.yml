@@ -28,12 +28,11 @@ permissions:
   actions: read
 
 jobs:
-  # The walk reads control IDs out of the checked-out resource.h, so it must drive the
-  # binaries built from this very commit. windows-build starts on the same event, so wait
-  # for it here, on a cheap runner, rather than holding a Windows one to do the waiting.
+  # The walk reads control IDs out of the checked-out resource.h, so it must drive the build
+  # of this commit. windows-build starts on the same event; wait for it on a cheap runner.
   resolve:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     outputs:
       run-id: ${{ steps.pick.outputs.run-id }}
     steps:
@@ -57,24 +56,32 @@ jobs:
           fi
           # Match the commit, not the ref: a moved tag keeps the old build attached to the ref,
           # and a pull_request build of this head is not on the branch name at all.
-          for _ in $(seq 1 50); do
+          seen=0
+          for i in $(seq 1 80); do
             rows=$(gh run list --workflow windows-build.yml --limit 40 \
                      --json databaseId,headSha,status,conclusion \
-                     --jq ".[] | select(.headSha == \"${SHA}\") | [.databaseId, .status, .conclusion] | @tsv")
+                     --jq ".[] | select(.headSha == \"${SHA}\") | [.databaseId, .status, .conclusion] | @tsv") ||
+              { sleep 30; continue; }   # a rate limit or a 502 must not discard the wait
             id=$(printf '%s\n' "${rows}" | awk -F'\t' '$2 == "completed" && $3 == "success" { print $1; exit }')
             if [ -n "${id}" ]; then
               echo "binaries from run ${id}, the build of ${SHA}"
               echo "run-id=${id}" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            if [ -n "${rows}" ] &&
-               [ "$(printf '%s\n' "${rows}" | awk -F'\t' '$2 != "completed"' | wc -l)" -eq 0 ]; then
-              echo "::error::the windows-build of ${SHA} failed, so there is nothing to walk"
+            if [ -n "${rows}" ]; then
+              seen=1
+              if [ "$(printf '%s\n' "${rows}" | awk -F'\t' '$2 != "completed"' | wc -l)" -eq 0 ]; then
+                echo "::error::the windows-build of ${SHA} did not go green: fix it and push again"
+                exit 1
+              fi
+            elif [ "${seen}" -eq 0 ] && [ "${i}" -ge 10 ]; then
+              # Both workflows fire on the same event, so one that is coming is listed by now.
+              echo "::error::no windows-build of ${SHA}: open its pull request first, or dispatch with run-id"
               exit 1
             fi
             sleep 30
           done
-          echo "::error::no windows-build of ${SHA} after 25 minutes: open its pull request first, or dispatch with run-id"
+          echo "::error::the windows-build of ${SHA} was still running after 40 minutes"
           exit 1
 
   capture:
@@ -96,6 +103,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ needs.resolve.outputs.run-id }}
         run: |
+          # gh reads an empty id as "any run in the repo", so never let one through.
+          if (-not $env:RUN_ID) { throw 'resolve named no build to walk' }
           gh run download $env:RUN_ID --name WinHTTrack-x64-Release --dir app
           if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
 
