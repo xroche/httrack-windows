@@ -80,6 +80,9 @@ protected:
 	virtual BOOL OnInitDialog();
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
+  afx_msg void OnGateClicked();
+  /* Grey the sub-options out under a clear parent box, which emits nothing for them. */
+  void UpdateGatedControls();
   DECLARE_MESSAGE_MAP()
 
 };

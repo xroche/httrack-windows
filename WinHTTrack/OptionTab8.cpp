@@ -100,6 +100,7 @@ BEGIN_MESSAGE_MAP(COptionTab8, CPropertyPage)
 	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
+  ON_BN_CLICKED(IDC_sitemap, OnGateClicked)
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
@@ -112,6 +113,24 @@ void COptionTab8::OnCookiesFileBrowse()
   CFileDialog dial(TRUE, "txt", NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, szFilter);
   if (dial.DoModal() == IDOK)
     SetDlgItemTextCP(this, IDC_cookiesfile, dial.GetPathName());
+}
+
+void COptionTab8::OnGateClicked() 
+{
+  UpdateGatedControls();
+}
+
+// see OptionTab8.h
+void COptionTab8::UpdateGatedControls() 
+{
+  if (modify == 1)   // a running mirror already disabled the whole page
+    return;
+
+  const BOOL sitemap = IsDlgButtonChecked(IDC_sitemap);
+
+  // EnableWindow, not the ModifyStyle above: this one runs with the page on screen
+  GetDlgItem(IDC_sitemapurl)->EnableWindow(sitemap);
+  GetDlgItem(IDC_STATIC_sitemapurl)->EnableWindow(sitemap);
 }
 
 BOOL COptionTab8::OnInitDialog() 
@@ -171,6 +190,8 @@ BOOL COptionTab8::OnInitDialog()
     SetCombo(this,IDC_checktype,LISTDEF_7);
     SetCombo(this,IDC_robots,LISTDEF_8);
   }  
+
+  UpdateGatedControls();
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
