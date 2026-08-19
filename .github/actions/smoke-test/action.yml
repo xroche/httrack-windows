@@ -225,9 +225,8 @@ runs:
         if ("$so" -notmatch 'profile escaping ok on 8 decodes, 4 round trips and 2 terminators') {
           throw "selftest did not check the winprofile.ini escaping"
         }
-        # An unticked box whose field is filled must emit nothing: the engine turns each
-        # value option on by itself, so a leak here silently mirrors under the wrong mode.
-        if ("$so" -notmatch 'option gating ok on 10 checks') {
+        # Pins the checkbox-gating contract (see WinHTTrack/Shell.h).
+        if ("$so" -notmatch 'option gating ok on 14 checks') {
           throw "selftest did not check the checkbox gating"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.

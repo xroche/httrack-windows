@@ -1965,12 +1965,12 @@ static BOOL isAllDigits(const CString &value) {
   return !value.IsEmpty();
 }
 
-void addGatedOptions(const CShellOptions &opt, CStringArray &args) {
+void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt) {
   // WARC: emit --warc as its own token, not in the compacted -%... string, whose
   // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
   if (opt.warc.GetLength() != 0) {
     args.Add("--warc");
-    // neither sub-option names an archive on its own, so both stay gated on --warc
+    // child boxes of the WARC one: the parent box is the user's on/off for the group
     if (opt.warccdx.GetLength() != 0) {
       args.Add("--warc-cdx");
     }
@@ -2096,13 +2096,7 @@ void lance(void) {
   single += ShellOptions->proxyftp;  
   single += "#f";  // flush
 
-  {
-    CStringArray gated;
-
-    addGatedOptions(*ShellOptions, gated);
-    for(INT_PTR i=0 ; i<gated.GetSize() ; i++)
-      args.Add(gated[i]);
-  }
+  addGatedOptions(args, *ShellOptions);
 
   if (ShellOptions->changes.GetLength() != 0) {
     args.Add("--changes");

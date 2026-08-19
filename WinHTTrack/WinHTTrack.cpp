@@ -494,8 +494,8 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("profile escaping ok on %d decodes, %d round trips and %d terminators\n",
              ndecodes, nroundtrips, nterminators);
     }
-    /* A value option is inert under a clear box — the contract all three front ends
-       now share. lance() is out of reach here, so this is the only pin on it. */
+    /* lance() is out of reach here, so this is the only pin on the gating
+       contract declared in Shell.h. */
     {
       static const struct {
         const char *warc, *warccdx, *wacz, *sitemap, *sitemapurl,
@@ -514,14 +514,22 @@ BOOL CWinHTTrackApp::InitInstance()
         /* a blank address falls back to the probe, never --sitemap-url "" */
         { "", "", "", "1", " \t ", "", "", "--sitemap" },
         { "", "", "", "", "", "1", "1000", "--single-file|--single-file-max-size|1000" },
-        /* a cap the engine would reject still enables single-file there, so drop it here */
+        /* a cap that fails validation is dropped, and the box still emits --single-file */
         { "", "", "", "", "", "1", "abc", "--single-file" },
+        /* one sub-option only, so swapping the two branch bodies cannot pass */
+        { "1", "1", "", "", "", "", "", "--warc|--warc-cdx" },
+        /* all three groups at once: pins their order, and that they are not exclusive */
+        { "1", "", "", "1", "http://e/sitemap.xml", "1", "1000",
+          "--warc|--sitemap-url|http://e/sitemap.xml|--single-file|--single-file-max-size|1000" },
+        { "", "", "", "", "", "1", " 1000 ", "--single-file|--single-file-max-size|1000" },
+        /* a leading dash reads to the engine as the argument being missing */
+        { "", "", "", "1", "-http://e/", "", "", "--sitemap" },
         { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
       };
       int nchecks = 0;
       for(int k=0 ; gated[k].want != NULL ; k++) {
         CShellOptions opt;
-        CStringArray got;
+        CSimpleArray<CString> got;
         CString joined;
 
         opt.warc = gated[k].warc;
@@ -531,15 +539,17 @@ BOOL CWinHTTrackApp::InitInstance()
         opt.sitemapurl = gated[k].sitemapurl;
         opt.singlefile = gated[k].singlefile;
         opt.singlefilemax = gated[k].singlefilemax;
-        addGatedOptions(opt, got);
-        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
+        addGatedOptions(got, opt);
+        for(int j=0 ; j<got.GetSize() ; j++) {
           if (j != 0)
             joined += "|";
           joined += got[j];
         }
         if (joined != gated[k].want) {
-          fprintf(stderr, "FATAL: gated row %d emitted '%s', expected '%s'\n",
-                  k, (LPCSTR) joined, gated[k].want);
+          fprintf(stderr, "FATAL: gated row %d [%s,%s,%s,%s,%s,%s,%s] emitted '%s', expected '%s'\n",
+                  k, gated[k].warc, gated[k].warccdx, gated[k].wacz, gated[k].sitemap,
+                  gated[k].sitemapurl, gated[k].singlefile, gated[k].singlefilemax,
+                  (LPCSTR) joined, gated[k].want);
           fflush(stderr);
           ExitProcess(3);
         } else
