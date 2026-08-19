@@ -64,8 +64,6 @@ COptionTab5::COptionTab5() : CPropertyPage(COptionTab5::IDD)
 	m_pausebytes = _T("");
 	m_maxlinks = _T("");
 	//}}AFX_DATA_INIT
-  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
-  modify = 0;
 }
 
 COptionTab5::~COptionTab5()

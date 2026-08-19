@@ -62,8 +62,6 @@ COptionTab4::COptionTab4() : CPropertyPage(COptionTab4::IDD)
 	m_ka = FALSE;
 	m_pausefiles = _T("");
 	//}}AFX_DATA_INIT
-  // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
-  modify = 0;
 }
 
 COptionTab4::~COptionTab4()
