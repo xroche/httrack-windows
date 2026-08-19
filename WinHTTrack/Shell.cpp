@@ -1965,6 +1965,19 @@ static BOOL isAllDigits(const CString &value) {
   return !value.IsEmpty();
 }
 
+// see Shell.h
+BOOL isSingleFileMaxArgument(const CString &value) {
+  char *end;
+  LLint v;
+
+  if (!isAllDigits(value))   // strtoll would otherwise take a sign or leading spaces
+    return FALSE;
+  errno = 0;
+  v = strtoll((LPCSTR) value, &end, 10);
+  // leading zeros keep the value small however long the string is, so argv still caps it
+  return *end == '\0' && errno != ERANGE && v > 0 && fitsEngineArgument(value, HTS_CDLMAXSIZE);
+}
+
 void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt) {
   // WARC: emit --warc as its own token, not in the compacted -%... string, whose
   // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
@@ -1997,7 +2010,7 @@ void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt) {
     CString singlefilemax = opt.singlefilemax;
     singlefilemax.Trim();
     // the cap implies --single-file, so it must not leak out on its own
-    if (isAllDigits(singlefilemax) && isEngineArgument(singlefilemax, HTS_URLMAXSIZE)) {
+    if (isSingleFileMaxArgument(singlefilemax)) {
       args.Add("--single-file-max-size");
       args.Add(singlefilemax);
     }

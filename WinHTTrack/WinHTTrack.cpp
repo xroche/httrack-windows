@@ -516,6 +516,10 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "", "", "", "", "1", "1000", "--single-file|--single-file-max-size|1000" },
         /* a cap that fails validation is dropped, and the box still emits --single-file */
         { "", "", "", "", "", "1", "abc", "--single-file" },
+        { "", "", "", "", "", "1", "0", "--single-file" },
+        /* in range despite its length, so length alone must not drop it */
+        { "", "", "", "", "", "1", "0000000000000000000001",
+          "--single-file|--single-file-max-size|0000000000000000000001" },
         /* one sub-option only, so swapping the two branch bodies cannot pass */
         { "1", "1", "", "", "", "", "", "--warc|--warc-cdx" },
         /* all three groups at once: pins their order, and that they are not exclusive */
@@ -599,6 +603,38 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       printf("host-alias rules ok on %d checks\n", nchecks);
+    }
+    /* The cap rides argv as its own token, so its length costs the mirror as surely as its
+       value: the engine refuses an argument of HTS_CDLMAXSIZE bytes before parsing it. */
+    {
+      static const struct { const char *lead; int repeat; const char *tail; BOOL want; } caps[] = {
+        { "", 0, "1000", TRUE },
+        { "", 0, "+1000", FALSE },   /* strtoll would take the sign, the engine will not */
+        { "", 0, "3000000000", TRUE },   /* over 2 GB, so a 32-bit parse cannot pass this */
+        { "9", 19, "", FALSE },   /* overflows LLint at a length the rows below still allow */
+        { "0", 4, "", FALSE },   /* zero, however it is written */
+        /* leading zeros keep the value at 1, so only the length decides these two */
+        { "0", HTS_CDLMAXSIZE - 2, "1", TRUE },
+        { "0", HTS_CDLMAXSIZE - 1, "1", FALSE },
+        { NULL, 0, NULL, FALSE }
+      };
+      int nchecks = 0;
+      for(int k=0 ; caps[k].lead != NULL ; k++) {
+        CString value;
+
+        for(int n=0 ; n<caps[k].repeat ; n++)
+          value += caps[k].lead;
+        value += caps[k].tail;
+        if (isSingleFileMaxArgument(value) != caps[k].want) {
+          fprintf(stderr, "FATAL: single-file cap '%s' (%d chars) judged %s\n",
+                  (LPCSTR) value.Left(40), (int) value.GetLength(),
+                  caps[k].want ? "bad, expected good" : "good, expected bad");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("single-file caps ok on %d checks\n", nchecks);
     }
     /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
        refuses costs the whole mirror, and each field carries its own cap. */
