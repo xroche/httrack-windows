@@ -494,6 +494,59 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("profile escaping ok on %d decodes, %d round trips and %d terminators\n",
              ndecodes, nroundtrips, nterminators);
     }
+    /* A value option is inert under a clear box — the contract all three front ends
+       now share. lance() is out of reach here, so this is the only pin on it. */
+    {
+      static const struct {
+        const char *warc, *warccdx, *wacz, *sitemap, *sitemapurl,
+                   *singlefile, *singlefilemax;
+        const char *want;
+      } gated[] = {
+        /* every box clear with its field filled: the state the front ends read apart */
+        { "", "1", "1", "", "http://e/sitemap.xml", "", "1000", "" },
+        { "", "1", "1", "", "", "", "", "" },
+        { "", "", "", "", "http://e/sitemap.xml", "", "", "" },
+        { "", "", "", "", "", "", "1000", "" },
+        /* ticked, so the very same fields must come through: else the rows above pass vacuously */
+        { "1", "1", "1", "", "", "", "", "--warc|--warc-cdx|--wacz" },
+        { "1", "", "", "", "", "", "", "--warc" },
+        { "", "", "", "1", "http://e/sitemap.xml", "", "", "--sitemap-url|http://e/sitemap.xml" },
+        /* a blank address falls back to the probe, never --sitemap-url "" */
+        { "", "", "", "1", " \t ", "", "", "--sitemap" },
+        { "", "", "", "", "", "1", "1000", "--single-file|--single-file-max-size|1000" },
+        /* a cap the engine would reject still enables single-file there, so drop it here */
+        { "", "", "", "", "", "1", "abc", "--single-file" },
+        { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; gated[k].want != NULL ; k++) {
+        CShellOptions opt;
+        CStringArray got;
+        CString joined;
+
+        opt.warc = gated[k].warc;
+        opt.warccdx = gated[k].warccdx;
+        opt.wacz = gated[k].wacz;
+        opt.sitemap = gated[k].sitemap;
+        opt.sitemapurl = gated[k].sitemapurl;
+        opt.singlefile = gated[k].singlefile;
+        opt.singlefilemax = gated[k].singlefilemax;
+        addGatedOptions(opt, got);
+        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
+          if (j != 0)
+            joined += "|";
+          joined += got[j];
+        }
+        if (joined != gated[k].want) {
+          fprintf(stderr, "FATAL: gated row %d emitted '%s', expected '%s'\n",
+                  k, (LPCSTR) joined, gated[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("option gating ok on %d checks\n", nchecks);
+    }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */
     {

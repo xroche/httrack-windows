@@ -296,6 +296,11 @@ public:
 /* Class options */
 extern CShellOptions* ShellOptions;
 
+/* Append the checkbox-gated options (the WARC group, sitemap, single-file) to args.
+   Each value option enables its feature by itself in the engine, so a field left
+   filled under a clear box must emit nothing. Shared with --selftest. */
+void addGatedOptions(const CShellOptions &opt, CStringArray &args);
+
 
 /////////////////////////////////////////////////////////////////////////////
 // CShellApp:
