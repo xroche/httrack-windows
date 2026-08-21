@@ -41,7 +41,7 @@ $v = '3.50-beta-7'
 $cases = @(
     @{ tag = '3.50-beta-7';        want = $true;  why = 'exact match' }
     @{ tag = '3.50-beta-6';        want = $false; why = 'the number this round nearly shipped' }
-    @{ tag = 'v3.50-beta-7';       want = $true;  why = 'NEGATIVE CONTROL: deliberately wrong, must fail' }
+    @{ tag = 'v3.50-beta-7';       want = $false; why = 'v-prefix: Android tags carry one, we do not' }
     @{ tag = '3.05-beta-7';        want = $false; why = 'transposed digits' }
     @{ tag = '3.50-BETA-7';        want = $false; why = 'case differs' }
     @{ tag = '3.50-beta-70';       want = $false; why = 'superstring' }
