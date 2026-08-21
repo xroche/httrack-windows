@@ -244,10 +244,19 @@ jobs:
         env:
           ENGINE_REF: ${{ vars.HTTRACK_ENGINE_REF }}
           GH_REF: ${{ github.ref }}
+          GH_TAG: ${{ github.ref_name }}
         run: |
           $sha = (git -C httrack rev-parse HEAD).Trim()
           Write-Host "::notice::engine $sha (HTTRACK_ENGINE_REF='$env:ENGINE_REF')"
           "sha=$sha" | Out-File -Append $env:GITHUB_OUTPUT
+          # Nothing else compares the two, so a mistyped tag would build and sign under a name no binary reports.
+          if ($env:GH_REF -like 'refs/tags/*') {
+            $vh = Get-Content 'httrack-windows\WinHTTrack\version.h' -Raw
+            if ($vh -notmatch '#define\s+WINHTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read WINHTTRACK_VERSION' }
+            $gui = $Matches[1]
+            if ($env:GH_TAG -cne $gui) { throw "tag '$env:GH_TAG' does not match WINHTTRACK_VERSION '$gui'" }
+            Write-Host "::notice::tag $env:GH_TAG matches WINHTTRACK_VERSION"
+          }
           # Two thirds of what we sign is built from the engine tree, so a tag that floats
           # cannot say what it shipped. A branch name is not a pin, so require a full SHA.
           if ($env:GH_REF -like 'refs/tags/*' -and $env:ENGINE_REF -notmatch '^[0-9a-f]{40}$') {
