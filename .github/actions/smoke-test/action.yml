@@ -78,6 +78,25 @@ runs:
           if ($bad) { throw $bad }
         }
 
+        function Get-UninstallEntries {
+          $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+                     'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+          return @(foreach ($r in $roots) {
+            if (Test-Path $r) {
+              foreach ($k in Get-ChildItem $r) {
+                # -LiteralPath: a key name containing [ ] would otherwise read as a wildcard and be skipped.
+                $dn = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).DisplayName
+                if ($dn -like 'WinHTTrack*') { "$($k.PSChildName) = $dn" }
+              }
+            }
+          })
+        }
+        # The sign job runs both arches on one runner, so start by proving nothing is left
+        # over: otherwise a key orphaned by the previous leg fails THIS one and blames it.
+        $before = Get-UninstallEntries
+        if ($before.Count -ne 0) { throw "$($before.Count) WinHTTrack uninstall entry already present before installing" }
+
         $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
           '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\install.log"
         if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
@@ -272,8 +291,38 @@ runs:
 
         Write-Host "::notice::WinHTTrack $env:APPVER (engine $env:ENGINEVER) installs, starts and runs ($($setup.Name))."
 
+        # Every run so far got a clean machine, so an upgrade that laid a second installation
+        # beside the first would never have shown up. Re-running this installer takes the path
+        # an upgrade takes: the encoding job asserts the premise, that the installer identity
+        # carries no version, so this cannot quietly stop standing in for one.
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\reinstall.log"
+        if ($p.ExitCode -ne 0) { throw "installing over the existing copy exited $($p.ExitCode)" }
+        if (-not (Test-Path $exe)) { throw "installing over the existing copy removed WinHTTrack.exe" }
+        $vo = "$PWD\overversion.txt"
+        $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $vo
+        if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe exited $($p.ExitCode) after installing over" }
+        if ((Get-Content $vo -Raw) -notmatch [regex]::Escape($env:APPVER)) {
+          throw "after installing over, WinHTTrack.exe does not report $env:APPVER"
+        }
+
+        # Two entries in Add/Remove Programs is the failure, and exit 0 cannot see it.
+        # x86 installs land under WOW6432Node, x64 under the native view; HKCU is listed
+        # for completeness though PrivilegesRequired=admin means Inno never falls back to it.
+        $entries = Get-UninstallEntries
+        foreach ($e in $entries) { Write-Host "  uninstall entry: $e" }
+        if ($entries.Count -ne 1) {
+          throw "expected 1 uninstall entry after installing over, found $($entries.Count)"
+        }
+        Write-Host "::notice::installing $env:APPVER over itself upgrades in place, one uninstall entry"
+
         $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
         $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
         if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
         Start-Sleep -Seconds 3
         if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
+        # Also the only place the counter above is seen reading anything but 1: a counter that
+        # always answered 1 would satisfy the check after the install and prove nothing.
+        $left = Get-UninstallEntries
+        foreach ($e in $left) { Write-Host "  orphaned entry: $e" }
+        if ($left.Count -ne 0) { throw "uninstall left $($left.Count) entry in Add/Remove Programs" }

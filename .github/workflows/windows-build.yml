@@ -40,6 +40,28 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
+      # The install-over-previous smoke test re-runs ONE installer, which only stands in for
+      # an upgrade while the installer's identity carries no version. Assert that here, or the
+      # day someone templates a version into AppName the smoke test keeps passing and real
+      # upgrades start installing side by side.
+      - name: Installer identity carries no version
+        run: |
+          python3 - <<'EOF'
+          import re, sys
+          # re.I: Inno directive names are case-insensitive, so appid= must trip this too.
+          iss = open('InnoSetup/httrack.iss', encoding='latin-1').read()
+          bad = []
+          if re.search(r'^\s*AppId\s*=', iss, re.M | re.I):
+              bad.append('httrack.iss now sets AppId: the upgrade test no longer stands in for a version change')
+          m = re.search(r'^\s*AppName\s*=(.*)$', iss, re.M | re.I)
+          if not m:
+              bad.append('httrack.iss has no AppName')
+          elif re.search(r'\d|\{#', m.group(1)):
+              bad.append('AppName %r carries a version: upgrades would install side by side' % m.group(1).strip())
+          if bad:
+              sys.exit('\n'.join(bad))
+          print('installer identity is version-free:%s' % m.group(1))
+          EOF
       # Byte-exact on purpose: sources are UTF-8, the .rc/tooling inputs stay
       # Latin-1, and a shell guard can't tell them apart. Python decodes strictly.
       - name: Encoding and line endings
