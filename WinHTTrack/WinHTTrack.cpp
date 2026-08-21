@@ -258,7 +258,7 @@ void WhttEnsureConsole(void) {
    carried before 3.49.23 turned LANGUAGE_NAME into endonyms. */
 static CString UpdateUrl() {
   CString st;
-  st.Format(HTS_UPDATE_WEBSITE, 0, LANGUAGE_NAME);  /* NEGATIVE CONTROL: the bug, restored */
+  st.Format(HTS_UPDATE_WEBSITE, 0, LANGUAGE_FILE);
   return st;
 }
 
