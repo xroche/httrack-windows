@@ -272,6 +272,35 @@ runs:
 
         Write-Host "::notice::WinHTTrack $env:APPVER (engine $env:ENGINEVER) installs, starts and runs ($($setup.Name))."
 
+        # Every run so far got a clean machine, so an upgrade that laid a second installation
+        # beside the first would never have shown up. Re-running this installer takes the path
+        # an upgrade takes: the encoding job asserts the premise, that the installer identity
+        # carries no version, so this cannot quietly stop standing in for one.
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\reinstall.log"
+        if ($p.ExitCode -ne 0) { throw "installing over the existing copy exited $($p.ExitCode)" }
+        if (-not (Test-Path $exe)) { throw "installing over the existing copy removed WinHTTrack.exe" }
+        $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow
+        if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe exited $($p.ExitCode) after installing over" }
+
+        # Two entries in Add/Remove Programs is the failure, and exit 0 cannot see it.
+        $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                   'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+                   'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+        $entries = @(foreach ($r in $roots) {
+          if (Test-Path $r) {
+            foreach ($k in Get-ChildItem $r) {
+              $dn = (Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue).DisplayName
+              if ($dn -like 'WinHTTrack*') { "$($k.PSChildName) = $dn" }
+            }
+          }
+        })
+        foreach ($e in $entries) { Write-Host "  uninstall entry: $e" }
+        if ($entries.Count -ne 1) {
+          throw "expected 1 uninstall entry after installing over, found $($entries.Count)"
+        }
+        Write-Host "::notice::installing $env:APPVER over itself upgrades in place, one uninstall entry"
+
         $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
         $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
         if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
