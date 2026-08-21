@@ -36,6 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The guard itself only fires on a tag, so this table is what actually proves it.
+      - name: Tag/version guard cases
+        shell: pwsh
+        run: ./tools/Test-TagVersion.ps1
       # The install-over-previous smoke test re-runs ONE installer, which only stands in for
       # an upgrade while the installer's identity carries no version. Assert that here, or the
       # day someone templates a version into AppName the smoke test keeps passing and real
@@ -266,10 +270,21 @@ jobs:
         env:
           ENGINE_REF: ${{ vars.HTTRACK_ENGINE_REF }}
           GH_REF: ${{ github.ref }}
+          GH_TAG: ${{ github.ref_name }}
         run: |
           $sha = (git -C httrack rev-parse HEAD).Trim()
           Write-Host "::notice::engine $sha (HTTRACK_ENGINE_REF='$env:ENGINE_REF')"
           "sha=$sha" | Out-File -Append $env:GITHUB_OUTPUT
+          # Nothing else compares the two, so a mistyped tag would build and sign under a name no
+          # binary reports. Bare tags only: a v-prefixed one fails here even though on.push accepts it.
+          if ($env:GH_REF -like 'refs/tags/*') {
+            . httrack-windows/tools/TagVersion.ps1
+            $gui = Get-GuiVersion -Path 'httrack-windows/WinHTTrack/version.h'
+            if (-not (Test-TagMatchesVersion -Tag $env:GH_TAG -Version $gui)) {
+              throw "tag '$env:GH_TAG' does not match WINHTTRACK_VERSION '$gui'"
+            }
+            Write-Host "::notice::tag $env:GH_TAG matches WINHTTRACK_VERSION"
+          }
           # Two thirds of what we sign is built from the engine tree, so a tag that floats
           # cannot say what it shipped. A branch name is not a pin, so require a full SHA.
           if ($env:GH_REF -like 'refs/tags/*' -and $env:ENGINE_REF -notmatch '^[0-9a-f]{40}$') {
