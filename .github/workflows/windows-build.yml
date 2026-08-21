@@ -36,6 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The guard itself only fires on a tag, so this table is what actually proves it.
+      - name: Tag/version guard cases
+        shell: pwsh
+        run: ./tools/Test-TagVersion.ps1
       # Byte-exact on purpose: sources are UTF-8, the .rc/tooling inputs stay
       # Latin-1, and a shell guard can't tell them apart. Python decodes strictly.
       - name: Encoding and line endings
@@ -249,12 +253,14 @@ jobs:
           $sha = (git -C httrack rev-parse HEAD).Trim()
           Write-Host "::notice::engine $sha (HTTRACK_ENGINE_REF='$env:ENGINE_REF')"
           "sha=$sha" | Out-File -Append $env:GITHUB_OUTPUT
-          # Nothing else compares the two, so a mistyped tag would build and sign under a name no binary reports.
+          # Nothing else compares the two, so a mistyped tag would build and sign under a name no
+          # binary reports. Bare tags only: a v-prefixed one fails here even though on.push accepts it.
           if ($env:GH_REF -like 'refs/tags/*') {
-            $vh = Get-Content 'httrack-windows\WinHTTrack\version.h' -Raw
-            if ($vh -notmatch '#define\s+WINHTTRACK_VERSION\s+"([^"]+)"') { throw 'cannot read WINHTTRACK_VERSION' }
-            $gui = $Matches[1]
-            if ($env:GH_TAG -cne $gui) { throw "tag '$env:GH_TAG' does not match WINHTTRACK_VERSION '$gui'" }
+            . httrack-windows/tools/TagVersion.ps1
+            $gui = Get-GuiVersion -Path 'httrack-windows/WinHTTrack/version.h'
+            if (-not (Test-TagMatchesVersion -Tag $env:GH_TAG -Version $gui)) {
+              throw "tag '$env:GH_TAG' does not match WINHTTRACK_VERSION '$gui'"
+            }
             Write-Host "::notice::tag $env:GH_TAG matches WINHTTRACK_VERSION"
           }
           # Two thirds of what we sign is built from the engine tree, so a tag that floats
