@@ -78,6 +78,25 @@ runs:
           if ($bad) { throw $bad }
         }
 
+        function Get-UninstallEntries {
+          $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+                     'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+          return @(foreach ($r in $roots) {
+            if (Test-Path $r) {
+              foreach ($k in Get-ChildItem $r) {
+                # -LiteralPath: a key name containing [ ] would otherwise read as a wildcard and be skipped.
+                $dn = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).DisplayName
+                if ($dn -like 'WinHTTrack*') { "$($k.PSChildName) = $dn" }
+              }
+            }
+          })
+        }
+        # The sign job runs both arches on one runner, so start by proving nothing is left
+        # over: otherwise a key orphaned by the previous leg fails THIS one and blames it.
+        $before = Get-UninstallEntries
+        if ($before.Count -ne 0) { throw "$($before.Count) WinHTTrack uninstall entry already present before installing" }
+
         $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
           '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\install.log"
         if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
@@ -280,26 +299,16 @@ runs:
           '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\reinstall.log"
         if ($p.ExitCode -ne 0) { throw "installing over the existing copy exited $($p.ExitCode)" }
         if (-not (Test-Path $exe)) { throw "installing over the existing copy removed WinHTTrack.exe" }
-        $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow
+        $vo = "$PWD\overversion.txt"
+        $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $vo
         if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe exited $($p.ExitCode) after installing over" }
+        if ((Get-Content $vo -Raw) -notmatch [regex]::Escape($env:APPVER)) {
+          throw "after installing over, WinHTTrack.exe does not report $env:APPVER"
+        }
 
         # Two entries in Add/Remove Programs is the failure, and exit 0 cannot see it.
         # x86 installs land under WOW6432Node, x64 under the native view; HKCU is listed
         # for completeness though PrivilegesRequired=admin means Inno never falls back to it.
-        function Get-UninstallEntries {
-          $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
-                     'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
-          return @(foreach ($r in $roots) {
-            if (Test-Path $r) {
-              foreach ($k in Get-ChildItem $r) {
-                # -LiteralPath: a key name containing [ ] would otherwise read as a wildcard and be skipped.
-                $dn = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).DisplayName
-                if ($dn -like 'WinHTTrack*') { "$($k.PSChildName) = $dn" }
-              }
-            }
-          })
-        }
         $entries = Get-UninstallEntries
         foreach ($e in $entries) { Write-Host "  uninstall entry: $e" }
         if ($entries.Count -ne 1) {
