@@ -284,17 +284,23 @@ runs:
         if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe exited $($p.ExitCode) after installing over" }
 
         # Two entries in Add/Remove Programs is the failure, and exit 0 cannot see it.
-        $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-                   'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
-                   'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
-        $entries = @(foreach ($r in $roots) {
-          if (Test-Path $r) {
-            foreach ($k in Get-ChildItem $r) {
-              $dn = (Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue).DisplayName
-              if ($dn -like 'WinHTTrack*') { "$($k.PSChildName) = $dn" }
+        # x86 installs land under WOW6432Node, x64 under the native view; HKCU is listed
+        # for completeness though PrivilegesRequired=admin means Inno never falls back to it.
+        function Get-UninstallEntries {
+          $roots = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+                     'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+          return @(foreach ($r in $roots) {
+            if (Test-Path $r) {
+              foreach ($k in Get-ChildItem $r) {
+                # -LiteralPath: a key name containing [ ] would otherwise read as a wildcard and be skipped.
+                $dn = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).DisplayName
+                if ($dn -like 'WinHTTrack*') { "$($k.PSChildName) = $dn" }
+              }
             }
-          }
-        })
+          })
+        }
+        $entries = Get-UninstallEntries
         foreach ($e in $entries) { Write-Host "  uninstall entry: $e" }
         if ($entries.Count -ne 1) {
           throw "expected 1 uninstall entry after installing over, found $($entries.Count)"
@@ -306,3 +312,8 @@ runs:
         if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
         Start-Sleep -Seconds 3
         if (Test-Path $exe) { throw "uninstall left WinHTTrack.exe behind" }
+        # Also the only place the counter above is seen reading anything but 1: a counter that
+        # always answered 1 would satisfy the check after the install and prove nothing.
+        $left = Get-UninstallEntries
+        foreach ($e in $left) { Write-Host "  orphaned entry: $e" }
+        if ($left.Count -ne 0) { throw "uninstall left $($left.Count) entry in Add/Remove Programs" }

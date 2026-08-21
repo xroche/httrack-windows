@@ -44,11 +44,12 @@ jobs:
         run: |
           python3 - <<'EOF'
           import re, sys
+          # re.I: Inno directive names are case-insensitive, so appid= must trip this too.
           iss = open('InnoSetup/httrack.iss', encoding='latin-1').read()
           bad = []
-          if re.search(r'^\s*AppId\s*=', iss, re.M):
+          if re.search(r'^\s*AppId\s*=', iss, re.M | re.I):
               bad.append('httrack.iss now sets AppId: the upgrade test no longer stands in for a version change')
-          m = re.search(r'^\s*AppName\s*=(.*)$', iss, re.M)
+          m = re.search(r'^\s*AppName\s*=(.*)$', iss, re.M | re.I)
           if not m:
               bad.append('httrack.iss has no AppName')
           elif re.search(r'\d|\{#', m.group(1)):
