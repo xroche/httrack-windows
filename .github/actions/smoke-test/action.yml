@@ -226,6 +226,10 @@ runs:
         if ("$so" -notmatch 'lang\.indexes offset checked on 4 locales and 9 checks') {
           throw "selftest did not check the lang.indexes offset"
         }
+        # Pinned: an unasserted line can stop running, and this one guards what the update URL sends.
+        if ("$so" -notmatch 'update-url language ok on 3 locales and 9 checks') {
+          throw "selftest did not check what the update URL sends as the language"
+        }
         # The option caps count UTF-8 bytes, so the accented value is the case that matters;
         # it carries an ANSI-codepage guard and names itself when it skips.
         if ("$so" -notmatch 'quoted arguments ok on 15 checks(?! \(accented)') {

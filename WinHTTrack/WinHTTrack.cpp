@@ -896,6 +896,55 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
       printf("lang.indexes offset checked on %d locales and %d checks\n", k, nchecks);
     }
+    /* OnUpdate() sends LANGUAGE_FILE, so pin what goes on the wire and the premise it rests
+       on: 3.49.23 made LANGUAGE_NAME an endonym, and the two must now differ. */
+    {
+      static const struct { const char* tag; const char* file; int same_as_name; } expect[] = {
+        { "en", "English", 1 }, { "fi", "Finnish", 0 }, { "uk", "Ukrainian", 0 }, { NULL, NULL, 0 }
+      };
+      const int saved = QLANG_T(-1);
+      int nchecks = 0;
+      int k;
+      for(k=0 ; expect[k].tag != NULL ; k++) {
+        const char* file;
+        const char* name;
+        const char* p;
+        const int index = LANG_INDEX_OF(expect[k].tag);
+        if (index < 0 || index >= nlangs) {
+          fprintf(stderr, "FATAL: lang.indexes gives '%s' the unusable index %d\n", expect[k].tag, index);
+          fflush(stderr);
+          ExitProcess(6);
+        }
+        /* QLANG_T, not LANG_T: LANG_T persists the choice to the registry. */
+        QLANG_T(index);
+        LANG_LOAD(NULL, 0);
+        file = LANGUAGE_FILE;
+        name = LANGUAGE_NAME;
+        if (strcmp(file, expect[k].file) != 0) {
+          fprintf(stderr, "FATAL: '%s' would send '%s', expected '%s'\n", expect[k].tag, file, expect[k].file);
+          fflush(stderr);
+          ExitProcess(6);
+        }
+        nchecks++;
+        for(p = file ; *p != '\0' ; p++) {
+          if ((unsigned char) *p > 0x7f) {
+            fprintf(stderr, "FATAL: '%s' would send the non-ASCII '%s'\n", expect[k].tag, file);
+            fflush(stderr);
+            ExitProcess(6);
+          }
+        }
+        nchecks++;
+        if ((strcmp(file, name) == 0) != (expect[k].same_as_name != 0)) {
+          fprintf(stderr, "FATAL: '%s' has LANGUAGE_NAME '%s' and LANGUAGE_FILE '%s'\n", expect[k].tag, name, file);
+          fflush(stderr);
+          ExitProcess(6);
+        }
+        nchecks++;
+      }
+      QLANG_T(saved);
+      LANG_LOAD(NULL, 0);
+      printf("update-url language ok on %d locales and %d checks\n", k, nchecks);
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */
@@ -1403,7 +1452,9 @@ void CWinHTTrackApp::Onipabout()
 void CWinHTTrackApp::OnUpdate() 
 {
   CString st;
-  st.Format(HTS_UPDATE_WEBSITE,0,LANGUAGE_NAME);
+  /* LANGUAGE_FILE, not LANGUAGE_NAME: the catalog basename is ASCII and is what this
+     parameter carried before 3.49.23 turned LANGUAGE_NAME into endonyms. */
+  st.Format(HTS_UPDATE_WEBSITE,0,LANGUAGE_FILE);
   if (!ShellOpen(st, SW_SHOWNORMAL))
     AfxMessageBox("Cannot open a web browser for " + st);
 }
