@@ -136,7 +136,12 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
           f.m_folder+="\\";  // add a /
         if (f.DoModal()==IDOK) {
           char st[MAX_PATH];
-          strcpybuff(st,f.m_folder);   // CNewFolder caps the edit box to fit
+          // the control's limit counts TCHARs, which a DBCS codepage can turn into more bytes
+          if (f.m_folder.GetLength() >= (int) sizeof(st)) {
+            AfxMessageBox("Folder name is too long",MB_OK+MB_ICONEXCLAMATION);
+            return 0;
+          }
+          strcpybuff(st,f.m_folder);
           // Remove the last slash bar
           if (strlen(st)>0)
           if (st[strlen(st)-1]=='\\')
@@ -145,7 +150,8 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
           if (_mkdir(st))              // error
             AfxMessageBox("Folder already exists, or can not be created",MB_OK+MB_ICONEXCLAMATION);
           else {    // Select the new path
-            if (DirectReturnValue && DirectReturnSize) {
+            if (DirectReturnValue) {
+              assertf(DirectReturnSize != 0);
               strlcpybuff(DirectReturnValue,st,DirectReturnSize);
               wParam = (wParam & 0xFFFF0000) | XSHBrowseForFolder_OK;    // 'OK'
               return Ladr(hwnd,uMsg,wParam,lParam); // former window routine
