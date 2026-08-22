@@ -31,16 +31,7 @@ Please visit our Website: http://www.httrack.com
 /* Author: Xavier Roche                                         */
 /* ------------------------------------------------------------ */
 
-// Architecture the reports name, so an x86 report is not read as the x64 one.
-#if defined(_M_X64)
-#define WHTT_ARCH "x64"
-#elif defined(_M_IX86)
-#define WHTT_ARCH "x86"
-#else
-#define WHTT_ARCH "unknown"
-#endif
-
-// The line every report opens with: the GUI build, then the engine version apart from it.
+// The line every report opens with: the GUI version and architecture, then the engine's.
 const char *CrashReportHeader(void);
 
 // Initialize crash reporter.

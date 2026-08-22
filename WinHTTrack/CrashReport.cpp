@@ -46,10 +46,20 @@ Please visit our Website: http://www.httrack.com
 #include "htsglobal.h"
 
 #include "version.h"
+#include "CrashReport.h"
 #include "SignatureCheck.h"
 
 /* Defined in WinHTTrack.cpp; set by --selftest. */
 extern int WhttSelfTest;
+
+/* Named in every report, so an x86 report is not read as an x64 one. */
+#if defined(_M_X64)
+#define WHTT_ARCH "x64"
+#elif defined(_M_IX86)
+#define WHTT_ARCH "x86"
+#else
+#define WHTT_ARCH "unknown"
+#endif
 
 /* The GUI ships ahead of the engine, so naming only the engine version points a report at the wrong tree; both matter. */
 const char *CrashReportHeader(void) {
@@ -469,17 +479,24 @@ void CrashReportReport(const char* msg, const char* file, int line) {
   CrashReportReportEx(msg, file, line, trace);
 }
 
-static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
-  const EXCEPTION_RECORD *const record = pExceptPtrs->ExceptionRecord;
-  char msg[128];
+// Which fault, and where: the record is all a top-level filter is ever told. The buffer is
+// static so the stack-overflow path spends none of the stack it has left on it.
+static const char *ExceptionLine(const EXCEPTION_RECORD *const record) {
+  static char msg[80];
 
-  // Which fault, and where: the record is all a top-level filter is ever told.
   _snprintf_s(msg, sizeof(msg), _TRUNCATE, "Top-level exception 0x%08lX at 0x%p",
               (unsigned long) record->ExceptionCode, record->ExceptionAddress);
+  return msg;
+}
+
+static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
+  const EXCEPTION_RECORD *const record = pExceptPtrs->ExceptionRecord;
+
   switch(record->ExceptionCode) {
     case EXCEPTION_STACK_OVERFLOW:
-      // Symbol-walking would re-fault on the exhausted stack: append the record, nothing more.
-      AppendExceptionReport("died on", msg, NULL, FALSE);
+      // Symbol-walking would re-fault on the stack that has just run out. Only the record is
+      // written: this path raises no dialog and writes no CRASH.TXT.
+      AppendExceptionReport("died on", ExceptionLine(record), NULL, FALSE);
       return EXCEPTION_CONTINUE_SEARCH;
     case EXCEPTION_ACCESS_VIOLATION:
     case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
@@ -488,7 +505,7 @@ static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
     case EXCEPTION_IN_PAGE_ERROR:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
-      CrashReportReport(msg, "unknown", 0);
+      CrashReportReport(ExceptionLine(record), "unknown", 0);
       return EXCEPTION_CONTINUE_SEARCH;
     default:
       return EXCEPTION_CONTINUE_SEARCH;

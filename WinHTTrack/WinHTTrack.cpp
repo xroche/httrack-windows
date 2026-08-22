@@ -1007,28 +1007,43 @@ BOOL CWinHTTrackApp::InitInstance()
       QLANG_T(saved);
       LANG_LOAD(NULL, 0);
     }
-    /* A bug report's only statement of what crashed, and nothing else here can see it. */
+    /* The header is a bug report's only statement of what crashed, and no other check sees it. */
     {
+      static const char lead[] = "WinHTTrack " WINHTTRACK_VERSION " (";
       const char *const header = CrashReportHeader();
-      static const char *const want[] = {
-        "WinHTTrack ", WINHTTRACK_VERSION, WHTT_ARCH, "engine ", HTTRACK_VERSIONID, NULL
-      };
+      /* From sizeof(void*), not from the macro the header is built from: a compiler ladder
+         that mis-fires prints "unknown" on both builds, and only an outside oracle sees it. */
+      const char *const arch = (sizeof(void*) == 8) ? "x64" : "x86";
+      const size_t archlen = strlen(arch);
       int nchecks = 0;
-      for(int k=0 ; want[k] != NULL ; k++) {
-        if (strstr(header, want[k]) == NULL) {
-          fprintf(stderr, "FATAL: crash report header '%s' does not name '%s'\n", header, want[k]);
-          fflush(stderr);
-          ExitProcess(7);
-        } else
-          nchecks++;
-      }
-      /* The GUI version is the subject and the engine's the labelled aside, not the reverse. */
-      if (strstr(header, WINHTTRACK_VERSION) > strstr(header, "engine ")) {
-        fprintf(stderr, "FATAL: crash report header '%s' leads with the engine version\n", header);
+
+      /* Anchored, not searched: the engine reaching 3.50.x makes its version a substring
+         of ours, and a search would then take either version for the other. */
+      if (strncmp(header, lead, sizeof(lead) - 1) != 0) {
+        fprintf(stderr, "FATAL: crash report header '%s' does not open with '%s'\n", header, lead);
         fflush(stderr);
-        ExitProcess(7);
+        ExitProcess(3);
       } else
         nchecks++;
+      if (strncmp(header + sizeof(lead) - 1, arch, archlen) != 0) {
+        fprintf(stderr, "FATAL: crash report header '%s' does not name the %s build\n", header, arch);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      if (strcmp(header + sizeof(lead) - 1 + archlen, ", engine " HTTRACK_VERSIONID ")") != 0) {
+        fprintf(stderr, "FATAL: crash report header '%s' does not end on engine "
+                HTTRACK_VERSIONID "\n", header);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
+      if (nchecks != 3) {
+        fprintf(stderr, "FATAL: crash report header ran %d checks, expected 3\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
       printf("crash report header ok on %d checks\n", nchecks);
     }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
@@ -1043,7 +1058,7 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       CrashReportLogException(reason);
     } END_CATCH_ALL
-    /* Through the reporter's own header, so the line CI pins runs it. */
+    /* Printed through the reporter's own header, so the line CI checks exercises it. */
     printf("%s: startup ok\n", CrashReportHeader());
     fflush(stdout);
     ExitProcess(0);
