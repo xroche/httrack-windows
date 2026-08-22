@@ -1007,6 +1007,30 @@ BOOL CWinHTTrackApp::InitInstance()
       QLANG_T(saved);
       LANG_LOAD(NULL, 0);
     }
+    /* A bug report's only statement of what crashed, and nothing else here can see it. */
+    {
+      const char *const header = CrashReportHeader();
+      static const char *const want[] = {
+        "WinHTTrack ", WINHTTRACK_VERSION, WHTT_ARCH, "engine ", HTTRACK_VERSIONID, NULL
+      };
+      int nchecks = 0;
+      for(int k=0 ; want[k] != NULL ; k++) {
+        if (strstr(header, want[k]) == NULL) {
+          fprintf(stderr, "FATAL: crash report header '%s' does not name '%s'\n", header, want[k]);
+          fflush(stderr);
+          ExitProcess(7);
+        } else
+          nchecks++;
+      }
+      /* The GUI version is the subject and the engine's the labelled aside, not the reverse. */
+      if (strstr(header, WINHTTRACK_VERSION) > strstr(header, "engine ")) {
+        fprintf(stderr, "FATAL: crash report header '%s' leads with the engine version\n", header);
+        fflush(stderr);
+        ExitProcess(7);
+      } else
+        nchecks++;
+      printf("crash report header ok on %d checks\n", nchecks);
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */
@@ -1019,7 +1043,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       CrashReportLogException(reason);
     } END_CATCH_ALL
-    printf("WinHTTrack %s: startup ok\n", WINHTTRACK_VERSION);
+    /* Through the reporter's own header, so the line CI pins runs it. */
+    printf("%s: startup ok\n", CrashReportHeader());
     fflush(stdout);
     ExitProcess(0);
   }

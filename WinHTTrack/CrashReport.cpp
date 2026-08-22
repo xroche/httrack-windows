@@ -45,10 +45,16 @@ Please visit our Website: http://www.httrack.com
 
 #include "htsglobal.h"
 
+#include "version.h"
 #include "SignatureCheck.h"
 
 /* Defined in WinHTTrack.cpp; set by --selftest. */
 extern int WhttSelfTest;
+
+/* The GUI ships ahead of the engine, so naming only the engine version points a report at the wrong tree; both matter. */
+const char *CrashReportHeader(void) {
+  return "WinHTTrack " WINHTTRACK_VERSION " (" WHTT_ARCH ", engine " HTTRACK_VERSIONID ")";
+}
 
 /* A report from a repackaged build has to say so: it redirects the investigation, and
    the reporter has no way of knowing it. */
@@ -372,24 +378,18 @@ static LONG CALLBACK FirstChanceHandler(PEXCEPTION_POINTERS ptrs) {
   return EXCEPTION_CONTINUE_SEARCH;
 }
 
-// An exception MFC caught and handled: log where it came from, no dialog, keep running.
-void CrashReportLogException(const char* msg) {
-  static char buffer[8192];
+// Append one entry to %TEMP%\WinHTTrack-exception.txt; trace may be NULL. Uses no dbghelp,
+// so the stack-overflow path can call it on what stack it has left.
+static void AppendExceptionReport(const char *const event, const char *const msg,
+                                  const char *const trace, const BOOL thrown) {
   const size_t filename_max = 32;
   CHAR path[MAX_PATH + 1 + filename_max];
-  char *trace = NULL;
 
-  const BOOL thrown = ThrowStackCount != 0;
-  if (PrintStack(buffer, sizeof(buffer),
-                 thrown ? ThrowStack : NULL, ThrowStackCount)) {
-    trace = buffer;
-  }
-  ThrowStackCount = 0;    // consumed; never blame a later exception on this one
   if (GetTempPath(sizeof(path) - filename_max, path) != 0) {
     FILE *fp;
     strcat(path, "WinHTTrack-exception.txt");
     if ((fp = fopen(path, "ab")) != NULL) {
-      fprintf(fp, "HTTrack " HTTRACK_VERSIONID " caught: %s\r\n",
+      fprintf(fp, "%s %s: %s\r\n", CrashReportHeader(), event,
               msg != NULL ? msg : "(no description)");
       ReportBuild(fp);
       if (trace != NULL) {
@@ -401,6 +401,20 @@ void CrashReportLogException(const char* msg) {
       fclose(fp);
     }
   }
+}
+
+// An exception MFC caught and handled: log where it came from, no dialog, keep running.
+void CrashReportLogException(const char* msg) {
+  static char buffer[8192];
+  char *trace = NULL;
+
+  const BOOL thrown = ThrowStackCount != 0;
+  if (PrintStack(buffer, sizeof(buffer),
+                 thrown ? ThrowStack : NULL, ThrowStackCount)) {
+    trace = buffer;
+  }
+  ThrowStackCount = 0;    // consumed; never blame a later exception on this one
+  AppendExceptionReport("caught", msg, trace, thrown);
 }
 
 void CrashReportReportEx(const char* msg, const char* file, int line, const char *trace) {
@@ -420,7 +434,7 @@ void CrashReportReportEx(const char* msg, const char* file, int line, const char
     FILE *fp;
     strcat(path, "CRASH.TXT");
     if ((fp = fopen(path, "wb")) != NULL) {
-      fprintf(fp, "HTTrack " HTTRACK_VERSIONID " closed at '%s', line %d\r\n",
+      fprintf(fp, "%s closed at '%s', line %d\r\n", CrashReportHeader(),
         file, line);
       fprintf(fp, "Reason: %s\r\n", msg);
       ReportBuild(fp);
@@ -456,7 +470,17 @@ void CrashReportReport(const char* msg, const char* file, int line) {
 }
 
 static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
-  switch(pExceptPtrs->ExceptionRecord->ExceptionCode) {
+  const EXCEPTION_RECORD *const record = pExceptPtrs->ExceptionRecord;
+  char msg[128];
+
+  // Which fault, and where: the record is all a top-level filter is ever told.
+  _snprintf_s(msg, sizeof(msg), _TRUNCATE, "Top-level exception 0x%08lX at 0x%p",
+              (unsigned long) record->ExceptionCode, record->ExceptionAddress);
+  switch(record->ExceptionCode) {
+    case EXCEPTION_STACK_OVERFLOW:
+      // Symbol-walking would re-fault on the exhausted stack: append the record, nothing more.
+      AppendExceptionReport("died on", msg, NULL, FALSE);
+      return EXCEPTION_CONTINUE_SEARCH;
     case EXCEPTION_ACCESS_VIOLATION:
     case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
     case EXCEPTION_DATATYPE_MISALIGNMENT:
@@ -464,13 +488,10 @@ static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
     case EXCEPTION_IN_PAGE_ERROR:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
-    case EXCEPTION_STACK_OVERFLOW:
-      CrashReportReport("Top-level exception caught", "unknown", 0);
+      CrashReportReport(msg, "unknown", 0);
       return EXCEPTION_CONTINUE_SEARCH;
-      break;
     default:
       return EXCEPTION_CONTINUE_SEARCH;
-      break;
   }
 }
 
