@@ -68,3 +68,11 @@ END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
 // CNewFolder message handlers
+
+BOOL CNewFolder::OnInitDialog()
+{
+	CDialog::OnInitDialog();
+  // the caller copies the result into a MAX_PATH buffer, and overflow there aborts
+  GetDlgItem(IDC_Folder)->SendMessage(EM_SETLIMITTEXT, MAX_PATH - 1, 0);
+	return TRUE;  // return TRUE unless you set the focus to a control
+}

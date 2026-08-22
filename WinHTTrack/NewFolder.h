@@ -61,7 +61,7 @@ protected:
 
 	// Generated message map functions
 	//{{AFX_MSG(CNewFolder)
-		// NOTE: the ClassWizard will add member functions here
+	virtual BOOL OnInitDialog();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

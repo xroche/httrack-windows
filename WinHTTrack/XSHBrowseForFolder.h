@@ -48,6 +48,7 @@ Please visit our Website: http://www.httrack.com
 #include <direct.h>
 #include "shlobj.h"
 
+// wParam carries the capacity of the lParam buffer, NUL included
 #define XSHBrowseForFolder_SETSTRING 1234
 #define XSHBrowseForFolder_OK 1
 

@@ -55,6 +55,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "shlobj.h"
 #include "XSHBrowseForFolder.h"
+#include "htssafe.h"
 
 // our button ID
 int XSHBFF_button1 = -1;
@@ -103,7 +104,7 @@ CString XSHBrowseForFolder(HWND hwnd,const char* title,char* _path) {
         if (SHGetPathFromIDList(UserList,path)==FALSE)
           path[0]='\0';
       } else
-        strcpy(path,Thispath);
+        strcpybuff(path,Thispath);
       Mymal->Free(UserList);
     }
     if (MyItemlist) Mymal->Free(MyItemlist);
@@ -119,6 +120,7 @@ typedef LRESULT (__stdcall * XSHBFF_WndProc_type)(HWND ,UINT ,WPARAM ,LPARAM);
 LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) {
   static char StringSelection[MAX_PATH]="";
   static char* DirectReturnValue=NULL;
+  static size_t DirectReturnSize=0;
   static XSHBFF_WndProc_type Ladr=DefDlgProc;
   int wNotifyCode = HIWORD(wParam);  // notification code 
   int wID = LOWORD(wParam);          // item, control, or accelerator identifier 
@@ -129,11 +131,12 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
       if (strlen(StringSelection)>0) {  // there is a selection
         CNewFolder f;
         f.m_folder=StringSelection;
-        if (StringSelection[strlen(StringSelection)-1]!='\\')
+        // a selection already filling the buffer leaves no room for the separator
+        if (StringSelection[strlen(StringSelection)-1]!='\\' && strlen(StringSelection)<sizeof(StringSelection)-1)
           f.m_folder+="\\";  // add a /
         if (f.DoModal()==IDOK) {
           char st[MAX_PATH];
-          strcpy(st,f.m_folder);
+          strcpybuff(st,f.m_folder);   // CNewFolder caps the edit box to fit
           // Remove the last slash bar
           if (strlen(st)>0)
           if (st[strlen(st)-1]=='\\')
@@ -142,8 +145,8 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
           if (_mkdir(st))              // error
             AfxMessageBox("Folder already exists, or can not be created",MB_OK+MB_ICONEXCLAMATION);
           else {    // Select the new path
-            if (DirectReturnValue) {
-              strcpy(DirectReturnValue,st);
+            if (DirectReturnValue && DirectReturnSize) {
+              strlcpybuff(DirectReturnValue,st,DirectReturnSize);
               wParam = (wParam & 0xFFFF0000) | XSHBrowseForFolder_OK;    // 'OK'
               return Ladr(hwnd,uMsg,wParam,lParam); // former window routine
             }
@@ -157,6 +160,7 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
     }
   } else if (uMsg==XSHBrowseForFolder_SETSTRING) {  // received from our XSHBFF_CallbackProc routine
     DirectReturnValue=(char*) lParam;
+    DirectReturnSize=(size_t) wParam;
     return 0;
   } else if (uMsg==XSHBrowseForFolder_SETSTRING+1) {
     Ladr = (XSHBFF_WndProc_type) lParam;  // store former address
