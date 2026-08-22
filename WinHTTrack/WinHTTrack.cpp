@@ -253,6 +253,15 @@ void WhttEnsureConsole(void) {
   }
 }
 
+/* The update URL, shared with --selftest so what goes on the wire is what a test reads.
+   LANGUAGE_FILE, not LANGUAGE_NAME: the basename is ASCII and is what this parameter
+   carried before 3.49.23 turned LANGUAGE_NAME into endonyms. */
+static CString UpdateUrl() {
+  CString st;
+  st.Format(HTS_UPDATE_WEBSITE, 0, LANGUAGE_FILE);
+  return st;
+}
+
 BOOL CWinHTTrackApp::InitInstance()
 {
   /* Answer --version without bringing up the UI, so a smoke test can prove the
@@ -896,6 +905,108 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
       printf("lang.indexes offset checked on %d locales and %d checks\n", k, nchecks);
     }
+    /* Assert the URL OnUpdate() builds, not the macro it reads: checking LANGUAGE_FILE
+       here would still pass if the call site went back to LANGUAGE_NAME. */
+    {
+      static const struct { const char* tag; const char* file; int same_as_name; } expect[] = {
+        { "en", "English", 1 }, { "fi", "Finnish", 0 }, { "uk", "Ukrainian", 0 }, { NULL, NULL, 0 }
+      };
+      const int saved = QLANG_T(-1);
+      int nchecks = 0;
+      int k;
+      for(k=0 ; expect[k].tag != NULL ; k++) {
+        CString url;
+        CString want;
+        const char* name;
+        int at;
+        const int index = LANG_INDEX_OF(expect[k].tag);
+        if (index < 0 || index >= nlangs) {
+          fprintf(stderr, "FATAL: lang.indexes gives '%s' the unusable index %d\n", expect[k].tag, index);
+          fflush(stderr);
+          ExitProcess(6);
+        }
+        /* QLANG_T, not LANG_T: LANG_T persists the choice to the registry. */
+        QLANG_T(index);
+        LANG_LOAD(NULL, 0);
+        url = UpdateUrl();
+        name = LANGUAGE_NAME;
+        want.Format("&Language=%s", expect[k].file);
+        at = url.Find(want);
+        if (at < 0) {
+          fprintf(stderr, "FATAL: '%s' builds '%s', wanted it to carry '%s'\n",
+                  expect[k].tag, (LPCTSTR) url, (LPCTSTR) want);
+          fflush(stderr);
+          ExitProcess(6);
+        }
+        nchecks++;
+        if (url.Find(want, at + 1) >= 0) {
+          fprintf(stderr, "FATAL: '%s' carries '%s' more than once\n", expect[k].tag, (LPCTSTR) want);
+          fflush(stderr);
+          ExitProcess(6);
+        }
+        nchecks++;
+        /* The endonyms are what broke this, so the whole URL must stay ASCII. */
+        {
+          const char* p;
+          for(p = (LPCTSTR) url ; *p != '\0' ; p++) {
+            if ((unsigned char) *p > 0x7f) {
+              fprintf(stderr, "FATAL: '%s' builds the non-ASCII '%s'\n", expect[k].tag, (LPCTSTR) url);
+              fflush(stderr);
+              ExitProcess(6);
+            }
+          }
+        }
+        nchecks++;
+        /* If these stopped diverging the endonym change was reverted, and the rows above went quiet. */
+        if ((strcmp(expect[k].file, name) == 0) != (expect[k].same_as_name != 0)) {
+          fprintf(stderr, "FATAL: '%s' has LANGUAGE_NAME '%s' and LANGUAGE_FILE '%s'\n",
+                  expect[k].tag, name, expect[k].file);
+          fflush(stderr);
+          ExitProcess(6);
+        }
+        nchecks++;
+      }
+      printf("update-url language ok on %d locales and %d checks\n", k, nchecks);
+
+      /* Three rows cannot see a catalog that lost the key: LANG_LOAD backfills undefined
+         strings from English, so the wire would carry "English" for it. A duplicate is
+         exactly that collision, so uniqueness is the check that catches it. */
+      {
+        CStringArray files;
+        int i;
+        for(i = 0 ; i < nlangs ; i++) {
+          CString f;
+          const char* q;
+          INT_PTR j;
+          QLANG_T(i);
+          LANG_LOAD(NULL, 0);
+          f = LANGUAGE_FILE;
+          if (f.IsEmpty()) {
+            fprintf(stderr, "FATAL: language %d has no LANGUAGE_FILE\n", i);
+            fflush(stderr);
+            ExitProcess(6);
+          }
+          for(q = (LPCTSTR) f ; *q != '\0' ; q++) {
+            if ((unsigned char) *q > 0x7f) {
+              fprintf(stderr, "FATAL: language %d has the non-ASCII LANGUAGE_FILE '%s'\n", i, (LPCTSTR) f);
+              fflush(stderr);
+              ExitProcess(6);
+            }
+          }
+          for(j = 0 ; j < files.GetSize() ; j++) {
+            if (files[j] == f) {
+              fprintf(stderr, "FATAL: languages %d and %d both send '%s'\n", (int) j, i, (LPCTSTR) f);
+              fflush(stderr);
+              ExitProcess(6);
+            }
+          }
+          files.Add(f);
+        }
+        printf("update-url basename unique and ASCII on %d locales\n", i);
+      }
+      QLANG_T(saved);
+      LANG_LOAD(NULL, 0);
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */
@@ -1402,8 +1513,7 @@ void CWinHTTrackApp::Onipabout()
 
 void CWinHTTrackApp::OnUpdate() 
 {
-  CString st;
-  st.Format(HTS_UPDATE_WEBSITE,0,LANGUAGE_NAME);
+  const CString st = UpdateUrl();
   if (!ShellOpen(st, SW_SHOWNORMAL))
     AfxMessageBox("Cannot open a web browser for " + st);
 }
