@@ -199,6 +199,18 @@ void  __cdecl httrackengine_filesave2(t_hts_callbackarg *carg, httrackp *opt, co
 
 extern httrackp *global_opt;
 
+/* Ask a running mirror to stop, the way the Cancel button does once confirmed. */
+void RequestMirrorStop();
+
+/* Stop a running mirror for a Windows session end and wait up to timeoutMs for the
+   engine to unwind, naming us on the shutdown screen meanwhile.
+   @return TRUE if a mirror was running. */
+BOOL StopMirrorForSessionEnd(HWND hWnd, DWORD timeoutMs);
+
+/* Long enough for the engine to drain its sockets and close the cache, short enough
+   that Windows does not kill us mid-unwind. */
+#define WHTT_ENDSESSION_TIMEOUT_MS 15000
+
 // profile
 int Save_current_profile(int ask);
 //

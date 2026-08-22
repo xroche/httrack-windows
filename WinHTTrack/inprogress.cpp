@@ -51,7 +51,6 @@ extern CMainTab* maintab;
 
 extern int termine_requested;
 extern int termine;
-extern int soft_term_requested;
 extern HICON httrack_icon;
 extern int termine;
 
@@ -384,13 +383,7 @@ void Cinprogress::OnStopall()
     LANG(LANG_H1 /*"Stop WinHTTrack?",
            "Stopper WinHTTrack?"*/)
     ,MB_OKCANCEL+MB_ICONQUESTION)==IDOK) {
-    hts_setpause(global_opt, 0);
-    if (soft_term_requested)
-      termine_requested=1;
-    else {
-      soft_term_requested=1;
-      hts_request_stop(global_opt, 0);
-    }
+    RequestMirrorStop();
   }
 }
 

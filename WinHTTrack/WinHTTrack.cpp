@@ -1007,6 +1007,49 @@ BOOL CWinHTTrackApp::InitInstance()
       QLANG_T(saved);
       LANG_LOAD(NULL, 0);
     }
+    /* A real logoff is the only way to reach the session-end path, so pin it here:
+       it stops a mirror that is running, and returns at once when none is. */
+    {
+      const DWORD budget = 200;    /* the running case really waits this out */
+      int nchecks = 0;
+      DWORD t0;
+
+      t0 = GetTickCount();
+      if (StopMirrorForSessionEnd(NULL, budget) || soft_term_requested
+          || GetTickCount() - t0 >= budget) {
+        fprintf(stderr, "FATAL: session end acted on an idle WinHTTrack\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      global_opt = hts_create_opt();
+      termine = 1;                 /* a mirror that already ended is not one to stop */
+      t0 = GetTickCount();
+      if (StopMirrorForSessionEnd(NULL, budget) || soft_term_requested
+          || GetTickCount() - t0 >= budget) {
+        fprintf(stderr, "FATAL: session end acted on a finished mirror\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      termine = 0;                 /* and one that is still running */
+      t0 = GetTickCount();
+      /* state.stop is what hts_request_stop() sets; nothing exported reads it back. */
+      if (!StopMirrorForSessionEnd(NULL, budget) || !soft_term_requested
+          || !global_opt->state.stop || GetTickCount() - t0 < budget) {
+        fprintf(stderr, "FATAL: session end did not stop the mirror and wait for it\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      hts_free_opt(global_opt);
+      global_opt = NULL;
+      termine = soft_term_requested = 0;
+      printf("session end ok on %d checks\n", nchecks);
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */

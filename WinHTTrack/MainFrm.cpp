@@ -39,6 +39,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CMDIFrameWnd)
 	//{{AFX_MSG_MAP(CMainFrame)
 	ON_WM_CREATE()
 	ON_WM_CLOSE()
+	ON_WM_QUERYENDSESSION()
+	ON_WM_ENDSESSION()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -193,4 +195,21 @@ void CMainFrame::OnClose()
     if (AfxMessageBox(LANG(LANG_J1),MB_OKCANCEL)==IDOK)
   	  CMDIFrameWnd::OnClose();
   }
+}
+
+/* A logoff or shutdown otherwise kills the engine thread mid-mirror: stop it cleanly
+   first, then let the session end. */
+BOOL CMainFrame::OnQueryEndSession()
+{
+	const BOOL ending = CMDIFrameWnd::OnQueryEndSession();
+	if (ending)
+		StopMirrorForSessionEnd(m_hWnd, WHTT_ENDSESSION_TIMEOUT_MS);
+	return ending;
+}
+
+void CMainFrame::OnEndSession(BOOL bEnding)
+{
+	if (bEnding)
+		StopMirrorForSessionEnd(m_hWnd, WHTT_ENDSESSION_TIMEOUT_MS);   // a forced end skips the query
+	CMDIFrameWnd::OnEndSession(bEnding);
 }
