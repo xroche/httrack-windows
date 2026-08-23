@@ -1043,6 +1043,45 @@ BOOL CWinHTTrackApp::InitInstance()
       QLANG_T(saved);
       LANG_LOAD(NULL, 0);
     }
+    /* The header is a bug report's only statement of what crashed, and no other check sees it. */
+    {
+      static const char lead[] = "WinHTTrack " WINHTTRACK_VERSION " (";
+      const char *const header = CrashReportHeader();
+      /* From sizeof(void*), not from the macro the header is built from: a compiler ladder
+         that mis-fires prints "unknown" on both builds, and only an outside oracle sees it. */
+      const char *const arch = (sizeof(void*) == 8) ? "x64" : "x86";
+      const size_t archlen = strlen(arch);
+      int nchecks = 0;
+
+      /* Anchored, not searched: the engine reaching 3.50.x makes its version a substring
+         of ours, and a search would then take either version for the other. */
+      if (strncmp(header, lead, sizeof(lead) - 1) != 0) {
+        fprintf(stderr, "FATAL: crash report header '%s' does not open with '%s'\n", header, lead);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      if (strncmp(header + sizeof(lead) - 1, arch, archlen) != 0) {
+        fprintf(stderr, "FATAL: crash report header '%s' does not name the %s build\n", header, arch);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      if (strcmp(header + sizeof(lead) - 1 + archlen, ", engine " HTTRACK_VERSIONID ")") != 0) {
+        fprintf(stderr, "FATAL: crash report header '%s' does not end on engine "
+                HTTRACK_VERSIONID "\n", header);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
+      if (nchecks != 3) {
+        fprintf(stderr, "FATAL: crash report header ran %d checks, expected 3\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("crash report header ok on %d checks\n", nchecks);
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */
@@ -1055,7 +1094,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       CrashReportLogException(reason);
     } END_CATCH_ALL
-    printf("WinHTTrack %s: startup ok\n", WINHTTRACK_VERSION);
+    /* Printed through the reporter's own header, so the line CI checks exercises it. */
+    printf("%s: startup ok\n", CrashReportHeader());
     fflush(stdout);
     ExitProcess(0);
   }
