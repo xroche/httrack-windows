@@ -199,6 +199,25 @@ void  __cdecl httrackengine_filesave2(t_hts_callbackarg *carg, httrackp *opt, co
 
 extern httrackp *global_opt;
 
+/* What a stop request did, or found already done. */
+typedef enum {
+  WHTT_STOP_NO_MIRROR = 0,  /* nothing is running */
+  WHTT_STOP_ENDED,          /* the mirror already finished */
+  WHTT_STOP_PENDING,        /* an earlier ask is still outstanding */
+  WHTT_STOP_ASKED,          /* the engine was asked to stop */
+  WHTT_STOP_ABORTED,        /* a second ask escalated to the abrupt abort */
+  WHTT_STOP_NOT_ENDING      /* the session end was cancelled: nothing was asked */
+} WhttMirrorStop;
+
+/* Ask a running mirror to stop, the way the Cancel button does once confirmed.
+   @return WHTT_STOP_ASKED, or WHTT_STOP_ABORTED when this ask escalated. */
+WhttMirrorStop RequestMirrorStop();
+
+/* The decision both session-end handlers share: ask at most once per mirror, and never
+   wait. bEnding is WM_ENDSESSION's flag, FALSE for a shutdown the user cancelled.
+   @return what the mirror was doing, and whether this call asked it to stop. */
+WhttMirrorStop SessionEndStop(BOOL bEnding);
+
 // profile
 int Save_current_profile(int ask);
 //

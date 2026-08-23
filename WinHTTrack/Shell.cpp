@@ -280,6 +280,31 @@ BOOL LaunchMirror() {
   return 0;
 }
 
+/* The Cancel button's stop, minus its confirmation. */
+WhttMirrorStop RequestMirrorStop() {
+  hts_setpause(global_opt, 0);
+  if (soft_term_requested) {
+    termine_requested=1;
+    return WHTT_STOP_ABORTED;
+  }
+  soft_term_requested=1;
+  hts_request_stop(global_opt, 0);
+  return WHTT_STOP_ASKED;
+}
+
+/* No wait: waiting means pumping, and the handlers a pump reaches open modal boxes.
+   soft_term_requested guards the ask, and init_lance() clears it once per mirror. */
+WhttMirrorStop SessionEndStop(BOOL bEnding) {
+  if (!bEnding)
+    return WHTT_STOP_NOT_ENDING;
+  if (global_opt == NULL)
+    return WHTT_STOP_NO_MIRROR;
+  if (termine)
+    return WHTT_STOP_ENDED;
+  if (soft_term_requested)
+    return WHTT_STOP_PENDING;
+  return RequestMirrorStop();
+}
 
 // PATCH-->
 // routines diverses

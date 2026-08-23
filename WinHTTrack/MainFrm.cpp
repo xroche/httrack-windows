@@ -39,6 +39,8 @@ BEGIN_MESSAGE_MAP(CMainFrame, CMDIFrameWnd)
 	//{{AFX_MSG_MAP(CMainFrame)
 	ON_WM_CREATE()
 	ON_WM_CLOSE()
+	ON_WM_QUERYENDSESSION()
+	ON_WM_ENDSESSION()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -193,4 +195,19 @@ void CMainFrame::OnClose()
     if (AfxMessageBox(LANG(LANG_J1),MB_OKCANCEL)==IDOK)
   	  CMDIFrameWnd::OnClose();
   }
+}
+
+/* A logoff otherwise kills the engine mid-write. Asked here and not at WM_ENDSESSION
+   because the engine's only unwind time is the rest of the shutdown sequence. */
+BOOL CMainFrame::OnQueryEndSession()
+{
+	const BOOL ending = CMDIFrameWnd::OnQueryEndSession();
+	SessionEndStop(ending);
+	return ending;
+}
+
+void CMainFrame::OnEndSession(BOOL bEnding)
+{
+	SessionEndStop(bEnding);   /* the end that skipped the query */
+	CMDIFrameWnd::OnEndSession(bEnding);
 }

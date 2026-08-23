@@ -286,6 +286,11 @@ runs:
           throw "selftest did not check the New Folder name lengths"
         }
 
+        # No CI can log off, so this count is the only proof the session-end stop ran.
+        if ("$so" -notmatch 'session end ok on 6 checks') {
+          throw "selftest did not check the session-end stop"
+        }
+
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
         # ran and caught the throw stack; the build job checks resolution against staged.
         # Skipped on the signing run: symbols do not resolve there and this must not gate a release.
