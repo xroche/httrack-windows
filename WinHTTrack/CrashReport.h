@@ -31,6 +31,9 @@ Please visit our Website: http://www.httrack.com
 /* Author: Xavier Roche                                         */
 /* ------------------------------------------------------------ */
 
+// The line every report opens with: the GUI version and architecture, then the engine's.
+const char *CrashReportHeader(void);
+
 // Initialize crash reporter.
 void CrashReportInit(void);
 
