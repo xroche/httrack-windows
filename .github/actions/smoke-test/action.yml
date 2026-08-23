@@ -272,6 +272,10 @@ runs:
         if ("$so" -notmatch 'wizard scopes ok on 2 checks') {
           throw "selftest did not check the wizard host scopes"
         }
+        # The New Folder dialog cannot be opened from here, so its length rules are pinned instead.
+        if ("$so" -notmatch 'folder names ok on 7 checks') {
+          throw "selftest did not check the New Folder name lengths"
+        }
 
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
         # ran and caught the throw stack; the build job checks resolution against staged.

@@ -116,11 +116,23 @@ CString XSHBrowseForFolder(HWND hwnd,const char* title,char* _path) {
 // XSHBFF_WndProc function type 
 typedef LRESULT (__stdcall * XSHBFF_WndProc_type)(HWND ,UINT ,WPARAM ,LPARAM);
 
+// Both length decisions about a folder name; the contract is in XSHBrowseForFolder.h
+bool XSHBFF_NameOk(const char* name, XSHBFF_Question q) {
+  const size_t len = strlen(name);
+
+  if (q == XSHBFF_FitsPath)
+    return len < MAX_PATH;
+  // one byte less, to hold the separator; a name already ending in one needs none
+  return len != 0 && name[len - 1] != '\\' && len < MAX_PATH - 1;
+}
+
+// The destination for the created folder: pointer and capacity, so neither can go stale alone.
+struct XSHBFF_DirectReturn { char* buf; size_t size; };
+
 // Window Routine
 LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) {
   static char StringSelection[MAX_PATH]="";
-  static char* DirectReturnValue=NULL;
-  static size_t DirectReturnSize=0;
+  static XSHBFF_DirectReturn DirectReturn={NULL,0};
   static XSHBFF_WndProc_type Ladr=DefDlgProc;
   int wNotifyCode = HIWORD(wParam);  // notification code 
   int wID = LOWORD(wParam);          // item, control, or accelerator identifier 
@@ -131,13 +143,12 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
       if (strlen(StringSelection)>0) {  // there is a selection
         CNewFolder f;
         f.m_folder=StringSelection;
-        // a selection already filling the buffer leaves no room for the separator
-        if (StringSelection[strlen(StringSelection)-1]!='\\' && strlen(StringSelection)<sizeof(StringSelection)-1)
+        if (XSHBFF_NameOk(StringSelection,XSHBFF_NeedsSeparator))
           f.m_folder+="\\";  // add a /
         if (f.DoModal()==IDOK) {
           char st[MAX_PATH];
-          // the control's limit counts TCHARs, which a DBCS codepage can turn into more bytes
-          if (f.m_folder.GetLength() >= (int) sizeof(st)) {
+          // the control's limit counts TCHARs, which a double-byte codepage can turn into more bytes
+          if (!XSHBFF_NameOk(f.m_folder,XSHBFF_FitsPath)) {
             AfxMessageBox("Folder name is too long",MB_OK+MB_ICONEXCLAMATION);
             return 0;
           }
@@ -150,9 +161,9 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
           if (_mkdir(st))              // error
             AfxMessageBox("Folder already exists, or can not be created",MB_OK+MB_ICONEXCLAMATION);
           else {    // Select the new path
-            if (DirectReturnValue) {
-              assertf(DirectReturnSize != 0);
-              strlcpybuff(DirectReturnValue,st,DirectReturnSize);
+            // no destination, or one whose capacity never arrived: refuse, and stay open
+            if (DirectReturn.buf!=NULL && DirectReturn.size!=0) {
+              strlcpybuff(DirectReturn.buf,st,DirectReturn.size);
               wParam = (wParam & 0xFFFF0000) | XSHBrowseForFolder_OK;    // 'OK'
               return Ladr(hwnd,uMsg,wParam,lParam); // former window routine
             }
@@ -165,8 +176,8 @@ LRESULT __stdcall XSHBFF_WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
       return Ladr(hwnd,uMsg,wParam,lParam); // former window routine
     }
   } else if (uMsg==XSHBrowseForFolder_SETSTRING) {  // received from our XSHBFF_CallbackProc routine
-    DirectReturnValue=(char*) lParam;
-    DirectReturnSize=(size_t) wParam;
+    const XSHBFF_DirectReturn set={(char*) lParam,(size_t) wParam};
+    DirectReturn=set;
     return 0;
   } else if (uMsg==XSHBrowseForFolder_SETSTRING+1) {
     Ladr = (XSHBFF_WndProc_type) lParam;  // store former address

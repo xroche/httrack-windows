@@ -84,6 +84,7 @@ static char THIS_FILE[] = __FILE__;
 #include "wizard.h"
 #include "wizard2.h"
 #include "WizLinks.h"
+#include "XSHBrowseForFolder.h"
 
 
 extern Wid1* dialog1;
@@ -760,6 +761,41 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
       printf("wizard scopes ok on %d checks\n", nchecks);
+    }
+    /* The New Folder button is one restored block away from being live again, and these
+       two decisions are the whole of what keeps its copies inside MAX_PATH. */
+    {
+      static const struct { const char* tail; int repeat; BOOL fits; BOOL sep; } names[] = {
+        { "", 0, TRUE, FALSE },                 /* nothing to make a prefix of */
+        { "", 1, TRUE, TRUE },
+        { "\\", 1, TRUE, FALSE },               /* already a prefix */
+        { "", MAX_PATH - 2, TRUE, TRUE },       /* the widest name that can still take one */
+        { "", MAX_PATH - 1, TRUE, FALSE },      /* copyable, one byte short of taking one */
+        { "\\", MAX_PATH - 2, TRUE, FALSE },    /* the same width, but needing no separator */
+        { "", MAX_PATH, FALSE, FALSE },         /* one over the buffer */
+        { NULL, 0, FALSE, FALSE }
+      };
+      int nchecks = 0;
+      for(int k=0 ; names[k].tail != NULL ; k++) {
+        CString name('x', names[k].repeat);
+        bool fits, sep;
+
+        name += names[k].tail;
+        fits = XSHBFF_NameOk(name, XSHBFF_FitsPath);
+        sep = XSHBFF_NameOk(name, XSHBFF_NeedsSeparator);
+        if (fits != (names[k].fits != 0) || sep != (names[k].sep != 0)) {
+          fprintf(stderr, "FATAL: a folder name of %d chars fits=%d needs-separator=%d, expected %d and %d\n",
+                  (int) name.GetLength(), (int) fits, (int) sep, (int) names[k].fits, (int) names[k].sep);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* Instantiated so the compiler checks it: it is the only correct way to send SETSTRING,
+         and nothing calls it while the dialog stays unreachable. */
+      static char probe[MAX_PATH];
+      XSHBFF_SetDirectReturn(NULL, probe);
+      printf("folder names ok on %d checks\n", nchecks);
     }
     /* Only reachable by opening the Browser ID page, so pin the presets here: a
        stray %s or a misspelt {field} would reach every mirrored page. */
