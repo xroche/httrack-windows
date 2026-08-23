@@ -230,12 +230,18 @@ BOOL isHostAliasArgument(const CString &rule);
    enough for argv. A cap the engine refuses aborts the mirror. Exposed for --selftest. */
 BOOL isSingleFileMaxArgument(const CString &value);
 
+/* -N's format cap in the engine, exclusive. A hand copy of a bare 127 in its
+   htscoremain.c, which exports no macro for this one, so the two can drift apart. */
+#define BUILDSTRING_MAXSIZE 127
+
 /* TRUE if VALUE may be handed to the option each one names: short enough once converted,
    and not opening with a dash. Exposed for --selftest. */
 BOOL isUserAgentArgument(const CString &value);
 BOOL isFooterArgument(const CString &value);
 BOOL isLangIsoArgument(const CString &value);
 BOOL isRefererArgument(const CString &value);
+/* Same for -N's format; one the engine refuses aborts the mirror. */
+BOOL isBuildStringArgument(const CString &value);
 
 void Build_TopIndex(BOOL check_empty=TRUE);
 
@@ -294,7 +300,7 @@ public:
     _RasString, accept_language, other_headers, default_referer,
     cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder,
     stripquery, hostalias, sitemap, sitemapurl, singlefile, singlefilemax,
-    changes, warccdx, wacz;
+    changes, warccdx, wacz, buildstring;
   CString LINE_back;
   RASDIALPARAMS _dial;
 };
@@ -306,6 +312,26 @@ extern CShellOptions* ShellOptions;
    A field left filled under a clear box must emit nothing, since a value option
    can enable its feature by itself. Shared with --selftest. */
 void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt);
+
+/* IDC_build's user-defined row, past the fixed structures, and the whole row count. That
+   order lives in the .rc's DLGINIT and the catalog's LISTDEF_3, so only --selftest can check it. */
+#define BUILD_STRUCTURE_USERDEF 14
+#define BUILD_STRUCTURE_COUNT (BUILD_STRUCTURE_USERDEF + 1)
+
+/* What buildOptionsForStructure() made of the combo's index. A short catalog leaves the combo
+   missing rows, so NoSuchRow is routine; only BadTemplate is something the user typed. */
+enum BuildStructure { BuildStructureFixed, BuildStructureUserDefined, BuildStructureNoSuchRow,
+                      BuildStructureBadTemplate };
+
+/* Split the Build tab's structure combo into its two argv-bound halves: FLAG the compacted
+   -N fragment of a fixed structure, FORMAT the user-defined template. Returns which half it
+   filled; the two other outcomes fill neither and leave the engine its default naming. */
+enum BuildStructure buildOptionsForStructure(int structure, const CString &userdef,
+                                             CString &flag, CString &format);
+
+/* Emit whichever half buildOptionsForStructure() filled: the format as its own token after
+   "-N", the compacted fragment appended to SINGLE. Shared with --selftest. */
+void addBuildOption(CSimpleArray<CString> &args, CString &single, const CShellOptions &opt);
 
 
 /////////////////////////////////////////////////////////////////////////////

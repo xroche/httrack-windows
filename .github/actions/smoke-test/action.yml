@@ -256,6 +256,10 @@ runs:
         if ("$so" -notmatch 'option gating ok on 16 checks') {
           throw "selftest did not check the checkbox gating"
         }
+        # The entry count is the .rc's and the catalog's, so it is pinned alongside the rows.
+        if ("$so" -notmatch 'build structure ok on 26 checks and 15 combo entries(?! \(accented)') {
+          throw "selftest did not check the Build tab's naming structure"
+        }
         # A cap the engine refuses aborts the mirror, so the shell must never build one.
         if ("$so" -notmatch 'single-file caps ok on 7 checks') {
           throw "selftest did not check the single-file cap"
