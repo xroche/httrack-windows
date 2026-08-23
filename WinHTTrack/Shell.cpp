@@ -620,25 +620,13 @@ void compute_options() {
   else if(maintab->m_option9.m_logtype==2) ShellOptions->logtype = "Z";
   if (maintab->m_option3.m_windebug) ShellOptions->logtype += "%H";      // debug headers
   
-  ShellOptions->build = "";
-  if      (maintab->m_option2.m_build==0) ShellOptions->build = "N0";
-  else if (maintab->m_option2.m_build==1) ShellOptions->build = "N1";
-  else if (maintab->m_option2.m_build==2) ShellOptions->build = "N2";
-  else if (maintab->m_option2.m_build==3) ShellOptions->build = "N3";
-  else if (maintab->m_option2.m_build==4) ShellOptions->build = "N4";
-  else if (maintab->m_option2.m_build==5) ShellOptions->build = "N5";
-  else if (maintab->m_option2.m_build==6) ShellOptions->build = "N100";
-  else if (maintab->m_option2.m_build==7) ShellOptions->build = "N101";
-  else if (maintab->m_option2.m_build==8) ShellOptions->build = "N102";
-  else if (maintab->m_option2.m_build==9) ShellOptions->build = "N103";
-  else if (maintab->m_option2.m_build==10) ShellOptions->build = "N104";
-  else if (maintab->m_option2.m_build==11) ShellOptions->build = "N105";
-  else if (maintab->m_option2.m_build==12) ShellOptions->build = "N99";
-  else if (maintab->m_option2.m_build==13) ShellOptions->build = "N199";
-  else if (maintab->m_option2.m_build==14) {
-    ShellOptions->build = "-N \"";
-    ShellOptions->build += maintab->m_option2.Bopt.m_BuildString;
-    ShellOptions->build += "\"";
+  // tell the user, rather than mirroring silently under the engine's default naming
+  if (buildOptionsForStructure(maintab->m_option2.m_build, maintab->m_option2.Bopt.m_BuildString,
+                               ShellOptions->build, ShellOptions->buildstring)
+      == BuildStructureBadTemplate) {
+    AfxMessageBox("The user-defined build structure was not used: it is empty, too long, or "
+                  "starts with a dash.\nThe mirror will use the default naming.",
+                  MB_OK | MB_ICONWARNING);
   }
   
   ShellOptions->filtre = "";
@@ -2003,6 +1991,47 @@ BOOL isSingleFileMaxArgument(const CString &value) {
   return *end == '\0' && errno != ERANGE && v > 0 && fitsEngineArgument(value, HTS_CDLMAXSIZE);
 }
 
+// see Shell.h
+BOOL isBuildStringArgument(const CString &value) {
+  return isEngineArgument(value, BUILDSTRING_MAXSIZE);
+}
+
+// see Shell.h
+enum BuildStructure buildOptionsForStructure(int structure, const CString &userdef,
+                                             CString &flag, CString &format) {
+  // The index into this array IS IDC_build's item order: reorder one, reorder both, or
+  // every saved project changes structure. The row past them takes a format.
+  static const char *const flags[] = {
+    "N0", "N1", "N2", "N3", "N4", "N5", "N100",
+    "N101", "N102", "N103", "N104", "N105", "N99", "N199"
+  };
+  static_assert(sizeof(flags) / sizeof(flags[0]) == BUILD_STRUCTURE_USERDEF,
+                "the user-defined row must sit right past the fixed structures");
+
+  flag = "";
+  format = "";
+  if (structure >= 0 && structure < BUILD_STRUCTURE_USERDEF) {
+    flag = flags[structure];
+    return BuildStructureFixed;
+  }
+  if (structure == BUILD_STRUCTURE_USERDEF) {
+    if (!isBuildStringArgument(userdef))
+      return BuildStructureBadTemplate;
+    format = userdef;
+    return BuildStructureUserDefined;
+  }
+  return BuildStructureNoSuchRow;
+}
+
+// see Shell.h
+void addBuildOption(CSimpleArray<CString> &args, CString &single, const CShellOptions &opt) {
+  single += opt.build;
+  if (!opt.buildstring.IsEmpty()) {   // the engine matches "-N" exactly, format in the next token
+    args.Add("-N");
+    args.Add(opt.buildstring);
+  }
+}
+
 void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt) {
   // WARC: emit --warc as its own token, not in the compacted -%... string, whose
   // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
@@ -2102,11 +2131,7 @@ void lance(void) {
   
   // si get, ne pas faire
   if (strcmp(ShellOptions->choixdeb,"g")!=0) {
-    if(ShellOptions->build[0]=='-') {
-      args.Add(ShellOptions->build);
-    } else {
-      single += ShellOptions->build;
-    }
+    addBuildOption(args, single, *ShellOptions);
   }
   single += ShellOptions->dos;
   single += ShellOptions->index;
