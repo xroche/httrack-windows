@@ -202,7 +202,7 @@ extern httrackp *global_opt;
 /* Ask a running mirror to stop, the way the Cancel button does once confirmed. */
 void RequestMirrorStop();
 
-/* Request that stop for a Windows session end, at most once per process and never
+/* Request that stop for a Windows session end, at most once per mirror and never
    waiting for it. @return TRUE if this call asked for the stop. */
 BOOL StopMirrorForSessionEnd();
 

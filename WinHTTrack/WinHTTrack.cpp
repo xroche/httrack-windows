@@ -1048,6 +1048,18 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
+      /* A cancelled shutdown must not eat the next mirror's one ask, so redo what
+         init_lance() does per mirror and ask again. */
+      hts_free_opt(global_opt);
+      global_opt = hts_create_opt();
+      termine = termine_requested = shell_terminated = soft_term_requested = 0;
+      if (!StopMirrorForSessionEnd() || !global_opt->state.stop) {
+        fprintf(stderr, "FATAL: a cancelled shutdown consumed the next mirror's stop\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
       hts_free_opt(global_opt);
       global_opt = NULL;
       termine = soft_term_requested = 0;

@@ -293,13 +293,11 @@ void RequestMirrorStop() {
 }
 
 /* Ask, and get out of the way: waiting here would mean pumping, and the handlers a pump
-   reaches open modal boxes. Once per process, as a second request aborts abruptly. */
+   reaches open modal boxes. A second ask escalates to an abrupt abort, so guard on
+   soft_term_requested, which init_lance() clears: each mirror gets its own one ask. */
 BOOL StopMirrorForSessionEnd() {
-  static int requested = 0;
-
-  if (requested || global_opt == NULL || termine)
+  if (global_opt == NULL || termine || soft_term_requested)
     return FALSE;
-  requested = 1;
   RequestMirrorStop();
   return TRUE;
 }

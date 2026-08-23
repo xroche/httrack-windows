@@ -209,7 +209,9 @@ BOOL CMainFrame::OnQueryEndSession()
 
 void CMainFrame::OnEndSession(BOOL bEnding)
 {
+	/* An end that skipped the query. A cancelled one (FALSE) needs no undo: the guard in
+	   StopMirrorForSessionEnd() is per mirror, so it cannot eat the next mirror's ask. */
 	if (bEnding)
-		StopMirrorForSessionEnd();   // an end that skipped the query; asking twice is a no-op
+		StopMirrorForSessionEnd();
 	CMDIFrameWnd::OnEndSession(bEnding);
 }
