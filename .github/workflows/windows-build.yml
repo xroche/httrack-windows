@@ -181,6 +181,38 @@ jobs:
                   if x + cw > w or y + ch > h:
                       bad.append('%s: %s falls outside the %dx%d page' % (dlg, m.group(1), w, h))
 
+          # Focus enters a radio group only at its first control, so a group holding
+          # radios must start with one carrying both WS_GROUP and WS_TABSTOP.
+          ctl = (r'(CONTROL|GROUPBOX|[LCR]TEXT|EDITTEXT|COMBOBOX|LISTBOX|PUSHBUTTON'
+                 r'|DEFPUSHBUTTON|CHECKBOX|RADIOBUTTON|AUTORADIOBUTTON|AUTOCHECKBOX'
+                 r'|AUTO3STATE|STATE3|ICON|SCROLLBAR)\s')
+          radio = r'\bBS_(AUTO)?RADIOBUTTON\b|^(AUTO)?RADIOBUTTON\s'
+          for name, body in re.findall(r'^(IDD_\w+) DIALOGE?X? .*?^BEGIN\r?\n(.*?)^END\r?$',
+                                       rc, re.M | re.S):
+              groups = []
+              for line in re.sub(r',\r?\n\s+', ',', body).splitlines():
+                  line = re.sub(r'NOT\s+WS_\w+', '', line.strip())
+                  if not re.match(ctl, line):
+                      continue
+                  if 'WS_GROUP' in line or not groups:
+                      groups.append([])
+                  groups[-1].append(line)
+                  # Same pass, cheap: a password edit that shows what is typed.
+                  m = re.match(r'EDITTEXT\s+(\w*(?i:pass|pwd)\w*)', line)
+                  if m and 'ES_PASSWORD' not in line:
+                      bad.append('%s: %s takes a password without ES_PASSWORD' % (name, m.group(1)))
+              for g in groups:
+                  if not any(re.search(radio, l) for l in g):
+                      continue
+                  lead = re.search(r'\b(ID\w+)\b', re.sub(r'"[^"]*"', '', g[0]))
+                  lead = lead.group(1) if lead else g[0][:20]
+                  if not (re.search(radio, g[0]) and 'WS_GROUP' in g[0]):
+                      bad.append('%s: radio group leader %s has no WS_GROUP/WS_TABSTOP'
+                                 % (name, lead))
+                  elif 'WS_TABSTOP' not in g[0]:
+                      bad.append('%s: radio group starting at %s has no WS_TABSTOP'
+                                 % (name, lead))
+
           if bad:
               print('\n'.join(sorted(bad)))
               sys.exit(1)
