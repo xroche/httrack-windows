@@ -292,44 +292,15 @@ void RequestMirrorStop() {
   }
 }
 
-/* Windows ends the session whatever we answer, so this is a bounded clean stop and
-   never a veto: ask the engine to stop, then give it timeoutMs to unwind. */
-BOOL StopMirrorForSessionEnd(HWND hWnd, DWORD timeoutMs) {
-  if (global_opt == NULL || termine)    /* no mirror in flight */
+/* Ask, and get out of the way: waiting here would mean pumping, and the handlers a pump
+   reaches open modal boxes. Once per process, as a second request aborts abruptly. */
+BOOL StopMirrorForSessionEnd() {
+  static int requested = 0;
+
+  if (requested || global_opt == NULL || termine)
     return FALSE;
-
-  /* Vista+, so resolved and not imported, like the other late APIs here. */
-  BOOL (WINAPI*const u32_BlockReasonCreate)(HWND, LPCWSTR) =
-    (BOOL (WINAPI *)(HWND, LPCWSTR))
-    GetProcAddress(GetModuleHandle("user32.dll"), "ShutdownBlockReasonCreate");
-  BOOL (WINAPI*const u32_BlockReasonDestroy)(HWND) =
-    (BOOL (WINAPI *)(HWND))
-    GetProcAddress(GetModuleHandle("user32.dll"), "ShutdownBlockReasonDestroy");
-  BOOL named = FALSE;
-
-  if (hWnd != NULL && u32_BlockReasonCreate != NULL) {
-    /* No lang.def key ships for this yet; English until the engine adds one. */
-    const char* reason = LANGSEL("LANG_ENDSESSION");
-    WCHAR wide[256];    /* MAX_STR_BLOCKREASON */
-    if (reason[0] == '\0')
-      reason = "WinHTTrack is finishing the mirror in progress.";
-    if (MultiByteToWideChar(CP_ACP, 0, reason, -1, wide, _countof(wide)) > 0)
-      named = u32_BlockReasonCreate(hWnd, wide);
-  }
-
+  requested = 1;
   RequestMirrorStop();
-
-  const DWORD start = GetTickCount();
-  while (!hts_has_stopped(global_opt) && GetTickCount() - start < timeoutMs) {
-    /* The engine thread ends the mirror through SendMessage: a bare Sleep would block
-       it here instead of letting it finish. */
-    MSG msg;
-    ::PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE);
-    ::Sleep(50);
-  }
-
-  if (named && u32_BlockReasonDestroy != NULL)
-    u32_BlockReasonDestroy(hWnd);
   return TRUE;
 }
 

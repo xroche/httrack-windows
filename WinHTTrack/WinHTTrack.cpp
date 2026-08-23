@@ -1007,16 +1007,13 @@ BOOL CWinHTTrackApp::InitInstance()
       QLANG_T(saved);
       LANG_LOAD(NULL, 0);
     }
-    /* A real logoff is the only way to reach the session-end path, so pin it here:
-       it stops a mirror that is running, and returns at once when none is. */
+    /* A real logoff is the only way to reach the session-end path, so pin it here: it
+       asks for the stop once, only while a mirror runs, and never waits for it. */
     {
-      const DWORD budget = 200;    /* the running case really waits this out */
       int nchecks = 0;
       DWORD t0;
 
-      t0 = GetTickCount();
-      if (StopMirrorForSessionEnd(NULL, budget) || soft_term_requested
-          || GetTickCount() - t0 >= budget) {
+      if (StopMirrorForSessionEnd() || soft_term_requested) {
         fprintf(stderr, "FATAL: session end acted on an idle WinHTTrack\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1025,9 +1022,7 @@ BOOL CWinHTTrackApp::InitInstance()
 
       global_opt = hts_create_opt();
       termine = 1;                 /* a mirror that already ended is not one to stop */
-      t0 = GetTickCount();
-      if (StopMirrorForSessionEnd(NULL, budget) || soft_term_requested
-          || GetTickCount() - t0 >= budget) {
+      if (StopMirrorForSessionEnd() || soft_term_requested) {
         fprintf(stderr, "FATAL: session end acted on a finished mirror\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1037,9 +1032,17 @@ BOOL CWinHTTrackApp::InitInstance()
       termine = 0;                 /* and one that is still running */
       t0 = GetTickCount();
       /* state.stop is what hts_request_stop() sets; nothing exported reads it back. */
-      if (!StopMirrorForSessionEnd(NULL, budget) || !soft_term_requested
-          || !global_opt->state.stop || GetTickCount() - t0 < budget) {
-        fprintf(stderr, "FATAL: session end did not stop the mirror and wait for it\n");
+      if (!StopMirrorForSessionEnd() || !soft_term_requested || !global_opt->state.stop
+          || GetTickCount() - t0 > 1000) {
+        fprintf(stderr, "FATAL: session end did not ask the running mirror to stop, or waited\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      /* Both handlers can fire; a second request would escalate to an abrupt abort. */
+      if (StopMirrorForSessionEnd() || termine_requested) {
+        fprintf(stderr, "FATAL: session end asked twice\n");
         fflush(stderr);
         ExitProcess(3);
       } else

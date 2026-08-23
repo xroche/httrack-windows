@@ -197,19 +197,19 @@ void CMainFrame::OnClose()
   }
 }
 
-/* A logoff or shutdown otherwise kills the engine thread mid-mirror: stop it cleanly
-   first, then let the session end. */
+/* A logoff otherwise kills the engine mid-write. Asked here and not at WM_ENDSESSION
+   because the engine's only unwind time is the rest of the shutdown sequence. */
 BOOL CMainFrame::OnQueryEndSession()
 {
 	const BOOL ending = CMDIFrameWnd::OnQueryEndSession();
 	if (ending)
-		StopMirrorForSessionEnd(m_hWnd, WHTT_ENDSESSION_TIMEOUT_MS);
+		StopMirrorForSessionEnd();
 	return ending;
 }
 
 void CMainFrame::OnEndSession(BOOL bEnding)
 {
 	if (bEnding)
-		StopMirrorForSessionEnd(m_hWnd, WHTT_ENDSESSION_TIMEOUT_MS);   // a forced end skips the query
+		StopMirrorForSessionEnd();   // an end that skipped the query; asking twice is a no-op
 	CMDIFrameWnd::OnEndSession(bEnding);
 }
