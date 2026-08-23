@@ -572,9 +572,11 @@ BOOL CWinHTTrackApp::InitInstance()
     }
     /* The Build tab's structure combo, from its index to the argv the engine reads. */
     {
+      /* Named, unlike its sibling tables here, so both walk through one pointer below. */
       static const struct BuildRow { int structure; const char *userdef; int repeat;
-                                     const char *single; const char *args; } builds[] = {
-        /* the fixed structures, in the combo's order: a table shifted by one shows up here */
+                                     const char *expectSingle; const char *expectArgs; } builds[] = {
+        /* the fixed structures, in the combo's order: reorder the table or the combo
+           alone and every row below checks a structure other than the one it names */
         { 0,  "", 1, "N0",   "" },   { 1,  "", 1, "N1",   "" },
         { 2,  "", 1, "N2",   "" },   { 3,  "", 1, "N3",   "" },
         { 4,  "", 1, "N4",   "" },   { 5,  "", 1, "N5",   "" },
@@ -585,35 +587,35 @@ BOOL CWinHTTrackApp::InitInstance()
         /* a fixed structure ignores the template the user-defined box still holds */
         { 3, "%h%p/%n%q.%t", 1, "N3", "" },
         /* two tokens, unquoted: pasted into one, a '/' makes the engine read it as a URL */
-        { 14, "%h%p/%n%q.%t", 1, "", "-N|%h%p/%n%q.%t" },
-        { 14, "%n%q.%t", 1, "", "-N|%n%q.%t" },
+        { BUILD_STRUCTURE_USERDEF, "%h%p/%n%q.%t", 1, "", "-N|%h%p/%n%q.%t" },
+        { BUILD_STRUCTURE_USERDEF, "%n%q.%t", 1, "", "-N|%n%q.%t" },
         /* dropped to the engine's default naming: empty, a leading dash, over the cap */
-        { 14, "", 1, "", "" },
-        { 14, "-%h%p/%n", 1, "", "" },
-        { 14, "x", BUILDSTRING_MAXSIZE, "", "" },
+        { BUILD_STRUCTURE_USERDEF, "", 1, "", "" },
+        { BUILD_STRUCTURE_USERDEF, "-%h%p/%n", 1, "", "" },
+        { BUILD_STRUCTURE_USERDEF, "x", BUILDSTRING_MAXSIZE, "", "" },
         /* '*' stands for the value the row builds, one byte under the engine's cap */
-        { 14, "x", BUILDSTRING_MAXSIZE - 1, "", "-N|*" },
+        { BUILD_STRUCTURE_USERDEF, "x", BUILDSTRING_MAXSIZE - 1, "", "-N|*" },
         /* no such combo entry, so neither half may be filled */
-        { 15, "%h%p/%n%q.%t", 1, "", "" },
+        { BUILD_STRUCTURE_COUNT, "%h%p/%n%q.%t", 1, "", "" },
         { -1, "%h%p/%n%q.%t", 1, "", "" },
         { 0, NULL, 0, NULL, NULL }
       },
         /* 0xE9 is one character and two UTF-8 bytes, so a cap counting characters takes both */
         accented[] = {
-        { 14, "\xE9", (BUILDSTRING_MAXSIZE - 1) / 2, "", "-N|*" },
-        { 14, "\xE9", (BUILDSTRING_MAXSIZE + 1) / 2, "", "" },
+        { BUILD_STRUCTURE_USERDEF, "\xE9", (BUILDSTRING_MAXSIZE - 1) / 2, "", "-N|*" },
+        { BUILD_STRUCTURE_USERDEF, "\xE9", (BUILDSTRING_MAXSIZE + 1) / 2, "", "" },
         { 0, NULL, 0, NULL, NULL }
       };
       /* Under a UTF-8 ANSI codepage the conversion is a copy, and those rows count as ASCII. */
-      const BOOL mbcs = GetACP() != CP_UTF8;
-      const struct BuildRow *const tables[2] = { builds, mbcs ? accented : NULL };
-      int nchecks = 0;
+      const BOOL ansiNotUtf8 = GetACP() != CP_UTF8;
+      const struct BuildRow *const tables[2] = { builds, ansiNotUtf8 ? accented : NULL };
+      int nchecks = 0, nentries = 0;
       for(int t=0 ; t<2 ; t++) {
         for(int k=0 ; tables[t] != NULL && tables[t][k].userdef != NULL ; k++) {
           const struct BuildRow *const row = &tables[t][k];
           CShellOptions opt;
           CSimpleArray<CString> got;
-          CString userdef, single, joined, expect(row->args);
+          CString userdef, single, joined, expect(row->expectArgs);
 
           for(int n=0 ; n<row->repeat ; n++)
             userdef += row->userdef;
@@ -625,27 +627,61 @@ BOOL CWinHTTrackApp::InitInstance()
             joined += got[j];
           }
           expect.Replace("*", userdef);
-          if (single != row->single || joined != expect) {
+          if (single != row->expectSingle || joined != expect) {
             fprintf(stderr, "FATAL: build row %d.%d (structure %d, %d chars) emitted '%s' and '%s',"
                     " expected '%s' and '%s'\n", t, k, row->structure, (int) userdef.GetLength(),
                     (LPCSTR) single, (LPCSTR) joined.Left(60),
-                    row->single, (LPCSTR) expect.Left(60));
+                    row->expectSingle, (LPCSTR) expect.Left(60));
             fflush(stderr);
             ExitProcess(3);
           } else
             nchecks++;
         }
       }
-      /* Pinned here, not in the workflow that pins its siblings: that file is signing-privileged. */
-      const int want = mbcs ? 25 : 23;
+      /* The .rc holds a bare COMBOBOX and SetCombo() refills it from LISTDEF_3, so the row
+         count reaches the table above through nothing the compiler sees. Count it here. */
+      {
+        const int saved = QLANG_T(-1);
+        const int en = LANG_INDEX_OF("en");
+        CString list;
+
+        if (en < 0) {
+          fprintf(stderr, "FATAL: lang.indexes knows no 'en'\n");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        QLANG_T(en);
+        LANG_LOAD(NULL, 0);
+        list = LISTDEF_3;
+        QLANG_T(saved);
+        LANG_LOAD(NULL, 0);
+        /* split as SetCombo() does, so an entry it would drop is not counted here either */
+        list.TrimLeft(); list.TrimRight();
+        while (list.GetLength()) {
+          const int pos = list.Find('\n');
+          CString item = (pos >= 0) ? list.Left(pos) : list;
+
+          list = (pos >= 0) ? list.Mid(pos + 1) : CString("");
+          item.TrimLeft(); item.TrimRight();
+          if (item.GetLength())
+            nentries++;
+        }
+        if (nentries != BUILD_STRUCTURE_COUNT) {
+          fprintf(stderr, "FATAL: IDC_build offers %d structures, the table names %d\n",
+                  nentries, BUILD_STRUCTURE_COUNT);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+      }
+      const int want = ansiNotUtf8 ? 25 : 23;
       if (nchecks != want) {
         fprintf(stderr, "FATAL: build structure ran %d checks, expected %d\n", nchecks, want);
         fflush(stderr);
         ExitProcess(3);
       }
       /* Count before the suffix, so a skip stays visible to the CI guard. */
-      printf("build structure ok on %d checks%s\n", nchecks,
-             mbcs ? "" : " (accented cases skipped)");
+      printf("build structure ok on %d checks and %d combo entries%s\n", nchecks, nentries,
+             ansiNotUtf8 ? "" : " (accented cases skipped)");
     }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */

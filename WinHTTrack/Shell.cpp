@@ -595,8 +595,14 @@ void compute_options() {
   else if(maintab->m_option9.m_logtype==2) ShellOptions->logtype = "Z";
   if (maintab->m_option3.m_windebug) ShellOptions->logtype += "%H";      // debug headers
   
-  buildOptionsForStructure(maintab->m_option2.m_build, maintab->m_option2.Bopt.m_BuildString,
-                           ShellOptions->build, ShellOptions->buildstring);
+  // tell the user, rather than mirroring silently under the engine's default naming
+  if (buildOptionsForStructure(maintab->m_option2.m_build, maintab->m_option2.Bopt.m_BuildString,
+                               ShellOptions->build, ShellOptions->buildstring)
+      == BuildStructureRejected) {
+    AfxMessageBox("The user-defined build structure was refused: it is empty, too long, or "
+                  "starts with a dash.\nThe mirror will use the default naming.",
+                  MB_OK | MB_ICONWARNING);
+  }
   
   ShellOptions->filtre = "";
   if      (maintab->m_option3.m_filter==0) ShellOptions->filtre = "p0";
@@ -1960,39 +1966,42 @@ BOOL isSingleFileMaxArgument(const CString &value) {
   return *end == '\0' && errno != ERANGE && v > 0 && fitsEngineArgument(value, HTS_CDLMAXSIZE);
 }
 
-// TRUE if VALUE may be handed to -N as its format; one the engine refuses aborts the mirror.
-static BOOL isBuildStringArgument(const CString &value) {
+// see Shell.h
+BOOL isBuildStringArgument(const CString &value) {
   return isEngineArgument(value, BUILDSTRING_MAXSIZE);
 }
 
 // see Shell.h
-void buildOptionsForStructure(int structure, const CString &userdef,
-                              CString &flag, CString &format) {
-  // The index into this array IS IDC_build's item order in the .rc: reorder one, reorder
-  // both, or every saved project changes structure. The item past them takes a format.
+enum BuildStructure buildOptionsForStructure(int structure, const CString &userdef,
+                                             CString &flag, CString &format) {
+  // The index into this array IS IDC_build's item order: reorder one, reorder both, or
+  // every saved project changes structure. The row past them takes a format.
   static const char *const flags[] = {
     "N0", "N1", "N2", "N3", "N4", "N5", "N100",
     "N101", "N102", "N103", "N104", "N105", "N99", "N199"
   };
-  const int fixed = (int) (sizeof(flags) / sizeof(flags[0]));
+  static_assert(sizeof(flags) / sizeof(flags[0]) == BUILD_STRUCTURE_USERDEF,
+                "the user-defined row must sit right past the fixed structures");
 
   flag = "";
   format = "";
-  if (structure >= 0 && structure < fixed)
+  if (structure >= 0 && structure < BUILD_STRUCTURE_USERDEF) {
     flag = flags[structure];
-  // a format the engine refuses aborts the mirror, so fall back to its default naming
-  else if (structure == fixed && isBuildStringArgument(userdef))
+    return BuildStructureFixed;
+  }
+  if (structure == BUILD_STRUCTURE_USERDEF && isBuildStringArgument(userdef)) {
     format = userdef;
+    return BuildStructureUserDefined;
+  }
+  return BuildStructureRejected;
 }
 
 // see Shell.h
 void addBuildOption(CSimpleArray<CString> &args, CString &single, const CShellOptions &opt) {
-  // the engine matches "-N" exactly and takes the format from the token after it
-  if (opt.buildstring.GetLength() != 0) {
+  single += opt.build;
+  if (!opt.buildstring.IsEmpty()) {   // the engine matches "-N" exactly, format in the next token
     args.Add("-N");
     args.Add(opt.buildstring);
-  } else {
-    single += opt.build;
   }
 }
 

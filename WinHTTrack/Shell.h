@@ -230,7 +230,8 @@ BOOL isHostAliasArgument(const CString &rule);
    enough for argv. A cap the engine refuses aborts the mirror. Exposed for --selftest. */
 BOOL isSingleFileMaxArgument(const CString &value);
 
-/* -N's format cap in the engine, exclusive; it exports no macro for this one. */
+/* -N's format cap in the engine, exclusive. A hand copy of a bare 127 in its
+   htscoremain.c, which exports no macro for this one, so the two can drift apart. */
 #define BUILDSTRING_MAXSIZE 127
 
 /* TRUE if VALUE may be handed to the option each one names: short enough once converted,
@@ -239,6 +240,8 @@ BOOL isUserAgentArgument(const CString &value);
 BOOL isFooterArgument(const CString &value);
 BOOL isLangIsoArgument(const CString &value);
 BOOL isRefererArgument(const CString &value);
+/* Same for -N's format; one the engine refuses aborts the mirror. */
+BOOL isBuildStringArgument(const CString &value);
 
 void Build_TopIndex(BOOL check_empty=TRUE);
 
@@ -310,14 +313,22 @@ extern CShellOptions* ShellOptions;
    can enable its feature by itself. Shared with --selftest. */
 void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt);
 
-/* Split the Build tab's structure combo into its two argv-bound halves: FLAG the compacted
-   -N fragment of a fixed structure, FORMAT the user-defined template. An index outside the
-   combo, or a template the engine would refuse, leaves both empty. */
-void buildOptionsForStructure(int structure, const CString &userdef,
-                              CString &flag, CString &format);
+/* IDC_build's user-defined row, past the fixed structures, and the whole row count. That
+   order lives in the .rc's DLGINIT and the catalog's LISTDEF_3, so only --selftest can check it. */
+#define BUILD_STRUCTURE_USERDEF 14
+#define BUILD_STRUCTURE_COUNT (BUILD_STRUCTURE_USERDEF + 1)
 
-/* Emit the naming structure: the format as its own token after "-N", or the compacted
-   fragment appended to SINGLE. Shared with --selftest. */
+/* What buildOptionsForStructure() made of the combo's index. */
+enum BuildStructure { BuildStructureFixed, BuildStructureUserDefined, BuildStructureRejected };
+
+/* Split the Build tab's structure combo into its two argv-bound halves: FLAG the compacted
+   -N fragment of a fixed structure, FORMAT the user-defined template. Returns which half it
+   filled; Rejected fills neither, and covers an index naming no row as well as a bad template. */
+enum BuildStructure buildOptionsForStructure(int structure, const CString &userdef,
+                                             CString &flag, CString &format);
+
+/* Emit whichever half buildOptionsForStructure() filled: the format as its own token after
+   "-N", the compacted fragment appended to SINGLE. Shared with --selftest. */
 void addBuildOption(CSimpleArray<CString> &args, CString &single, const CShellOptions &opt);
 
 
