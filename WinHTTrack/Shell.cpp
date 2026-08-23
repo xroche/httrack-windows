@@ -280,26 +280,30 @@ BOOL LaunchMirror() {
   return 0;
 }
 
-/* The Cancel button's stop, minus its confirmation: a second call turns the engine's
-   soft stop into an immediate one. */
-void RequestMirrorStop() {
+/* The Cancel button's stop, minus its confirmation. */
+WhttMirrorStop RequestMirrorStop() {
   hts_setpause(global_opt, 0);
-  if (soft_term_requested)
+  if (soft_term_requested) {
     termine_requested=1;
-  else {
-    soft_term_requested=1;
-    hts_request_stop(global_opt, 0);
+    return WHTT_STOP_ABORTED;
   }
+  soft_term_requested=1;
+  hts_request_stop(global_opt, 0);
+  return WHTT_STOP_ASKED;
 }
 
-/* Ask, and get out of the way: waiting here would mean pumping, and the handlers a pump
-   reaches open modal boxes. A second ask escalates to an abrupt abort, so guard on
-   soft_term_requested, which init_lance() clears: each mirror gets its own one ask. */
-BOOL StopMirrorForSessionEnd() {
-  if (global_opt == NULL || termine || soft_term_requested)
-    return FALSE;
-  RequestMirrorStop();
-  return TRUE;
+/* No wait: waiting means pumping, and the handlers a pump reaches open modal boxes.
+   soft_term_requested guards the ask, and init_lance() clears it once per mirror. */
+WhttMirrorStop SessionEndStop(BOOL bEnding) {
+  if (!bEnding)
+    return WHTT_STOP_NOT_ENDING;
+  if (global_opt == NULL)
+    return WHTT_STOP_NO_MIRROR;
+  if (termine)
+    return WHTT_STOP_ENDED;
+  if (soft_term_requested)
+    return WHTT_STOP_PENDING;
+  return RequestMirrorStop();
 }
 
 // PATCH-->

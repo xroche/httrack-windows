@@ -1013,7 +1013,7 @@ BOOL CWinHTTrackApp::InitInstance()
       int nchecks = 0;
       DWORD t0;
 
-      if (StopMirrorForSessionEnd() || soft_term_requested) {
+      if (SessionEndStop(TRUE) != WHTT_STOP_NO_MIRROR || soft_term_requested) {
         fprintf(stderr, "FATAL: session end acted on an idle WinHTTrack\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1022,7 +1022,7 @@ BOOL CWinHTTrackApp::InitInstance()
 
       global_opt = hts_create_opt();
       termine = 1;                 /* a mirror that already ended is not one to stop */
-      if (StopMirrorForSessionEnd() || soft_term_requested) {
+      if (SessionEndStop(TRUE) != WHTT_STOP_ENDED || soft_term_requested) {
         fprintf(stderr, "FATAL: session end acted on a finished mirror\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1030,10 +1030,18 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
 
       termine = 0;                 /* and one that is still running */
-      t0 = GetTickCount();
       /* state.stop is what hts_request_stop() sets; nothing exported reads it back. */
-      if (!StopMirrorForSessionEnd() || !soft_term_requested || !global_opt->state.stop
-          || GetTickCount() - t0 > 1000) {
+      if (SessionEndStop(FALSE) != WHTT_STOP_NOT_ENDING || soft_term_requested
+          || global_opt->state.stop) {
+        fprintf(stderr, "FATAL: a cancelled session end stopped the mirror\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      t0 = GetTickCount();
+      if (SessionEndStop(TRUE) != WHTT_STOP_ASKED || !soft_term_requested
+          || !global_opt->state.stop || GetTickCount() - t0 > 1000) {
         fprintf(stderr, "FATAL: session end did not ask the running mirror to stop, or waited\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1041,7 +1049,7 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
 
       /* Both handlers can fire; a second request would escalate to an abrupt abort. */
-      if (StopMirrorForSessionEnd() || termine_requested) {
+      if (SessionEndStop(TRUE) != WHTT_STOP_PENDING || termine_requested) {
         fprintf(stderr, "FATAL: session end asked twice\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1053,7 +1061,7 @@ BOOL CWinHTTrackApp::InitInstance()
       hts_free_opt(global_opt);
       global_opt = hts_create_opt();
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
-      if (!StopMirrorForSessionEnd() || !global_opt->state.stop) {
+      if (SessionEndStop(TRUE) != WHTT_STOP_ASKED || !global_opt->state.stop) {
         fprintf(stderr, "FATAL: a cancelled shutdown consumed the next mirror's stop\n");
         fflush(stderr);
         ExitProcess(3);

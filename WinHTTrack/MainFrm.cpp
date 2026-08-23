@@ -202,16 +202,12 @@ void CMainFrame::OnClose()
 BOOL CMainFrame::OnQueryEndSession()
 {
 	const BOOL ending = CMDIFrameWnd::OnQueryEndSession();
-	if (ending)
-		StopMirrorForSessionEnd();
+	SessionEndStop(ending);
 	return ending;
 }
 
 void CMainFrame::OnEndSession(BOOL bEnding)
 {
-	/* An end that skipped the query. A cancelled one (FALSE) needs no undo: the guard in
-	   StopMirrorForSessionEnd() is per mirror, so it cannot eat the next mirror's ask. */
-	if (bEnding)
-		StopMirrorForSessionEnd();
+	SessionEndStop(bEnding);   /* the end that skipped the query */
 	CMDIFrameWnd::OnEndSession(bEnding);
 }
