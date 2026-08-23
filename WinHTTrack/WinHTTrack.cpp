@@ -572,8 +572,8 @@ BOOL CWinHTTrackApp::InitInstance()
     }
     /* The Build tab's structure combo, from its index to the argv the engine reads. */
     {
-      static const struct { int structure; const char *userdef; int repeat;
-                            const char *single; const char *args; } builds[] = {
+      static const struct BuildRow { int structure; const char *userdef; int repeat;
+                                     const char *single; const char *args; } builds[] = {
         /* the fixed structures, in the combo's order: a table shifted by one shows up here */
         { 0,  "", 1, "N0",   "" },   { 1,  "", 1, "N1",   "" },
         { 2,  "", 1, "N2",   "" },   { 3,  "", 1, "N3",   "" },
@@ -597,40 +597,55 @@ BOOL CWinHTTrackApp::InitInstance()
         { 15, "%h%p/%n%q.%t", 1, "", "" },
         { -1, "%h%p/%n%q.%t", 1, "", "" },
         { 0, NULL, 0, NULL, NULL }
+      },
+        /* 0xE9 is one character and two UTF-8 bytes, so a cap counting characters takes both */
+        accented[] = {
+        { 14, "\xE9", (BUILDSTRING_MAXSIZE - 1) / 2, "", "-N|*" },
+        { 14, "\xE9", (BUILDSTRING_MAXSIZE + 1) / 2, "", "" },
+        { 0, NULL, 0, NULL, NULL }
       };
+      /* Under a UTF-8 ANSI codepage the conversion is a copy, and those rows count as ASCII. */
+      const BOOL mbcs = GetACP() != CP_UTF8;
+      const struct BuildRow *const tables[2] = { builds, mbcs ? accented : NULL };
       int nchecks = 0;
-      for(int k=0 ; builds[k].userdef != NULL ; k++) {
-        CShellOptions opt;
-        CSimpleArray<CString> got;
-        CString userdef, single, joined, expect(builds[k].args);
+      for(int t=0 ; t<2 ; t++) {
+        for(int k=0 ; tables[t] != NULL && tables[t][k].userdef != NULL ; k++) {
+          const struct BuildRow *const row = &tables[t][k];
+          CShellOptions opt;
+          CSimpleArray<CString> got;
+          CString userdef, single, joined, expect(row->args);
 
-        for(int n=0 ; n<builds[k].repeat ; n++)
-          userdef += builds[k].userdef;
-        buildOptionsForStructure(builds[k].structure, userdef, opt.build, opt.buildstring);
-        addBuildOption(got, single, opt);
-        for(int j=0 ; j<got.GetSize() ; j++) {
-          if (j != 0)
-            joined += "|";
-          joined += got[j];
+          for(int n=0 ; n<row->repeat ; n++)
+            userdef += row->userdef;
+          buildOptionsForStructure(row->structure, userdef, opt.build, opt.buildstring);
+          addBuildOption(got, single, opt);
+          for(int j=0 ; j<got.GetSize() ; j++) {
+            if (j != 0)
+              joined += "|";
+            joined += got[j];
+          }
+          expect.Replace("*", userdef);
+          if (single != row->single || joined != expect) {
+            fprintf(stderr, "FATAL: build row %d.%d (structure %d, %d chars) emitted '%s' and '%s',"
+                    " expected '%s' and '%s'\n", t, k, row->structure, (int) userdef.GetLength(),
+                    (LPCSTR) single, (LPCSTR) joined.Left(60),
+                    row->single, (LPCSTR) expect.Left(60));
+            fflush(stderr);
+            ExitProcess(3);
+          } else
+            nchecks++;
         }
-        expect.Replace("*", userdef);
-        if (single != builds[k].single || joined != expect) {
-          fprintf(stderr, "FATAL: build row %d (structure %d, %d chars) emitted '%s' and '%s',"
-                  " expected '%s' and '%s'\n", k, builds[k].structure, (int) userdef.GetLength(),
-                  (LPCSTR) single, (LPCSTR) joined.Left(60),
-                  builds[k].single, (LPCSTR) expect.Left(60));
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
       }
       /* Pinned here, not in the workflow that pins its siblings: that file is signing-privileged. */
-      if (nchecks != 23) {
-        fprintf(stderr, "FATAL: build structure ran %d checks, expected 23\n", nchecks);
+      const int want = mbcs ? 25 : 23;
+      if (nchecks != want) {
+        fprintf(stderr, "FATAL: build structure ran %d checks, expected %d\n", nchecks, want);
         fflush(stderr);
         ExitProcess(3);
       }
-      printf("build structure ok on %d checks\n", nchecks);
+      /* Count before the suffix, so a skip stays visible to the CI guard. */
+      printf("build structure ok on %d checks%s\n", nchecks,
+             mbcs ? "" : " (accented cases skipped)");
     }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */

@@ -1968,7 +1968,8 @@ static BOOL isBuildStringArgument(const CString &value) {
 // see Shell.h
 void buildOptionsForStructure(int structure, const CString &userdef,
                               CString &flag, CString &format) {
-  // IDC_build's items, in the combo's own order; the one past them takes a format instead
+  // The index into this array IS IDC_build's item order in the .rc: reorder one, reorder
+  // both, or every saved project changes structure. The item past them takes a format.
   static const char *const flags[] = {
     "N0", "N1", "N2", "N3", "N4", "N5", "N100",
     "N101", "N102", "N103", "N104", "N105", "N99", "N199"
