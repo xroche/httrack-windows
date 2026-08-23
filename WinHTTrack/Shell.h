@@ -318,12 +318,14 @@ void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt);
 #define BUILD_STRUCTURE_USERDEF 14
 #define BUILD_STRUCTURE_COUNT (BUILD_STRUCTURE_USERDEF + 1)
 
-/* What buildOptionsForStructure() made of the combo's index. */
-enum BuildStructure { BuildStructureFixed, BuildStructureUserDefined, BuildStructureRejected };
+/* What buildOptionsForStructure() made of the combo's index. A short catalog leaves the combo
+   missing rows, so NoSuchRow is routine; only BadTemplate is something the user typed. */
+enum BuildStructure { BuildStructureFixed, BuildStructureUserDefined, BuildStructureNoSuchRow,
+                      BuildStructureBadTemplate };
 
 /* Split the Build tab's structure combo into its two argv-bound halves: FLAG the compacted
    -N fragment of a fixed structure, FORMAT the user-defined template. Returns which half it
-   filled; Rejected fills neither, and covers an index naming no row as well as a bad template. */
+   filled; the two other outcomes fill neither and leave the engine its default naming. */
 enum BuildStructure buildOptionsForStructure(int structure, const CString &userdef,
                                              CString &flag, CString &format);
 

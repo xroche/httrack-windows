@@ -598,8 +598,8 @@ void compute_options() {
   // tell the user, rather than mirroring silently under the engine's default naming
   if (buildOptionsForStructure(maintab->m_option2.m_build, maintab->m_option2.Bopt.m_BuildString,
                                ShellOptions->build, ShellOptions->buildstring)
-      == BuildStructureRejected) {
-    AfxMessageBox("The user-defined build structure was refused: it is empty, too long, or "
+      == BuildStructureBadTemplate) {
+    AfxMessageBox("The user-defined build structure was not used: it is empty, too long, or "
                   "starts with a dash.\nThe mirror will use the default naming.",
                   MB_OK | MB_ICONWARNING);
   }
@@ -1989,11 +1989,13 @@ enum BuildStructure buildOptionsForStructure(int structure, const CString &userd
     flag = flags[structure];
     return BuildStructureFixed;
   }
-  if (structure == BUILD_STRUCTURE_USERDEF && isBuildStringArgument(userdef)) {
+  if (structure == BUILD_STRUCTURE_USERDEF) {
+    if (!isBuildStringArgument(userdef))
+      return BuildStructureBadTemplate;
     format = userdef;
     return BuildStructureUserDefined;
   }
-  return BuildStructureRejected;
+  return BuildStructureNoSuchRow;
 }
 
 // see Shell.h
