@@ -281,6 +281,11 @@ runs:
           throw "selftest did not check the crash report header"
         }
 
+        # The New Folder dialog cannot be opened from here, so its length rules are pinned instead.
+        if ("$so" -notmatch 'folder names ok on 7 checks') {
+          throw "selftest did not check the New Folder name lengths"
+        }
+
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
         # ran and caught the throw stack; the build job checks resolution against staged.
         # Skipped on the signing run: symbols do not resolve there and this must not gate a release.

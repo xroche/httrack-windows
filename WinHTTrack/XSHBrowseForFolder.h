@@ -48,13 +48,30 @@ Please visit our Website: http://www.httrack.com
 #include <direct.h>
 #include "shlobj.h"
 
+// SETSTRING takes the destination in lParam and its capacity in wParam; send it through
+// XSHBFF_SetDirectReturn() below, never by hand.
 #define XSHBrowseForFolder_SETSTRING 1234
 #define XSHBrowseForFolder_OK 1
+
+/* The two length decisions this dialog makes about a folder name, against the MAX_PATH
+   buffers it copies it through: may it be copied as it stands, and does it still need --
+   and have room for -- the '\' that makes it a directory prefix. That separator costs one
+   byte, so a name of exactly MAX_PATH-1 is copyable but cannot take one.
+   Public only for --selftest. */
+enum XSHBFF_Question { XSHBFF_FitsPath, XSHBFF_NeedsSeparator };
+bool XSHBFF_NameOk(const char* name, XSHBFF_Question q);
 
 CString        XSHBrowseForFolder (HWND hwnd,const char* title,char* _path);
 LRESULT __stdcall XSHBFF_WndProc     (HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 int __stdcall  XSHBFF_CallbackProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpData);
 LPITEMIDLIST   XSHBFF_PathConvert (HWND hwnd,char* _path);
+
+/* Name the buffer the created folder is copied back into. The array type carries the
+   capacity, so a caller holding only a char* cannot express the call at all. */
+template<size_t N>
+inline void XSHBFF_SetDirectReturn(HWND hwnd, char (&buf)[N]) {
+  XSHBFF_WndProc(hwnd, XSHBrowseForFolder_SETSTRING, (WPARAM) N, (LPARAM) buf);
+}
 
 #endif
 
