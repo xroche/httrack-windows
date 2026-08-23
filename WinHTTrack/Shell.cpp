@@ -595,26 +595,8 @@ void compute_options() {
   else if(maintab->m_option9.m_logtype==2) ShellOptions->logtype = "Z";
   if (maintab->m_option3.m_windebug) ShellOptions->logtype += "%H";      // debug headers
   
-  ShellOptions->build = "";
-  if      (maintab->m_option2.m_build==0) ShellOptions->build = "N0";
-  else if (maintab->m_option2.m_build==1) ShellOptions->build = "N1";
-  else if (maintab->m_option2.m_build==2) ShellOptions->build = "N2";
-  else if (maintab->m_option2.m_build==3) ShellOptions->build = "N3";
-  else if (maintab->m_option2.m_build==4) ShellOptions->build = "N4";
-  else if (maintab->m_option2.m_build==5) ShellOptions->build = "N5";
-  else if (maintab->m_option2.m_build==6) ShellOptions->build = "N100";
-  else if (maintab->m_option2.m_build==7) ShellOptions->build = "N101";
-  else if (maintab->m_option2.m_build==8) ShellOptions->build = "N102";
-  else if (maintab->m_option2.m_build==9) ShellOptions->build = "N103";
-  else if (maintab->m_option2.m_build==10) ShellOptions->build = "N104";
-  else if (maintab->m_option2.m_build==11) ShellOptions->build = "N105";
-  else if (maintab->m_option2.m_build==12) ShellOptions->build = "N99";
-  else if (maintab->m_option2.m_build==13) ShellOptions->build = "N199";
-  else if (maintab->m_option2.m_build==14) {
-    ShellOptions->build = "-N \"";
-    ShellOptions->build += maintab->m_option2.Bopt.m_BuildString;
-    ShellOptions->build += "\"";
-  }
+  buildOptionsForStructure(maintab->m_option2.m_build, maintab->m_option2.Bopt.m_BuildString,
+                           ShellOptions->build, ShellOptions->buildstring);
   
   ShellOptions->filtre = "";
   if      (maintab->m_option3.m_filter==0) ShellOptions->filtre = "p0";
@@ -1978,6 +1960,41 @@ BOOL isSingleFileMaxArgument(const CString &value) {
   return *end == '\0' && errno != ERANGE && v > 0 && fitsEngineArgument(value, HTS_CDLMAXSIZE);
 }
 
+// TRUE if VALUE may be handed to -N as its format; one the engine refuses aborts the mirror.
+static BOOL isBuildStringArgument(const CString &value) {
+  return isEngineArgument(value, BUILDSTRING_MAXSIZE);
+}
+
+// see Shell.h
+void buildOptionsForStructure(int structure, const CString &userdef,
+                              CString &flag, CString &format) {
+  // IDC_build's items, in the combo's own order; the one past them takes a format instead
+  static const char *const flags[] = {
+    "N0", "N1", "N2", "N3", "N4", "N5", "N100",
+    "N101", "N102", "N103", "N104", "N105", "N99", "N199"
+  };
+  const int fixed = (int) (sizeof(flags) / sizeof(flags[0]));
+
+  flag = "";
+  format = "";
+  if (structure >= 0 && structure < fixed)
+    flag = flags[structure];
+  // a format the engine refuses aborts the mirror, so fall back to its default naming
+  else if (structure == fixed && isBuildStringArgument(userdef))
+    format = userdef;
+}
+
+// see Shell.h
+void addBuildOption(CSimpleArray<CString> &args, CString &single, const CShellOptions &opt) {
+  // the engine matches "-N" exactly and takes the format from the token after it
+  if (opt.buildstring.GetLength() != 0) {
+    args.Add("-N");
+    args.Add(opt.buildstring);
+  } else {
+    single += opt.build;
+  }
+}
+
 void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt) {
   // WARC: emit --warc as its own token, not in the compacted -%... string, whose
   // trailing flag would collide with the engine's %r siblings (%rf/%rs/...).
@@ -2077,11 +2094,7 @@ void lance(void) {
   
   // si get, ne pas faire
   if (strcmp(ShellOptions->choixdeb,"g")!=0) {
-    if(ShellOptions->build[0]=='-') {
-      args.Add(ShellOptions->build);
-    } else {
-      single += ShellOptions->build;
-    }
+    addBuildOption(args, single, *ShellOptions);
   }
   single += ShellOptions->dos;
   single += ShellOptions->index;

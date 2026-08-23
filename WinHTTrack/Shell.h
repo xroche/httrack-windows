@@ -230,6 +230,9 @@ BOOL isHostAliasArgument(const CString &rule);
    enough for argv. A cap the engine refuses aborts the mirror. Exposed for --selftest. */
 BOOL isSingleFileMaxArgument(const CString &value);
 
+/* -N's format cap in the engine, exclusive; it exports no macro for this one. */
+#define BUILDSTRING_MAXSIZE 127
+
 /* TRUE if VALUE may be handed to the option each one names: short enough once converted,
    and not opening with a dash. Exposed for --selftest. */
 BOOL isUserAgentArgument(const CString &value);
@@ -294,7 +297,7 @@ public:
     _RasString, accept_language, other_headers, default_referer,
     cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder,
     stripquery, hostalias, sitemap, sitemapurl, singlefile, singlefilemax,
-    changes, warccdx, wacz;
+    changes, warccdx, wacz, buildstring;
   CString LINE_back;
   RASDIALPARAMS _dial;
 };
@@ -306,6 +309,16 @@ extern CShellOptions* ShellOptions;
    A field left filled under a clear box must emit nothing, since a value option
    can enable its feature by itself. Shared with --selftest. */
 void addGatedOptions(CSimpleArray<CString> &args, const CShellOptions &opt);
+
+/* Split the Build tab's structure combo into its two argv-bound halves: FLAG the compacted
+   -N fragment of a fixed structure, FORMAT the user-defined template. An index outside the
+   combo, or a template the engine would refuse, leaves both empty. */
+void buildOptionsForStructure(int structure, const CString &userdef,
+                              CString &flag, CString &format);
+
+/* Emit the naming structure: the format as its own token after "-N", or the compacted
+   fragment appended to SINGLE. Shared with --selftest. */
+void addBuildOption(CSimpleArray<CString> &args, CString &single, const CShellOptions &opt);
 
 
 /////////////////////////////////////////////////////////////////////////////

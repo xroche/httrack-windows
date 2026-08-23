@@ -570,6 +570,68 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("option gating ok on %d checks\n", nchecks);
     }
+    /* The Build tab's structure combo, from its index to the argv the engine reads. */
+    {
+      static const struct { int structure; const char *userdef; int repeat;
+                            const char *single; const char *args; } builds[] = {
+        /* the fixed structures, in the combo's order: a table shifted by one shows up here */
+        { 0,  "", 1, "N0",   "" },   { 1,  "", 1, "N1",   "" },
+        { 2,  "", 1, "N2",   "" },   { 3,  "", 1, "N3",   "" },
+        { 4,  "", 1, "N4",   "" },   { 5,  "", 1, "N5",   "" },
+        { 6,  "", 1, "N100", "" },   { 7,  "", 1, "N101", "" },
+        { 8,  "", 1, "N102", "" },   { 9,  "", 1, "N103", "" },
+        { 10, "", 1, "N104", "" },   { 11, "", 1, "N105", "" },
+        { 12, "", 1, "N99",  "" },   { 13, "", 1, "N199", "" },
+        /* a fixed structure ignores the template the user-defined box still holds */
+        { 3, "%h%p/%n%q.%t", 1, "N3", "" },
+        /* two tokens, unquoted: pasted into one, a '/' makes the engine read it as a URL */
+        { 14, "%h%p/%n%q.%t", 1, "", "-N|%h%p/%n%q.%t" },
+        { 14, "%n%q.%t", 1, "", "-N|%n%q.%t" },
+        /* dropped to the engine's default naming: empty, a leading dash, over the cap */
+        { 14, "", 1, "", "" },
+        { 14, "-%h%p/%n", 1, "", "" },
+        { 14, "x", BUILDSTRING_MAXSIZE, "", "" },
+        /* '*' stands for the value the row builds, one byte under the engine's cap */
+        { 14, "x", BUILDSTRING_MAXSIZE - 1, "", "-N|*" },
+        /* no such combo entry, so neither half may be filled */
+        { 15, "%h%p/%n%q.%t", 1, "", "" },
+        { -1, "%h%p/%n%q.%t", 1, "", "" },
+        { 0, NULL, 0, NULL, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; builds[k].userdef != NULL ; k++) {
+        CShellOptions opt;
+        CSimpleArray<CString> got;
+        CString userdef, single, joined, expect(builds[k].args);
+
+        for(int n=0 ; n<builds[k].repeat ; n++)
+          userdef += builds[k].userdef;
+        buildOptionsForStructure(builds[k].structure, userdef, opt.build, opt.buildstring);
+        addBuildOption(got, single, opt);
+        for(int j=0 ; j<got.GetSize() ; j++) {
+          if (j != 0)
+            joined += "|";
+          joined += got[j];
+        }
+        expect.Replace("*", userdef);
+        if (single != builds[k].single || joined != expect) {
+          fprintf(stderr, "FATAL: build row %d (structure %d, %d chars) emitted '%s' and '%s',"
+                  " expected '%s' and '%s'\n", k, builds[k].structure, (int) userdef.GetLength(),
+                  (LPCSTR) single, (LPCSTR) joined.Left(60),
+                  builds[k].single, (LPCSTR) expect.Left(60));
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* Pinned here, not in the workflow that pins its siblings: that file is signing-privileged. */
+      if (nchecks != 23) {
+        fprintf(stderr, "FATAL: build structure ran %d checks, expected 23\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("build structure ok on %d checks\n", nchecks);
+    }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */
     {
