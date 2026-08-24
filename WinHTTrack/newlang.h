@@ -46,9 +46,9 @@ void WhttEnsureConsole(void);
 const char* LANGSEL(const char* name);
 const char* LANGINTKEY(const char* name);
 void LANG_DELETE();
-/* Unescape against an explicit codepage: its DBCS pairing must match the encoding the
-   text is already in, or a lead byte swallows the backslash after it. */
-void conv_printf(char* from,char* to,UINT cp);
+/* Unescape against an explicit codepage. Its DBCS pairing must match the actual encoding,
+   or a lead byte swallows the following backslash. */
+void conv_printf(const char* from,char* to,UINT cp);
 #define LANG(A) A
 
 BOOL SetDlgItemTextCP(HWND hDlg, int nIDDlgItem, LPCSTR lpString);
@@ -58,6 +58,7 @@ BOOL SetDlgItemTextCP(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
 BOOL SetDlgItemTextLang(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
 // --selftest: prove catalog text decodes, and that a legacy catalog is left alone.
 void LANG_SELFTEST_DECODE(void);
+// --selftest: prove the catalog is decoded before it is unescaped.
 void LANG_SELFTEST_ESCAPE_ORDER(void);
 
 BOOL SetDlgItemTextUTF8(HWND hDlg, int nIDDlgItem, LPCSTR lpString);

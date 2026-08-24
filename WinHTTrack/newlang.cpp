@@ -250,9 +250,10 @@ static BOOL IsValidUTF8(const char* s, int len) {
       || MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, len, NULL, 0) > 0;
 }
 
-/* One catalog entry: decode, then unescape — the only point covering the LANG_* sites that
-   bypass SetDlgItemTextCP(). Codepage explicit so --selftest drives a DBCS one; caller frees. */
-static char* lang_cook_value(const char* value, UINT cp) {
+/* One catalog entry: decode, then unescape. The only point covering the LANG_* sites that
+   bypass SetDlgItemTextCP(). cp drives the unescape alone, the decode always targets the ANSI
+   codepage. Returns a malloc'd string the caller frees, or NULL if the allocation failed. */
+static char* ConvertCatalogValue(const char* value, UINT cp) {
   char decoded[8192];
   int len;
   char* buff;
@@ -268,11 +269,12 @@ static char* lang_cook_value(const char* value, UINT cp) {
   return buff;
 }
 
-/* --selftest: swapping the two steps above is invisible on a Latin codepage, so drive
-   CP932, where unescaping first reads 0x82 as a lead byte and eats the escape. */
+/* --selftest: swapping the two steps is invisible on a Latin codepage, so this drives CP932.
+   There, unescaping first reads 0x82 as a lead byte and eats the escape. */
 void LANG_SELFTEST_ESCAPE_ORDER(void) {
   static const char utf8_escape[] = "\xe3\x81\x82" "\\n";      /* U+3042, then a \n escape */
   static const char legacy[] = "Crit" "\xe8" "re" "\\n";         /* not UTF-8: must pass through */
+  static const char lead_escape[] = "\x82" "\\n";                 /* leads on CP932, plain on CP1252 */
   int nchecks = 0;
   char hazard[32];
   char* cooked;
@@ -281,9 +283,13 @@ void LANG_SELFTEST_ESCAPE_ORDER(void) {
     printf("unescaping order skipped: codepage 932 unavailable\n");
     return;
   }
+  if (GetACP() == CP_UTF8) {   /* decoding is then identity, so check 2 would accuse the fix */
+    printf("unescaping order skipped: the ANSI codepage is UTF-8\n");
+    return;
+  }
 
   /* Negative control: the hazard must really exist, or the check below proves nothing. */
-  conv_printf((char*)utf8_escape,hazard,932);
+  conv_printf(utf8_escape,hazard,932);
   if (strchr(hazard,'\n') != NULL) {
     fprintf(stderr, "FATAL: unescaping UTF-8 on CP932 kept the escape; the check is vacuous\n");
     fflush(stderr);
@@ -291,7 +297,7 @@ void LANG_SELFTEST_ESCAPE_ORDER(void) {
   }
   nchecks++;
 
-  cooked = lang_cook_value(utf8_escape,932);
+  cooked = ConvertCatalogValue(utf8_escape,932);
   if (cooked == NULL || strchr(cooked,'\n') == NULL) {
     fprintf(stderr, "FATAL: the escape was eaten: the catalog is unescaped before it is decoded\n");
     fflush(stderr);
@@ -300,9 +306,27 @@ void LANG_SELFTEST_ESCAPE_ORDER(void) {
   free(cooked);
   nchecks++;
 
-  cooked = lang_cook_value(legacy,CP_ACP);
+  cooked = ConvertCatalogValue(legacy,CP_ACP);
   if (cooked == NULL || strchr(cooked,'\n') == NULL || strstr(cooked,"Crit\xe8" "re") == NULL) {
     fprintf(stderr, "FATAL: a legacy-charset entry lost its accent or its escape\n");
+    fflush(stderr);
+    ExitProcess(3);
+  }
+  free(cooked);
+  nchecks++;
+
+  /* 0x82 leads on CP932 and is an ordinary byte on CP1252, so the same entry must unescape
+     differently under each: that is what proves cp reaches conv_printf at all. */
+  cooked = ConvertCatalogValue(lead_escape,932);
+  if (cooked == NULL || strchr(cooked,'\n') != NULL) {
+    fprintf(stderr, "FATAL: the codepage never reached the unescaper\n");
+    fflush(stderr);
+    ExitProcess(3);
+  }
+  free(cooked);
+  cooked = ConvertCatalogValue(lead_escape,1252);
+  if (cooked == NULL || strchr(cooked,'\n') == NULL) {
+    fprintf(stderr, "FATAL: a lead byte on one codepage ate an escape on another\n");
     fflush(stderr);
     ExitProcess(3);
   }
@@ -541,7 +565,7 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
               
               /* Add key */
               if (strnotempty(intkey)) {
-                buff = lang_cook_value(value,CP_ACP);
+                buff = ConvertCatalogValue(value,CP_ACP);
                 if (buff)
                   coucal_add(NewLangStr,intkey,(intptr_t)buff);
               }
@@ -575,7 +599,7 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
     limit_to[0]='\0';
 }
 
-void conv_printf(char* from,char* to,UINT cp) {
+void conv_printf(const char* from,char* to,UINT cp) {
   int i=0,j=0,len;
   len = (int) strlen(from);
   while(i<len) {
