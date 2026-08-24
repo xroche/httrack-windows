@@ -724,7 +724,12 @@ jobs:
           # --selftest throws one exception on purpose.
           $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
                  -RedirectStandardOutput "$PWD\crash-st.txt" -RedirectStandardError "$PWD\crash-st.err"
-          if ($p.ExitCode -ne 0) { throw "--selftest exited $($p.ExitCode) from the staged tree" }
+          if ($p.ExitCode -ne 0) {
+            # The selftest names the failing check on stderr, and the exit code alone does not.
+            Write-Host "--- selftest stdout ---`n$(Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue)"
+            Write-Host "--- selftest stderr ---`n$(Get-Content "$PWD\crash-st.err" -Raw -ErrorAction SilentlyContinue)"
+            throw "--selftest exited $($p.ExitCode) from the staged tree"
+          }
           if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
           $trace = Get-Content $report -Raw
           Write-Host "--- crash report ---`n$trace"
