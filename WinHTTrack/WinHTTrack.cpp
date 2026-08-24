@@ -346,8 +346,8 @@ BOOL CWinHTTrackApp::InitInstance()
     {
       static const WCHAR wide[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
       char ansi[16];
-      /* skip where the ANSI codepage cannot hold it at all */
-      if (CopyTextWideToACP(ansi, sizeof(ansi), wide)) {
+      /* skip where the codepage cannot hold it exactly */
+      if (CopyTextWideToCPExact(ansi, sizeof(ansi), wide)) {
         int nchecks = 0;
         char *got = strdupt_utf8(ansi);   /* freet() nulls it, so not const */
         if (got == NULL || strcmp(got, "caf\xc3\xa9") != 0) {

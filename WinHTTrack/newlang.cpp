@@ -385,7 +385,7 @@ void LANG_SELFTEST_DECODE(void) {
     char got[64];
     /* Expecting what this codepage holds, so none has to be skipped. */
     if (cases[k].wide != NULL)
-      CopyTextWideToACP(expect, sizeof(expect), cases[k].wide);
+      CopyTextWideToCPExact(expect, sizeof(expect), cases[k].wide);
     else
       lstrcpynA(expect, cases[k].want, sizeof(expect));
     if (IsValidUTF8(cases[k].in, len))
@@ -402,13 +402,34 @@ void LANG_SELFTEST_DECODE(void) {
   }
 
   {
-    /* The best-fit case only discriminates where the codepage has a lookalike to offer. */
+    /* The case above only discriminates where the codepage has a lookalike to offer. Where it
+       does, pin the substitute to the codepage's own default character: comparing the engine
+       against another WideCharToMultiByte call only proves the two agree. */
+    CPINFO cpinfo;
+    char def[MAX_DEFAULTCHAR + 1];
     char expect[64], lookalike[64];
     const int n = WideCharToMultiByte(CP_ACP, 0, macron, -1, lookalike, sizeof(lookalike),
                                       NULL, NULL);
-    CopyTextWideToACP(expect, sizeof(expect), macron);
-    printf("catalog decoding ok on %d checks%s\n", nchecks,
-           (n > 0 && strcmp(lookalike, expect) != 0) ? " (best-fit acp)" : "");
+    const BOOL held = CopyTextWideToCPExact(expect, sizeof(expect), macron);
+    const BOOL bestfit = n > 0 && strcmp(lookalike, expect) != 0;
+
+    if (bestfit) {
+      if (!GetCPInfo(CP_ACP, &cpinfo)) {
+        fprintf(stderr, "FATAL: no CPINFO for the ANSI codepage\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      memcpy(def, cpinfo.DefaultChar, MAX_DEFAULTCHAR);
+      def[MAX_DEFAULTCHAR] = '\0';
+      if (held || strcmp(expect, def) != 0) {
+        fprintf(stderr, "FATAL: U+0100 became '%s', expected the default character '%s'%s\n",
+                expect, def, held ? " (reported as held)" : "");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+    }
+    printf("catalog decoding ok on %d checks%s\n", nchecks, bestfit ? " (best-fit acp)" : "");
   }
 }
 
