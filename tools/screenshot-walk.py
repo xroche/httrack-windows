@@ -327,7 +327,8 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
     print(f"  options sheet {sheet:#x}: {count} tabs")
-    # Keyed by a control each page owns, because the captions below are translated.
+    # Keyed by a control each page owns, not by the caption: the tab labels come from the
+    # .rc and stay English, but a display string is the wrong key for a lookup either way.
     wanted = {"IDC_maxrate": rate, "IDC_connexion": connections}
     owns = {}
     for i in range(count):
