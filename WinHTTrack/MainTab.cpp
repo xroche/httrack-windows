@@ -132,6 +132,30 @@ void CMainTab::AddControlPages()
   AddPage(&m_option3);        /* Expert */
 }
 
+/* The pages are built with the main frame, which on a first run happens before the
+   language is picked, so their titles would keep the .rc caption while every other
+   string on the page is set at display time. Re-read them each time the sheet opens. */
+void CMainTab::SetLangTitles(void)
+{
+  m_option10.SetWindowText(LANG(LANG_IOPT10));
+  m_option7.SetWindowText(LANG(LANG_IOPT7));
+  m_option5.SetWindowText(LANG(LANG_IOPT5));
+  m_option4.SetWindowText(LANG(LANG_IOPT4));
+  m_option1.SetWindowText(LANG(LANG_IOPT1));
+  m_option2.SetWindowText(LANG(LANG_IOPT2));
+  m_option8.SetWindowText(LANG(LANG_IOPT8));
+  m_option11.SetWindowText(LANG(LANG_IOPT11));
+  m_option6.SetWindowText(LANG(LANG_IOPT6));
+  m_option9.SetWindowText(LANG(LANG_IOPT9));
+  m_option3.SetWindowText(LANG(LANG_IOPT3));
+}
+
+INT_PTR CMainTab::DoModal()
+{
+  SetLangTitles();
+  return CPropertySheet::DoModal();
+}
+
 void CMainTab::DefineDefaultProxy()
 {
   while(GetPageCount()>0)
