@@ -51,7 +51,6 @@ coucal NewLangStr=NULL;
 int NewLangStrKeysSz=1024;
 coucal NewLangStrKeys=NULL;
 UINT NewLangCP = CP_THREAD_ACP;
-UINT NewLangFileCP = CP_THREAD_ACP;
 
 typedef struct WinLangid {
   int langId;
@@ -244,6 +243,54 @@ static CString LANG_DATAFILE(const char* relative) {
   return name;
 }
 
+/* The engine's UTF-8 converter substitutes U+FFFD rather than refusing, so a catalog
+   still in its legacy charset would silently render as '?'. Gate on real UTF-8. */
+static BOOL IsValidUTF8(const char* s, int len) {
+  return len == 0
+      || MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, len, NULL, 0) > 0;
+}
+
+/* --selftest: the catalogs are the only non-ASCII data the GUI loads, and the
+   English-only smoke walk cannot see a decoding regression. */
+void LANG_SELFTEST_DECODE(void) {
+  static const WCHAR wide[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
+  BOOL lost = FALSE;
+  // WideCharToMultiByte rejects a non-NULL lpUsedDefaultChar when the code page is CP_UTF8.
+  BOOL *const plost = (GetACP() == CP_UTF8) ? NULL : &lost;
+  char want[16];
+  const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, want, sizeof(want), NULL, plost);
+
+  if (n > 0 && !lost) {   /* skip where the ANSI codepage cannot hold it at all */
+    static const struct { const char* in; const char* want; const char* what; } cases[] = {
+      /* A converted catalog reaches the ANSI codepage. */
+      { "caf\xc3\xa9", NULL, "utf-8" },
+      /* A catalog still in its legacy charset must survive byte for byte: drop the
+         UTF-8 gate and the engine's converter substitutes U+FFFD, giving "caf?". */
+      { "caf\xe9", "caf\xe9", "legacy" },
+      { "Options", "Options", "ascii" },
+      { NULL, NULL, NULL }
+    };
+    int nchecks = 0;
+    for(int k=0 ; cases[k].in != NULL ; k++) {
+      const char* const expect = (cases[k].want != NULL) ? cases[k].want : want;
+      const int len = (int) strlen(cases[k].in);
+      char got[64];
+      if (IsValidUTF8(cases[k].in, len))
+        CopyTextUTF8ToCP(got, sizeof(got), cases[k].in);
+      else
+        lstrcpynA(got, cases[k].in, sizeof(got));
+      if (strcmp(got, expect) != 0) {
+        fprintf(stderr, "FATAL: %s catalog text gave '%s', expected '%s'\n",
+                cases[k].what, got, expect);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+    }
+    printf("catalog decoding ok on %d checks\n", nchecks);
+  }
+}
+
 void LANG_LOAD(char* limit_to, size_t limit_size) {
   CWaitCursor wait;
   //
@@ -433,10 +480,17 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
               
               /* Add key */
               if (strnotempty(intkey)) {
-                len = (int) strlen(value);
+                /* Convert once here: most LANG_* sites bypass the SetDlgItemTextCP()
+                   wrappers, so converting at display time would miss them. */
+                char unescaped[8192];
+                conv_printf(value,unescaped);
+                len = (int) strlen(unescaped);
                 buff = (char*)malloc(len+2);
                 if (buff) {
-                  conv_printf(value,buff);
+                  if (IsValidUTF8(unescaped,len))
+                    CopyTextUTF8ToCP(buff,len+2,unescaped);
+                  else
+                    memcpy(buff,unescaped,len+1);   /* legacy catalog: leave it alone */
                   coucal_add(NewLangStr,intkey,(intptr_t)buff);
                 }
               }
@@ -468,18 +522,6 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
   // Control limit_to
   if (limit_to)
     limit_to[0]='\0';
-
-  // Set locale
-  if (!limit_to) {
-    CString charset = LANGUAGE_CHARSET;
-    charset.TrimLeft();
-    charset.TrimRight();
-    charset.MakeLower();
-    NewLangCP = CP_THREAD_ACP;
-    NewLangFileCP = CP_THREAD_ACP;
-
-  }
-
 }
 
 void conv_printf(char* from,char* to) {

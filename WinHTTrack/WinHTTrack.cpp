@@ -378,6 +378,7 @@ BOOL CWinHTTrackApp::InitInstance()
         printf("MBCS->UTF-8 ok on %d checks\n", nchecks);
       }
     }
+    LANG_SELFTEST_DECODE();
     /* An unescaped space truncates the path, and an unescaped '#' names a file rather
        than a section, since NTFS allows one in a filename. */
     {

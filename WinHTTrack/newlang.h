@@ -54,6 +54,9 @@ BOOL SetDlgItemTextCP(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
 /* As SetDlgItemTextCP(), but keeps the .rc caption when lpString is empty:
    LANGSEL() yields "" for a key the loaded language file does not carry. */
 BOOL SetDlgItemTextLang(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
+// --selftest: prove catalog text decodes, and that a legacy catalog is left alone.
+void LANG_SELFTEST_DECODE(void);
+
 BOOL SetDlgItemTextUTF8(HWND hDlg, int nIDDlgItem, LPCSTR lpString);
 BOOL SetDlgItemTextUTF8(CWnd* wnd, int nIDDlgItem, LPCSTR lpString);
 BOOL SetWindowTextCP(HWND hWnd, LPCSTR lpString);

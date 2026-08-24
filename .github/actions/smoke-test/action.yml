@@ -210,6 +210,9 @@ runs:
         if ("$so" -notmatch 'MBCS->UTF-8 ok on 2 checks') {
           throw "selftest did not exercise the MBCS->UTF-8 conversion"
         }
+        if ("$so" -notmatch 'catalog decoding ok on 3 checks') {
+          throw 'selftest did not report catalog decoding: a legacy catalog may be silently mangled'
+        }
         # Every help button hands one of these to the browser: an unescaped space truncates
         # the path, an unescaped '#' names a file, since NTFS allows one in a filename.
         if ("$so" -notmatch 'help URLs ok on 5 checks') {
