@@ -213,6 +213,11 @@ runs:
         if ("$so" -notmatch 'catalog decoding ok on 3 checks') {
           throw 'selftest did not report catalog decoding: a legacy catalog may be silently mangled'
         }
+        # Swapping the decode and the unescape is invisible on this cp1252 runner, so the
+        # check drives CP932 itself; its first assertion is the control that the hazard fires.
+        if ("$so" -notmatch 'unescaping order ok on 3 checks') {
+          throw 'selftest did not prove the catalog is decoded before it is unescaped'
+        }
         # Every help button hands one of these to the browser: an unescaped space truncates
         # the path, an unescaped '#' names a file, since NTFS allows one in a filename.
         if ("$so" -notmatch 'help URLs ok on 5 checks') {
