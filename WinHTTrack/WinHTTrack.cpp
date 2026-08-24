@@ -1267,10 +1267,13 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
-      /* Nothing un-asks the query-phase stop, so the cancelled shutdown above is the
-         only one the mirror survives: this one is already on its way down. */
-      if (!soft_term_requested || !global_opt->state.stop) {
-        fprintf(stderr, "FATAL: the post-ask case lost the ask it runs on\n");
+      /* The order Windows really sends: the query phase asks, the cancellation follows,
+         and nothing un-asks it. On its own mirror, so no ordering can carry this case. */
+      hts_free_opt(global_opt);
+      global_opt = hts_create_opt();
+      termine = termine_requested = shell_terminated = soft_term_requested = 0;
+      if (SessionEndStop(TRUE) != WHTT_STOP_ASKED) {
+        fprintf(stderr, "FATAL: the post-ask case could not arm its own ask\n");
         fflush(stderr);
         ExitProcess(3);
       }
