@@ -290,7 +290,7 @@ runs:
         }
 
         # No CI can log off, so this count is the only proof the session-end stop ran.
-        if ("$so" -notmatch 'session end ok on 6 checks') {
+        if ("$so" -notmatch 'session end ok on 7 checks') {
           throw "selftest did not check the session-end stop"
         }
 

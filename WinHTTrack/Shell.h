@@ -214,7 +214,8 @@ typedef enum {
 WhttMirrorStop RequestMirrorStop();
 
 /* The decision both session-end handlers share: ask at most once per mirror, and never
-   wait. bEnding is WM_ENDSESSION's flag, FALSE for a shutdown the user cancelled.
+   wait. bEnding is our answer at WM_QUERYENDSESSION, then WM_ENDSESSION's flag: a
+   cancellation reaching us first asks nothing, one arriving after leaves the mirror stopping.
    @return what the mirror was doing, and whether this call asked it to stop. */
 WhttMirrorStop SessionEndStop(BOOL bEnding);
 

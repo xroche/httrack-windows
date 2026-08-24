@@ -1233,7 +1233,7 @@ BOOL CWinHTTrackApp::InitInstance()
       /* state.stop is what hts_request_stop() sets; nothing exported reads it back. */
       if (SessionEndStop(FALSE) != WHTT_STOP_NOT_ENDING || soft_term_requested
           || global_opt->state.stop) {
-        fprintf(stderr, "FATAL: a cancelled session end stopped the mirror\n");
+        fprintf(stderr, "FATAL: a FALSE session-end flag asked the mirror to stop\n");
         fflush(stderr);
         ExitProcess(3);
       } else
@@ -1268,9 +1268,33 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
+      /* The order Windows really sends: the query phase asks, the cancellation follows,
+         and nothing un-asks it. On its own mirror, so no ordering can carry this case. */
+      hts_free_opt(global_opt);
+      global_opt = hts_create_opt();
+      termine = termine_requested = shell_terminated = soft_term_requested = 0;
+      if (SessionEndStop(TRUE) != WHTT_STOP_ASKED) {
+        fprintf(stderr, "FATAL: the post-ask case could not arm its own ask\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      if (SessionEndStop(FALSE) != WHTT_STOP_NOT_ENDING || !soft_term_requested
+          || !global_opt->state.stop) {
+        fprintf(stderr, "FATAL: a cancellation after the query phase claimed to leave the mirror running\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
       hts_free_opt(global_opt);
       global_opt = NULL;
       termine = soft_term_requested = 0;
+      /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
+      if (nchecks != 7) {
+        fprintf(stderr, "FATAL: session end ran %d checks, expected 7\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
       printf("session end ok on %d checks\n", nchecks);
     }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a

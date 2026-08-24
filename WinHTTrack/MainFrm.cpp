@@ -197,8 +197,9 @@ void CMainFrame::OnClose()
   }
 }
 
-/* A logoff otherwise kills the engine mid-write. Asked here and not at WM_ENDSESSION
-   because the engine's only unwind time is the rest of the shutdown sequence. */
+/* A logoff otherwise kills the engine mid-write. Asked here, not at WM_ENDSESSION,
+   because the engine's only unwind time is the rest of the shutdown sequence.
+   A shutdown cancelled after this point still leaves the mirror stopping. */
 BOOL CMainFrame::OnQueryEndSession()
 {
 	const BOOL ending = CMDIFrameWnd::OnQueryEndSession();
