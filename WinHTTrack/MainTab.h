@@ -54,6 +54,9 @@ public:
   CMainTab(UINT nIDCaption, CWnd* pParentWnd = NULL, UINT iSelectPage = 0);
   CMainTab(LPCTSTR pszCaption, CWnd* pParentWnd = NULL, UINT iSelectPage = 0);
   
+public:
+  virtual INT_PTR DoModal();
+
 protected:
   void AddControlPages(void);
   

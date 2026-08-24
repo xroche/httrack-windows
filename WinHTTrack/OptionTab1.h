@@ -42,6 +42,7 @@ class COptionTab1 : public CPropertyPage
 
 // Construction
 public:
+  void SetLangTitle(void);
 	COptionTab1();
 	~COptionTab1();
   const char* GetTip(int id);

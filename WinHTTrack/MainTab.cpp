@@ -132,6 +132,18 @@ void CMainTab::AddControlPages()
   AddPage(&m_option3);        /* Expert */
 }
 
+/* The pages are built before a first run knows its language, so each one re-reads its
+   title here. It must happen before the base creates the sheet: comctl32 sizes the tab
+   strip from the captions in effect then, and relabelling afterwards loses a row. */
+INT_PTR CMainTab::DoModal()
+{
+  m_option1.SetLangTitle();  m_option2.SetLangTitle();  m_option3.SetLangTitle();
+  m_option4.SetLangTitle();  m_option5.SetLangTitle();  m_option6.SetLangTitle();
+  m_option7.SetLangTitle();  m_option8.SetLangTitle();  m_option9.SetLangTitle();
+  m_option10.SetLangTitle(); m_option11.SetLangTitle();
+  return CPropertySheet::DoModal();
+}
+
 void CMainTab::DefineDefaultProxy()
 {
   while(GetPageCount()>0)

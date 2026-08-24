@@ -42,14 +42,22 @@ static char THIS_FILE[] = __FILE__;
 
 IMPLEMENT_DYNCREATE(COptionTab11, CPropertyPage)
 
-COptionTab11::COptionTab11() : CPropertyPage(COptionTab11::IDD)
+/* Called again before each show: the page is built before a first run knows its
+   language. The copy is page-owned, since a language change frees the hash string. */
+void COptionTab11::SetLangTitle(void)
 {
-  // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
-    m_strCaption = LANG(LANG_IOPT11); // page-owned copy; the hash-table string is freed on a language change
+  const char *const title = LANG(LANG_IOPT11);
+  /* English keeps the .rc caption, as it did when this ran only from the constructor. */
+  if (LANG_T(-1) != 0 && title[0] != '\0') {
+    m_strCaption = title;
     m_psp.pszTitle = m_strCaption;
     m_psp.dwFlags|=PSP_USETITLE;
   }
+}
+
+COptionTab11::COptionTab11() : CPropertyPage(COptionTab11::IDD)
+{
+  SetLangTitle();
   m_psp.dwFlags|=PSP_HASHELP;
 	//{{AFX_DATA_INIT(COptionTab11)
 	m_ext1 = _T("");
