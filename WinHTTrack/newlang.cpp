@@ -481,16 +481,18 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
               /* Add key */
               if (strnotempty(intkey)) {
                 /* Convert once here: most LANG_* sites bypass the SetDlgItemTextCP()
-                   wrappers, so converting at display time would miss them. */
-                char unescaped[8192];
-                conv_printf(value,unescaped);
-                len = (int) strlen(unescaped);
+                   wrappers, so converting at display time would miss them. Decode
+                   before conv_printf(), whose DBCS pairing reads CP_ACP and would
+                   take a UTF-8 byte for a lead byte and eat the escape after it. */
+                char decoded[8192];
+                if (IsValidUTF8(value,(int) strlen(value)))
+                  CopyTextUTF8ToCP(decoded,sizeof(decoded),value);
+                else
+                  lstrcpynA(decoded,value,sizeof(decoded));   /* legacy catalog: leave it alone */
+                len = (int) strlen(decoded);
                 buff = (char*)malloc(len+2);
                 if (buff) {
-                  if (IsValidUTF8(unescaped,len))
-                    CopyTextUTF8ToCP(buff,len+2,unescaped);
-                  else
-                    memcpy(buff,unescaped,len+1);   /* legacy catalog: leave it alone */
+                  conv_printf(decoded,buff);
                   coucal_add(NewLangStr,intkey,(intptr_t)buff);
                 }
               }
