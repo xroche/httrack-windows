@@ -275,23 +275,27 @@ void LANG_SELFTEST_ESCAPE_ORDER(void) {
   static const char utf8_escape[] = "\xe3\x81\x82" "\\n";      /* U+3042, then a \n escape */
   static const char legacy[] = "Crit" "\xe8" "re" "\\n";         /* not UTF-8: must pass through */
   static const char lead_escape[] = "\x82" "\\n";                 /* leads on CP932, plain on CP1252 */
+  static const char no_escape[] = "Crit" "\xe8" "re";            /* nothing to shrink: sizes the buffer */
   int nchecks = 0;
   char hazard[32];
   char* cooked;
 
-  if (!IsValidCodePage(932)) {   /* a runner-image change, not a regression */
-    printf("unescaping order skipped: codepage 932 unavailable\n");
-    return;
+  /* Both of these leave the hazard unreachable, so say so rather than blaming the order. */
+  if (!IsValidCodePage(932)) {
+    fprintf(stderr, "FATAL: codepage 932 is unavailable, so this check cannot run\n");
+    fflush(stderr);
+    ExitProcess(3);
   }
-  if (GetACP() == CP_UTF8) {   /* decoding is then identity, so check 2 would accuse the fix */
-    printf("unescaping order skipped: the ANSI codepage is UTF-8\n");
-    return;
+  if (GetACP() == CP_UTF8) {
+    fprintf(stderr, "FATAL: the ANSI codepage is UTF-8, so decoding cannot model the hazard\n");
+    fflush(stderr);
+    ExitProcess(3);
   }
 
-  /* Negative control: the hazard must really exist, or the check below proves nothing. */
+  /* Negative control: the hazard must really exist, or the checks below prove nothing. */
   conv_printf(utf8_escape,hazard,932);
   if (strchr(hazard,'\n') != NULL) {
-    fprintf(stderr, "FATAL: unescaping UTF-8 on CP932 kept the escape; the check is vacuous\n");
+    fprintf(stderr, "FATAL: unescaping UTF-8 on CP932 kept the escape; the checks below prove nothing\n");
     fflush(stderr);
     ExitProcess(3);
   }
@@ -299,7 +303,7 @@ void LANG_SELFTEST_ESCAPE_ORDER(void) {
 
   cooked = ConvertCatalogValue(utf8_escape,932);
   if (cooked == NULL || strchr(cooked,'\n') == NULL) {
-    fprintf(stderr, "FATAL: the escape was eaten: the catalog is unescaped before it is decoded\n");
+    fprintf(stderr, "FATAL: the escape was eaten: the helper unescapes before it decodes\n");
     fflush(stderr);
     ExitProcess(3);
   }
@@ -327,6 +331,16 @@ void LANG_SELFTEST_ESCAPE_ORDER(void) {
   cooked = ConvertCatalogValue(lead_escape,1252);
   if (cooked == NULL || strchr(cooked,'\n') == NULL) {
     fprintf(stderr, "FATAL: a lead byte on one codepage ate an escape on another\n");
+    fflush(stderr);
+    ExitProcess(3);
+  }
+  free(cooked);
+  nchecks++;
+
+  /* Every case above shrinks by at least the escape, so none of them sizes buff exactly. */
+  cooked = ConvertCatalogValue(no_escape,CP_ACP);
+  if (cooked == NULL || strcmp(cooked,no_escape) != 0) {
+    fprintf(stderr, "FATAL: an entry with no escape did not survive unchanged\n");
     fflush(stderr);
     ExitProcess(3);
   }

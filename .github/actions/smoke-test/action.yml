@@ -215,7 +215,7 @@ runs:
         }
         # Swapping decode and unescape is invisible on this cp1252 runner, so this drives CP932.
         # The first assertion is the control that the hazard fires at all.
-        if ("$so" -notmatch 'unescaping order ok on 4 checks') {
+        if ("$so" -notmatch 'unescaping order ok on 5 checks') {
           throw 'selftest did not prove the catalog is decoded before it is unescaped'
         }
         # Every help button hands one of these to the browser: an unescaped space truncates
