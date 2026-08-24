@@ -21,6 +21,10 @@ on:
       run-id:
         description: 'windows-build run to take the binaries from (default: the build of this commit)'
         required: false
+      language:
+        description: 'lang/ basename to run the GUI in, e.g. Francais.'
+        required: false
+        default: English
 
 permissions:
   contents: read
@@ -119,14 +123,17 @@ jobs:
         shell: pwsh
         env:
           MODE: ${{ inputs.mode }}
+          LANGUAGE: ${{ inputs.language }}
         run: |
           python -m pip install --quiet pywin32 pillow pywinauto
           $script = 'screenshot-walk.py'
           $site = @('--site-host', 'www.example.com')
+          $lang = @()
+          if ($env:LANGUAGE) { $lang = @('--language', $env:LANGUAGE) }
           # The probe only answers whether the machine renders at all, and takes no site.
-          if ($env:MODE -eq 'probe') { $script = 'screenshot-probe.py'; $site = @() }
+          if ($env:MODE -eq 'probe') { $script = 'screenshot-probe.py'; $site = @(); $lang = @() }
           Write-Host "running $script"
-          python "tools\$script" --exe app\WinHTTrack.exe --out shots @site
+          python "tools\$script" --exe app\WinHTTrack.exe --out shots @site @lang
 
       - name: Upload the screens
         if: always()

@@ -327,12 +327,22 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
     print(f"  options sheet {sheet:#x}: {count} tabs")
-    at = {}
+    # Keyed by a control each page owns: tab labels come from the .rc and stay
+    # English, but a display string would be the wrong key regardless.
+    wanted = {"IDC_maxrate": rate, "IDC_connexion": connections}
+    owns = {}
     for i in range(count):
         win32gui.SendMessage(sheet, PSM_SETCURSEL, i, 0)
         time.sleep(0.6)
         page = slug(captions.get_tab_text(i))
-        at[page] = i
+        for control in wanted:
+            # Both are combo boxes, and resource.h gives IDC_pausebytes, an edit box on
+            # another page, the same 1051 as IDC_connexion. Match the class as well.
+            if find(sheet, control_id=ids[control], class_name="ComboBox") is not None:
+                if control in owns:
+                    raise RuntimeError(f"{control} is on pages {owns[control]} and {i}, "
+                                       "so its id does not name one page")
+                owns[control] = i
         shots.take(sheet, f"{4 + i:02d}_options_{page}")
     gated(sheet, ids, count)
     # Eight parallel transfers, so the animation shows a mirror working rather than one
@@ -340,11 +350,10 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     # rate cap goes up with it: eight transfers sharing the engine's 100 KB/s default
     # would still crawl. Each on its own page, since a control on a page that is not on
     # top is not visible to find().
-    for page, control, value in (("limits", "IDC_maxrate", rate),
-                                 ("flow_control", "IDC_connexion", connections)):
-        if page not in at:
-            raise RuntimeError(f"no {page} tab to set the mirror up on")
-        win32gui.SendMessage(sheet, PSM_SETCURSEL, at[page], 0)
+    for control, value in wanted.items():
+        if control not in owns:
+            raise RuntimeError(f"no options page owns {control} to set the mirror up on")
+        win32gui.SendMessage(sheet, PSM_SETCURSEL, owns[control], 0)
         time.sleep(0.6)
         set_text(find(sheet, control_id=ids[control]), str(value))
     close_options(sheet, pid, IDOK)
@@ -352,15 +361,18 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     reopen_options(main, pid, ids)
 
 
-def run(pid, ids, shots, url, base_path):
+def run(pid, ids, shots, url, base_path, language):
     # Only a first run offers the language, so a VM replay skips this shot rather than
     # failing on it.
     try:
         lang = wait(lambda: window_titled(pid, "About WinHTTrack"), "the language dialog", 25)
         shots.take(lang, "00_language_preference")
         combo = ComboBoxWrapper(find(lang, control_id=ids["IDC_lang"]))
-        print(f"  languages: {combo.selected_text()!r} of {len(combo.item_texts())}")
-        combo.select("English")
+        names = combo.item_texts()
+        print(f"  languages: {combo.selected_text()!r} of {len(names)}, picking {language!r}")
+        if language not in names:
+            raise RuntimeError(f"no {language!r} in the language list: {sorted(names)}")
+        combo.select(language)
         click(find(lang, control_id=IDOK, class_name="Button"))
     except Timeout:
         print("  no language dialog: not a first run")
@@ -429,6 +441,8 @@ def main():
     ap.add_argument("--site-port", type=int, default=8099,
                     help="port to serve it on (0 picks a free one)")
     ap.add_argument("--base-path", default=r"C:\shots-mirror")
+    ap.add_argument("--language", default="English",
+                    help="lang/ basename as the combo lists it, so Francais rather than French")
     args = ap.parse_args()
 
     ids = resource_ids(args.resource_h)
@@ -442,7 +456,7 @@ def main():
     exe = os.path.abspath(args.exe)
     proc = subprocess.Popen([exe], cwd=os.path.dirname(exe))
     try:
-        run(proc.pid, ids, shots, site_url, args.base_path)
+        run(proc.pid, ids, shots, site_url, args.base_path, args.language)
     except Exception as e:
         print(f"FAILED: {e}")
         diagnose(proc.pid, args.out)
