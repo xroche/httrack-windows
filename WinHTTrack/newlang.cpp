@@ -250,6 +250,116 @@ static BOOL IsValidUTF8(const char* s, int len) {
       || MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, len, NULL, 0) > 0;
 }
 
+/* One catalog entry: decode, then unescape. The only point covering the LANG_* sites that
+   bypass SetDlgItemTextCP(). cp drives the unescape alone, the decode always targets the ANSI
+   codepage. Returns a malloc'd string the caller frees, or NULL if the allocation failed. */
+static char* ConvertCatalogValue(const char* value, UINT cp) {
+  char decoded[8192];
+  int len;
+  char* buff;
+
+  if (IsValidUTF8(value,(int) strlen(value)))
+    CopyTextUTF8ToCP(decoded,sizeof(decoded),value);
+  else
+    lstrcpynA(decoded,value,sizeof(decoded));   /* legacy catalog: leave it alone */
+  len = (int) strlen(decoded);
+  buff = (char*)malloc(len+2);
+  if (buff)
+    conv_printf(decoded,buff,cp);   /* never grows: len+1 is the exact bound */
+  return buff;
+}
+
+/* --selftest: swapping the two steps is invisible on a Latin codepage, so this drives CP932.
+   There, unescaping first reads 0x82 as a lead byte and eats the escape. */
+void LANG_SELFTEST_ESCAPE_ORDER(void) {
+  static const char utf8_escape[] = "\xe3\x81\x82" "\\n";   /* U+3042, then a \n escape */
+  static const char legacy[] = "Crit" "\xe8" "re" "\\n";    /* not UTF-8: must pass through */
+  static const char lead_escape[] = "\x82" "\\n";           /* leads on CP932, plain on CP1252 */
+  static const char lead_tail[] = "AB" "\x82";              /* no trail byte: what i+1<len guards */
+  static const char no_escape[] = "Crit" "\xe8" "re";       /* nothing to drop: sizes buff exactly */
+  /* A UTF-8 ANSI codepage decodes U+3042 losslessly, so only that one case cannot run. */
+  const BOOL utf8_acp = (GetACP() == CP_UTF8);
+  int nchecks = 0;
+  char hazard[32];
+  char* cooked;
+
+  if (!IsValidCodePage(932)) {
+    fprintf(stderr, "FATAL: codepage 932 is unavailable, so this check cannot run\n");
+    fflush(stderr);
+    ExitProcess(3);
+  }
+
+  /* Control: the hazard must really exist, or the checks below prove nothing. */
+  conv_printf(utf8_escape,hazard,932);
+  if (strchr(hazard,'\n') != NULL) {
+    fprintf(stderr, "FATAL: unescaping UTF-8 on CP932 kept the escape; the checks below prove nothing\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+
+  if (!utf8_acp) {
+    cooked = ConvertCatalogValue(utf8_escape,932);
+    if (cooked == NULL || strchr(cooked,'\n') == NULL) {
+      fprintf(stderr, "FATAL: the escape was eaten: the helper unescapes before it decodes\n");
+      fflush(stderr);
+      ExitProcess(3);
+    } else
+      nchecks++;
+    free(cooked);
+  }
+
+  cooked = ConvertCatalogValue(legacy,CP_ACP);
+  if (cooked == NULL || strcmp(cooked,"Crit" "\xe8" "re" "\n") != 0) {
+    fprintf(stderr, "FATAL: a legacy-charset entry lost its accent or its escape\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  free(cooked);
+
+  /* 0x82 leads on CP932 and is ordinary on CP1252, so the same entry must come back
+     differently under each. Only these two catch the helper forcing CP_ACP, so they
+     count separately: sharing one increment would hide the deletion of either. */
+  cooked = ConvertCatalogValue(lead_escape,932);
+  if (cooked == NULL || strcmp(cooked,"\x82" "\\n") != 0) {
+    fprintf(stderr, "FATAL: CP932 did not pair the lead byte with the backslash\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  free(cooked);
+
+  cooked = ConvertCatalogValue(lead_escape,1252);
+  if (cooked == NULL || strcmp(cooked,"\x82" "\n") != 0) {
+    fprintf(stderr, "FATAL: CP1252 treated the lead byte as one, so cp never reached the unescaper\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  free(cooked);
+
+  cooked = ConvertCatalogValue(lead_tail,932);
+  if (cooked == NULL || strcmp(cooked,"AB" "\x82") != 0) {
+    fprintf(stderr, "FATAL: a trailing lead byte was paired with the terminator\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  free(cooked);
+
+  cooked = ConvertCatalogValue(no_escape,CP_ACP);
+  if (cooked == NULL || strcmp(cooked,no_escape) != 0) {
+    fprintf(stderr, "FATAL: an entry with no escape did not survive unchanged\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  free(cooked);
+
+  printf("unescaping order ok on %d checks%s\n", nchecks, utf8_acp ? " (utf-8 acp)" : "");
+}
+
 /* --selftest: the catalogs are the only non-ASCII data the GUI loads, and the
    English-only smoke walk cannot see a decoding regression. */
 void LANG_SELFTEST_DECODE(void) {
@@ -444,7 +554,6 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
           */
 
           if (strnotempty(extkey) && strnotempty(value)) {
-            int len;
             char* buff;
             const char* intkey;
             
@@ -480,20 +589,9 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
               
               /* Add key */
               if (strnotempty(intkey)) {
-                /* Convert once here: most LANG_* sites bypass the SetDlgItemTextCP()
-                   wrappers, so converting at display time would miss them. Decode first:
-                   conv_printf()'s DBCS pairing reads CP_ACP and must not see UTF-8 bytes. */
-                char decoded[8192];
-                if (IsValidUTF8(value,(int) strlen(value)))
-                  CopyTextUTF8ToCP(decoded,sizeof(decoded),value);
-                else
-                  lstrcpynA(decoded,value,sizeof(decoded));   /* legacy catalog: leave it alone */
-                len = (int) strlen(decoded);
-                buff = (char*)malloc(len+2);
-                if (buff) {
-                  conv_printf(decoded,buff);
+                buff = ConvertCatalogValue(value,CP_ACP);
+                if (buff)
                   coucal_add(NewLangStr,intkey,(intptr_t)buff);
-                }
               }
               
             }
@@ -525,12 +623,12 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
     limit_to[0]='\0';
 }
 
-void conv_printf(char* from,char* to) {
+void conv_printf(const char* from,char* to,UINT cp) {
   int i=0,j=0,len;
   len = (int) strlen(from);
   while(i<len) {
     /* A DBCS trail byte can be 0x5C; copy the pair before it is mistaken for an escape. */
-    if (IsDBCSLeadByteEx(CP_ACP,(unsigned char)from[i]) && i+1<len) {
+    if (IsDBCSLeadByteEx(cp,(unsigned char)from[i]) && i+1<len) {
       to[j++]=from[i++];
       to[j++]=from[i++];
       continue;

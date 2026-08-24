@@ -379,6 +379,7 @@ BOOL CWinHTTrackApp::InitInstance()
       }
     }
     LANG_SELFTEST_DECODE();
+    LANG_SELFTEST_ESCAPE_ORDER();
     /* An unescaped space truncates the path, and an unescaped '#' names a file rather
        than a section, since NTFS allows one in a filename. */
     {
