@@ -22,7 +22,7 @@ on:
         description: 'windows-build run to take the binaries from (default: the build of this commit)'
         required: false
       language:
-        description: 'lang/ basename to run the GUI in, e.g. Francais. English exercises no conversion.'
+        description: 'lang/ basename to run the GUI in, e.g. Francais.'
         required: false
         default: English
 

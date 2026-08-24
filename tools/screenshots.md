@@ -22,9 +22,10 @@ a real site.
 ## Replay
 
 Run the **screenshots** workflow (Actions → Run workflow) and download the
-`screenshots` artifact. It takes the binaries from the last green `windows-build` on
-the branch you dispatch it from, falling back to master, so a new option page is shot
-from the build that added it. `run-id` overrides that; `mode: probe` runs
+`screenshots` artifact. It takes the binaries from the green `windows-build` of the
+commit you dispatch it from, so a new option page is shot from the build that added it.
+A branch with no build of its own stops rather than shooting master's binaries, so pass
+`run-id` for a change that builds nothing. `mode: probe` runs
 `screenshot-probe.py` instead, which only answers whether the machine renders and
 captures at all — reach for it when the runner image changes or when moving to a VM.
 
@@ -40,6 +41,12 @@ and in the mirror folder name. For publication, pass `--site-host` as the workfl
 `www.example.com`, mapped to loopback in `%SystemRoot%\System32\drivers\etc\hosts`. The
 port stays visible, since `http.sys` holds 80 on the runner and 80 is excluded from
 binding there.
+
+`--language` runs the GUI in another catalog, as the workflow input of the same name
+does. It takes the lang/ basename the first-run combo lists, which for several
+languages is not the translated name, so `Francais` rather than `French`. English is
+the default and the only catalog with no high bytes, so it is the one language that
+exercises none of the conversion `LANG_LOAD` does.
 
 ## Adding an option page
 

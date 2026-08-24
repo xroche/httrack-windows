@@ -327,8 +327,8 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     sheet, tabs, captions = open_options(main, pid, ids)
     count = win32gui.SendMessage(tabs, TCM_GETITEMCOUNT, 0, 0)
     print(f"  options sheet {sheet:#x}: {count} tabs")
-    # Keyed by a control each page owns, not by the caption: the tab labels come from the
-    # .rc and stay English, but a display string is the wrong key for a lookup either way.
+    # Keyed by a control each page owns: tab labels come from the .rc and stay
+    # English, but a display string would be the wrong key regardless.
     wanted = {"IDC_maxrate": rate, "IDC_connexion": connections}
     owns = {}
     for i in range(count):
@@ -336,7 +336,12 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
         time.sleep(0.6)
         page = slug(captions.get_tab_text(i))
         for control in wanted:
-            if find(sheet, control_id=ids[control]) is not None:
+            # Both are combo boxes, and resource.h gives IDC_pausebytes, an edit box on
+            # another page, the same 1051 as IDC_connexion. Match the class as well.
+            if find(sheet, control_id=ids[control], class_name="ComboBox") is not None:
+                if control in owns:
+                    raise RuntimeError(f"{control} is on pages {owns[control]} and {i}, "
+                                       "so its id does not name one page")
                 owns[control] = i
         shots.take(sheet, f"{4 + i:02d}_options_{page}")
     gated(sheet, ids, count)
