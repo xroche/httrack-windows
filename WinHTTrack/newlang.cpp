@@ -481,9 +481,8 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
               /* Add key */
               if (strnotempty(intkey)) {
                 /* Convert once here: most LANG_* sites bypass the SetDlgItemTextCP()
-                   wrappers, so converting at display time would miss them. Decode
-                   before conv_printf(), whose DBCS pairing reads CP_ACP and would
-                   take a UTF-8 byte for a lead byte and eat the escape after it. */
+                   wrappers, so converting at display time would miss them. Decode first:
+                   conv_printf()'s DBCS pairing reads CP_ACP and must not see UTF-8 bytes. */
                 char decoded[8192];
                 if (IsValidUTF8(value,(int) strlen(value)))
                   CopyTextUTF8ToCP(decoded,sizeof(decoded),value);
