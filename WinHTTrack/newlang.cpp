@@ -265,89 +265,99 @@ static char* ConvertCatalogValue(const char* value, UINT cp) {
   len = (int) strlen(decoded);
   buff = (char*)malloc(len+2);
   if (buff)
-    conv_printf(decoded,buff,cp);   /* unescaping only ever shrinks */
+    conv_printf(decoded,buff,cp);   /* never grows: len+1 is the exact bound */
   return buff;
 }
 
 /* --selftest: swapping the two steps is invisible on a Latin codepage, so this drives CP932.
    There, unescaping first reads 0x82 as a lead byte and eats the escape. */
 void LANG_SELFTEST_ESCAPE_ORDER(void) {
-  static const char utf8_escape[] = "\xe3\x81\x82" "\\n";      /* U+3042, then a \n escape */
-  static const char legacy[] = "Crit" "\xe8" "re" "\\n";         /* not UTF-8: must pass through */
-  static const char lead_escape[] = "\x82" "\\n";                 /* leads on CP932, plain on CP1252 */
-  static const char no_escape[] = "Crit" "\xe8" "re";            /* nothing to shrink: sizes the buffer */
+  static const char utf8_escape[] = "\xe3\x81\x82" "\\n";   /* U+3042, then a \n escape */
+  static const char legacy[] = "Crit" "\xe8" "re" "\\n";    /* not UTF-8: must pass through */
+  static const char lead_escape[] = "\x82" "\\n";           /* leads on CP932, plain on CP1252 */
+  static const char lead_tail[] = "AB" "\x82";              /* no trail byte: what i+1<len guards */
+  static const char no_escape[] = "Crit" "\xe8" "re";       /* nothing to drop: sizes buff exactly */
+  /* A UTF-8 ANSI codepage decodes U+3042 losslessly, so only that one case cannot run. */
+  const BOOL utf8_acp = (GetACP() == CP_UTF8);
   int nchecks = 0;
   char hazard[32];
   char* cooked;
 
-  /* Both of these leave the hazard unreachable, so say so rather than blaming the order. */
   if (!IsValidCodePage(932)) {
     fprintf(stderr, "FATAL: codepage 932 is unavailable, so this check cannot run\n");
     fflush(stderr);
     ExitProcess(3);
   }
-  if (GetACP() == CP_UTF8) {
-    fprintf(stderr, "FATAL: the ANSI codepage is UTF-8, so decoding cannot model the hazard\n");
-    fflush(stderr);
-    ExitProcess(3);
-  }
 
-  /* Negative control: the hazard must really exist, or the checks below prove nothing. */
+  /* Control: the hazard must really exist, or the checks below prove nothing. */
   conv_printf(utf8_escape,hazard,932);
   if (strchr(hazard,'\n') != NULL) {
     fprintf(stderr, "FATAL: unescaping UTF-8 on CP932 kept the escape; the checks below prove nothing\n");
     fflush(stderr);
     ExitProcess(3);
-  }
-  nchecks++;
+  } else
+    nchecks++;
 
-  cooked = ConvertCatalogValue(utf8_escape,932);
-  if (cooked == NULL || strchr(cooked,'\n') == NULL) {
-    fprintf(stderr, "FATAL: the escape was eaten: the helper unescapes before it decodes\n");
-    fflush(stderr);
-    ExitProcess(3);
+  if (!utf8_acp) {
+    cooked = ConvertCatalogValue(utf8_escape,932);
+    if (cooked == NULL || strchr(cooked,'\n') == NULL) {
+      fprintf(stderr, "FATAL: the escape was eaten: the helper unescapes before it decodes\n");
+      fflush(stderr);
+      ExitProcess(3);
+    } else
+      nchecks++;
+    free(cooked);
   }
-  free(cooked);
-  nchecks++;
 
   cooked = ConvertCatalogValue(legacy,CP_ACP);
-  if (cooked == NULL || strchr(cooked,'\n') == NULL || strstr(cooked,"Crit\xe8" "re") == NULL) {
+  if (cooked == NULL || strcmp(cooked,"Crit" "\xe8" "re" "\n") != 0) {
     fprintf(stderr, "FATAL: a legacy-charset entry lost its accent or its escape\n");
     fflush(stderr);
     ExitProcess(3);
-  }
+  } else
+    nchecks++;
   free(cooked);
-  nchecks++;
 
-  /* 0x82 leads on CP932 and is an ordinary byte on CP1252, so the same entry must unescape
-     differently under each: that is what proves cp reaches conv_printf at all. */
+  /* 0x82 leads on CP932 and is ordinary on CP1252, so the same entry must come back
+     differently under each. Only these two catch the helper forcing CP_ACP, so they
+     count separately: sharing one increment would hide the deletion of either. */
   cooked = ConvertCatalogValue(lead_escape,932);
-  if (cooked == NULL || strchr(cooked,'\n') != NULL) {
-    fprintf(stderr, "FATAL: the codepage never reached the unescaper\n");
+  if (cooked == NULL || strcmp(cooked,"\x82" "\\n") != 0) {
+    fprintf(stderr, "FATAL: CP932 did not pair the lead byte with the backslash\n");
     fflush(stderr);
     ExitProcess(3);
-  }
+  } else
+    nchecks++;
   free(cooked);
-  cooked = ConvertCatalogValue(lead_escape,1252);
-  if (cooked == NULL || strchr(cooked,'\n') == NULL) {
-    fprintf(stderr, "FATAL: a lead byte on one codepage ate an escape on another\n");
-    fflush(stderr);
-    ExitProcess(3);
-  }
-  free(cooked);
-  nchecks++;
 
-  /* Every case above shrinks by at least the escape, so none of them sizes buff exactly. */
+  cooked = ConvertCatalogValue(lead_escape,1252);
+  if (cooked == NULL || strcmp(cooked,"\x82" "\n") != 0) {
+    fprintf(stderr, "FATAL: CP1252 treated the lead byte as one, so cp never reached the unescaper\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  free(cooked);
+
+  cooked = ConvertCatalogValue(lead_tail,932);
+  if (cooked == NULL || strcmp(cooked,"AB" "\x82") != 0) {
+    fprintf(stderr, "FATAL: a trailing lead byte was paired with the terminator\n");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  free(cooked);
+
   cooked = ConvertCatalogValue(no_escape,CP_ACP);
   if (cooked == NULL || strcmp(cooked,no_escape) != 0) {
     fprintf(stderr, "FATAL: an entry with no escape did not survive unchanged\n");
     fflush(stderr);
     ExitProcess(3);
-  }
+  } else
+    nchecks++;
   free(cooked);
-  nchecks++;
 
-  printf("unescaping order ok on %d checks\n", nchecks);
+  printf("unescaping order ok on %d checks%s\n", nchecks, utf8_acp ? " (utf-8 acp)" : "");
 }
 
 /* --selftest: the catalogs are the only non-ASCII data the GUI loads, and the
