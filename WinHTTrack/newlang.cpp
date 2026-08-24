@@ -363,41 +363,52 @@ void LANG_SELFTEST_ESCAPE_ORDER(void) {
 /* --selftest: the catalogs are the only non-ASCII data the GUI loads, and the
    English-only smoke walk cannot see a decoding regression. */
 void LANG_SELFTEST_DECODE(void) {
-  static const WCHAR wide[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
-  BOOL lost = FALSE;
-  // WideCharToMultiByte rejects a non-NULL lpUsedDefaultChar when the code page is CP_UTF8.
-  BOOL *const plost = (GetACP() == CP_UTF8) ? NULL : &lost;
-  char want[16];
-  const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, want, sizeof(want), NULL, plost);
+  static const WCHAR cafe[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
+  static const WCHAR macron[] = { 0x0100, 0 };                /* A-macron, 'A' by best-fit on cp1252 */
+  static const struct { const char* in; const WCHAR* wide; const char* want; const char* what; } cases[] = {
+    /* A converted catalog reaches the ANSI codepage. */
+    { "caf\xc3\xa9", cafe, NULL, "utf-8" },
+    /* The engine blocks best-fit, so a character the codepage lacks must arrive as its
+       default character, not as a lookalike. */
+    { "\xc4\x80", macron, NULL, "best-fit" },
+    /* A catalog still in its legacy charset must survive byte for byte: drop the
+       UTF-8 gate and the engine's converter substitutes U+FFFD, giving "caf?". */
+    { "caf\xe9", NULL, "caf\xe9", "legacy" },
+    { "Options", NULL, "Options", "ascii" },
+    { NULL, NULL, NULL, NULL }
+  };
+  int nchecks = 0;
 
-  if (n > 0 && !lost) {   /* skip where the ANSI codepage cannot hold it at all */
-    static const struct { const char* in; const char* want; const char* what; } cases[] = {
-      /* A converted catalog reaches the ANSI codepage. */
-      { "caf\xc3\xa9", NULL, "utf-8" },
-      /* A catalog still in its legacy charset must survive byte for byte: drop the
-         UTF-8 gate and the engine's converter substitutes U+FFFD, giving "caf?". */
-      { "caf\xe9", "caf\xe9", "legacy" },
-      { "Options", "Options", "ascii" },
-      { NULL, NULL, NULL }
-    };
-    int nchecks = 0;
-    for(int k=0 ; cases[k].in != NULL ; k++) {
-      const char* const expect = (cases[k].want != NULL) ? cases[k].want : want;
-      const int len = (int) strlen(cases[k].in);
-      char got[64];
-      if (IsValidUTF8(cases[k].in, len))
-        CopyTextUTF8ToCP(got, sizeof(got), cases[k].in);
-      else
-        lstrcpynA(got, cases[k].in, sizeof(got));
-      if (strcmp(got, expect) != 0) {
-        fprintf(stderr, "FATAL: %s catalog text gave '%s', expected '%s'\n",
-                cases[k].what, got, expect);
-        fflush(stderr);
-        ExitProcess(3);
-      } else
-        nchecks++;
-    }
-    printf("catalog decoding ok on %d checks\n", nchecks);
+  for(int k=0 ; cases[k].in != NULL ; k++) {
+    const int len = (int) strlen(cases[k].in);
+    char expect[64];
+    char got[64];
+    /* Expecting what this codepage holds, so none has to be skipped. */
+    if (cases[k].wide != NULL)
+      CopyTextWideToACP(expect, sizeof(expect), cases[k].wide);
+    else
+      lstrcpynA(expect, cases[k].want, sizeof(expect));
+    if (IsValidUTF8(cases[k].in, len))
+      CopyTextUTF8ToCP(got, sizeof(got), cases[k].in);
+    else
+      lstrcpynA(got, cases[k].in, sizeof(got));
+    if (strcmp(got, expect) != 0) {
+      fprintf(stderr, "FATAL: %s catalog text gave '%s', expected '%s'\n",
+              cases[k].what, got, expect);
+      fflush(stderr);
+      ExitProcess(3);
+    } else
+      nchecks++;
+  }
+
+  {
+    /* The best-fit case only discriminates where the codepage has a lookalike to offer. */
+    char expect[64], lookalike[64];
+    const int n = WideCharToMultiByte(CP_ACP, 0, macron, -1, lookalike, sizeof(lookalike),
+                                      NULL, NULL);
+    CopyTextWideToACP(expect, sizeof(expect), macron);
+    printf("catalog decoding ok on %d checks%s\n", nchecks,
+           (n > 0 && strcmp(lookalike, expect) != 0) ? " (best-fit acp)" : "");
   }
 }
 

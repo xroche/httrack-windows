@@ -210,7 +210,9 @@ runs:
         if ("$so" -notmatch 'MBCS->UTF-8 ok on 2 checks') {
           throw "selftest did not exercise the MBCS->UTF-8 conversion"
         }
-        if ("$so" -notmatch 'catalog decoding ok on 3 checks') {
+        # The suffix is the control for the best-fit case: without a lookalike to offer,
+        # which this runner's cp1252 has, that case cannot fail.
+        if ("$so" -notmatch 'catalog decoding ok on 4 checks \(best-fit acp\)') {
           throw 'selftest did not report catalog decoding: a legacy catalog may be silently mangled'
         }
         # Swapping decode and unescape is invisible on this cp1252 runner, so this drives CP932.

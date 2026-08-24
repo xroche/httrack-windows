@@ -1715,6 +1715,23 @@ void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString) {
   freet(cp);
 }
 
+// Contract in Shell.h.
+BOOL CopyTextWideToACP(LPSTR dest, int destSize, LPCWSTR wide) {
+  // A best-fit substitute leaves lpUsedDefaultChar clear, so without the flag an
+  // approximation comes back and reads as held. A UTF-8 codepage rejects both.
+  const BOOL utf8 = GetACP() == CP_UTF8;
+  BOOL lost = FALSE;
+  int n;
+
+  if (destSize <= 0)
+    return FALSE;
+  n = WideCharToMultiByte(CP_ACP, utf8 ? 0 : WC_NO_BEST_FIT_CHARS, wide, -1, dest, destSize,
+                          NULL, utf8 ? NULL : &lost);
+  if (n <= 0)
+    dest[0] = '\0';
+  return n > 0 && !lost;
+}
+
 bool ShellOpen(LPCSTR file, int nShowCmd) {
   return (INT_PTR) ShellExecute(NULL, "open", file, NULL, NULL, nShowCmd) > 32;
 }

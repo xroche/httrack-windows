@@ -159,6 +159,10 @@ char *strdupt_utf8(const char *const s);
 // TTN_NEEDTEXTA tooltip text. Falls back to the raw bytes if conversion fails.
 void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString);
 
+// The ANSI-codepage form of a wide string, always NUL-terminated. Best-fit substitutes are
+// blocked, as the engine's converter blocks them, so FALSE means the codepage substituted.
+BOOL CopyTextWideToACP(LPSTR dest, int destSize, LPCWSTR wide);
+
 // Drop a trailing '/' or '\\', reporting whether there was one. Empty-string safe.
 inline bool StripTrailingSlash(char* s) {
   const size_t len = (s != NULL) ? strlen(s) : 0;
