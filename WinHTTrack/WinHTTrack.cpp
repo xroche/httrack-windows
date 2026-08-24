@@ -1232,7 +1232,7 @@ BOOL CWinHTTrackApp::InitInstance()
       /* state.stop is what hts_request_stop() sets; nothing exported reads it back. */
       if (SessionEndStop(FALSE) != WHTT_STOP_NOT_ENDING || soft_term_requested
           || global_opt->state.stop) {
-        fprintf(stderr, "FATAL: a cancelled session end stopped the mirror\n");
+        fprintf(stderr, "FATAL: a FALSE session-end flag asked the mirror to stop\n");
         fflush(stderr);
         ExitProcess(3);
       } else
@@ -1262,6 +1262,16 @@ BOOL CWinHTTrackApp::InitInstance()
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED || !global_opt->state.stop) {
         fprintf(stderr, "FATAL: a cancelled shutdown consumed the next mirror's stop\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      /* Nothing un-asks the query-phase stop, so the cancelled shutdown above is the
+         only one the mirror survives: this one is already on its way down. */
+      if (SessionEndStop(FALSE) != WHTT_STOP_NOT_ENDING || !soft_term_requested
+          || !global_opt->state.stop) {
+        fprintf(stderr, "FATAL: a veto after the query phase claimed to leave the mirror running\n");
         fflush(stderr);
         ExitProcess(3);
       } else
