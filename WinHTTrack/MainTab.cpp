@@ -132,34 +132,16 @@ void CMainTab::AddControlPages()
   AddPage(&m_option3);        /* Expert */
 }
 
-/* The pages are built with the main frame, which on a first run happens before the
-   language is known, so their titles keep the .rc caption while every other string on a
-   page is set at display time. The tab control owns the text once the sheet exists. */
-void CMainTab::SetLangTitles(void)
+/* The pages are built before a first run knows its language, so each one re-reads its
+   title here. It must happen before the base creates the sheet: comctl32 sizes the tab
+   strip from the captions in effect then, and relabelling afterwards loses a row. */
+INT_PTR CMainTab::DoModal()
 {
-  const struct { CPropertyPage* page; const char* title; } named[] = {
-    { &m_option1,  LANG_IOPT1  }, { &m_option2,  LANG_IOPT2  },
-    { &m_option3,  LANG_IOPT3  }, { &m_option4,  LANG_IOPT4  },
-    { &m_option5,  LANG_IOPT5  }, { &m_option6,  LANG_IOPT6  },
-    { &m_option7,  LANG_IOPT7  }, { &m_option8,  LANG_IOPT8  },
-    { &m_option9,  LANG_IOPT9  }, { &m_option10, LANG_IOPT10 },
-    { &m_option11, LANG_IOPT11 }
-  };
-  CTabCtrl* const tabs = GetTabControl();
-
-  if (tabs == NULL)
-    return;
-  for(int i = 0 ; i < (int) (sizeof(named)/sizeof(named[0])) ; i++) {
-    /* A missing key reads as empty, and DefineDefaultProxy() leaves most pages out. */
-    const int at = GetPageIndex(named[i].page);
-    if (at >= 0 && named[i].title != NULL && named[i].title[0] != '\0') {
-      TCITEM item;
-      memset(&item, 0, sizeof(item));
-      item.mask = TCIF_TEXT;
-      item.pszText = (LPSTR) named[i].title;
-      tabs->SetItem(at, &item);
-    }
-  }
+  m_option1.SetLangTitle();  m_option2.SetLangTitle();  m_option3.SetLangTitle();
+  m_option4.SetLangTitle();  m_option5.SetLangTitle();  m_option6.SetLangTitle();
+  m_option7.SetLangTitle();  m_option8.SetLangTitle();  m_option9.SetLangTitle();
+  m_option10.SetLangTitle(); m_option11.SetLangTitle();
+  return CPropertySheet::DoModal();
 }
 
 void CMainTab::DefineDefaultProxy()
@@ -227,8 +209,6 @@ BOOL CMainTab::OnInitDialog()
   int r = CPropertySheet::OnInitDialog();
   //SetActivePage(GetPageCount()-1);
   SetActivePage(0);
-
-  SetLangTitles();
 
   /* Fallback for a sheet SheetPreCreate could not reach, and a no-op once it did: the
      thicker border comes out of the client area, so give that back. */

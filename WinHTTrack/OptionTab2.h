@@ -47,6 +47,7 @@ class COptionTab2 : public CPropertyPage
 
 // Construction
 public:
+  void SetLangTitle(void);
 	COptionTab2();
 	~COptionTab2();
 	CBuildOptions      Bopt;

@@ -54,14 +54,22 @@ extern const char *const FooterPresets[] = {
 
 IMPLEMENT_DYNCREATE(COptionTab6, CPropertyPage)
 
-COptionTab6::COptionTab6() : CPropertyPage(COptionTab6::IDD)
+/* Called again before each show: the page is built before a first run knows its
+   language. The copy is page-owned, since a language change frees the hash string. */
+void COptionTab6::SetLangTitle(void)
 {
-  // Patcher titre
-  if (LANG_T(-1)) {    // Patcher en français
-    m_strCaption = LANG(LANG_IOPT6); // page-owned copy; the hash-table string is freed on a language change
+  const char *const title = LANG(LANG_IOPT6);
+  /* English keeps the .rc caption, as it did when this ran only from the constructor. */
+  if (LANG_T(-1) != 0 && title[0] != '\0') {
+    m_strCaption = title;
     m_psp.pszTitle = m_strCaption;
     m_psp.dwFlags|=PSP_USETITLE;
   }
+}
+
+COptionTab6::COptionTab6() : CPropertyPage(COptionTab6::IDD)
+{
+  SetLangTitle();
   m_psp.dwFlags|=PSP_HASHELP;
   //
 	//{{AFX_DATA_INIT(COptionTab6)

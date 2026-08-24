@@ -44,6 +44,7 @@ class COptionTab3 : public CPropertyPage
 
 // Construction
 public:
+  void SetLangTitle(void);
 	COptionTab3();
 	~COptionTab3();
   int modify;
