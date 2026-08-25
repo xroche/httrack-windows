@@ -160,8 +160,8 @@ char *strdupt_utf8(const char *const s);
 void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString);
 
 // The ANSI-codepage form of a wide string, always NUL-terminated, with best-fit substitutes
-// blocked as the engine's converter blocks them; --selftest needs its own oracle for that.
-// FALSE: the codepage held it only by substituting, or, with dest left empty, not at all.
+// blocked as the engine's converter blocks them. --selftest needs its own oracle for that.
+// FALSE: the codepage substituted; dest is empty instead if it could not convert at all.
 BOOL CopyTextWideToCPExact(LPSTR dest, int destSize, LPCWSTR wide);
 
 // Drop a trailing '/' or '\\', reporting whether there was one. Empty-string safe.

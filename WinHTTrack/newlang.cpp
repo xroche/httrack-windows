@@ -403,8 +403,8 @@ void LANG_SELFTEST_DECODE(void) {
 
   {
     /* The case above only discriminates where the codepage has a lookalike to offer. Where it
-       does, pin the substitute to the codepage's own default character: comparing the engine
-       against another WideCharToMultiByte call only proves the two agree. */
+       does, pin the substitute to the codepage's own default character. A second
+       WideCharToMultiByte call would only prove the two agree. */
     CPINFO cpinfo;
     char def[MAX_DEFAULTCHAR + 1];
     char expect[64], lookalike[64];
@@ -421,13 +421,21 @@ void LANG_SELFTEST_DECODE(void) {
       }
       memcpy(def, cpinfo.DefaultChar, MAX_DEFAULTCHAR);
       def[MAX_DEFAULTCHAR] = '\0';
-      if (held || strcmp(expect, def) != 0) {
-        fprintf(stderr, "FATAL: U+0100 became '%s', expected the default character '%s'%s\n",
-                expect, def, held ? " (reported as held)" : "");
+      /* Counted apart: a helper that forgot its lpUsedDefaultChar check still substitutes,
+         so sharing one increment would leave that half unpinned. */
+      if (held) {
+        fprintf(stderr, "FATAL: U+0100 reported as held by a codepage that substitutes it\n");
         fflush(stderr);
         ExitProcess(3);
-      }
-      nchecks++;
+      } else
+        nchecks++;
+      if (strcmp(expect, def) != 0) {
+        fprintf(stderr, "FATAL: U+0100 became '%s', expected the default character '%s'\n",
+                expect, def);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
     }
     printf("catalog decoding ok on %d checks%s\n", nchecks, bestfit ? " (best-fit acp)" : "");
   }

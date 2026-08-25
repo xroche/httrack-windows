@@ -1718,7 +1718,7 @@ void CopyTextUTF8ToCP(LPSTR dest, int destSize, LPCSTR lpString) {
 // Contract in Shell.h.
 BOOL CopyTextWideToCPExact(LPSTR dest, int destSize, LPCWSTR wide) {
   // A best-fit substitute leaves lpUsedDefaultChar clear, so without WC_NO_BEST_FIT_CHARS an
-  // approximation comes back and reads as held. CP_UTF8 rejects that flag and the pointer both.
+  // approximation comes back and reads as held. CP_UTF8 rejects both that flag and the pointer.
   const BOOL utf8 = GetACP() == CP_UTF8;
   BOOL lost = FALSE;
   int n;
