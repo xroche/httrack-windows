@@ -345,13 +345,9 @@ BOOL CWinHTTrackApp::InitInstance()
     // Only reachable by typing into a dialog, so test the MBCS->UTF-8 conversion here instead.
     {
       static const WCHAR wide[] = { 'c', 'a', 'f', 0x00E9, 0 };   /* cafe-acute */
-      BOOL lost = FALSE;
-      // WideCharToMultiByte rejects a non-NULL lpUsedDefaultChar when the code page is CP_UTF8.
-      BOOL *const plost = (GetACP() == CP_UTF8) ? NULL : &lost;
       char ansi[16];
-      const int n = WideCharToMultiByte(CP_ACP, 0, wide, -1, ansi, sizeof(ansi),
-                                        NULL, plost);
-      if (n > 0 && !lost) {   /* skip where the ANSI codepage cannot hold it at all */
+      /* skip where the codepage cannot hold it exactly */
+      if (CopyTextWideToCPExact(ansi, sizeof(ansi), wide)) {
         int nchecks = 0;
         char *got = strdupt_utf8(ansi);   /* freet() nulls it, so not const */
         if (got == NULL || strcmp(got, "caf\xc3\xa9") != 0) {
