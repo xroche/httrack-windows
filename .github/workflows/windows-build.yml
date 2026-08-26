@@ -40,6 +40,23 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
+      # The first-run About names the publisher, and the verdict comes off a thread. Started
+      # after that dialog it can never arrive in time, which is how #152 shipped: the row was
+      # blank in every screenshot and nothing failed.
+      - name: The signature check starts before the first-run About
+        run: |
+          python3 - <<'EOF'
+          import sys
+          src = open('WinHTTrack/WinHTTrack.cpp', encoding='utf-8').read()
+          start, first_run = src.find('WhttSigCheckStart('), src.find('"FirstRun"')
+          if start < 0 or first_run < 0:
+              sys.exit('anchors moved: WhttSigCheckStart=%d FirstRun=%d' % (start, first_run))
+          if start > first_run:
+              sys.exit('WhttSigCheckStart runs after the first-run About, so that About can '
+                       'never show a verdict (httrack-windows#152)')
+          print('signature check starts before the first-run About')
+          EOF
+
       # The install-over-previous smoke test re-runs ONE installer, which only stands in for
       # an upgrade while the installer's identity carries no version. Assert that here, or the
       # day someone templates a version into AppName the smoke test keeps passing and real

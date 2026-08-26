@@ -1400,6 +1400,11 @@ BOOL CWinHTTrackApp::InitInstance()
   // Init Winsock
   WSockInit();
 
+  /* On a thread of its own: none of it may delay startup. OnIdle() collects the answer.
+     Before the first-run About below, which names the publisher: at the end of InitInstance
+     it could never have a verdict to name (#152). Cabout fills the row late for the rest. */
+  WhttSigCheckStart(m_pMainWnd != NULL ? m_pMainWnd->GetSafeHwnd() : NULL);
+
 	// The one and only window has been initialized, so show and update it.
 	//m_pMainWnd->ShowWindow(SW_SHOW);
 	//m_pMainWnd->UpdateWindow();
@@ -1498,10 +1503,6 @@ BOOL CWinHTTrackApp::InitInstance()
   AfxMessageBox("--WARNING--\r\n"HTTRACK_AFF_WARNING);
 #endif
 #endif
-
-  /* Last, and on a thread of its own: none of it may delay startup. OnIdle() collects
-     the answer. */
-  WhttSigCheckStart(m_pMainWnd != NULL ? m_pMainWnd->GetSafeHwnd() : NULL);
 
   return TRUE;
 }

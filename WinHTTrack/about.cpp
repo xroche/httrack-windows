@@ -56,6 +56,11 @@ extern "C" {
   #include "httrack-library.h"
 }
 
+/* The verdict lands on a background thread. Polling for it beats handing the checker a
+   window handle, since the dialog may well close first. */
+#define WHTT_SIG_POLL_TIMER 1
+#define WHTT_SIG_POLL_MS 250
+
 /////////////////////////////////////////////////////////////////////////////
 // Cabout dialog
 
@@ -91,6 +96,7 @@ BEGIN_MESSAGE_MAP(Cabout, CDialog)
 	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
+  ON_WM_TIMER()
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
   ON_COMMAND(ID_HELP,OnHelpInfo2)
 	ON_COMMAND(ID_DEFAULT_HELP,OnHelpInfo2)
@@ -138,6 +144,10 @@ BOOL Cabout::OnInitDialog()
 
   EnableToolTips(true);     // TOOL TIPS
   setlang();
+  /* The first-run About opens before the check can have finished, and a new user sees it. */
+  if (WhttSigSummary()[0] == '\0') {
+    SetTimer(WHTT_SIG_POLL_TIMER, WHTT_SIG_POLL_MS, NULL);
+  }
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);  
 
@@ -169,6 +179,20 @@ void Cabout::setlang() {
   /* Who signed this copy, in every case and not only the bad ones: naming the
      publisher is what turns a support thread into a diagnosis. */
   SetDlgItemTextCP(this, IDC_SIGSTATUS, WhttSigSummary());
+}
+
+void Cabout::OnTimer(UINT_PTR nIDEvent)
+{
+  if (nIDEvent == WHTT_SIG_POLL_TIMER) {
+    const char *const summary = WhttSigSummary();
+
+    if (summary[0] != '\0') {
+      KillTimer(WHTT_SIG_POLL_TIMER);
+      /* Setting the text repaints it, so OnCtlColor picks the verdict's colour up. */
+      SetDlgItemTextCP(this, IDC_SIGSTATUS, summary);
+    }
+  }
+  CDialog::OnTimer(nIDEvent);
 }
 
 HBRUSH Cabout::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
