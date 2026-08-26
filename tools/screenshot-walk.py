@@ -33,8 +33,8 @@ PSM_SETCURSEL = 0x0465
 TCM_GETITEMCOUNT = 0x1304
 
 PROJECT = "Demo Project"
-NEEDED = ("IDC_lang", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath", "IDC_URL",
-          "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6",
+NEEDED = ("IDC_lang", "IDC_SIGSTATUS", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath",
+          "IDC_URL", "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6",
           "IDC_connexion", "IDC_maxrate")
 
 
@@ -366,6 +366,14 @@ def run(pid, ids, shots, url, base_path, language):
     # failing on it.
     try:
         lang = wait(lambda: window_titled(pid, "About WinHTTrack"), "the language dialog", 25)
+        # Filled from a background verdict, so it lags the dialog: a blank row is #152 again.
+        sig = find(lang, control_id=ids["IDC_SIGSTATUS"])
+        try:
+            line = wait(lambda: win32gui.GetWindowText(sig), "the signature row to fill", 15)
+        except Timeout:
+            # Not a Timeout: the handler below reads one as "not a first run" and passes.
+            raise RuntimeError("the About signature row stayed empty (httrack-windows#152)")
+        print(f"  signature: {line!r}")
         shots.take(lang, "00_language_preference")
         combo = ComboBoxWrapper(find(lang, control_id=ids["IDC_lang"]))
         names = combo.item_texts()
