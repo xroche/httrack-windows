@@ -40,9 +40,8 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
-      # The first-run About names the publisher, and the verdict comes off a thread. Started
-      # after that dialog it can never arrive in time, which is how #152 shipped: the row was
-      # blank in every screenshot and nothing failed.
+      # Cheap companion to the walk's runtime check: started after that dialog, the check can
+      # never give it a verdict (#152), and nothing in the build can see that.
       - name: The signature check starts before the first-run About
         run: |
           python3 - <<'EOF'

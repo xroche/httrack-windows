@@ -1400,9 +1400,8 @@ BOOL CWinHTTrackApp::InitInstance()
   // Init Winsock
   WSockInit();
 
-  /* On a thread of its own: none of it may delay startup. OnIdle() collects the answer.
-     Before the first-run About below, which names the publisher: at the end of InitInstance
-     it could never have a verdict to name (#152). Cabout fills the row late for the rest. */
+  /* On a thread of its own: none of it may delay startup, and OnIdle() collects the answer.
+     Must precede the first-run About below, which otherwise has no verdict to show (#152). */
   WhttSigCheckStart(m_pMainWnd != NULL ? m_pMainWnd->GetSafeHwnd() : NULL);
 
 	// The one and only window has been initialized, so show and update it.

@@ -56,10 +56,9 @@ extern "C" {
   #include "httrack-library.h"
 }
 
-/* The verdict lands on a background thread. Polling for it beats handing the checker a
-   window handle, since the dialog may well close first. */
-#define WHTT_SIG_POLL_TIMER 1
-#define WHTT_SIG_POLL_MS 250
+/* Verdict lands on a background thread; poll rather than assume the dialog outlives it. */
+static const UINT_PTR WHTT_SIG_POLL_TIMER = 1;
+static const UINT WHTT_SIG_POLL_MS = 250;
 
 /////////////////////////////////////////////////////////////////////////////
 // Cabout dialog
@@ -144,7 +143,6 @@ BOOL Cabout::OnInitDialog()
 
   EnableToolTips(true);     // TOOL TIPS
   setlang();
-  /* The first-run About opens before the check can have finished, and a new user sees it. */
   if (WhttSigSummary()[0] == '\0') {
     SetTimer(WHTT_SIG_POLL_TIMER, WHTT_SIG_POLL_MS, NULL);
   }
