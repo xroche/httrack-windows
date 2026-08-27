@@ -184,6 +184,7 @@ def main():
     ver_branch = (ver[0], ver[1])
 
     accepted = {c.strip().upper() for c in args.accept.split(",") if c.strip()}
+    matched = set()
     floor = RANK[args.min_severity]
     blocking, noted = [], []
     for doc in advisories():
@@ -192,6 +193,7 @@ def main():
             continue
         cve, sev = h
         if cve.upper() in accepted:
+            matched.add(cve.upper())
             print(f"::warning::{cve} ({sev}) accepted by policy")
         # sev is None only when a matched record lacks severity where OpenSSL always
         # puts it -- an unexpected shape, so block rather than silently downgrade.
@@ -205,10 +207,21 @@ def main():
     for cve, sev in sorted(blocking):
         print(f"::error::openssl {ossl} affected by {cve} ({sev})")
 
-    if blocking:
-        sys.exit(f"{len(blocking)} advisory(ies) at or above {args.min_severity}")
+    # An ID that stops matching vanishes from the output; nothing marks the acceptance spent.
+    stale = sorted(accepted - matched)
+    for cve in stale:
+        print(f"::error::{cve} is accepted but no longer applies to openssl {ossl}; "
+              f"drop it from SECURITY_ACCEPTED_CVES")
+
+    if blocking or stale:
+        why = []
+        if blocking:
+            why.append(f"{len(blocking)} advisory(ies) at or above {args.min_severity}")
+        if stale:
+            why.append(f"{len(stale)} spent acceptance(s)")
+        sys.exit(", ".join(why))
     print(f"openssl {ossl}: clean at >= {args.min_severity} "
-          f"({len(noted)} below threshold)")
+          f"({len(noted)} below threshold, {len(matched)} accepted)")
 
 
 if __name__ == "__main__":
