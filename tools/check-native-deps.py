@@ -207,7 +207,7 @@ def main():
     for cve, sev in sorted(blocking):
         print(f"::error::openssl {ossl} affected by {cve} ({sev})")
 
-    # An ID that stops matching would otherwise just vanish, leaving the acceptance set.
+    # An ID that stops matching vanishes from the output; nothing marks the acceptance spent.
     stale = sorted(accepted - matched)
     for cve in stale:
         print(f"::error::{cve} is accepted but no longer applies to openssl {ossl}; "
