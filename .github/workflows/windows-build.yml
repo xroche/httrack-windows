@@ -40,6 +40,9 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
+      # Same reason: a spent acceptance only blocks a tagged build, so nothing else runs it.
+      - name: Advisory accept/stale cases
+        run: python3 tools/test-check-native-deps.py
       # Cheap companion to the walk's runtime check: started after that dialog, the check can
       # never give it a verdict (#152), and nothing in the build can see that.
       - name: The signature check starts before the first-run About
