@@ -118,15 +118,17 @@ jobs:
           # gh reads an empty id as "any run in the repo", so never let one through.
           if (-not $env:RUN_ID) { throw 'resolve named no build to walk' }
           gh run download $env:RUN_ID --name $env:ARTIFACT --dir app
-          # The build artifact is one arch at the top level; the signed one keeps both
-          # under payload's per-arch directories, and a Win32 shot looks identical.
+          # The build artifact is one arch, flat; the signed one keeps a directory per
+          # arch, and a wrong-arch shot is pixel-identical to a right one.
           $found = @(Get-ChildItem app -Recurse -Filter WinHTTrack.exe)
           if (-not $found) { throw "artifact $env:ARTIFACT has no WinHTTrack.exe" }
+          # The directory name, not the full path: a workspace holding "x64" matches every arch.
           $exe = if ($found.Count -eq 1) { $found[0] }
-                 else { $found | Where-Object { $_.FullName -like '*x64*' } | Select-Object -First 1 }
-          if (-not $exe) { throw "artifact $env:ARTIFACT holds $($found.Count) WinHTTrack.exe, none under an x64 path" }
+                 else { $found | Where-Object { $_.Directory.Name -like '*x64*' } | Select-Object -First 1 }
+          # An arch pair without x64 stops here rather than shooting an arbitrary one.
+          if (-not $exe) { throw "artifact $env:ARTIFACT holds $($found.Count) WinHTTrack.exe, none in an x64 directory" }
           Write-Host "walking $($exe.FullName)"
-          "exe=$($exe.FullName)" | Out-File $env:GITHUB_OUTPUT -Append
+          "exe=$($exe.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
 
       # The address shows in the wizard panes and in the mirror folder name, so the crawl
       # uses a real host. example.com is reserved for documentation (RFC 2606). The port
