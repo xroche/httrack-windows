@@ -25,6 +25,10 @@ on:
         description: 'lang/ basename to run the GUI in, e.g. Francais.'
         required: false
         default: English
+      artifact:
+        description: 'artifact to run: the build output, or httrack-signed-binaries to shoot a signed app'
+        required: false
+        default: WinHTTrack-x64-Release
 
 permissions:
   contents: read
@@ -100,17 +104,31 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The staged build artifact runs as-is (lang.def, lang/, html/, the engine DLLs
-      # and the app-local CRT), so this needs no build and no installer.
+      # and the app-local CRT), so this needs no build and no installer. The sign job's
+      # httrack-signed-binaries is the same tree signed, which is the only way to shoot
+      # an About box that names the publisher.
       - name: Fetch the built app
+        id: app
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ needs.resolve.outputs.run-id }}
+          ARTIFACT: ${{ inputs.artifact || 'WinHTTrack-x64-Release' }}
         run: |
           # gh reads an empty id as "any run in the repo", so never let one through.
           if (-not $env:RUN_ID) { throw 'resolve named no build to walk' }
-          gh run download $env:RUN_ID --name WinHTTrack-x64-Release --dir app
-          if (-not (Test-Path app\WinHTTrack.exe)) { throw 'artifact has no WinHTTrack.exe' }
+          gh run download $env:RUN_ID --name $env:ARTIFACT --dir app
+          # The build artifact is one arch, flat; the signed one keeps a directory per
+          # arch, and a wrong-arch shot is pixel-identical to a right one.
+          $found = @(Get-ChildItem app -Recurse -Filter WinHTTrack.exe)
+          if (-not $found) { throw "artifact $env:ARTIFACT has no WinHTTrack.exe" }
+          # The directory name, not the full path: a workspace holding "x64" matches every arch.
+          $exe = if ($found.Count -eq 1) { $found[0] }
+                 else { $found | Where-Object { $_.Directory.Name -like '*x64*' } | Select-Object -First 1 }
+          # An arch pair without x64 stops here rather than shooting an arbitrary one.
+          if (-not $exe) { throw "artifact $env:ARTIFACT holds $($found.Count) WinHTTrack.exe, none in an x64 directory" }
+          Write-Host "walking $($exe.FullName)"
+          "exe=$($exe.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
 
       # The address shows in the wizard panes and in the mirror folder name, so the crawl
       # uses a real host. example.com is reserved for documentation (RFC 2606). The port
@@ -124,6 +142,7 @@ jobs:
         env:
           MODE: ${{ inputs.mode }}
           LANGUAGE: ${{ inputs.language }}
+          EXE: ${{ steps.app.outputs.exe }}
         run: |
           python -m pip install --quiet pywin32 pillow pywinauto
           $script = 'screenshot-walk.py'
@@ -133,7 +152,7 @@ jobs:
           # The probe only answers whether the machine renders at all, and takes no site.
           if ($env:MODE -eq 'probe') { $script = 'screenshot-probe.py'; $site = @(); $lang = @() }
           Write-Host "running $script"
-          python "tools\$script" --exe app\WinHTTrack.exe --out shots @site @lang
+          python "tools\$script" --exe $env:EXE --out shots @site @lang
 
       - name: Upload the screens
         if: always()
