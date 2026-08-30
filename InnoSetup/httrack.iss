@@ -86,7 +86,8 @@ Name: "quicklaunchicon"; Description: "Create a &quick launch icon"; GroupDescri
 ; and lang/ and templates/. This is the same staged directory CI publishes, so what gets tested is
 ; what gets shipped. PDBs are built but not shipped, so a user crash report names no
 ; line; source.txt carries the GPL offer the src/ tree used to meet.
-Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.pdb,*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt,runtime-vendored.txt"; Flags: recursesubdirs ignoreversion
+; WinHTTrack.ini is excluded too: shipping it would make an installed copy portable.
+Source: "{#PayloadDir}\*"; DestDir: "{app}"; Excludes: "*.pdb,*.iobj,*.ipdb,*.exp,*.lib,README-artifact.txt,runtime-vendored.txt,WinHTTrack.ini"; Flags: recursesubdirs ignoreversion
 
 ; Documentation that actually exists. The old script also listed readme, copying and
 ; file_id.diz, none of which are in the tree any more.

@@ -120,7 +120,7 @@ void COptionTab8::OnCookiesFileBrowse()
 {
   // writable buffer: CFileDialog rewrites the '|' separators in place
   char szFilter[] = "Cookies file (cookies.txt, *.txt)|*.txt|All files (*.*)|*.*||";
-  CFileDialog dial(TRUE, "txt", NULL, OFN_HIDEREADONLY | OFN_FILEMUSTEXIST, szFilter);
+  CFileDialog dial(TRUE, "txt", NULL, OFN_HIDEREADONLY | WhttOfnFlags() | OFN_FILEMUSTEXIST, szFilter);
   if (dial.DoModal() == IDOK)
     SetDlgItemTextCP(this, IDC_cookiesfile, dial.GetPathName());
 }

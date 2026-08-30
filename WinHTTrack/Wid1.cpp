@@ -723,7 +723,7 @@ BOOL Wid1::OnHelpInfo(HELPINFO* dummy)
 void Wid1::OnLoadprofile() {
   static char BASED_CODE szFilter[256];
   strcpybuff(szFilter,LANG(LANG_G25 /*"WinHTTrack preferences (*.opt)|*.opt||","Réglages de WinHTTrack (*.opt)|*.opt||"*/));
-  CFileDialog* dial = new CFileDialog(true,"opt",NULL,OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,szFilter);
+  CFileDialog* dial = new CFileDialog(true,"opt",NULL,OFN_HIDEREADONLY | WhttOfnFlags() | OFN_OVERWRITEPROMPT,szFilter);
   if (dial->DoModal() == IDOK) {
     CString st=dial->GetPathName();
     char s[256];
@@ -739,7 +739,7 @@ void Wid1::OnLoadprofile() {
 void Wid1::OnSaveprofile() {
   static char BASED_CODE szFilter[256];
   strcpybuff(szFilter,LANG(LANG_G25 /*"WinHTTrack preferences (*.opt)|*.opt||","Réglages de WinHTTrack (*.opt)|*.opt||"*/));
-  CFileDialog* dial = new CFileDialog(false,"opt",NULL,OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,szFilter);
+  CFileDialog* dial = new CFileDialog(false,"opt",NULL,OFN_HIDEREADONLY | WhttOfnFlags() | OFN_OVERWRITEPROMPT,szFilter);
   if (dial->DoModal() == IDOK) {
     CString st=dial->GetPathName();
     Write_profile(st,1);
@@ -872,7 +872,7 @@ void Wid1::Onbr()
 {
   static char BASED_CODE szFilter[256];
   strcpybuff(szFilter,LANG(LANG_G25b));
-  CFileDialog* dial = new CFileDialog(true,"txt",NULL,OFN_HIDEREADONLY,szFilter);
+  CFileDialog* dial = new CFileDialog(true,"txt",NULL,OFN_HIDEREADONLY | WhttOfnFlags(),szFilter);
   if (dial->DoModal() == IDOK) {
     if (fexist((char*)LPCSTR(dial->GetPathName()))) {
       SetDlgItemTextCP(this, IDC_filelist,dial->GetPathName());

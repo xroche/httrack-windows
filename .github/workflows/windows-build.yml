@@ -59,6 +59,32 @@ jobs:
           print('signature check starts before the first-run About')
           EOF
 
+      # A file dialog missing WhttOfnFlags() leaks a shortcut into %AppData%, and
+      # --selftest cannot open one. Six today, so this catches the seventh.
+      - name: File dialogs suppress the Recent folder
+        run: |
+          python3 - <<'EOF'
+          import glob, re, sys
+          # Two forms in the tree: CFileDialog dial(...) and new CFileDialog(...).
+          built = re.compile(r'\bCFileDialog\s+\w+\s*\(([^;]*?)\)\s*;'
+                             r'|\bnew\s+CFileDialog\s*\(([^;]*?)\)\s*;', re.S)
+          bad, n = [], 0
+          for path in sorted(glob.glob('WinHTTrack/*.cpp')):
+              src = open(path, encoding='utf-8').read()
+              for m in built.finditer(src):
+                  n += 1
+                  if 'WhttOfnFlags()' not in (m.group(1) or m.group(2) or ''):
+                      bad.append('%s: %s' % (path, ' '.join(m.group(0).split())[:88]))
+          # The floor is the control: a regex that matched nothing would report every
+          # dialog clean.
+          if n < 6:
+              sys.exit('matched only %d file dialogs: this check would prove nothing' % n)
+          if bad:
+              sys.exit('a file dialog built without WhttOfnFlags() writes to the Recent '
+                       'folder:\n' + '\n'.join(bad))
+          print('%d file dialogs pass WhttOfnFlags()' % n)
+          EOF
+
       # The install-over-previous smoke test re-runs ONE installer, which only stands in for
       # an upgrade while the installer's identity carries no version. Assert that here, or the
       # day someone templates a version into AppName the smoke test keeps passing and real
@@ -725,7 +751,20 @@ jobs:
           only Windows Update can supply.
 
           httrack.exe is the command-line version, against the same libhttrack.dll.
+
+          WinHTTrack.ini makes this copy portable: settings and mirrors stay in this
+          folder, nothing is written to the registry, and .whtt is not associated.
+          Delete it to get the usual per-user settings instead.
           '@
+
+          # Set-Content, not a here-string: a section header indented by one space stops
+          # being one. The installer excludes this file.
+          Set-Content (Join-Path $bin 'WinHTTrack.ini') @(
+            '; WinHTTrack settings. This file being here is what makes this copy portable:'
+            '; nothing goes to the registry and no file type is associated. Delete it to'
+            '; go back to per-user settings under HKCU.'
+            '[Interface]'
+          )
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
 
@@ -748,6 +787,13 @@ jobs:
             Write-Host "--- selftest stdout ---`n$(Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue)"
             Write-Host "--- selftest stderr ---`n$(Get-Content "$PWD\crash-st.err" -Raw -ErrorAction SilentlyContinue)"
             throw "--selftest exited $($p.ExitCode) from the staged tree"
+          }
+          $so = Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue
+          # This tree ships WinHTTrack.ini and the installed one does not; the smoke test
+          # asserts the opposite answer, so a constant mode reds one leg.
+          if ("$so" -notmatch 'settings store ok on 4 checks \(portable ini, no association\)') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the staged tree did not run portable: it would write settings to HKCU'
           }
           if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
           $trace = Get-Content $report -Raw

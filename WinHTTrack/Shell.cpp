@@ -2563,6 +2563,69 @@ CString profile_decode(const char* from) {
 }
 //
 // Ecriture/Lecture profiles
+/* Beside the exe, with a trailing backslash; empty if the path cannot be had. */
+static CString WhttAppDir() {
+  TCHAR path[MAX_PATH + 1];
+  path[0] = '\0';
+  if (GetModuleFileName(NULL, path, sizeof(path)/sizeof(TCHAR) - 1) == 0)
+    return "";
+  CString dir = path;
+  const int pos = dir.ReverseFind('\\');
+  if (pos < 0)
+    return "";
+  return dir.Left(pos + 1);
+}
+
+/* Resolved on the first call, which InitInstance makes before touching the profile.
+   GetModuleFileName caps the directory at MAX_PATH, so the leaf always fits. */
+static TCHAR WhttPortableIniPath[MAX_PATH + 16] = { 0 };
+static int WhttPortableState = -1;   /* -1 undecided, 0 no, 1 yes */
+
+BOOL WhttPortable() {
+  if (WhttPortableState < 0) {
+    const CString dir = WhttAppDir();
+    const CString ini = dir + "WinHTTrack.ini";
+    /* The file has to exist: creating it on demand would make every unpacked copy
+       portable, including one unpacked over an installation. */
+    WhttPortableState = (dir.GetLength() != 0
+                         && GetFileAttributes(ini) != INVALID_FILE_ATTRIBUTES) ? 1 : 0;
+    if (WhttPortableState)
+      _tcscpy_s(WhttPortableIniPath, _countof(WhttPortableIniPath), ini);
+  }
+  return WhttPortableState != 0;
+}
+
+CString WhttPortableIni() {
+  WhttPortable();
+  return WhttPortableIniPath;
+}
+
+BOOL WhttPortableIniReadOnly() {
+  if (!WhttPortable())
+    return FALSE;
+  /* A write-protected stick, or a copy unpacked under Program Files, fails at the
+     handle rather than in the attributes. */
+  const HANDLE h = CreateFile(WhttPortableIniPath, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (h == INVALID_HANDLE_VALUE)
+    return TRUE;
+  CloseHandle(h);
+  return FALSE;
+}
+
+CString WhttDefaultBasePath() {
+  if (WhttPortable()) {
+    const CString dir = WhttAppDir();
+    if (dir.GetLength() != 0)
+      return dir + "Websites";
+  }
+  return LANG(LANG_S20);
+}
+
+DWORD WhttOfnFlags() {
+  return WhttPortable() ? OFN_DONTADDTORECENT : 0;
+}
+
 int MyWriteProfileInt(CString path,CString dummy,CString name,int value) {
   if (path.IsEmpty()) {
     CWinApp* pApp = AfxGetApp();
