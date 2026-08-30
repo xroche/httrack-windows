@@ -263,9 +263,8 @@ static CString UpdateUrl() {
   return st;
 }
 
-/* Whether this run registers .whtt with the shell. A portable copy never does, an
-   unpacked one does so that opening a project works, and an installed one obeys the
-   setup's file-types task. */
+/* A portable copy never registers .whtt, an unpacked one does so that opening a project
+   works, and an installed one obeys the setup's file-types task. */
 static BOOL WhttShouldAssociate() {
   CWinApp *const pApp = AfxGetApp();
   return !WhttPortable()
@@ -343,14 +342,15 @@ BOOL CWinHTTrackApp::InitInstance()
 
   WhttMutex = CreateMutex(NULL,FALSE,NULL);
 
-  /* Where the whole MFC profile lands; anything not portable keeps the HKCU key older
-     versions and the setup use. _tcsdup, not freet(): ~CWinApp free()s this pointer. */
+  /* Where the whole MFC profile lands; anything not portable keeps the HKCU key that older
+     versions and the installer use. _tcsdup, not freet(): ~CWinApp free()s this pointer. */
   if (WhttPortable()) {
     free((void*) m_pszProfileName);
     m_pszProfileName = _tcsdup(WhttPortableIni());
   } else
     SetRegistryKey("WinHTTrack Website Copier");
-  /* Silence here would look like the settings never took: nothing survives the run. */
+  /* Silence would look like the settings were never saved. Not under --selftest, which
+     has no one to dismiss a modal. */
   if (WhttPortableIniReadOnly() && !WhttSelfTest)
     AfxMessageBox("Settings cannot be saved: " + WhttPortableIni() + " is not writable.");
   LANG_INIT();    // petite init langue
@@ -1310,8 +1310,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("session end ok on %d checks\n", nchecks);
     }
-    /* Which store this run writes to is the whole of portable mode, and it is decided by
-       a file, so the suffix names the mode and the two CI legs assert opposite answers. */
+    /* Portable mode decides which store this run writes to. The two CI legs assert
+       opposite suffixes, so a mode wired to a constant reds one of them. */
     {
       int nchecks = 0;
       const BOOL portable = WhttPortable();
@@ -1332,13 +1332,14 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
-      /* The round trip is what proves the store is reachable: a portable copy on a
-         write-protected medium answers every check above and still keeps nothing. */
-      {
+      /* Portable only, on both counts: it is where an unreachable store is plausible (a
+         write-protected medium answers every check above and still keeps nothing), and
+         where the probe leaves no registry section behind. */
+      if (portable) {
         static const char *const section = "SelfTest";
         WriteProfileString(section, "store", "kept");
         const CString got = GetProfileString(section, "store");
-        /* Last: reading a deleted section would recreate its registry key. */
+        /* Deleted last: a read would put the section straight back. */
         WriteProfileString(section, NULL, NULL);
         if (got != "kept") {
           fprintf(stderr, "FATAL: the settings store kept '%s', not 'kept'\n", (LPCSTR) got);
@@ -1347,12 +1348,6 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
-      if (WhttOfnFlags() != (portable ? OFN_DONTADDTORECENT : 0)) {
-        fprintf(stderr, "FATAL: file dialogs would still write to the Recent folder\n");
-        fflush(stderr);
-        ExitProcess(3);
-      } else
-        nchecks++;
       {
         const CString base = WhttDefaultBasePath();
         const BOOL beside = (base.Right(9) == "\\Websites");
@@ -1362,6 +1357,12 @@ BOOL CWinHTTrackApp::InitInstance()
           ExitProcess(3);
         } else
           nchecks++;
+      }
+      const int want = portable ? 4 : 2;
+      if (nchecks != want) {
+        fprintf(stderr, "FATAL: settings store ran %d checks, expected %d\n", nchecks, want);
+        fflush(stderr);
+        ExitProcess(3);
       }
       /* The association block runs long after --selftest has exited, so its decision is
          reported rather than asserted; the two CI legs pin opposite answers. */
@@ -1759,7 +1760,14 @@ afx_msg void CWinHTTrackApp::OnFileNew( ) {
 }
 
 afx_msg void CWinHTTrackApp::OnFileOpen( ) {
-  this->CWinApp::OnFileOpen();
+  /* Not CWinApp::OnFileOpen(): the dialog MFC builds for it takes no flags of ours, so a
+     portable run still left a shortcut in the Recent folder. */
+  static char szFilter[256];
+  strcpybuff(szFilter,"WinHTTrack Website Copier Project (*.whtt)|*.whtt|All files (*.*)|*.*||");
+  CFileDialog dial(TRUE,"whtt",NULL,
+                   OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | WhttOfnFlags(),szFilter);
+  if (dial.DoModal() == IDOK)
+    OpenDocumentFile(dial.GetPathName());
 }
 
 void CWinHTTrackApp::OnFileSave() {
@@ -1967,8 +1975,8 @@ void CWinHTTrackApp::FwOnViewTransfers() {
     AfxMessageBox(LANG_ACTIONNYP,MB_OK);
 }
 
-/* MFC's list writes a shortcut to %AppData% and the jump list, and its entries name
-   drive letters that a stick does not keep. Portable runs get no recent files. */
+/* MFC's list writes a shortcut to %AppData% and the jump list, naming a drive letter a
+   stick does not keep. Portable runs get no recent files. */
 void CWinHTTrackApp::AddToRecentFileList(LPCTSTR lpszPathName)
 {
   if (!WhttPortable())

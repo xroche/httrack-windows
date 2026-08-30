@@ -2576,7 +2576,8 @@ static CString WhttAppDir() {
   return dir.Left(pos + 1);
 }
 
-/* Resolved on the first call, which InitInstance makes before touching the profile. */
+/* Resolved on the first call, which InitInstance makes before touching the profile.
+   GetModuleFileName caps the directory at MAX_PATH, so the leaf always fits. */
 static TCHAR WhttPortableIniPath[MAX_PATH + 16] = { 0 };
 static int WhttPortableState = -1;   /* -1 undecided, 0 no, 1 yes */
 
@@ -2587,7 +2588,6 @@ BOOL WhttPortable() {
     /* The file has to exist: creating it on demand would make every unpacked copy
        portable, including one unpacked over an installation. */
     WhttPortableState = (dir.GetLength() != 0
-                         && (size_t) ini.GetLength() < _countof(WhttPortableIniPath)
                          && GetFileAttributes(ini) != INVALID_FILE_ATTRIBUTES) ? 1 : 0;
     if (WhttPortableState)
       _tcscpy_s(WhttPortableIniPath, _countof(WhttPortableIniPath), ini);

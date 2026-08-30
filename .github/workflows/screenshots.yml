@@ -127,9 +127,6 @@ jobs:
                  else { $found | Where-Object { $_.Directory.Name -like '*x64*' } | Select-Object -First 1 }
           # An arch pair without x64 stops here rather than shooting an arbitrary one.
           if (-not $exe) { throw "artifact $env:ARTIFACT holds $($found.Count) WinHTTrack.exe, none in an x64 directory" }
-          # The artifact ships WinHTTrack.ini, which would put the shots in portable mode:
-          # a settings path and a default mirror folder no installed user ever sees.
-          Remove-Item (Join-Path $exe.Directory.FullName 'WinHTTrack.ini') -ErrorAction SilentlyContinue
           Write-Host "walking $($exe.FullName)"
           "exe=$($exe.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
 

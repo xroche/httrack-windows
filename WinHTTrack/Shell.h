@@ -239,11 +239,11 @@ CString WhttPortableIni();
 BOOL WhttPortableIniReadOnly();
 
 /* Where the New Project page points when no BasePath was ever saved. A portable run
-   keeps mirrors beside the exe, under a name kept ASCII so it survives the trip. */
+   keeps mirrors beside the exe, under a fixed name that no catalog translates. */
 CString WhttDefaultBasePath();
 
-/* OFN_DONTADDTORECENT in portable mode, else 0: every file dialog leaves a shortcut
-   in %AppData%\Microsoft\Windows\Recent otherwise. */
+/* OFN_DONTADDTORECENT in portable mode. Without it a file dialog leaves a shortcut in
+   %AppData%\Microsoft\Windows\Recent. Every dialog we build must pass it. */
 DWORD WhttOfnFlags();
 
 int MyGetProfileInt(CString path,CString dummy,CString name,int value);

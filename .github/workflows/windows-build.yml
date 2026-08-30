@@ -59,6 +59,32 @@ jobs:
           print('signature check starts before the first-run About')
           EOF
 
+      # File > Open used to reach MFC's own dialog, which takes no flags of ours, so a
+      # portable run left a shortcut in %AppData% (#159). --selftest cannot open a dialog,
+      # so a sixth one added without the flag is only catchable here.
+      - name: File dialogs suppress the Recent folder
+        run: |
+          python3 - <<'EOF'
+          import glob, re, sys
+          made = re.compile(r'\bCFileDialog\s+\w+\s*\(([^;]*?)\)\s*;'
+                            r'|\bnew\s+CFileDialog\s*\(([^;]*?)\)\s*;', re.S)
+          bad, n = [], 0
+          for path in sorted(glob.glob('WinHTTrack/*.cpp')):
+              src = open(path, encoding='utf-8').read()
+              for m in made.finditer(src):
+                  n += 1
+                  if 'WhttOfnFlags()' not in (m.group(1) or m.group(2)):
+                      bad.append('%s: %s' % (path, ' '.join(m.group(0).split())[:88]))
+          # The floor is the control: a regex that matched nothing would report every
+          # dialog clean.
+          if n < 6:
+              sys.exit('matched only %d file dialogs: this check would prove nothing' % n)
+          if bad:
+              sys.exit('a file dialog built without WhttOfnFlags() writes to the Recent '
+                       'folder:\n' + '\n'.join(bad))
+          print('%d file dialogs pass WhttOfnFlags()' % n)
+          EOF
+
       # The install-over-previous smoke test re-runs ONE installer, which only stands in for
       # an upgrade while the installer's identity carries no version. Assert that here, or the
       # day someone templates a version into AppName the smoke test keeps passing and real
@@ -731,9 +757,8 @@ jobs:
           Delete it to get the usual per-user settings instead.
           '@
 
-          # Presence is the switch: this is the copy people unzip onto a stick, so it keeps
-          # its settings and its mirrors here instead of in HKCU. The installer excludes it.
-          # Not a here-string: a section header indented by one space stops being one.
+          # Set-Content, not a here-string: a section header indented by one space stops
+          # being one. The installer excludes this file.
           Set-Content (Join-Path $bin 'WinHTTrack.ini') @(
             '; WinHTTrack settings. This file being here is what makes this copy portable:'
             '; nothing goes to the registry and no file type is associated. Delete it to'
@@ -764,10 +789,9 @@ jobs:
             throw "--selftest exited $($p.ExitCode) from the staged tree"
           }
           $so = Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue
-          # The pair that matters: this tree ships WinHTTrack.ini, the installed one does not,
-          # and the smoke test asserts the opposite answer. Either alone would pass with the
-          # mode wired to a constant.
-          if ("$so" -notmatch 'settings store ok on 5 checks \(portable ini, no association\)') {
+          # This tree ships WinHTTrack.ini and the installed one does not; the smoke test
+          # asserts the opposite answer, so a constant mode reds one leg.
+          if ("$so" -notmatch 'settings store ok on 4 checks \(portable ini, no association\)') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the staged tree did not run portable: it would write settings to HKCU'
           }
