@@ -243,7 +243,7 @@ BOOL WhttPortableIniReadOnly();
 CString WhttDefaultBasePath();
 
 /* OFN_DONTADDTORECENT in portable mode. Without it a file dialog leaves a shortcut in
-   %AppData%\Microsoft\Windows\Recent. Every dialog we build must pass it. */
+   %AppData%\Microsoft\Windows\Recent. */
 DWORD WhttOfnFlags();
 
 int MyGetProfileInt(CString path,CString dummy,CString name,int value);

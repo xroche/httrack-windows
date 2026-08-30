@@ -59,21 +59,21 @@ jobs:
           print('signature check starts before the first-run About')
           EOF
 
-      # File > Open used to reach MFC's own dialog, which takes no flags of ours, so a
-      # portable run left a shortcut in %AppData% (#159). --selftest cannot open a dialog,
-      # so a sixth one added without the flag is only catchable here.
+      # A file dialog missing WhttOfnFlags() leaks a shortcut into %AppData%, and
+      # --selftest cannot open one. Six today, so this catches the seventh.
       - name: File dialogs suppress the Recent folder
         run: |
           python3 - <<'EOF'
           import glob, re, sys
-          made = re.compile(r'\bCFileDialog\s+\w+\s*\(([^;]*?)\)\s*;'
-                            r'|\bnew\s+CFileDialog\s*\(([^;]*?)\)\s*;', re.S)
+          # Two forms in the tree: CFileDialog dial(...) and new CFileDialog(...).
+          built = re.compile(r'\bCFileDialog\s+\w+\s*\(([^;]*?)\)\s*;'
+                             r'|\bnew\s+CFileDialog\s*\(([^;]*?)\)\s*;', re.S)
           bad, n = [], 0
           for path in sorted(glob.glob('WinHTTrack/*.cpp')):
               src = open(path, encoding='utf-8').read()
-              for m in made.finditer(src):
+              for m in built.finditer(src):
                   n += 1
-                  if 'WhttOfnFlags()' not in (m.group(1) or m.group(2)):
+                  if 'WhttOfnFlags()' not in (m.group(1) or m.group(2) or ''):
                       bad.append('%s: %s' % (path, ' '.join(m.group(0).split())[:88]))
           # The floor is the control: a regex that matched nothing would report every
           # dialog clean.

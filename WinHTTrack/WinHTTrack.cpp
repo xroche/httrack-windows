@@ -1332,15 +1332,13 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
-      /* Portable only, on both counts: it is where an unreachable store is plausible (a
-         write-protected medium answers every check above and still keeps nothing), and
-         where the probe leaves no registry section behind. */
+      /* Portable only: an unreachable store would still pass every check above, and the
+         probe would otherwise leave a registry section behind. */
       if (portable) {
         static const char *const section = "SelfTest";
         WriteProfileString(section, "store", "kept");
         const CString got = GetProfileString(section, "store");
-        /* Deleted last: a read would put the section straight back. */
-        WriteProfileString(section, NULL, NULL);
+        WriteProfileString(section, NULL, NULL);   /* the probe must not stay behind */
         if (got != "kept") {
           fprintf(stderr, "FATAL: the settings store kept '%s', not 'kept'\n", (LPCSTR) got);
           fflush(stderr);
@@ -1358,6 +1356,7 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
+      /* Straight-line, so this fires on a deleted check rather than on any input. */
       const int want = portable ? 4 : 2;
       if (nchecks != want) {
         fprintf(stderr, "FATAL: settings store ran %d checks, expected %d\n", nchecks, want);
@@ -1760,14 +1759,15 @@ afx_msg void CWinHTTrackApp::OnFileNew( ) {
 }
 
 afx_msg void CWinHTTrackApp::OnFileOpen( ) {
-  /* Not CWinApp::OnFileOpen(): the dialog MFC builds for it takes no flags of ours, so a
-     portable run still left a shortcut in the Recent folder. */
+  /* Not CWinApp::OnFileOpen(): its dialog ignores WhttOfnFlags(), which portable mode
+     needs to skip the Recent folder. The rest is what MFC did, down to opening through
+     AfxGetApp() so that the same overload is picked. */
   static char szFilter[256];
   strcpybuff(szFilter,"WinHTTrack Website Copier Project (*.whtt)|*.whtt|All files (*.*)|*.*||");
   CFileDialog dial(TRUE,"whtt",NULL,
                    OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | WhttOfnFlags(),szFilter);
   if (dial.DoModal() == IDOK)
-    OpenDocumentFile(dial.GetPathName());
+    AfxGetApp()->OpenDocumentFile(dial.GetPathName());
 }
 
 void CWinHTTrackApp::OnFileSave() {
