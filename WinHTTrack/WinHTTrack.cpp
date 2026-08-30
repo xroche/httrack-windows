@@ -263,6 +263,16 @@ static CString UpdateUrl() {
   return st;
 }
 
+/* Whether this run registers .whtt with the shell. A portable copy never does, an
+   unpacked one does so that opening a project works, and an installed one obeys the
+   setup's file-types task. */
+static BOOL WhttShouldAssociate() {
+  CWinApp *const pApp = AfxGetApp();
+  return !WhttPortable()
+    && (pApp->GetProfileInt("Interface","SetupRun",0) != 1
+        || pApp->GetProfileInt("Interface","SetupHasRegistered",0) == 1);
+}
+
 BOOL CWinHTTrackApp::InitInstance()
 {
   /* Answer --version without bringing up the UI, so a smoke test can prove the
@@ -333,10 +343,16 @@ BOOL CWinHTTrackApp::InitInstance()
 
   WhttMutex = CreateMutex(NULL,FALSE,NULL);
 
-  // Change the registry key under which our settings are stored.
-  // TODO: You should modify this string to be something appropriate
-  // such as the name of your company or organization.
-  SetRegistryKey("WinHTTrack Website Copier");
+  /* Where the whole MFC profile lands; anything not portable keeps the HKCU key older
+     versions and the setup use. _tcsdup, not freet(): ~CWinApp free()s this pointer. */
+  if (WhttPortable()) {
+    free((void*) m_pszProfileName);
+    m_pszProfileName = _tcsdup(WhttPortableIni());
+  } else
+    SetRegistryKey("WinHTTrack Website Copier");
+  /* Silence here would look like the settings never took: nothing survives the run. */
+  if (WhttPortableIniReadOnly() && !WhttSelfTest)
+    AfxMessageBox("Settings cannot be saved: " + WhttPortableIni() + " is not writable.");
   LANG_INIT();    // petite init langue
 
   /* --selftest: everything that depends on the installed data files has now run
@@ -1294,6 +1310,65 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("session end ok on %d checks\n", nchecks);
     }
+    /* Which store this run writes to is the whole of portable mode, and it is decided by
+       a file, so the suffix names the mode and the two CI legs assert opposite answers. */
+    {
+      int nchecks = 0;
+      const BOOL portable = WhttPortable();
+      if ((m_pszRegistryKey != NULL) == (portable != FALSE)) {
+        fprintf(stderr, "FATAL: portable=%d yet the registry key is %s\n",
+                (int) portable, m_pszRegistryKey != NULL ? "set" : "unset");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      /* Counted only where it asserts, so the registry leg cannot borrow its number. */
+      if (portable) {
+        if (m_pszProfileName == NULL || WhttPortableIni() != m_pszProfileName) {
+          fprintf(stderr, "FATAL: settings go to '%s', not '%s'\n",
+                  m_pszProfileName != NULL ? m_pszProfileName : "(null)", (LPCSTR) WhttPortableIni());
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* The round trip is what proves the store is reachable: a portable copy on a
+         write-protected medium answers every check above and still keeps nothing. */
+      {
+        static const char *const section = "SelfTest";
+        WriteProfileString(section, "store", "kept");
+        const CString got = GetProfileString(section, "store");
+        /* Last: reading a deleted section would recreate its registry key. */
+        WriteProfileString(section, NULL, NULL);
+        if (got != "kept") {
+          fprintf(stderr, "FATAL: the settings store kept '%s', not 'kept'\n", (LPCSTR) got);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      if (WhttOfnFlags() != (portable ? OFN_DONTADDTORECENT : 0)) {
+        fprintf(stderr, "FATAL: file dialogs would still write to the Recent folder\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      {
+        const CString base = WhttDefaultBasePath();
+        const BOOL beside = (base.Right(9) == "\\Websites");
+        if (portable ? !beside : (base != LANG(LANG_S20))) {
+          fprintf(stderr, "FATAL: new projects would default to '%s'\n", (LPCSTR) base);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* The association block runs long after --selftest has exited, so its decision is
+         reported rather than asserted; the two CI legs pin opposite answers. */
+      printf("settings store ok on %d checks (%s, %s)\n", nchecks,
+             portable ? "portable ini" : "registry",
+             WhttShouldAssociate() ? "associates" : "no association");
+    }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
        report that names nothing. Only throwing proves the chain resolves. */
@@ -1428,9 +1503,7 @@ BOOL CWinHTTrackApp::InitInstance()
 
     CWinApp* pApp = AfxGetApp();
 
-    // Portable runs always associate; an installed one obeys the setup's file-types task.
-    if (pApp->GetProfileInt("Interface","SetupRun",0) != 1
-      || pApp->GetProfileInt("Interface","SetupHasRegistered",0) == 1) {
+    if (WhttShouldAssociate()) {
         HKEY phkResult;
         DWORD creResult;
 
@@ -1702,7 +1775,7 @@ void CWinHTTrackApp::OnFileDelete()
 {
   static char szFilter[256];
   strcpybuff(szFilter,"WinHTTrack Website Copier Project (*.whtt)|*.whtt||");
-  CFileDialog* dial = new CFileDialog(true,"whtt",NULL,OFN_HIDEREADONLY,szFilter);
+  CFileDialog* dial = new CFileDialog(true,"whtt",NULL,OFN_HIDEREADONLY | WhttOfnFlags(),szFilter);
   if (dial->DoModal() == IDOK) {
     CString st=dial->GetPathName();
     if (fexist((char*) LPCTSTR(st))) {
@@ -1892,6 +1965,14 @@ void CWinHTTrackApp::FwOnViewTransfers() {
     inprogress->OnViewTransfers();
   else
     AfxMessageBox(LANG_ACTIONNYP,MB_OK);
+}
+
+/* MFC's list writes a shortcut to %AppData% and the jump list, and its entries name
+   drive letters that a stick does not keep. Portable runs get no recent files. */
+void CWinHTTrackApp::AddToRecentFileList(LPCTSTR lpszPathName)
+{
+  if (!WhttPortable())
+    CWinApp::AddToRecentFileList(lpszPathName);
 }
 
 CDocument* CWinHTTrackApp::OpenDocumentFile( LPCTSTR lpszFileName)

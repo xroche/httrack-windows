@@ -204,6 +204,11 @@ runs:
         if ("$so" -notmatch 'startup ok') { throw "selftest did not report startup ok" }
         # The counts below are exact, not lower bounds: adding a case must move the number
         # here too, since a deleted one otherwise hides behind a still-positive total.
+        # The installer leaves no WinHTTrack.ini, so this is the control for the staged
+        # tree's portable run: a mode wired to a constant fails one of the two.
+        if ("$so" -notmatch 'settings store ok on 4 checks \(registry, associates\)') {
+          throw "an installed copy did not keep its settings in the registry"
+        }
         # The MBCS->UTF-8 conversion the engine depends on is only reachable by typing into
         # a dialog. --selftest exercises it; assert it actually RAN, or the check silently
         # skips (its ANSI-codepage guard) and proves nothing.

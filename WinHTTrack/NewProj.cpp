@@ -287,7 +287,7 @@ BOOL CNewProj::OnInitDialog()
     if (st != "")
       SetDlgItemTextCP(this, IDC_projpath,st);    
     else
-      SetDlgItemTextCP(this, IDC_projpath,LANG(LANG_S20));    
+      SetDlgItemTextCP(this, IDC_projpath,WhttDefaultBasePath());    
   }
 
   return TRUE;

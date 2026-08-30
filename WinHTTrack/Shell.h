@@ -227,6 +227,25 @@ WhttMirrorStop SessionEndStop(BOOL bEnding);
 // profile
 int Save_current_profile(int ask);
 //
+/* A run is portable when WinHTTrack.ini sits next to the exe: settings go to that file
+   instead of HKCU, and nothing is registered machine-side. Decided before the first read. */
+BOOL WhttPortable();
+
+/* The full path of that file, empty when this run is not portable. */
+CString WhttPortableIni();
+
+/* TRUE when the settings file cannot be written, so nothing the user changes will
+   survive the run. Only meaningful in portable mode. */
+BOOL WhttPortableIniReadOnly();
+
+/* Where the New Project page points when no BasePath was ever saved. A portable run
+   keeps mirrors beside the exe, under a name kept ASCII so it survives the trip. */
+CString WhttDefaultBasePath();
+
+/* OFN_DONTADDTORECENT in portable mode, else 0: every file dialog leaves a shortcut
+   in %AppData%\Microsoft\Windows\Recent otherwise. */
+DWORD WhttOfnFlags();
+
 int MyGetProfileInt(CString path,CString dummy,CString name,int value);
 int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 int MyWriteProfileString(CString path,CString dummy,CString name,CString value);

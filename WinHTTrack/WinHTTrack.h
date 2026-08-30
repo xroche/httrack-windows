@@ -133,6 +133,8 @@ private:
   afx_msg void OnEndMirror();
   //
   virtual CDocument* OpenDocumentFile( LPCTSTR lpszFileName);
+  // Suppressed in portable mode: see Shell.h.
+  virtual void AddToRecentFileList(LPCTSTR lpszPathName);
   DECLARE_MESSAGE_MAP()
 };
 
