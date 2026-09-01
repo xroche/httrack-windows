@@ -1,39 +1,48 @@
-# CI already validates every bump dependabot opens here, so auto-merge only saves the manual click.
+# CI already validates every bump dependabot opens here, so auto-merge only saves the click.
 name: Dependabot auto-merge
 
-# pull_request_target, because a dependabot pull_request gets a read-only token.
-# Nothing from the PR is checked out or run, so the writable token stays safe.
+# Runs on pull_request_target because a dependabot pull_request gets a read-only token.
+# Nothing from the PR is checked out or run.
 on: pull_request_target
 
-# Keyed on the PR, not on github.ref: a pull_request_target run reports the base
-# branch, so one group per branch lets a second dependabot PR cancel the first's
-# arming job and leave it silently unarmed.
+# Keyed on the PR, because github.ref is the base branch here and one group per
+# branch lets a second PR cancel the first's arming run.
 concurrency:
   group: dependabot-automerge-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
-  # Both writes are what enabling auto-merge costs: the API call needs the pull
-  # request scope, and the merge it queues needs the contents one.
+  # Auto-merge needs pull-requests to arm it and contents for the merge it queues.
   contents: write
   pull-requests: write
 
 jobs:
   automerge:
     name: Arm auto-merge
-    # vcpkg only. The github_actions ecosystem exists here to rewrite the SHA pins in
-    # windows-build.yml, and three of those actions run inside the sign job with the
-    # Certum seed in scope, so merging one unread gives back what pinning buys. Master
-    # requires no approving review, so nothing else would read it either.
+    # Author, not github.actor, which is whoever sent the event: dependabot pushing to a
+    # fork's branch makes the actor dependabot on somebody else's pull request. The head
+    # repo must be ours too, because dependabot branches here are never forks.
+    #
+    # vcpkg only, because github_actions bumps rewrite windows-build.yml, whose sign job
+    # runs those actions with the Certum seed in scope.
     if: >-
       github.repository == 'xroche/httrack-windows'
-      && github.actor == 'dependabot[bot]'
-      && startsWith(github.head_ref, 'dependabot/vcpkg/')
+      && github.event.pull_request.user.login == 'dependabot[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.event.pull_request.head.ref, 'dependabot/vcpkg/')
     runs-on: ubuntu-24.04
     steps:
-      # Dependabot's body is a release-notes dump, so give the squash commit a body of its own.
+      # The branch name says which ecosystem, this says which files, so a vcpkg PR that
+      # reaches outside its manifest waits for a human.
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash --subject "$PR_TITLE (#$PR_NUMBER)" --body "" "$PR_URL"
+        run: |
+          files=$(gh pr view "$PR_URL" --json files --jq '.files[].path')
+          if [ "$files" != "WinHTTrack/vcpkg.json" ]; then
+            echo "Not arming, because the PR touches more than the vcpkg manifest:"
+            printf '%s\n' "$files"
+            exit 0
+          fi
+          gh pr merge --auto --squash --subject "$PR_TITLE (#$PR_NUMBER)" --body "" "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_TITLE: ${{ github.event.pull_request.title }}
