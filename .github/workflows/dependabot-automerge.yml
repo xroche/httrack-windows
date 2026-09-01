@@ -32,14 +32,15 @@ jobs:
       && startsWith(github.event.pull_request.head.ref, 'dependabot/vcpkg/')
     runs-on: ubuntu-24.04
     steps:
-      # The branch name says which ecosystem, this says which files, so a vcpkg PR that
-      # reaches outside its manifest waits for a human.
+      # The branch name says which ecosystem, this says which files. A PR that reaches
+      # outside the manifest waits for a human, and gives back any arm it already had.
       - name: Enable auto-merge
         run: |
           files=$(gh pr view "$PR_URL" --json files --jq '.files[].path')
           if [ "$files" != "WinHTTrack/vcpkg.json" ]; then
             echo "Not arming, because the PR touches more than the vcpkg manifest:"
             printf '%s\n' "$files"
+            gh pr merge --disable-auto "$PR_URL" || true
             exit 0
           fi
           gh pr merge --auto --squash --subject "$PR_TITLE (#$PR_NUMBER)" --body "" "$PR_URL"
