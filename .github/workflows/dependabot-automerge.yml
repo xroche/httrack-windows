@@ -1,0 +1,51 @@
+# CI already validates every bump dependabot opens here, so auto-merge only saves the click.
+name: Dependabot auto-merge
+
+# Runs on pull_request_target because a dependabot pull_request gets a read-only token.
+# Nothing from the PR is checked out or run.
+on: pull_request_target
+
+# Keyed on the PR, because github.ref is the base branch here and one group per
+# branch lets a second PR cancel the first's arming run.
+concurrency:
+  group: dependabot-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  # Auto-merge needs pull-requests to arm it and contents for the merge it queues.
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: Arm auto-merge
+    # Author, not github.actor, which is whoever sent the event: dependabot pushing to a
+    # fork's branch makes the actor dependabot on somebody else's pull request. The head
+    # repo must be ours too, because dependabot branches here are never forks.
+    #
+    # vcpkg only, because github_actions bumps rewrite windows-build.yml, whose sign job
+    # runs those actions with the Certum seed in scope.
+    if: >-
+      github.repository == 'xroche/httrack-windows'
+      && github.event.pull_request.user.login == 'dependabot[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.event.pull_request.head.ref, 'dependabot/vcpkg/')
+    runs-on: ubuntu-24.04
+    steps:
+      # The branch name says which ecosystem, this says which files. A PR that reaches
+      # outside the manifest waits for a human, and gives back any arm it already had.
+      - name: Enable auto-merge
+        run: |
+          files=$(gh pr view "$PR_URL" --json files --jq '.files[].path')
+          if [ "$files" != "WinHTTrack/vcpkg.json" ]; then
+            echo "Not arming, because the PR touches more than the vcpkg manifest:"
+            printf '%s\n' "$files"
+            gh pr merge --disable-auto "$PR_URL" || true
+            exit 0
+          fi
+          gh pr merge --auto --squash --subject "$PR_TITLE (#$PR_NUMBER)" --body "" "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
