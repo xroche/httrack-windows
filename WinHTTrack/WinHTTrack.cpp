@@ -1243,9 +1243,10 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
 
       termine = 0;                 /* and one that is still running */
-      /* state.stop is what hts_request_stop() sets; nothing exported reads it back. */
+      /* state.stop and exit_xh are what hts_request_stop() sets; nothing exported
+         reads either back. */
       if (SessionEndStop(FALSE) != WHTT_STOP_NOT_ENDING || soft_term_requested
-          || global_opt->state.stop) {
+          || global_opt->state.stop || global_opt->state.exit_xh) {
         fprintf(stderr, "FATAL: a FALSE session-end flag asked the mirror to stop\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1256,6 +1257,15 @@ BOOL CWinHTTrackApp::InitInstance()
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED || !soft_term_requested
           || !global_opt->state.stop || GetTickCount() - t0 > 1000) {
         fprintf(stderr, "FATAL: session end did not ask the running mirror to stop, or waited\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      /* 1, not merely non-zero: -1 would mean an engine fatal and report MIRROR ABORTED. */
+      if (global_opt->state.exit_xh != 1) {
+        fprintf(stderr, "FATAL: the stop left exit_xh at %d, so the engine erases the resume data\n",
+                global_opt->state.exit_xh);
         fflush(stderr);
         ExitProcess(3);
       } else
@@ -1303,8 +1313,8 @@ BOOL CWinHTTrackApp::InitInstance()
       global_opt = NULL;
       termine = soft_term_requested = 0;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 7) {
-        fprintf(stderr, "FATAL: session end ran %d checks, expected 7\n", nchecks);
+      if (nchecks != 8) {
+        fprintf(stderr, "FATAL: session end ran %d checks, expected 8\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
