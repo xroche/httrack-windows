@@ -41,7 +41,11 @@ jobs:
       - name: Check the pinned OpenSSL against the advisory feed
         id: cve
         continue-on-error: true
-        run: python3 tools/check-native-deps.py --openssl-version "$OPENSSL" --min-severity moderate
+        env:
+          ACCEPTED: ${{ vars.SECURITY_ACCEPTED_CVES }}
+        run: |
+          python3 tools/check-native-deps.py --openssl-version "$OPENSSL" \
+            --min-severity moderate --accept "$ACCEPTED"
 
       - name: Open or update the tracking issue
         if: steps.drift.outputs.drift == 'yes' || steps.cve.outcome == 'failure'
@@ -50,6 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           title="Native dependency drift"
+          gh label create security --color d93f0b --description "Advisory or dependency exposure" --force
           existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' || true)
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body-file drift.txt
