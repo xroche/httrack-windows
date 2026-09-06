@@ -485,7 +485,11 @@ void Wid1::AfterChangepathlog()
             && (fexist(fconcat(catbuff,sizeof(catbuff),tempo,"hts-cache/new.ndx")))
             ) {  // il existe déja un cache précédent.. renommer
             if (modify) {
-              if (!fexist(fconcat(catbuff,sizeof(catbuff),tempo,"hts-in_progress.lock")))
+              if (
+                (!fexist(fconcat(catbuff,sizeof(catbuff),tempo,"hts-in_progress.lock")))
+                &&
+                (!fexist(fconcat(catbuff,sizeof(catbuff),tempo,"hts-cache/interrupted.lock")))
+                )
                 m_ctl_todo.SetCurSel(LAST_ACTION);
               else
                 m_ctl_todo.SetCurSel(LAST_ACTION-1);
