@@ -58,7 +58,7 @@ jobs:
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body-file drift.txt
           else
-            # Label it after filing, never during: gh drops the whole issue if the label is missing.
+            # gh drops the whole issue when the label is missing, so label after filing.
             url=$(gh issue create --title "$title" --body-file drift.txt)
             gh issue edit "$url" --add-label security || true
           fi
