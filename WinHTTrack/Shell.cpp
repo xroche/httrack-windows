@@ -288,7 +288,9 @@ WhttMirrorStop RequestMirrorStop() {
     return WHTT_STOP_ABORTED;
   }
   soft_term_requested=1;
-  hts_request_stop(global_opt, 0);
+  /* keep_resume: a mirror the user stopped is meant to be continued, unlike one
+     that ran out of links. */
+  hts_request_stop(global_opt, 1);
   return WHTT_STOP_ASKED;
 }
 
