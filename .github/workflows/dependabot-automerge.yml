@@ -45,9 +45,11 @@ jobs:
             gh pr merge --disable-auto "$PR_URL" || true
             exit 0
           fi
-          # An unattended merge hands any open human PR on this file a conflict.
+          # An unattended merge hands any open human PR on this file a conflict. Match on
+          # is_bot, because gh spells this author "app/dependabot", not "dependabot[bot]".
           held=$(gh pr list --state open --limit 100 --json number,author,files --jq '[.[]
-            | select(.author.login != "dependabot[bot]")
+            | select(.number != (env.PR_NUMBER | tonumber))
+            | select(.author.is_bot | not)
             | select(any(.files[].path; . == "WinHTTrack/vcpkg.json"))
             | "#\(.number)"] | join(" ")')
           if [ -n "$held" ]; then

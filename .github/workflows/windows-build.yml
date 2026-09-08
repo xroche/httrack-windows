@@ -848,12 +848,12 @@ jobs:
       # vcpkg is invisible to Dependabot alerts, CodeQL and the dependency graph, so
       # this is the only thing between a stale OpenSSL and a signed installer. Advisory
       # on a pull request, fatal on master and on tags. The engine tree is what ships
-      # (the GUI imports neither library); the GUI tree is scanned too and cross-checked
+      # (the GUI imports neither library). The GUI tree is scanned too and cross-checked
       # against its pin.
       - name: Check shipped native dependencies for advisories
         shell: pwsh
         # An author cannot fix an advisory published while their PR is open, but a red
-        # master is seen long before release day. push here is master and tags only.
+        # master is seen long before release day. push fires only for master and tags.
         continue-on-error: ${{ github.event_name == 'pull_request' }}
         env:
           ACCEPTED: ${{ vars.SECURITY_ACCEPTED_CVES }}
