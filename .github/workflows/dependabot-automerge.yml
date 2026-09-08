@@ -36,6 +36,8 @@ jobs:
       # outside the manifest waits for a human, and gives back any arm it already had.
       - name: Enable auto-merge
         run: |
+          # Fail closed: a failed lookup below must not fall through to arming.
+          set -euo pipefail
           files=$(gh pr view "$PR_URL" --json files --jq '.files[].path')
           if [ "$files" != "WinHTTrack/vcpkg.json" ]; then
             echo "Not arming, because the PR touches more than the vcpkg manifest:"
@@ -43,8 +45,19 @@ jobs:
             gh pr merge --disable-auto "$PR_URL" || true
             exit 0
           fi
+          # An unattended merge hands any open human PR on this file a conflict.
+          held=$(gh pr list --state open --limit 100 --json number,author,files --jq '[.[]
+            | select(.author.login != "dependabot[bot]")
+            | select(any(.files[].path; . == "WinHTTrack/vcpkg.json"))
+            | "#\(.number)"] | join(" ")')
+          if [ -n "$held" ]; then
+            echo "Not arming, because these open PRs touch the same manifest: $held"
+            gh pr merge --disable-auto "$PR_URL" || true
+            exit 0
+          fi
           gh pr merge --auto --squash --subject "$PR_TITLE (#$PR_NUMBER)" --body "" "$PR_URL"
         env:
+          GH_REPO: ${{ github.repository }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
