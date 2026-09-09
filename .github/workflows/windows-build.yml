@@ -43,6 +43,10 @@ jobs:
       # Same reason: a spent acceptance only blocks a tagged build, so nothing else runs it.
       - name: Advisory accept/stale cases
         run: python3 tools/test-check-native-deps.py
+      # Both guards are config, so nothing else runs them. The arm gate needs a
+      # dependabot event, and the CVE gate needs a push.
+      - name: Auto-merge and CVE gate cases
+        run: python3 tools/test-automerge-gate.py
       # Cheap companion to the walk's runtime check: started after that dialog, the check can
       # never give it a verdict (#152), and nothing in the build can see that.
       - name: The signature check starts before the first-run About
