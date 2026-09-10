@@ -306,6 +306,9 @@ runs:
         if ("$so" -notmatch 'session end ok on 8 checks') {
           throw "selftest did not check the session-end stop"
         }
+        if ("$so" -notmatch 'end-of-mirror panel ok on 7 checks') {
+          throw "selftest did not check the end-of-mirror panel"
+        }
 
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
         # ran and caught the throw stack; the build job checks resolution against staged.

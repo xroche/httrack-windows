@@ -1320,6 +1320,39 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("session end ok on %d checks\n", nchecks);
     }
+    /* No mirror runs under --selftest, so the panel decision is pinned here. */
+    {
+      static const struct { int result; hts_tristate completed; WhttEndMirrorPanel want; } panels[] = {
+        { 0, HTS_TRUE, WHTT_END_FINISHED },
+        { 0, HTS_FALSE, WHTT_END_STOPPED },
+        /* No mirror ran, so nothing was stopped. */
+        { 0, HTS_DEFAULT, WHTT_END_FINISHED },
+        /* A non-zero return outranks the verdict. */
+        { 1, HTS_TRUE, WHTT_END_ERROR },
+        { 1, HTS_FALSE, WHTT_END_ERROR },
+        { 1, HTS_DEFAULT, WHTT_END_ERROR },
+        { -100, HTS_FALSE, WHTT_END_ERROR },   /* the SEH filter's own code */
+        { 0, (hts_tristate) 0, (WhttEndMirrorPanel) -1 }
+      };
+      int nchecks = 0;
+      for(int k=0 ; panels[k].want != (WhttEndMirrorPanel) -1 ; k++) {
+        const WhttEndMirrorPanel got = EndMirrorPanelFor(panels[k].result, panels[k].completed);
+        if (got != panels[k].want) {
+          fprintf(stderr, "FATAL: result %d verdict %d chose panel %d, expected %d\n",
+                  panels[k].result, (int) panels[k].completed, (int) got, (int) panels[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
+      if (nchecks != 7) {
+        fprintf(stderr, "FATAL: end-of-mirror panel ran %d checks, expected 7\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("end-of-mirror panel ok on %d checks\n", nchecks);
+    }
     /* Portable mode decides which store this run writes to. The two CI legs assert
        opposite suffixes, so a mode wired to a constant reds one of them. */
     {
