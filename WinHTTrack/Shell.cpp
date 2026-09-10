@@ -2429,7 +2429,7 @@ void lance(void) {
       strcatbuff(end_mirror_msg,"\"");
       strcatbuff(end_mirror_msg,LANG(LANG_F21 /*"\nSee the log file if necessary.\n\nClick OK to quit WinHTTrack.\n\nThanks for using WinHTTrack!","\nVoir le fichier log au besoin\n\nCliquez sur OK pour quitter WinHTTrack\n\nMerci d'utiliser WinHTTrack."*/));
       //AfxMessageBox(s,MB_OK+MB_ICONINFORMATION);
-    } else if (global_opt != NULL   /* no opt means no mirror ran */
+    } else if (global_opt != NULL   /* nothing joins this thread, so the UI can clear it (#173) */
                && isMirrorCutShort(hts_mirror_completed(global_opt))) {
       strcpybuff(end_mirror_msg,LANG(LANG_F22s /*"Mirroring operation stopped before the end.\nThe files already downloaded are kept.\nSee log file(s) if necessary.\n\nThanks for using WinHTTrack!"*/));
     } else {

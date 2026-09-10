@@ -1337,8 +1337,8 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
-      /* A key no catalog carries reads empty, so the panel would be blank with CI green. */
-      if (LANGSEL("LANG_F22s")[0] == '\0') {
+      /* A missing key reads empty, so the panel would be blank with CI green. */
+      if (LANG_F22s[0] == '\0') {
         fprintf(stderr, "FATAL: LANG_F22s is missing from the language files\n");
         fflush(stderr);
         ExitProcess(3);
@@ -1346,11 +1346,11 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
       if (nchecks != 4) {
-        fprintf(stderr, "FATAL: end-of-mirror panel ran %d checks, expected 4\n", nchecks);
+        fprintf(stderr, "FATAL: end-of-mirror verdict ran %d checks, expected 4\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
-      printf("end-of-mirror panel ok on %d checks\n", nchecks);
+      printf("end-of-mirror verdict ok on %d checks\n", nchecks);
     }
     /* Portable mode decides which store this run writes to. The two CI legs assert
        opposite suffixes, so a mode wired to a constant reds one of them. */

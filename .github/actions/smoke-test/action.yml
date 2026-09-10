@@ -306,8 +306,9 @@ runs:
         if ("$so" -notmatch 'session end ok on 8 checks') {
           throw "selftest did not check the session-end stop"
         }
-        if ("$so" -notmatch 'end-of-mirror panel ok on 4 checks') {
-          throw "selftest did not check the end-of-mirror panel"
+        # No mirror runs under --selftest, so this count is the only proof the verdict maps right.
+        if ("$so" -notmatch 'end-of-mirror verdict ok on 4 checks') {
+          throw "selftest did not check the end-of-mirror verdict"
         }
 
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
