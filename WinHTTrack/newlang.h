@@ -37,6 +37,9 @@ void LANG_INIT();
 int LANG_INDEX_OF(const char* tag);
 int LANG_T(int);
 int QLANG_T(int l);
+/* Spell the Nth lookup key for an English text that keys several entries: n=0 leaves it
+   alone, n=1 appends "1". Writes into base at baselen; FALSE means it did not fit. */
+BOOL LANG_DUPKEY(char* base, size_t baselen, int n, size_t size);
 //char* LANGSEL(char* lang0,...);
 /* Set by --selftest (WinHTTrack.cpp): report fatals on stderr and exit non-zero
    instead of raising a message box nobody can click. */

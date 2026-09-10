@@ -231,6 +231,11 @@ runs:
         if ("$so" -notmatch 'help URLs ok on 5 checks') {
           throw "selftest did not check the help URLs"
         }
+        # Pinned exactly: the numbering maps the Nth duplicate line to the Nth lang.def entry,
+        # so a check that quietly stops running would hide a string landing on the wrong control.
+        if ("$so" -notmatch 'duplicate key numbering ok on 5 checks') {
+          throw "selftest did not check the duplicate key numbering"
+        }
         # Guards the empty-name terminator (newlang.h); losing it hangs the first-run About
         # box. The only count left loose: it is the size of the engine's lang.def, so pinning
         # it would turn an engine translation into a red build here.

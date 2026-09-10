@@ -420,6 +420,38 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("help URLs ok on %d checks\n", nchecks);
     }
+    /* 27 English texts key more than one entry, and the Nth line resolves through the Nth
+       spelling of that text. Getting the numbering wrong maps a string onto another control. */
+    {
+      static const struct { int n; const char* want; } dupes[] = {
+        { 0, "Exit" }, { 1, "Exit1" }, { 2, "Exit2" }, { 12, "Exit12" }, { -1, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; dupes[k].want != NULL ; k++) {
+        char key[32];
+        strcpybuff(key, "Exit");
+        if (!LANG_DUPKEY(key, strlen("Exit"), dupes[k].n, sizeof(key))
+            || strcmp(key, dupes[k].want) != 0) {
+          fprintf(stderr, "FATAL: duplicate key %d of 'Exit' is '%s', expected '%s'\n",
+                  dupes[k].n, key, dupes[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* Refused rather than truncated: a truncated suffix collides with another entry's key. */
+      {
+        char tight[6];
+        strcpybuff(tight, "Exit");
+        if (LANG_DUPKEY(tight, strlen("Exit"), 123456, sizeof(tight))) {
+          fprintf(stderr, "FATAL: duplicate key accepted a number it could not spell: '%s'\n", tight);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("duplicate key numbering ok on %d checks\n", nchecks);
+    }
     /* Only reachable by typing into the Experts page, so pin the rule splitter here:
        a rule the engine cannot parse aborts the whole mirror. */
     {

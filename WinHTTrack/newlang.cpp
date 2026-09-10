@@ -243,6 +243,19 @@ static CString LANG_DATAFILE(const char* relative) {
   return name;
 }
 
+/* Duplicate English texts share one lookup key, so the Nth is spelled "text", "text1", "text2".
+   Returns FALSE when the number does not fit, which must skip the entry rather than truncate it
+   into a neighbour's key. */
+BOOL LANG_DUPKEY(char* base, size_t baselen, int n, size_t size) {
+  if (base == NULL || baselen >= size)
+    return FALSE;
+  if (n <= 0) {
+    base[baselen] = '\0';
+    return TRUE;
+  }
+  return _snprintf_s(base + baselen, size - baselen, _TRUNCATE, "%d", n) >= 0;
+}
+
 /* The engine's UTF-8 converter substitutes U+FFFD rather than refusing, so a catalog
    still in its legacy charset would silently render as '?'. Gate on real UTF-8. */
 static BOOL IsValidUTF8(const char* s, int len) {
@@ -480,20 +493,18 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
         linput_cpp(fp,intkey,8000);
         linput_cpp(fp,key,8000);
         if (strnotempty(intkey) && strnotempty(key)) {
+          const size_t keylen=strlen(key);
           const char* test=LANGINTKEY(key);
+          BOOL ok=TRUE;
+          int dup=0;
 
-          /* Increment for multiple definitions */
-          if (strnotempty(test)) {
-            int increment=0;
-            size_t pos = strlen(key);
-            do {
-              increment++;
-              sprintf(key+pos,"%d",increment);
-              test=LANGINTKEY(key);
-            }  while (strnotempty(test));
+          /* Walk to the first unused slot: the same English text can define several entries. */
+          while (ok && strnotempty(test)) {
+            ok=LANG_DUPKEY(key,keylen,++dup,sizeof(key));
+            test = ok ? LANGINTKEY(key) : "";
           }
 
-          if (!strnotempty(test)) {         // éviter doublons
+          if (ok && !strnotempty(test)) {         // éviter doublons
             // conv_printf(key,key);
             size_t len;
             char* buff;
@@ -600,31 +611,23 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
             intkey=LANGINTKEY(extkey);
             
             if (strnotempty(intkey)) {
-              
-              /* Increment for multiple definitions */
-              {
-                const char* test=LANGSEL(intkey);
-                if (strnotempty(test)) {
-                  if (loops == 0) {
-                    int increment=0;
-                    size_t pos=strlen(extkey);
-                    do {
-                      increment++;
-                      sprintf(extkey+pos,"%d",increment);
-                      intkey=LANGINTKEY(extkey);
-                      if (strnotempty(intkey))
-                        test=LANGSEL(intkey);
-                      else
-                        test="";
-                    }  while (strnotempty(test));
-                  } else
-                    intkey="";
-                } else {
-                  if (loops > 0) {
-                    err_msg += intkey;
-                    err_msg += " ";
-                  }
-                }
+              const size_t extlen=strlen(extkey);
+              const char* test=LANGSEL(intkey);
+              BOOL ok=TRUE;
+              int dup=0;
+
+              /* Nothing filled it yet, so on the English pass only English defines it. */
+              if (loops > 0 && !strnotempty(test)) {
+                err_msg += intkey;
+                err_msg += " ";
+              }
+
+              /* Walk to the first unfilled slot. The English pass has to walk too: stopping at a
+                 filled first slot leaves every later duplicate without its English fallback. */
+              while (ok && strnotempty(test)) {
+                ok=LANG_DUPKEY(extkey,extlen,++dup,sizeof(extkey));
+                intkey = ok ? LANGINTKEY(extkey) : "";
+                test = strnotempty(intkey) ? LANGSEL(intkey) : "";
               }
               
               /* Add key */
