@@ -1111,9 +1111,6 @@ BOOL Cinprogress::DestroyWindow()
 // Fin
 
 LRESULT Cinprogress::OnEndMirror(WPARAM /* wP*/, LPARAM /*lP*/) {
-	char catbuff[CATBUFF_SIZE];
-	char catbuff2[CATBUFF_SIZE];
-
   // A panel open mid-mirror (Options, View transfers) runs a nested modal loop on
   // this thread; tearing the view down now would free it under a live DoModal().
   // Close it and re-post so teardown runs only after that loop has unwound.
@@ -1150,47 +1147,8 @@ LRESULT Cinprogress::OnEndMirror(WPARAM /* wP*/, LPARAM /*lP*/) {
   if (IsWindow(this_Cinfoend->m_hWnd))
     SetDlgItemTextCP(this_Cinfoend, IDC_infoend,end_mirror_msg);
 
-  if (hts_is_exiting(global_opt) == 1) {     /* Interrupted mirror! */
-    char pathlog[HTS_URLMAXSIZE*2];
-    strcpybuff(pathlog,dialog0->GetPath());
-    if (strlen(pathlog)>0) {
-      if ((pathlog[strlen(pathlog)-1]!='/') && (pathlog[strlen(pathlog)-1]!='\\'))
-        strcatbuff(pathlog,"/");
-    }
-    // Aborted updated.. restore old cache?!
-    if ( 
-      fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.zip"))
-      ||
-      (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.dat")))
-      && (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.ndx"))) 
-      ) {
-      if (AfxMessageBox(LANG_F22b,MB_YESNO|MB_DEFBUTTON2) == IDYES) {
-        if (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.dat"))
-          && fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.ndx"))) {
-          if (remove(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/new.dat"))) {
-            AfxMessageBox(LANG_F24 );
-          }
-          if (remove(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/new.ndx"))) {
-            AfxMessageBox(LANG_F24 );
-          }
-        }
-        if (remove(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/new.lst"))) {
-          AfxMessageBox(LANG_F24 );
-        }
-        if (fexist(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.zip"))) {
-          if (remove(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/new.zip"))) {
-            AfxMessageBox(LANG_F24 );
-          }
-        }
-        remove(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/new.txt"));
-        rename(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.zip"),fconcat(catbuff2,sizeof(catbuff2),pathlog,"hts-cache/new.zip"));
-        rename(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.dat"),fconcat(catbuff2,sizeof(catbuff2),pathlog,"hts-cache/new.dat"));
-        rename(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.ndx"),fconcat(catbuff2,sizeof(catbuff2),pathlog,"hts-cache/new.ndx"));
-        rename(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.lst"),fconcat(catbuff2,sizeof(catbuff2),pathlog,"hts-cache/new.lst"));
-        rename(fconcat(catbuff,sizeof(catbuff),pathlog,"hts-cache/old.txt"),fconcat(catbuff2,sizeof(catbuff2),pathlog,"hts-cache/new.txt"));
-      }
-    }
-  } else if (hts_is_exiting(global_opt) == 2) {     /* No connection! */
+  /* The engine reconciles the cache generations at abort since #1636; deleting new.* here broke resume. */
+  if (hts_is_exiting(global_opt) == 2) {     /* No connection! */
     AfxMessageBox(LANG_F22c );
   }
   return S_OK;
