@@ -2011,11 +2011,9 @@ BOOL isSingleFileMaxArgument(const CString &value) {
 }
 
 // see Shell.h
-WhttEndMirrorPanel EndMirrorPanelFor(int result, hts_tristate completed) {
-  if (result)
-    return WHTT_END_ERROR;
+BOOL isMirrorCutShort(hts_tristate completed) {
   /* HTS_DEFAULT is -1, so only an explicit HTS_FALSE means the mirror was cut short. */
-  return completed == HTS_FALSE ? WHTT_END_STOPPED : WHTT_END_FINISHED;
+  return completed == HTS_FALSE;
 }
 
 // see Shell.h
@@ -2415,10 +2413,7 @@ void lance(void) {
     }
     //
     /* New pannel */
-    /* No opt means no mirror ran, which is what HTS_DEFAULT says. */
-    const WhttEndMirrorPanel panel = EndMirrorPanelFor(result,
-        global_opt != NULL ? hts_mirror_completed(global_opt) : HTS_DEFAULT);
-    if (panel == WHTT_END_ERROR) {      // erreur?
+    if (result) {      // erreur?
       strcpybuff(end_mirror_msg,LANG(LANG_F19 /*"A problem occured during the mirror\n  \"","Un problème est survenu pendant le miroir\n  \""*/));
       strcatbuff(end_mirror_msg,"\"");
       if (result != -100) {
@@ -2434,7 +2429,8 @@ void lance(void) {
       strcatbuff(end_mirror_msg,"\"");
       strcatbuff(end_mirror_msg,LANG(LANG_F21 /*"\nSee the log file if necessary.\n\nClick OK to quit WinHTTrack.\n\nThanks for using WinHTTrack!","\nVoir le fichier log au besoin\n\nCliquez sur OK pour quitter WinHTTrack\n\nMerci d'utiliser WinHTTrack."*/));
       //AfxMessageBox(s,MB_OK+MB_ICONINFORMATION);
-    } else if (panel == WHTT_END_STOPPED) {
+    } else if (global_opt != NULL   /* no opt means no mirror ran */
+               && isMirrorCutShort(hts_mirror_completed(global_opt))) {
       strcpybuff(end_mirror_msg,LANG(LANG_F22s /*"Mirroring operation stopped before the end.\nThe files already downloaded are kept.\nSee log file(s) if necessary.\n\nThanks for using WinHTTrack!"*/));
     } else {
       strcpybuff(end_mirror_msg,LANG(LANG_F22 /*"The mirror is finished.\nClick OK to quit WinHTTrack.\nSee log file(s) if necessary to ensure that everything is OK.\n\nThanks for using WinHTTrack!","Le miroir est terminé\nCliquez sur OK pour quitter WinHTTrack\nVoir au besoin les fichiers d'audit pour vérifier que tout s'est bien passé\n\nMerci d'utiliser WinHTTrack!"*/));

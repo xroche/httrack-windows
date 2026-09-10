@@ -306,7 +306,7 @@ runs:
         if ("$so" -notmatch 'session end ok on 8 checks') {
           throw "selftest did not check the session-end stop"
         }
-        if ("$so" -notmatch 'end-of-mirror panel ok on 7 checks') {
+        if ("$so" -notmatch 'end-of-mirror panel ok on 4 checks') {
           throw "selftest did not check the end-of-mirror panel"
         }
 

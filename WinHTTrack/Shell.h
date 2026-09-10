@@ -274,12 +274,9 @@ BOOL isHostAliasArgument(const CString &rule);
    enough for argv. A cap the engine refuses aborts the mirror. Exposed for --selftest. */
 BOOL isSingleFileMaxArgument(const CString &value);
 
-/* Which end-of-mirror panel a run earned. */
-enum WhttEndMirrorPanel { WHTT_END_ERROR, WHTT_END_STOPPED, WHTT_END_FINISHED };
-
-/* RESULT is hts_main2()'s return and COMPLETED the engine's verdict on the same opt.
-   The verdict decides only when the run reported no error. Exposed for --selftest. */
-WhttEndMirrorPanel EndMirrorPanelFor(int result, hts_tristate completed);
+/* TRUE if the engine's verdict says the mirror was cut short. HTS_DEFAULT means no
+   mirror ran, so it is not a stop. Exposed for --selftest. */
+BOOL isMirrorCutShort(hts_tristate completed);
 
 /* -N's format cap in the engine, exclusive. A hand copy of a bare 127 in its
    htscoremain.c, which exports no macro for this one, so the two can drift apart. */

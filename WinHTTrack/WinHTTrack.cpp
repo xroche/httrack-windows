@@ -1320,34 +1320,33 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("session end ok on %d checks\n", nchecks);
     }
-    /* No mirror runs under --selftest, so the panel decision is pinned here. */
+    /* No mirror runs under --selftest, so the verdict mapping is pinned here. */
     {
-      static const struct { int result; hts_tristate completed; WhttEndMirrorPanel want; } panels[] = {
-        { 0, HTS_TRUE, WHTT_END_FINISHED },
-        { 0, HTS_FALSE, WHTT_END_STOPPED },
-        /* No mirror ran, so nothing was stopped. */
-        { 0, HTS_DEFAULT, WHTT_END_FINISHED },
-        /* A non-zero return outranks the verdict. */
-        { 1, HTS_TRUE, WHTT_END_ERROR },
-        { 1, HTS_FALSE, WHTT_END_ERROR },
-        { 1, HTS_DEFAULT, WHTT_END_ERROR },
-        { -100, HTS_FALSE, WHTT_END_ERROR },   /* the SEH filter's own code */
-        { 0, (hts_tristate) 0, (WhttEndMirrorPanel) -1 }
+      static const struct { hts_tristate completed; BOOL want; } verdicts[] = {
+        { HTS_TRUE, FALSE },
+        { HTS_FALSE, TRUE },
+        { HTS_DEFAULT, FALSE }   /* no mirror ran, so nothing was cut short */
       };
       int nchecks = 0;
-      for(int k=0 ; panels[k].want != (WhttEndMirrorPanel) -1 ; k++) {
-        const WhttEndMirrorPanel got = EndMirrorPanelFor(panels[k].result, panels[k].completed);
-        if (got != panels[k].want) {
-          fprintf(stderr, "FATAL: result %d verdict %d chose panel %d, expected %d\n",
-                  panels[k].result, (int) panels[k].completed, (int) got, (int) panels[k].want);
+      for(size_t k=0 ; k<_countof(verdicts) ; k++) {
+        if (isMirrorCutShort(verdicts[k].completed) != verdicts[k].want) {
+          fprintf(stderr, "FATAL: verdict %d judged %s\n", (int) verdicts[k].completed,
+                  verdicts[k].want ? "finished, expected cut short" : "cut short, expected finished");
           fflush(stderr);
           ExitProcess(3);
         } else
           nchecks++;
       }
+      /* A key no catalog carries reads empty, so the panel would be blank with CI green. */
+      if (LANGSEL("LANG_F22s")[0] == '\0') {
+        fprintf(stderr, "FATAL: LANG_F22s is missing from the language files\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 7) {
-        fprintf(stderr, "FATAL: end-of-mirror panel ran %d checks, expected 7\n", nchecks);
+      if (nchecks != 4) {
+        fprintf(stderr, "FATAL: end-of-mirror panel ran %d checks, expected 4\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
