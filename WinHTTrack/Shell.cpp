@@ -2011,6 +2011,12 @@ BOOL isSingleFileMaxArgument(const CString &value) {
 }
 
 // see Shell.h
+BOOL isMirrorCutShort(hts_tristate completed) {
+  /* HTS_DEFAULT is -1, so only an explicit HTS_FALSE means the mirror was cut short. */
+  return completed == HTS_FALSE;
+}
+
+// see Shell.h
 BOOL isBuildStringArgument(const CString &value) {
   return isEngineArgument(value, BUILDSTRING_MAXSIZE);
 }
@@ -2423,6 +2429,9 @@ void lance(void) {
       strcatbuff(end_mirror_msg,"\"");
       strcatbuff(end_mirror_msg,LANG(LANG_F21 /*"\nSee the log file if necessary.\n\nClick OK to quit WinHTTrack.\n\nThanks for using WinHTTrack!","\nVoir le fichier log au besoin\n\nCliquez sur OK pour quitter WinHTTrack\n\nMerci d'utiliser WinHTTrack."*/));
       //AfxMessageBox(s,MB_OK+MB_ICONINFORMATION);
+    } else if (global_opt != NULL   /* nothing joins this thread, so the UI can clear it (#173) */
+               && isMirrorCutShort(hts_mirror_completed(global_opt))) {
+      strcpybuff(end_mirror_msg,LANG(LANG_F22s /*"Mirroring operation stopped before the end.\nThe files already downloaded are kept.\nSee log file(s) if necessary.\n\nThanks for using WinHTTrack!"*/));
     } else {
       strcpybuff(end_mirror_msg,LANG(LANG_F22 /*"The mirror is finished.\nClick OK to quit WinHTTrack.\nSee log file(s) if necessary to ensure that everything is OK.\n\nThanks for using WinHTTrack!","Le miroir est terminé\nCliquez sur OK pour quitter WinHTTrack\nVoir au besoin les fichiers d'audit pour vérifier que tout s'est bien passé\n\nMerci d'utiliser WinHTTrack!"*/));
       //AfxMessageBox("The mirror is finished.\nClic OK to quit WinHTTrack.\nSee log file(s) if necessary to ensure that everything is OK.\n\nThanks for using WinHTTrack!",MB_OK+MB_ICONINFORMATION);

@@ -1320,6 +1320,38 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("session end ok on %d checks\n", nchecks);
     }
+    /* No mirror runs under --selftest, so the verdict mapping is pinned here. */
+    {
+      static const struct { hts_tristate completed; BOOL want; } verdicts[] = {
+        { HTS_TRUE, FALSE },
+        { HTS_FALSE, TRUE },
+        { HTS_DEFAULT, FALSE }   /* no mirror ran, so nothing was cut short */
+      };
+      int nchecks = 0;
+      for(size_t k=0 ; k<_countof(verdicts) ; k++) {
+        if (isMirrorCutShort(verdicts[k].completed) != verdicts[k].want) {
+          fprintf(stderr, "FATAL: verdict %d judged %s\n", (int) verdicts[k].completed,
+                  verdicts[k].want ? "finished, expected cut short" : "cut short, expected finished");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* A missing key reads empty, so the panel would be blank with CI green. */
+      if (LANG_F22s[0] == '\0') {
+        fprintf(stderr, "FATAL: LANG_F22s is missing from the language files\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
+      if (nchecks != 4) {
+        fprintf(stderr, "FATAL: end-of-mirror verdict ran %d checks, expected 4\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("end-of-mirror verdict ok on %d checks\n", nchecks);
+    }
     /* Portable mode decides which store this run writes to. The two CI legs assert
        opposite suffixes, so a mode wired to a constant reds one of them. */
     {

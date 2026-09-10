@@ -132,6 +132,7 @@ Please visit our Website: http://www.httrack.com
 #define LANG_F21 LANGSEL("LANG_F21")
 #define LANG_F22 LANGSEL("LANG_F22")
 #define LANG_F22c LANGSEL("LANG_F22c")
+#define LANG_F22s LANGSEL("LANG_F22s")
 #define LANG_F23 LANGSEL("LANG_F23")
 #define LANG_G1 LANGSEL("LANG_G1")
 #define LANG_G2 LANGSEL("LANG_G2")

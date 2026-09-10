@@ -274,6 +274,11 @@ BOOL isHostAliasArgument(const CString &rule);
    enough for argv. A cap the engine refuses aborts the mirror. Exposed for --selftest. */
 BOOL isSingleFileMaxArgument(const CString &value);
 
+/* TRUE if the engine's verdict says the mirror was cut short. Valid only once the
+   mirror has ended, because HTS_FALSE also means still running. HTS_DEFAULT means
+   no mirror ran, so it is not a stop. Exposed for --selftest. */
+BOOL isMirrorCutShort(hts_tristate completed);
+
 /* -N's format cap in the engine, exclusive. A hand copy of a bare 127 in its
    htscoremain.c, which exports no macro for this one, so the two can drift apart. */
 #define BUILDSTRING_MAXSIZE 127
