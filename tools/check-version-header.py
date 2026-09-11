@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Fail if the three version macros in WinHTTrack/version.h disagree.
 
-CI holds each macro to the binary stamped from it and never to its siblings, so
-"3.50-2" beside "3.50.3.0" builds, signs and publishes. The About box and the
-installer name would then read one number where Explorer reads another (#175).
+CI holds WINHTTRACK_VERSION to the ProductVersion of the binary stamped from it, and
+WINHTTRACK_VERSIONID to that binary's numeric parts, which the .rc stamps from
+WINHTTRACK_VERSION_NUM. Nothing compares the version string to the dotted pair, so
+"3.50-2" beside "3.50.3.0" builds, signs and publishes. The About box would then read
+one number where Explorer reads another (#175).
 
 WINHTTRACK_VERSION is the source: the other two are derived from it and compared,
 so a version shape this file does not know is an error rather than a pass.
@@ -21,6 +23,7 @@ def dotted(version):
     A beta sorts below the release it precedes, so 3.50-beta-5 borrows a minor and
     becomes 3.49.99.5. A patch release takes the third field: 3.50-2 is 3.50.2.0.
     """
+    # \A and \Z, not ^ and $: a trailing newline would otherwise pass.
     m = re.match(r"\A(\d+)\.(\d+)(?:-beta-(\d+)|-(\d+))?\Z", version)
     if not m:
         return None
@@ -34,21 +37,29 @@ def dotted(version):
         fields = (major - 1, 99, 99, int(beta))
     else:
         return None  # nothing sorts below 0.0
-    return fields if all(0 <= f <= FIELD_MAX for f in fields) else None
+    return fields if all(f <= FIELD_MAX for f in fields) else None
 
 
 def macros(text, path=HEADER):
     """The three version macros, as (version, versionid, version_num tuple)."""
+
     def one(name, pattern):
-        m = re.search(r"#define\s+WINHTTRACK_%s\s+%s" % (name, pattern), text)
-        if not m:
-            sys.exit("cannot read WINHTTRACK_%s from %s" % (name, path))
-        return m
-    # \s+ cannot match the _ or I that follow, so VERSIONID and VERSION_NUM never bind here.
-    version = one("VERSION", r'"([^"]*)"').group(1)
-    versionid = one("VERSIONID", r'"([^"]*)"').group(1)
+        # \s+ cannot match the _ or I that follow, so VERSIONID and VERSION_NUM never bind
+        # to VERSION. Every occurrence, not the first: the preprocessor takes the LAST
+        # definition and ignores the ones inside comments and #if 0, and a regex cannot tell
+        # which is live. Two of anything means a bump left something behind.
+        found = re.findall(rf"#define\s+WINHTTRACK_{name}\s+{pattern}", text)
+        if not found:
+            sys.exit(f"cannot read WINHTTRACK_{name} from {path}")
+        if len(found) > 1:
+            sys.exit(f"{path} defines WINHTTRACK_{name} {len(found)} times, so which one the "
+                     f"compiler uses cannot be read off the file: {found}")
+        return found[0]
+
+    version = one("VERSION", r'"([^"]*)"')
+    versionid = one("VERSIONID", r'"([^"]*)"')
     num = one("VERSION_NUM", r"(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)")
-    return version, versionid, tuple(int(g) for g in num.groups())
+    return version, versionid, tuple(int(g) for g in num)
 
 
 def check(text, path=HEADER):
@@ -56,16 +67,16 @@ def check(text, path=HEADER):
     version, versionid, num = macros(text, path)
     want = dotted(version)
     if want is None:
-        return ['WINHTTRACK_VERSION "%s" has a shape with no dotted form. Add it to '
-                "dotted(), and give it a row in the table test" % version]
+        return [f'WINHTTRACK_VERSION "{version}" has a shape with no dotted form. Add it to '
+                f"dotted(), and give it a row in the table test"]
     want_str = ".".join(str(f) for f in want)
     bad = []
     if versionid != want_str:
-        bad.append('WINHTTRACK_VERSION "%s" means WINHTTRACK_VERSIONID "%s", not "%s"'
-                   % (version, want_str, versionid))
+        bad.append(f'WINHTTRACK_VERSION "{version}" means WINHTTRACK_VERSIONID "{want_str}", '
+                   f'not "{versionid}"')
     if num != want:
-        bad.append("WINHTTRACK_VERSION_NUM is %s, not %s"
-                   % (", ".join(str(n) for n in num), ", ".join(str(f) for f in want)))
+        nums = ", ".join(str(n) for n in num)
+        bad.append(f"WINHTTRACK_VERSION_NUM is {nums}, not {', '.join(str(f) for f in want)}")
     return bad
 
 
@@ -75,9 +86,9 @@ def main():
         text = f.read()
     bad = check(text, path)
     if bad:
-        sys.exit("%s disagrees with itself:\n  %s" % (path, "\n  ".join(bad)))
+        sys.exit("{} disagrees with itself:\n  {}".format(path, "\n  ".join(bad)))
     version, versionid, _ = macros(text, path)
-    print("%s: %s is %s" % (path, version, versionid))
+    print(f"{path}: {version} is {versionid}")
 
 
 if __name__ == "__main__":

@@ -40,8 +40,9 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
-      # The build holds each version macro to the binary stamped from it and never to
-      # its siblings, so only this sees a bump that edited one macro and not the rest.
+      # The build already holds WINHTTRACK_VERSIONID against the numeric parts the .rc
+      # stamps from WINHTTRACK_VERSION_NUM. Nothing compares the version string to that
+      # pair, so only this sees a bump that edited one and not the other.
       - name: Version macros agree with each other
         run: python3 tools/check-version-header.py
       - name: Version macro cases
