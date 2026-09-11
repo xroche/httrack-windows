@@ -283,11 +283,14 @@ BOOL isMirrorCutShort(hts_tristate completed);
    Exposed for --selftest. */
 void firstLineOf(const char *msg, char *dest, size_t size);
 
-/* TRUE once the engine thread raised DONE. The wait has no bound while *ENDED reads zero,
-   because that is the mirror itself running. Once *ENDED is raised the wait is TIMEOUTMS at
-   most, which covers the teardown the engine raises it in the middle of. FALSE means the
-   thread still runs, so its results are not ours to read. Exposed for --selftest. */
-BOOL waitForEngineThread(HANDLE done, const volatile int *ended, DWORD timeoutMs);
+/* How long the engine may spend closing the cache and renaming files after its
+   end-of-mirror callback. Past it the GUI gives up waiting rather than wedging. */
+#define ENGINE_RESULTS_TIMEOUT_MS 60000
+
+/* TRUE once READY says the mirror's results are written. The wait has no bound while
+   *ENDCALLED reads zero, then TIMEOUTMS at most. A NULL READY waits on *ENDCALLED alone and
+   returns FALSE. Exposed for --selftest. */
+BOOL waitForEngineResults(HANDLE ready, const volatile int *endCalled, DWORD timeoutMs);
 
 /* The end-of-mirror panel wears this title, or LANG_F18b when it is empty. lance() picks it
    as the mirror ends, because the verdict is gone by then. */
@@ -337,6 +340,8 @@ public:
 typedef struct Robot_params {
   int argc;
   char** argv;
+  /* The engine thread raises this once hts_main2() has returned; see waitForEngineResults(). */
+  HANDLE resultsReady;
 } Robot_params;
 
 // Lancement du miroir

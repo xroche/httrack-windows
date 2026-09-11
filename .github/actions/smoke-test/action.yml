@@ -311,8 +311,8 @@ runs:
           throw "selftest did not check the end-of-mirror verdict"
         }
         # The wait that keeps lance() from reading results the engine has not written yet.
-        if ("$so" -notmatch 'engine thread wait ok on 9 checks') {
-          throw "selftest did not check the wait on the engine thread"
+        if ("$so" -notmatch 'engine results wait ok on 16 checks') {
+          throw "selftest did not check the wait on the engine's results"
         }
 
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
