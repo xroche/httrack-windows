@@ -40,6 +40,9 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
+      # The guard itself runs in the build job, where the engine's catalogs are checked out.
+      - name: Stopped-panel title cases
+        run: python3 tools/test-check-stop-title.py
       # Same reason: a spent acceptance only blocks a tagged build, so nothing else runs it.
       - name: Advisory accept/stale cases
         run: python3 tools/test-check-native-deps.py
