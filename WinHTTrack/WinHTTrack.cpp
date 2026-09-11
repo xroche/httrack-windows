@@ -234,6 +234,18 @@ static void httrackErrorCallback(const char* msg, const char* file, int line) {
   CrashReportReport(msg, file, line);
 }
 
+/* How long --selftest makes a wait last, and how much less the clock may read. */
+#define SELFTEST_WAIT_MS 250
+#define SELFTEST_WAIT_SLACK_MS 50
+
+/* Raised late, so --selftest can see that the wait on a running mirror has no bound. */
+static volatile int selftestMirrorEnded = 0;
+static DWORD WINAPI selftestEndMirror(LPVOID) {
+  Sleep(SELFTEST_WAIT_MS);
+  selftestMirrorEnded = 1;
+  return 0;
+}
+
 /* Set by --selftest. Startup failures must then report on stderr and exit non-zero
    rather than raise a message box: nobody is there to click it, and a modal dialog
    would hang a headless run instead of failing it. */
@@ -1421,6 +1433,96 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       printf("end-of-mirror verdict ok on %d checks\n", nchecks);
+    }
+    /* No mirror runs under --selftest, so the wait that guards its results is pinned here. */
+    {
+      HANDLE raised = CreateEvent(NULL, TRUE, TRUE, NULL);
+      HANDLE pending = CreateEvent(NULL, TRUE, FALSE, NULL);
+      HANDLE ender;
+      int ended = 1, running = 0;
+      const struct { const char *what; HANDLE done; const int *ended; BOOL want; } waits[] = {
+        { "thread gone", raised, &ended, TRUE },
+        { "thread still tearing down", pending, &ended, FALSE },
+        /* The engine can leave without its end-of-mirror callback, on an error. */
+        { "thread gone with no callback", raised, &running, TRUE },
+        /* A handle CreateEvent never gave us. Waiting on it fails rather than times out,
+           so both halves have to tell that apart from a thread that is merely slow. */
+        { "no event, mirror over", NULL, &ended, FALSE },
+        { "no event, mirror running", NULL, &running, FALSE }
+      };
+      int nchecks = 0;
+
+      if (raised == NULL || pending == NULL) {
+        fprintf(stderr, "FATAL: could not create the events the engine wait is tested with\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      for(size_t k=0 ; k<_countof(waits) ; k++) {
+        if (waitForEngineThread(waits[k].done, waits[k].ended, 0) != waits[k].want) {
+          fprintf(stderr, "FATAL: %s was judged %s\n", waits[k].what,
+                  waits[k].want ? "still running, expected gone" : "gone, expected still running");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* A wait that drops its bound reads as a pass above, because both return FALSE. */
+      {
+        const DWORD t0 = GetTickCount();
+        const BOOL gone = waitForEngineThread(pending, &ended, SELFTEST_WAIT_MS);
+        const DWORD elapsed = GetTickCount() - t0;
+
+        if (gone) {
+          fprintf(stderr, "FATAL: a bounded wait on a running thread said it was gone\n");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+        if (elapsed < SELFTEST_WAIT_MS - SELFTEST_WAIT_SLACK_MS) {
+          fprintf(stderr, "FATAL: a %d ms wait gave up after %lu ms\n", SELFTEST_WAIT_MS,
+                  (unsigned long) elapsed);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* Nothing above can see that the mirror half has no bound, so end the mirror late
+         and ask for a bound of zero, which a wait that skipped that half returns from at once. */
+      ender = CreateThread(NULL, 0, selftestEndMirror, NULL, 0, NULL);
+      if (ender == NULL) {
+        fprintf(stderr, "FATAL: could not start the thread that ends the tested mirror\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else {
+        const DWORD t0 = GetTickCount();
+        const BOOL gone = waitForEngineThread(pending, &selftestMirrorEnded, 0);
+        const DWORD elapsed = GetTickCount() - t0;
+
+        WaitForSingleObject(ender, INFINITE);
+        CloseHandle(ender);
+        if (gone) {
+          fprintf(stderr, "FATAL: an unsignalled thread was judged gone once the mirror ended\n");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+        if (elapsed < SELFTEST_WAIT_MS - SELFTEST_WAIT_SLACK_MS) {
+          fprintf(stderr, "FATAL: the wait returned after %lu ms, before the mirror ended\n",
+                  (unsigned long) elapsed);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      CloseHandle(raised);
+      CloseHandle(pending);
+      /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
+      if (nchecks != 9) {
+        fprintf(stderr, "FATAL: engine thread wait ran %d checks, expected 9\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("engine thread wait ok on %d checks\n", nchecks);
     }
     /* Portable mode decides which store this run writes to. The two CI legs assert
        opposite suffixes, so a mode wired to a constant reds one of them. */

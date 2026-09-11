@@ -119,6 +119,15 @@ extern "C" {
 //int INREDRAW_LOCKED=0;      // refresh graphique en cours
 //int INFILLMEM_LOCKED=0;     // refresh mémoire en cours
 int HTTRACK_result=0;
+/* Raised by the engine thread as it leaves, and the only signal that says HTTRACK_result
+   has been written. Never closed, because a thread outliving its wait would then raise a
+   recycled handle. */
+static HANDLE engineThreadDone = NULL;
+/* How long the engine may spend closing the cache and renaming files after its
+   end-of-mirror callback. Past it the GUI gives up waiting rather than wedging. */
+#define ENGINE_EXIT_TIMEOUT_MS 60000
+/* HTTRACK_result for a mirror the engine never saw, next to -100 for one it crashed on. */
+#define HTTRACK_NO_THREAD (-101)
 //
 CInfoUrl* _Cinprogress_inst=NULL;
 
@@ -1761,6 +1770,17 @@ static int __cdecl ExcFilter_(DWORD dwExceptCode, PEXCEPTION_POINTERS pExceptPtr
   }
 }
 
+/* Frees the argv lance() built for the engine thread. */
+static void freeEngineArgv(char** argv) {
+  if (argv != NULL) {
+    for(int i = 0 ; argv[i] != NULL ; i++) {
+      freet(argv[i]);
+      argv[i] = NULL;
+    }
+    freet(argv);
+  }
+}
+
 void __cdecl RunBackRobot(void* al_p) {
   int argc;
   char** argv;
@@ -1822,14 +1842,10 @@ void __cdecl RunBackRobot(void* al_p) {
     htsthread_wait_n(1);
     hts_uninit();
 
-    // Cleanup argv
-    if (argv != NULL) {
-      for(int i = 0 ; argv[i] != NULL ; i++) {
-        freet(argv[i]);
-        argv[i] = NULL;
-      }
-      freet(argv);
-    }
+    freeEngineArgv(argv);
+    /* Last of all, because lance() reads this thread's results the moment it is raised. */
+    if (engineThreadDone != NULL)
+      SetEvent(engineThreadDone);
 }
 #endif
 
@@ -2008,6 +2024,18 @@ BOOL isSingleFileMaxArgument(const CString &value) {
   v = strtoll((LPCSTR) value, &end, 10);
   // leading zeros keep the value small however long the string is, so argv still caps it
   return *end == '\0' && errno != ERANGE && v > 0 && fitsEngineArgument(value, HTS_CDLMAXSIZE);
+}
+
+// see Shell.h
+BOOL waitForEngineThread(HANDLE done, const volatile int* ended, DWORD timeoutMs) {
+  /* The engine can also leave without the callback, on an error, so watch both. */
+  while (!*ended) {
+    const DWORD waited = WaitForSingleObject(done, 100);
+    /* Anything but a timeout ends the wait, because a handle we never got never times out. */
+    if (waited != WAIT_TIMEOUT)
+      return waited == WAIT_OBJECT_0;
+  }
+  return WaitForSingleObject(done, timeoutMs) == WAIT_OBJECT_0;
 }
 
 // see Shell.h
@@ -2371,7 +2399,20 @@ void lance(void) {
     Robot_params al;
     al.argc=argc;
     al.argv=argv;
-    hts_newthread( RunBackRobot, (void*) &al);
+    if (engineThreadDone == NULL)
+      engineThreadDone = CreateEvent(NULL, TRUE, FALSE, NULL);
+    else
+      ResetEvent(engineThreadDone);
+    if (hts_newthread( RunBackRobot, (void*) &al) != 0) {
+      /* Nothing would ever raise the wait below, so end the mirror here. */
+      freeEngineArgv(argv);
+      WHTT_LOCK();
+      HTTRACK_result = HTTRACK_NO_THREAD;
+      termine = 1;
+      WHTT_UNLOCK();
+      if (engineThreadDone != NULL)
+        SetEvent(engineThreadDone);
+    }
     
     //
     if (fp_debug) {
@@ -2379,12 +2420,18 @@ void lance(void) {
       fflush(fp_debug);
     }
     //
-    // domodal du refresh
-    /* XXC A SUPPRIMER */
-    while(!termine) {
-      Sleep(100);
+    /* 'termine' only says the engine reached its end-of-mirror callback, which it fires
+       while still closing the cache and before it writes HTTRACK_result. Wait for the
+       thread itself, bounded so a wedged one cannot strand the end panel (#173). */
+    if (engineThreadDone == NULL) {
+      while (!termine)     // no event to wait on, so fall back to the callback
+        Sleep(100);
+    } else if (!waitForEngineThread(engineThreadDone, &termine, ENGINE_EXIT_TIMEOUT_MS)
+               && fp_debug) {
+      fprintf(fp_debug,"Engine thread still running after %lu ms, results may be stale\r\n",
+              (unsigned long) ENGINE_EXIT_TIMEOUT_MS);
+      fflush(fp_debug);
     }
-    //inprogress->DoModal();
     WHTT_LOCK();
     shell_terminated=1;
     result=HTTRACK_result;
@@ -2430,10 +2477,12 @@ void lance(void) {
     if (result) {      // erreur?
       strcpybuff(end_mirror_msg,LANG(LANG_F19 /*"A problem occured during the mirror\n  \"","Un problème est survenu pendant le miroir\n  \""*/));
       strcatbuff(end_mirror_msg,"\"");
-      if (result != -100) {
-        strcatbuff(end_mirror_msg,hts_errmsg(global_opt));
+      if (result == -100) {
+        strcatbuff(end_mirror_msg, "The engine unexpectedly crashed.");
+      } else if (result == HTTRACK_NO_THREAD) {
+        strcatbuff(end_mirror_msg, "The engine thread could not be started.");
       } else {
-				strcatbuff(end_mirror_msg, "The engine unexpectedly crashed.");
+        strcatbuff(end_mirror_msg,hts_errmsg(global_opt));
       }
       strcatbuff(end_mirror_msg,"\"");
       strcatbuff(end_mirror_msg,LANG(LANG_F20 /*"\" \nDuring:\n  ","\" \nDurant:\n  "*/));
@@ -2443,7 +2492,7 @@ void lance(void) {
       strcatbuff(end_mirror_msg,"\"");
       strcatbuff(end_mirror_msg,LANG(LANG_F21 /*"\nSee the log file if necessary.\n\nClick OK to quit WinHTTrack.\n\nThanks for using WinHTTrack!","\nVoir le fichier log au besoin\n\nCliquez sur OK pour quitter WinHTTrack\n\nMerci d'utiliser WinHTTrack."*/));
       //AfxMessageBox(s,MB_OK+MB_ICONINFORMATION);
-    } else if (global_opt != NULL   /* nothing joins this thread, so the UI can clear it (#173) */
+    } else if (global_opt != NULL   /* no mirror ran at all when the thread never started */
                && isMirrorCutShort(hts_mirror_completed(global_opt))) {
       strcpybuff(end_mirror_msg,LANG(LANG_F22s /*"Mirroring operation stopped before the end.\nThe files already downloaded are kept.\nSee log file(s) if necessary.\n\nThanks for using WinHTTrack!"*/));
       /* Its own first line, so the title is translated wherever the body is (#176). */

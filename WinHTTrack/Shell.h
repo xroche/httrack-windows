@@ -283,6 +283,12 @@ BOOL isMirrorCutShort(hts_tristate completed);
    Exposed for --selftest. */
 void firstLineOf(const char *msg, char *dest, size_t size);
 
+/* TRUE once the engine thread raised DONE. The wait has no bound while *ENDED reads zero,
+   because that is the mirror itself running. Once *ENDED is raised the wait is TIMEOUTMS at
+   most, which covers the teardown the engine raises it in the middle of. FALSE means the
+   thread still runs, so its results are not ours to read. Exposed for --selftest. */
+BOOL waitForEngineThread(HANDLE done, const volatile int *ended, DWORD timeoutMs);
+
 /* The end-of-mirror panel wears this title, or LANG_F18b when it is empty. lance() picks it
    as the mirror ends, because the verdict is gone by then. */
 extern char end_mirror_title[256];
