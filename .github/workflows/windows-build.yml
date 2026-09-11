@@ -40,6 +40,12 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
+      # The build holds each version macro to the binary stamped from it and never to
+      # its siblings, so only this sees a bump that edited one macro and not the rest.
+      - name: Version macros agree with each other
+        run: python3 tools/check-version-header.py
+      - name: Version macro cases
+        run: python3 tools/test-check-version-header.py
       # Same reason: a spent acceptance only blocks a tagged build, so nothing else runs it.
       - name: Advisory accept/stale cases
         run: python3 tools/test-check-native-deps.py
@@ -928,7 +934,9 @@ jobs:
   sign:
     # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
     if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
-    needs: build
+    # encoding too, not build alone: its guards run on a tag as well, and the version
+    # macros it checks are what the signed installer is named after.
+    needs: [build, encoding]
     runs-on: windows-2022
     environment: signing
     # Two tags pushed at once would fight over the signing session; queue: max holds
