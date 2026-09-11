@@ -279,6 +279,14 @@ BOOL isSingleFileMaxArgument(const CString &value);
    no mirror ran, so it is not a stop. Exposed for --selftest. */
 BOOL isMirrorCutShort(hts_tristate completed);
 
+/* DEST takes MSG up to its first line break, NUL-terminated and truncated to SIZE.
+   Exposed for --selftest. */
+void firstLineOf(const char *msg, char *dest, size_t size);
+
+/* The end-of-mirror panel wears this title, or LANG_F18b when it is empty. lance() picks it
+   as the mirror ends, because the verdict is gone by then. */
+extern char end_mirror_title[256];
+
 /* -N's format cap in the engine, exclusive. A hand copy of a bare 127 in its
    htscoremain.c, which exports no macro for this one, so the two can drift apart. */
 #define BUILDSTRING_MAXSIZE 127

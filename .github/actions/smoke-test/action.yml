@@ -307,7 +307,7 @@ runs:
           throw "selftest did not check the session-end stop"
         }
         # No mirror runs under --selftest, so this count is the only proof the verdict maps right.
-        if ("$so" -notmatch 'end-of-mirror verdict ok on 4 checks') {
+        if ("$so" -notmatch 'end-of-mirror verdict ok on 21 checks') {
           throw "selftest did not check the end-of-mirror verdict"
         }
 

@@ -47,6 +47,9 @@ jobs:
         run: python3 tools/check-version-header.py
       - name: Version macro cases
         run: python3 tools/test-check-version-header.py
+      # The guard itself runs in the build job, where the engine's catalogs are checked out.
+      - name: Stopped-panel title cases
+        run: python3 tools/test-check-stop-title.py
       # Same reason: a spent acceptance only blocks a tagged build, so nothing else runs it.
       - name: Advisory accept/stale cases
         run: python3 tools/test-check-native-deps.py
@@ -333,6 +336,12 @@ jobs:
           ref: ${{ vars.HTTRACK_ENGINE_REF }}
           path: httrack
           submodules: recursive
+
+      # Same reason as the anchors below: the engine is unpinned, so a translator's edit
+      # upstream reaches the title bar here with nothing in between.
+      - name: The stopped panel can title itself in every language
+        shell: pwsh
+        run: python httrack-windows/tools/check-stop-title.py httrack
 
       - name: Help anchors resolve in the engine's guide
         shell: pwsh

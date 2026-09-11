@@ -289,7 +289,9 @@ BOOL Cinfoend::OnSetActive( ) {
   }
 
   this_CWizTab->SetWizardButtons(PSWIZB_FINISH);
-  SetWindowTextCP(this_app->GetMainWnd(), LANG_F18b);
+  /* LANG_F18b says the mirror finished, which a stopped one did not (#176). */
+  SetWindowTextCP(this_app->GetMainWnd(),
+                  end_mirror_title[0] != '\0' ? end_mirror_title : LANG_F18b);
   SetDlgItemTextCP(this_CWizTab, IDCANCEL,LANG_QUIT);
   return 1;
 }
