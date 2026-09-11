@@ -327,6 +327,12 @@ jobs:
           path: httrack
           submodules: recursive
 
+      # Same reason as the anchors below: the engine is unpinned, so a translator's edit
+      # upstream reaches the title bar here with nothing in between.
+      - name: The stopped panel can title itself in every language
+        shell: pwsh
+        run: python httrack-windows/tools/check-stop-title.py httrack
+
       - name: Help anchors resolve in the engine's guide
         shell: pwsh
         # The GUI deep-links into the engine's guide.html and the engine is unpinned, so a

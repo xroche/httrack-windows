@@ -283,8 +283,8 @@ BOOL isMirrorCutShort(hts_tristate completed);
    Exposed for --selftest. */
 void firstLineOf(const char *msg, char *dest, size_t size);
 
-/* Title for the end-of-mirror panel, empty for the usual LANG_F18b. Picked as the mirror
-   ends, because the engine's verdict is gone by the time the panel shows itself. */
+/* The end-of-mirror panel wears this title, or LANG_F18b when it is empty. lance() picks
+   it as the mirror ends, because the engine's verdict is gone once the panel shows. */
 extern char end_mirror_title[256];
 
 /* -N's format cap in the engine, exclusive. A hand copy of a bare 127 in its
