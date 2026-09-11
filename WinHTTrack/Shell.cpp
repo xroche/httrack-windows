@@ -2017,6 +2017,18 @@ BOOL isMirrorCutShort(hts_tristate completed) {
 }
 
 // see Shell.h
+void firstLineOf(const char *msg, char *dest, size_t size) {
+  size_t n = 0;
+
+  if (size == 0)
+    return;
+  while (n + 1 < size && msg[n] != '\0' && msg[n] != '\n' && msg[n] != '\r')
+    n++;
+  memcpy(dest, msg, n);
+  dest[n] = '\0';
+}
+
+// see Shell.h
 BOOL isBuildStringArgument(const CString &value) {
   return isEngineArgument(value, BUILDSTRING_MAXSIZE);
 }
@@ -2413,6 +2425,8 @@ void lance(void) {
     }
     //
     /* New pannel */
+    /* The panel outlives one mirror, so a stop must not title the next one. */
+    end_mirror_title[0] = '\0';
     if (result) {      // erreur?
       strcpybuff(end_mirror_msg,LANG(LANG_F19 /*"A problem occured during the mirror\n  \"","Un problème est survenu pendant le miroir\n  \""*/));
       strcatbuff(end_mirror_msg,"\"");
@@ -2432,6 +2446,8 @@ void lance(void) {
     } else if (global_opt != NULL   /* nothing joins this thread, so the UI can clear it (#173) */
                && isMirrorCutShort(hts_mirror_completed(global_opt))) {
       strcpybuff(end_mirror_msg,LANG(LANG_F22s /*"Mirroring operation stopped before the end.\nThe files already downloaded are kept.\nSee log file(s) if necessary.\n\nThanks for using WinHTTrack!"*/));
+      /* Its own first line, so the title is translated wherever the body is (#176). */
+      firstLineOf(end_mirror_msg, end_mirror_title, sizeof(end_mirror_title));
     } else {
       strcpybuff(end_mirror_msg,LANG(LANG_F22 /*"The mirror is finished.\nClick OK to quit WinHTTrack.\nSee log file(s) if necessary to ensure that everything is OK.\n\nThanks for using WinHTTrack!","Le miroir est terminé\nCliquez sur OK pour quitter WinHTTrack\nVoir au besoin les fichiers d'audit pour vérifier que tout s'est bien passé\n\nMerci d'utiliser WinHTTrack!"*/));
       //AfxMessageBox("The mirror is finished.\nClic OK to quit WinHTTrack.\nSee log file(s) if necessary to ensure that everything is OK.\n\nThanks for using WinHTTrack!",MB_OK+MB_ICONINFORMATION);
@@ -2440,8 +2456,10 @@ void lance(void) {
 #if USE_RAS
     // erreur ras
     if (connected == -1)
-      if ((int) strlen(connected_err) > 0)
+      if ((int) strlen(connected_err) > 0) {
         strcpybuff(end_mirror_msg,connected_err);
+        end_mirror_title[0] = '\0';   /* this body is no longer the stop message */
+      }
 #endif
       {
         char pathlog[HTS_URLMAXSIZE*2];

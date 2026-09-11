@@ -94,6 +94,7 @@ extern CWizTab* this_intCWizTab;
 
 // Pour la fin
 char end_mirror_msg[8192]="";
+char end_mirror_title[256]="";
 
 
 

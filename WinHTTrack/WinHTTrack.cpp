@@ -1344,9 +1344,67 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       } else
         nchecks++;
+      /* The stopped panel titles itself from its own first line, so pin the cut. */
+      {
+        static const struct { const char *msg; size_t size; const char *want; } lines[] = {
+          { "one\ntwo", 64, "one" },
+          { "one\r\ntwo", 64, "one" },
+          { "no break at all", 64, "no break at all" },
+          { "", 64, "" },
+          { "\nsecond", 64, "" },
+          { "abcdef", 4, "abc" },
+          { "abcdef", 1, "" }
+        };
+        for(size_t k=0 ; k<_countof(lines) ; k++) {
+          char got[64];
+          memset(got, 'x', sizeof(got));
+          firstLineOf(lines[k].msg, got, lines[k].size);
+          if (strcmp(got, lines[k].want) != 0) {
+            fprintf(stderr, "FATAL: first line of '%s' in %d bytes is '%s', expected '%s'\n",
+                    lines[k].msg, (int) lines[k].size, got, lines[k].want);
+            fflush(stderr);
+            ExitProcess(3);
+          } else
+            nchecks++;
+        }
+        /* size 0 has nowhere to put the NUL, so it must write nothing at all. */
+        {
+          char got[2] = { 'x', 'y' };
+          firstLineOf("one\ntwo", got, 0);
+          if (got[0] != 'x' || got[1] != 'y') {
+            fprintf(stderr, "FATAL: firstLineOf wrote into a zero-sized buffer\n");
+            fflush(stderr);
+            ExitProcess(3);
+          } else
+            nchecks++;
+        }
+        /* The live string too: every row above would pass on a catalog whose LANG_F22s
+           has no break, and the whole body would then land in the title bar. */
+        {
+          const char *stopped = LANG(LANG_F22s);
+          const char *brk = strpbrk(stopped, "\r\n");
+          char title[sizeof(end_mirror_title)];
+
+          firstLineOf(stopped, title, sizeof(title));
+          if (title[0] == '\0') {
+            fprintf(stderr, "FATAL: LANG_F22s has no first line to title the panel with\n");
+            fflush(stderr);
+            ExitProcess(3);
+          } else
+            nchecks++;
+          if (brk == NULL || (size_t) (brk - stopped) >= sizeof(title)) {
+            fprintf(stderr, "FATAL: LANG_F22s breaks at %d of %d bytes, so the title would be "
+                            "the message\n", brk != NULL ? (int) (brk - stopped) : -1,
+                    (int) sizeof(title));
+            fflush(stderr);
+            ExitProcess(3);
+          } else
+            nchecks++;
+        }
+      }
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 4) {
-        fprintf(stderr, "FATAL: end-of-mirror verdict ran %d checks, expected 4\n", nchecks);
+      if (nchecks != 14) {
+        fprintf(stderr, "FATAL: end-of-mirror verdict ran %d checks, expected 14\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
