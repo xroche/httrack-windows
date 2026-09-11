@@ -38,7 +38,7 @@ Please visit our Website: http://www.httrack.com
    the installer and CI all read this file, and the release tag must match it. */
 #define WINHTTRACK_VERSION "3.50-2"
 
-/* Dotted, for Inno and the FileVersion field. The betas sat below this, at 3.49.99.N. */
+/* Dotted, for Inno and the FileVersion field. The betas sat below 3.50.0.0, at 3.49.99.N. */
 #define WINHTTRACK_VERSIONID "3.50.2.0"
 
 /* WINHTTRACK_VERSIONID in the resource compiler's comma form. */
