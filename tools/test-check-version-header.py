@@ -70,6 +70,7 @@ expect("picks VERSION, not VERSIONID/NUM/_H",
        guard.macros(SYNTH), ("3.50-beta-7", "3.49.99.7", (3, 49, 99, 7)))
 expect("a consistent synthetic header passes", guard.check(SYNTH), [])
 
+MACROS = ["WINHTTRACK_VERSIONID", "WINHTTRACK_VERSION_NUM"]
 print("--- a damaged header is caught, and says which macro is wrong ---")
 # Each row edits one macro of SYNTH, and names the complaints it must raise, by the macro
 # each one has to name. Counting alone would keep a guard that blames the wrong macro green.
@@ -93,7 +94,10 @@ for old, new, want, why in MUTANTS:
         fail += 1
         continue
     bad = guard.check(mutant)
-    expect(why, [m for m in want if not any(m in line for line in bad)], [])
+    # The macros named, not the ones missing: "none missing" is true of any complaint at all,
+    # so the leading-zero row below would have asserted nothing.
+    named = [m for m in MACROS if any(m in line for line in bad)]
+    expect(why, named, want)
     expect(f"{why}, and says nothing else", len(bad), len(want))
 
 print("--- a definition the preprocessor would not use is an error, not a pass ---")
@@ -102,6 +106,8 @@ print("--- a definition the preprocessor would not use is an error, not a pass -
 LIVE = ('#define WINHTTRACK_VERSION "3.50-2"\n'
         '#define WINHTTRACK_VERSIONID "3.99.9.9"\n'
         "#define WINHTTRACK_VERSION_NUM 3, 99, 9, 9\n")
+# The guard counts definitions and never sees /* or #if 0, so the first two rows are one
+# test under two names. Both are kept to record which shapes were meant.
 for dead, why in [
     ("/* was:\n" + SYNTH + "*/\n", "a commented-out triple above the live macros"),
     ("#if 0\n" + SYNTH + "#endif\n", "an #if 0 triple above the live macros"),

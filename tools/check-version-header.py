@@ -45,10 +45,12 @@ def macros(text, path=HEADER):
 
     def one(name, pattern):
         # \s+ cannot match the _ or I that follow, so VERSIONID and VERSION_NUM never bind
-        # to VERSION. Every occurrence, not the first: the preprocessor takes the LAST
-        # definition and ignores the ones inside comments and #if 0, and a regex cannot tell
-        # which is live. Two of anything means a bump left something behind.
-        found = re.findall(rf"#define\s+WINHTTRACK_{name}\s+{pattern}", text)
+        # to VERSION. Every occurrence, not the first: a regex cannot tell which definition
+        # is live, so one inside a comment, an #if 0 or an #ifdef would be read instead. That
+        # refuses a header defining a macro conditionally, which is correct here, because
+        # TagVersion.ps1, build-installer/action.yml and windows-build.yml all regex this same
+        # file and would each silently take the first match.
+        found = re.findall(rf"#\s*define\s+WINHTTRACK_{name}\s+{pattern}", text)
         if not found:
             sys.exit(f"cannot read WINHTTRACK_{name} from {path}")
         if len(found) > 1:
@@ -86,7 +88,8 @@ def main():
         text = f.read()
     bad = check(text, path)
     if bad:
-        sys.exit("{} disagrees with itself:\n  {}".format(path, "\n  ".join(bad)))
+        joined = "\n  ".join(bad)
+        sys.exit(f"{path} disagrees with itself:\n  {joined}")
     version, versionid, _ = macros(text, path)
     print(f"{path}: {version} is {versionid}")
 
