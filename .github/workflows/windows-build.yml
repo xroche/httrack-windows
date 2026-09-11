@@ -40,6 +40,13 @@ jobs:
       - name: Tag/version guard cases
         shell: pwsh
         run: ./tools/Test-TagVersion.ps1
+      # The build already holds WINHTTRACK_VERSIONID against the numeric parts the .rc
+      # stamps from WINHTTRACK_VERSION_NUM. Nothing compares the version string to that
+      # pair, so only this sees a bump that edited one and not the other.
+      - name: Version macros agree with each other
+        run: python3 tools/check-version-header.py
+      - name: Version macro cases
+        run: python3 tools/test-check-version-header.py
       # The guard itself runs in the build job, where the engine's catalogs are checked out.
       - name: Stopped-panel title cases
         run: python3 tools/test-check-stop-title.py
@@ -937,7 +944,9 @@ jobs:
   sign:
     # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
     if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
-    needs: build
+    # encoding too, not build alone: its guards run on a tag as well, and the version
+    # macros it checks are what the signed installer is named after.
+    needs: [build, encoding]
     runs-on: windows-2022
     environment: signing
     # Two tags pushed at once would fight over the signing session; queue: max holds
