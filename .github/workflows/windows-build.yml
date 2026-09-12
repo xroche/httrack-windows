@@ -50,6 +50,9 @@ jobs:
       # The guard itself runs in the build job, where the engine's catalogs are checked out.
       - name: Stopped-panel title cases
         run: python3 tools/test-check-stop-title.py
+      # Same reason.
+      - name: Repeated catalog key cases
+        run: python3 tools/test-check-duplicate-keys.py
       # Same reason: a spent acceptance only blocks a tagged build, so nothing else runs it.
       - name: Advisory accept/stale cases
         run: python3 tools/test-check-native-deps.py
@@ -342,6 +345,13 @@ jobs:
       - name: The stopped panel can title itself in every language
         shell: pwsh
         run: python httrack-windows/tools/check-stop-title.py httrack
+
+      # #171 is unreachable only while every catalog carries every repeated key, and the
+      # engine is unpinned, so a translator's edit upstream decides that with nothing in
+      # between. This says when it stops holding; it does not fix the blank.
+      - name: Every catalog carries every repeated key
+        shell: pwsh
+        run: python httrack-windows/tools/check-duplicate-keys.py httrack
 
       - name: Help anchors resolve in the engine's guide
         shell: pwsh
