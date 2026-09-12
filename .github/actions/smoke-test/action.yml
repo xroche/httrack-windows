@@ -310,6 +310,10 @@ runs:
         if ("$so" -notmatch 'end-of-mirror verdict ok on 21 checks') {
           throw "selftest did not check the end-of-mirror verdict"
         }
+        # Only the wait itself: no mirror runs here, so lance() calling it is not covered.
+        if ("$so" -notmatch 'engine results wait ok on 16 checks') {
+          throw "selftest did not check the wait on the engine's results"
+        }
 
         # --selftest throws once on purpose. Without shipped PDBs this only proves the hook
         # ran and caught the throw stack; the build job checks resolution against staged.

@@ -234,6 +234,67 @@ static void httrackErrorCallback(const char* msg, const char* file, int line) {
   CrashReportReport(msg, file, line);
 }
 
+/* How late --selftest's engine answers, and how much less than that the clock may read. */
+#define SELFTEST_WAIT_MS 250
+#define SELFTEST_SLACK_MS 50
+/* What a wait whose answer is already there may spend. Tight on purpose, because a wait
+   that ignored its bound and used one of its own would sit inside a loose window. */
+#define SELFTEST_PROMPT_MS 150
+/* What a wait for a late answer may spend on top of it. The poll steps 100 ms, so those
+   land nearer 300 ms than 250. */
+#define SELFTEST_LATE_SLACK_MS 500
+
+/* The end-of-mirror callback and the results, both arriving late. */
+static volatile int selftestEndCalled = 0;
+static HANDLE selftestLateResults = NULL;
+static DWORD WINAPI selftestEndLate(LPVOID) {
+  Sleep(SELFTEST_WAIT_MS);
+  selftestEndCalled = 1;
+  SetEvent(selftestLateResults);
+  return 0;
+}
+
+/* Arms both late signals and hands back the thread that will raise them. */
+static HANDLE selftestStartLateEngine(void) {
+  HANDLE late;
+
+  selftestEndCalled = 0;
+  ResetEvent(selftestLateResults);
+  late = CreateThread(NULL, 0, selftestEndLate, NULL, 0, NULL);
+  if (late == NULL) {
+    fprintf(stderr, "FATAL: could not start the thread that ends the tested mirror\n");
+    fflush(stderr);
+    ExitProcess(3);
+  }
+  return late;
+}
+
+/* Runs one wait and checks its verdict and how long it took. Returns the checks it made,
+   counted here rather than returned as a literal, which would drift from them (#147). */
+static int checkEngineWait(const char *what, HANDLE ready, const volatile int *endCalled,
+                           DWORD timeoutMs, BOOL wantWritten, DWORD leastMs, DWORD mostMs) {
+  const DWORD t0 = GetTickCount();
+  const BOOL written = waitForEngineResults(ready, endCalled, timeoutMs);
+  const DWORD elapsed = GetTickCount() - t0;
+  int nchecks = 0;
+
+  if (written != wantWritten) {
+    fprintf(stderr, "FATAL: %s was judged %s\n", what,
+            wantWritten ? "still running, expected written" : "written, expected still running");
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  if (elapsed < leastMs || elapsed > mostMs) {
+    fprintf(stderr, "FATAL: %s answered after %lu ms, wanted %lu to %lu\n", what,
+            (unsigned long) elapsed, (unsigned long) leastMs, (unsigned long) mostMs);
+    fflush(stderr);
+    ExitProcess(3);
+  } else
+    nchecks++;
+  return nchecks;
+}
+
 /* Set by --selftest. Startup failures must then report on stderr and exit non-zero
    rather than raise a message box: nobody is there to click it, and a modal dialog
    would hang a headless run instead of failing it. */
@@ -1421,6 +1482,70 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       printf("end-of-mirror verdict ok on %d checks\n", nchecks);
+    }
+    /* No mirror runs under --selftest, so the wait that guards its results is pinned here. */
+    {
+      const HANDLE ready = CreateEvent(NULL, TRUE, TRUE, NULL);
+      const HANDLE pending = CreateEvent(NULL, TRUE, FALSE, NULL);
+      const DWORD lateLeast = SELFTEST_WAIT_MS - SELFTEST_SLACK_MS;
+      const DWORD lateMost = SELFTEST_WAIT_MS + SELFTEST_LATE_SLACK_MS;
+      int endCalled = 1, endPending = 0;
+      int nchecks = 0;
+      HANDLE late;
+
+      selftestLateResults = CreateEvent(NULL, TRUE, FALSE, NULL);
+      if (ready == NULL || pending == NULL || selftestLateResults == NULL) {
+        fprintf(stderr, "FATAL: could not create the events the engine wait is tested with\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      /* Each answer below is already there, so the wait must come back at once. Without that
+         upper bound a wait that always burns its whole timeout reads as a pass. */
+      nchecks += checkEngineWait("results written", ready, &endCalled, 0, TRUE,
+                                 0, SELFTEST_PROMPT_MS);
+      nchecks += checkEngineWait("engine still tearing down", pending, &endCalled, 0, FALSE,
+                                 0, SELFTEST_PROMPT_MS);
+      /* The engine can return without its end-of-mirror callback, on an error. */
+      nchecks += checkEngineWait("results written with no callback", ready, &endPending, 0, TRUE,
+                                 0, SELFTEST_PROMPT_MS);
+      /* CreateEvent can fail, and the callback is then all the wait has to go on. */
+      nchecks += checkEngineWait("no event, mirror over", NULL, &endCalled, 0, FALSE,
+                                 0, SELFTEST_PROMPT_MS);
+      /* The bound covers the teardown the callback fires in the middle of. This case has
+         nothing to poll, so it lands ON its bound: a wait that scaled the bound lands off it. */
+      nchecks += checkEngineWait("engine never returns", pending, &endCalled, SELFTEST_WAIT_MS,
+                                 FALSE, lateLeast, SELFTEST_WAIT_MS + SELFTEST_PROMPT_MS);
+      /* The mirror half has no bound, so end the mirror late and ask for a bound of zero,
+         which a wait that skipped that half would return from at once. */
+      late = selftestStartLateEngine();
+      nchecks += checkEngineWait("mirror ends late", pending, &selftestEndCalled, 0, FALSE,
+                                 lateLeast, lateMost);
+      WaitForSingleObject(late, INFINITE);
+      CloseHandle(late);
+      /* Same for the fallback, which must wait for the callback rather than give up at once. */
+      late = selftestStartLateEngine();
+      nchecks += checkEngineWait("no event, mirror ends late", NULL, &selftestEndCalled, 0, FALSE,
+                                 lateLeast, lateMost);
+      WaitForSingleObject(late, INFINITE);
+      CloseHandle(late);
+      /* Results arriving DURING the bounded wait, which nothing above exercises. The bound is
+         the real one, so a wait that sleeps it away answers 60 s late instead of 250 ms. */
+      late = selftestStartLateEngine();
+      nchecks += checkEngineWait("results written late", selftestLateResults, &endCalled,
+                                 ENGINE_RESULTS_TIMEOUT_MS, TRUE, lateLeast, lateMost);
+      WaitForSingleObject(late, INFINITE);
+      CloseHandle(late);
+      CloseHandle(ready);
+      CloseHandle(pending);
+      CloseHandle(selftestLateResults);
+      selftestLateResults = NULL;
+      /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
+      if (nchecks != 16) {
+        fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 16\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("engine results wait ok on %d checks\n", nchecks);
     }
     /* Portable mode decides which store this run writes to. The two CI legs assert
        opposite suffixes, so a mode wired to a constant reds one of them. */
