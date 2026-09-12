@@ -340,7 +340,8 @@ public:
 typedef struct Robot_params {
   int argc;
   char** argv;
-  /* The engine thread raises this once hts_main2() has returned; see waitForEngineResults(). */
+  /* The engine thread raises this once hts_main2() has returned, and never closes it.
+     lance() creates it, and closes it only once the wait has seen it. */
   HANDLE resultsReady;
 } Robot_params;
 

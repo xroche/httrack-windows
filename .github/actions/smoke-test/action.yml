@@ -310,7 +310,7 @@ runs:
         if ("$so" -notmatch 'end-of-mirror verdict ok on 21 checks') {
           throw "selftest did not check the end-of-mirror verdict"
         }
-        # The wait that keeps lance() from reading results the engine has not written yet.
+        # Only the wait itself: no mirror runs here, so lance() calling it is not covered.
         if ("$so" -notmatch 'engine results wait ok on 16 checks') {
           throw "selftest did not check the wait on the engine's results"
         }

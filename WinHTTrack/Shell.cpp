@@ -119,7 +119,8 @@ extern "C" {
 //int INREDRAW_LOCKED=0;      // refresh graphique en cours
 //int INFILLMEM_LOCKED=0;     // refresh mémoire en cours
 int HTTRACK_result=0;
-/* HTTRACK_result for a mirror the engine never saw, next to -100 for one it crashed on. */
+/* HTTRACK_result for a mirror the engine never saw, next to -100 for one it crashed on.
+   Both sit outside the 0, 1 and -1 that hts_main2() returns. */
 #define HTTRACK_NO_THREAD (-101)
 //
 CInfoUrl* _Cinprogress_inst=NULL;
@@ -2422,8 +2423,7 @@ void lance(void) {
     if (waitForEngineResults(al.resultsReady, &termine, ENGINE_RESULTS_TIMEOUT_MS)) {
       CloseHandle(al.resultsReady);    // the engine is gone, so nothing can raise it again
     } else if (fp_debug) {
-      fprintf(fp_debug,"Engine still running after %lu ms, results may be stale\r\n",
-              (unsigned long) ENGINE_RESULTS_TIMEOUT_MS);
+      fprintf(fp_debug,"Engine gave no signal that its results were written\r\n");
       fflush(fp_debug);
     }
     WHTT_LOCK();

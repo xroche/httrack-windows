@@ -234,11 +234,15 @@ static void httrackErrorCallback(const char* msg, const char* file, int line) {
   CrashReportReport(msg, file, line);
 }
 
-/* How late --selftest's engine answers, how much less than that the clock may read, and
-   how long a wait whose answer is already there may still take. */
+/* How late --selftest's engine answers, and how much less than that the clock may read. */
 #define SELFTEST_WAIT_MS 250
 #define SELFTEST_SLACK_MS 50
-#define SELFTEST_PROMPT_MS 500
+/* What a wait whose answer is already there may spend. Tight on purpose, because a wait
+   that ignored its bound and used one of its own would sit inside a loose window. */
+#define SELFTEST_PROMPT_MS 150
+/* What a wait for a late answer may spend on top of it. The poll steps 100 ms, so those
+   land nearer 300 ms than 250. */
+#define SELFTEST_LATE_SLACK_MS 500
 
 /* The end-of-mirror callback and the results, both arriving late. */
 static volatile int selftestEndCalled = 0;
@@ -265,26 +269,30 @@ static HANDLE selftestStartLateEngine(void) {
   return late;
 }
 
-/* Runs one wait and checks its verdict and how long it took. Returns the checks it made. */
+/* Runs one wait and checks its verdict and how long it took. Returns the checks it made,
+   counted here rather than returned as a literal, which would drift from them (#147). */
 static int checkEngineWait(const char *what, HANDLE ready, const volatile int *endCalled,
-                           DWORD timeoutMs, BOOL want, DWORD leastMs, DWORD mostMs) {
+                           DWORD timeoutMs, BOOL wantWritten, DWORD leastMs, DWORD mostMs) {
   const DWORD t0 = GetTickCount();
   const BOOL written = waitForEngineResults(ready, endCalled, timeoutMs);
   const DWORD elapsed = GetTickCount() - t0;
+  int nchecks = 0;
 
-  if (written != want) {
+  if (written != wantWritten) {
     fprintf(stderr, "FATAL: %s was judged %s\n", what,
-            want ? "still running, expected written" : "written, expected still running");
+            wantWritten ? "still running, expected written" : "written, expected still running");
     fflush(stderr);
     ExitProcess(3);
-  }
+  } else
+    nchecks++;
   if (elapsed < leastMs || elapsed > mostMs) {
     fprintf(stderr, "FATAL: %s answered after %lu ms, wanted %lu to %lu\n", what,
             (unsigned long) elapsed, (unsigned long) leastMs, (unsigned long) mostMs);
     fflush(stderr);
     ExitProcess(3);
-  }
-  return 2;
+  } else
+    nchecks++;
+  return nchecks;
 }
 
 /* Set by --selftest. Startup failures must then report on stderr and exit non-zero
@@ -1480,7 +1488,7 @@ BOOL CWinHTTrackApp::InitInstance()
       const HANDLE ready = CreateEvent(NULL, TRUE, TRUE, NULL);
       const HANDLE pending = CreateEvent(NULL, TRUE, FALSE, NULL);
       const DWORD lateLeast = SELFTEST_WAIT_MS - SELFTEST_SLACK_MS;
-      const DWORD lateMost = SELFTEST_WAIT_MS + SELFTEST_PROMPT_MS;
+      const DWORD lateMost = SELFTEST_WAIT_MS + SELFTEST_LATE_SLACK_MS;
       int endCalled = 1, endPending = 0;
       int nchecks = 0;
       HANDLE late;
@@ -1503,9 +1511,10 @@ BOOL CWinHTTrackApp::InitInstance()
       /* CreateEvent can fail, and the callback is then all the wait has to go on. */
       nchecks += checkEngineWait("no event, mirror over", NULL, &endCalled, 0, FALSE,
                                  0, SELFTEST_PROMPT_MS);
-      /* The bound covers the teardown the callback fires in the middle of. */
+      /* The bound covers the teardown the callback fires in the middle of. This case has
+         nothing to poll, so it lands ON its bound: a wait that scaled the bound lands off it. */
       nchecks += checkEngineWait("engine never returns", pending, &endCalled, SELFTEST_WAIT_MS,
-                                 FALSE, lateLeast, lateMost);
+                                 FALSE, lateLeast, SELFTEST_WAIT_MS + SELFTEST_PROMPT_MS);
       /* The mirror half has no bound, so end the mirror late and ask for a bound of zero,
          which a wait that skipped that half would return from at once. */
       late = selftestStartLateEngine();
@@ -1529,6 +1538,7 @@ BOOL CWinHTTrackApp::InitInstance()
       CloseHandle(ready);
       CloseHandle(pending);
       CloseHandle(selftestLateResults);
+      selftestLateResults = NULL;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
       if (nchecks != 16) {
         fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 16\n", nchecks);
