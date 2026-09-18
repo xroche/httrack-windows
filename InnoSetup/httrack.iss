@@ -121,9 +121,12 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\HTTrack Website Co
 
 [Registry]
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror
-Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror
-Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupRun"; ValueData: 1; Flags: uninsdeletekey noerror
-Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupHasRegistered"; ValueData: 1; Flags: uninsdeletekey noerror; Tasks: regfiles
+; MFC also keeps the options, the language and the proxy under this key. uninsdeletekey would
+; take those too, even on a row naming one value, so we remove only the two values we wrote.
+; An upgrade appends to the old uninstall log, so this reaches a machine at its next fresh install.
+Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror
+Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupRun"; ValueData: 1; Flags: uninsdeletevalue uninsdeletekeyifempty noerror
+Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupHasRegistered"; ValueData: 1; Flags: uninsdeletevalue uninsdeletekeyifempty noerror; Tasks: regfiles
 ; Nothing reads these. They stay only so a machine-wide install is unchanged, and a per-user one may not write HKLM.
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
