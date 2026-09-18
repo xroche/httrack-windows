@@ -54,7 +54,9 @@ SolidCompression=yes
 ; It is also why the app-local runtime must stay on the 14.4x (VS2022) line: 14.5x
 ; dropped Windows 7.
 MinVersion=6.1sp1
+; The default install is machine-wide. /CURRENTUSER, which the Microsoft Store passes, puts it under %LocalAppData%\Programs with no elevation.
 PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=commandline
 OutputBaseFilename=httrack_{#Arch}_{#AppVersion}
 OutputDir={#OutDir}
 SetupIconFile={#GuiDir}\WinHTTrack\res\Shell.ico
@@ -122,14 +124,17 @@ Root: HKCU; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyi
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupRun"; ValueData: 1; Flags: uninsdeletekey noerror
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupHasRegistered"; ValueData: 1; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKLM; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror
-Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror
-Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey noerror
-Root: HKCR; Subkey: ".whtt\ShellNew"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKCR; Subkey: ".whtt"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKCR; Subkey: "WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKLM; Subkey: "Software\Classes\WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKCR; Subkey: "Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKLM; Subkey: "SOFTWARE\Classes\Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
+; Nothing reads these. They stay only so a machine-wide install is unchanged, and a per-user one may not write HKLM.
+Root: HKLM; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror; Check: IsAdminInstallMode
+Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
+Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
+; The app fills these in itself on first run, through HKEY_CLASSES_ROOT. A key that does not yet exist goes
+; to HKLM, which a standard user cannot write, and MFC skips the failure without a word.
+; So every key it touches has to exist under HKCU first, the open verb included.
+Root: HKA; Subkey: "Software\Classes\.whtt\ShellNew"; Flags: uninsdeletekey noerror; Tasks: regfiles
+Root: HKA; Subkey: "Software\Classes\.whtt"; Flags: uninsdeletekey noerror; Tasks: regfiles
+Root: HKA; Subkey: "Software\Classes\WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles
+Root: HKA; Subkey: "Software\Classes\WinHTTrackProject\shell\open\command"; Flags: uninsdeletekey noerror; Tasks: regfiles
+Root: HKA; Subkey: "Software\Classes\Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKCU; Subkey: "AppEvents\Schemes\Apps\WinHTTrack"; ValueType: string; ValueData: "WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKCU; Subkey: "AppEvents\EventLabels\MirrorFinished"; ValueType: string; ValueData: "Mirror Finished"; Flags: uninsdeletekey noerror; Tasks: regfiles

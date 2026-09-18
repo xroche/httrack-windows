@@ -87,7 +87,7 @@ runs:
               foreach ($k in Get-ChildItem $r) {
                 # -LiteralPath: a key name containing [ ] would otherwise read as a wildcard and be skipped.
                 $dn = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).DisplayName
-                if ($dn -like 'WinHTTrack*') { "$($k.PSChildName) = $dn" }
+                if ($dn -like 'WinHTTrack*') { "$r\$($k.PSChildName) = $dn" }
               }
             }
           })
@@ -357,13 +357,14 @@ runs:
         }
 
         # Two entries in Add/Remove Programs is the failure, and exit 0 cannot see it.
-        # x86 installs land under WOW6432Node, x64 under the native view; HKCU is listed
-        # for completeness though PrivilegesRequired=admin means Inno never falls back to it.
-        $entries = Get-UninstallEntries
+        # x86 installs land under WOW6432Node, x64 under the native view. The hive is the
+        # control for the per-user leg below, since with no /CURRENTUSER this stays machine-wide.
+        $entries = @(Get-UninstallEntries)
         foreach ($e in $entries) { Write-Host "  uninstall entry: $e" }
         if ($entries.Count -ne 1) {
           throw "expected 1 uninstall entry after installing over, found $($entries.Count)"
         }
+        if ($entries[0] -notlike 'HKLM:*') { throw "the default install went per-user: $($entries[0])" }
         Write-Host "::notice::installing $env:APPVER over itself upgrades in place, one uninstall entry"
 
         $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
@@ -376,3 +377,63 @@ runs:
         $left = Get-UninstallEntries
         foreach ($e in $left) { Write-Host "  orphaned entry: $e" }
         if ($left.Count -ne 0) { throw "uninstall left $($left.Count) entry in Add/Remove Programs" }
+
+        # The Microsoft Store passes /CURRENTUSER, and a standard user has no HKLM and
+        # no Program Files to write. Every constant below is from InnoSetup/httrack.iss.
+        $userDir = Join-Path $env:LOCALAPPDATA 'Programs\WinHTTrack'
+        $userExe = Join-Path $userDir 'WinHTTrack.exe'
+        $userExtKey = 'HKCU:\SOFTWARE\Classes\.whtt'
+        # The open verb, which MFC cannot create for a standard user. See the .iss comment.
+        $userVerb = 'HKCU:\SOFTWARE\Classes\WinHTTrackProject\shell\open\command'
+        $userIcons = @((Join-Path ([Environment]::GetFolderPath('Programs')) 'WinHTTrack\WinHTTrack Website Copier.lnk'),
+                       (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'HTTrack Website Copier.lnk'))
+        $machinePaths = @("$env:ProgramFiles\WinHTTrack", "${env:ProgramFiles(x86)}\WinHTTrack",
+                          'HKLM:\SOFTWARE\WinHTTrack Website Copier',
+                          'HKLM:\SOFTWARE\WOW6432Node\WinHTTrack Website Copier',
+                          'HKLM:\SOFTWARE\Classes\.whtt',
+                          'HKLM:\SOFTWARE\Classes\WinHTTrackProject',
+                          (Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'WinHTTrack\WinHTTrack Website Copier.lnk'),
+                          (Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'HTTrack Website Copier.lnk'))
+        # Every assertion below is that something is absent, which proves nothing unless it
+        # is absent now. The machine-wide uninstall above is what should have cleared these.
+        # Files rather than their directories, because Inno drops $userDir after it exits.
+        foreach ($q in (@($userExe, $userExtKey, $userVerb) + $userIcons + $machinePaths)) {
+          if (Test-Path -LiteralPath $q) { throw "$q is still there: the per-user checks below would be vacuous" }
+        }
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser.log"
+        if ($p.ExitCode -ne 0) { throw "the per-user installer exited $($p.ExitCode)" }
+        # No /DIR is passed, so the path comes from {autopf} rather than from this leg.
+        if (-not (Test-Path $userExe)) { throw "a per-user install did not land in $userDir" }
+        foreach ($q in $machinePaths) {
+          if (Test-Path -LiteralPath $q) { throw "a per-user install wrote $q, which needs administrator" }
+        }
+        # {group} and {autodesktop} had to resolve into this user's own profile.
+        foreach ($q in $userIcons) {
+          if (-not (Test-Path -LiteralPath $q)) { throw "a per-user install placed no shortcut at $q" }
+        }
+        foreach ($q in @($userExtKey, $userVerb)) {
+          if (-not (Test-Path -LiteralPath $q)) { throw "a per-user install registered no $q" }
+        }
+        $entries = @(Get-UninstallEntries)
+        foreach ($e in $entries) { Write-Host "  per-user uninstall entry: $e" }
+        if ($entries.Count -ne 1) { throw "expected 1 per-user uninstall entry, found $($entries.Count)" }
+        if ($entries[0] -notlike 'HKCU:*') { throw "/CURRENTUSER still registered machine-wide: $($entries[0])" }
+        $pv = "$PWD\peruser-version.txt"
+        $p = Start-Process $userExe -ArgumentList '--version' -Wait -PassThru -RedirectStandardOutput $pv
+        if ($p.ExitCode -ne 0) { throw "the per-user WinHTTrack.exe exited $($p.ExitCode)" }
+        if ((Get-Content $pv -Raw) -notmatch [regex]::Escape($env:APPVER)) {
+          throw "the per-user copy does not report $env:APPVER"
+        }
+        $unins = Get-ChildItem "$userDir\unins*.exe" | Select-Object -First 1
+        $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
+        if ($p.ExitCode -ne 0) { throw "the per-user uninstaller exited $($p.ExitCode)" }
+        Start-Sleep -Seconds 3
+        if (Test-Path $userExe) { throw "the per-user uninstall left WinHTTrack.exe behind" }
+        foreach ($q in (@($userExtKey, $userVerb) + $userIcons)) {
+          if (Test-Path -LiteralPath $q) { throw "the per-user uninstall left $q behind" }
+        }
+        $left = Get-UninstallEntries
+        foreach ($e in $left) { Write-Host "  orphaned entry: $e" }
+        if ($left.Count -ne 0) { throw "the per-user uninstall left $($left.Count) entry in Add/Remove Programs" }
+        Write-Host "::notice::/CURRENTUSER installs $env:APPVER into $userDir and writes nothing machine-wide"
