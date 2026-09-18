@@ -121,8 +121,9 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\HTTrack Website Co
 
 [Registry]
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror
-; This is also where MFC keeps the user options, the language and the proxy, so the uninstaller
-; takes back the two values it wrote and leaves the rest. uninsdeletekey would delete the key whole.
+; MFC also keeps the options, the language and the proxy under this key. uninsdeletekey would
+; take those too, even on a row naming one value, so we remove only the two values we wrote.
+; An upgrade appends to the old uninstall log, so this reaches a machine at its next fresh install.
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupRun"; ValueData: 1; Flags: uninsdeletevalue uninsdeletekeyifempty noerror
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupHasRegistered"; ValueData: 1; Flags: uninsdeletevalue uninsdeletekeyifempty noerror; Tasks: regfiles

@@ -426,7 +426,7 @@ runs:
           throw "the per-user copy does not report $env:APPVER"
         }
         # Two installs share this key, so an uninstall that took it whole would wipe the
-        # other copy's options, language and proxy. Stand in for those with one value.
+        # other copy's options, language and proxy.
         $settings = 'HKCU:\SOFTWARE\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface'
         if (-not (Test-Path -LiteralPath $settings)) { throw "the installer wrote no $settings" }
         New-ItemProperty -LiteralPath $settings -Name 'SmokeTestUserSetting' -Value 42 `
@@ -442,8 +442,8 @@ runs:
         $left = Get-UninstallEntries
         foreach ($e in $left) { Write-Host "  orphaned entry: $e" }
         if ($left.Count -ne 0) { throw "the per-user uninstall left $($left.Count) entry in Add/Remove Programs" }
-        # The pair is what makes either half mean anything. SetupRun proves the uninstaller
-        # reached this key at all, so the surviving value is not just a key it never touched.
+        # SetupRun proves the uninstaller reached this key, so the value that survived is
+        # not simply one it never looked at.
         $after = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
         if ($null -eq $after) { throw "the uninstall deleted $settings, taking the user's settings" }
         if ($after.SmokeTestUserSetting -ne 42) { throw "the uninstall took a user setting with it" }
