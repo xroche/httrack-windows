@@ -17,8 +17,10 @@ using System.Text;
 // %LOCALAPPDATA% and HKCU still name the paths the caller asserts on.
 public static class Unelevated
 {
-    const int TokenElevation = 20, TokenLinkedToken = 19;
+    const int TokenElevation = 20, TokenLinkedToken = 19, TokenIntegrityLevel = 25;
     const uint TOKEN_QUERY = 0x0008, TOKEN_DUPLICATE = 0x0002;
+    const uint SAFER_SCOPEID_USER = 2, SAFER_LEVELID_NORMALUSER = 0x20000, SAFER_LEVEL_OPEN = 1;
+    const uint SE_GROUP_INTEGRITY = 0x00000020;
     const uint MAXIMUM_ALLOWED = 0x02000000, CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     const uint WAIT_TIMEOUT = 0x102, WAIT_FAILED = 0xFFFFFFFF;
 
@@ -35,6 +37,9 @@ public static class Unelevated
     [StructLayout(LayoutKind.Sequential)]
     struct ProcessInformation { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
 
+    [StructLayout(LayoutKind.Sequential)]
+    struct TokenMandatoryLabel { public IntPtr Sid; public uint Attributes; }
+
     [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll", SetLastError = true)] static extern uint WaitForSingleObject(IntPtr h, uint ms);
@@ -45,6 +50,18 @@ public static class Unelevated
     static extern bool GetTokenInformation(IntPtr token, int cls, IntPtr info, int len, out int need);
     [DllImport("advapi32.dll", SetLastError = true)]
     static extern bool DuplicateTokenEx(IntPtr token, uint access, IntPtr attrs, int impersonation, int type, out IntPtr dup);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool SetTokenInformation(IntPtr token, int cls, IntPtr info, int len);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool SaferCreateLevel(uint scope, uint level, uint open, out IntPtr handle, IntPtr reserved);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool SaferComputeTokenFromLevel(IntPtr level, IntPtr inToken, out IntPtr outToken, uint flags, IntPtr reserved);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool SaferCloseLevel(IntPtr level);
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool ConvertStringSidToSid(string sid, out IntPtr result);
+    [DllImport("advapi32.dll")] static extern int GetLengthSid(IntPtr sid);
+    [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr p);
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     static extern bool CreateProcessWithTokenW(IntPtr token, int logonFlags, string app, StringBuilder cmd,
         uint flags, IntPtr env, string dir, ref StartupInfo si, out ProcessInformation pi);
@@ -80,29 +97,77 @@ public static class Unelevated
         try { return IsTokenElevated(token); } finally { CloseHandle(token); }
     }
 
+    // What runas /trustlevel:0x20000 builds: the admin group denied and every privilege
+    // dropped. Used where the account has no split token, which is the case on a hosted
+    // runner, and the integrity level has to be lowered by hand because SAFER leaves it.
+    static IntPtr SaferToken()
+    {
+        // Initialised because C# does not call a variable assigned inside a try definitely assigned.
+        IntPtr level = IntPtr.Zero, token = IntPtr.Zero, sid = IntPtr.Zero;
+        Check(SaferCreateLevel(SAFER_SCOPEID_USER, SAFER_LEVELID_NORMALUSER, SAFER_LEVEL_OPEN, out level, IntPtr.Zero), "SaferCreateLevel");
+        try { Check(SaferComputeTokenFromLevel(level, IntPtr.Zero, out token, 0, IntPtr.Zero), "SaferComputeTokenFromLevel"); }
+        finally { SaferCloseLevel(level); }
+
+        Check(ConvertStringSidToSid("S-1-16-8192", out sid), "ConvertStringSidToSid");  // medium integrity
+        try
+        {
+            TokenMandatoryLabel label;
+            label.Sid = sid;
+            label.Attributes = SE_GROUP_INTEGRITY;
+            int size = Marshal.SizeOf(typeof(TokenMandatoryLabel));
+            IntPtr buf = Marshal.AllocHGlobal(size);
+            try
+            {
+                Marshal.StructureToPtr(label, buf, false);
+                Check(SetTokenInformation(token, TokenIntegrityLevel, buf, size + GetLengthSid(sid)), "SetTokenInformation(integrity)");
+            }
+            finally { Marshal.FreeHGlobal(buf); }
+        }
+        finally { LocalFree(sid); }
+        return token;
+    }
+
+    // The UAC-linked token where the account has one, because it is the real standard-user
+    // token for this logon. A hosted runner has none, and says so with 1312.
+    static IntPtr StandardUserToken(IntPtr token)
+    {
+        int size = IntPtr.Size;
+        IntPtr buf = Marshal.AllocHGlobal(size);
+        int need;
+        bool ok = GetTokenInformation(token, TokenLinkedToken, buf, size, out need);
+        int err = Marshal.GetLastWin32Error();
+        IntPtr linked = ok ? Marshal.ReadIntPtr(buf) : IntPtr.Zero;
+        Marshal.FreeHGlobal(buf);
+        if (!ok)
+        {
+            Console.Error.WriteLine("no linked token (error " + err + "), falling back to a SAFER normal-user token");
+            return SaferToken();
+        }
+        try
+        {
+            IntPtr primary;
+            Check(DuplicateTokenEx(linked, MAXIMUM_ALLOWED, IntPtr.Zero, 2, 1, out primary), "DuplicateTokenEx");
+            return primary;
+        }
+        finally { CloseHandle(linked); }
+    }
+
     public static int Run(string commandLine, string workingDirectory, uint timeoutMs)
     {
-        IntPtr token, linked = IntPtr.Zero, primary = IntPtr.Zero;
+        IntPtr token, primary = IntPtr.Zero;
         Check(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, out token), "OpenProcessToken");
         try
         {
             if (!IsTokenElevated(token))
-                throw new InvalidOperationException("this process is not elevated, so it has no filtered token to drop to");
+                throw new InvalidOperationException("this process is not elevated, so it has nothing to drop from");
 
-            // Error 1312 here means the job token came from a service or S4U logon, which has
-            // no linked token. The way out is CreateRestrictedToken with a medium integrity
-            // level, which is what runas /trustlevel:0x20000 does. Unwritten until it fires,
-            // because a fallback nothing exercises is worth less than a clear failure.
+            primary = StandardUserToken(token);
 
-            IntPtr buf = Query(token, TokenLinkedToken, IntPtr.Size);
-            try { linked = Marshal.ReadIntPtr(buf); } finally { Marshal.FreeHGlobal(buf); }
-
-            // The control. Without it this class would silently run the child elevated and
-            // every assertion the caller makes afterwards would pass for the wrong reason.
-            if (IsTokenElevated(linked))
-                throw new InvalidOperationException("the linked token is elevated too, so nothing here is a standard-user run");
-
-            Check(DuplicateTokenEx(linked, MAXIMUM_ALLOWED, IntPtr.Zero, 2, 1, out primary), "DuplicateTokenEx");
+            // The control, and it guards both routes. Without it this class would silently run
+            // the child elevated and every assertion the caller makes would pass for the wrong
+            // reason. A SAFER token reads as unelevated here because the admin group is denied.
+            if (IsTokenElevated(primary))
+                throw new InvalidOperationException("the token built here is still elevated, so nothing would be a standard-user run");
 
             StartupInfo si = new StartupInfo();
             si.cb = Marshal.SizeOf(si);
@@ -130,7 +195,6 @@ public static class Unelevated
         finally
         {
             if (primary != IntPtr.Zero) CloseHandle(primary);
-            if (linked != IntPtr.Zero) CloseHandle(linked);
             CloseHandle(token);
         }
     }
