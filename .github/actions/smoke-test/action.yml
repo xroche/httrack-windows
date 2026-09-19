@@ -409,6 +409,15 @@ runs:
         # Written by a machine-wide install too, into this same user's hive.
         $shared = @('HKCU:\AppEvents\Schemes\Apps\WinHTTrack', 'HKCU:\AppEvents\EventLabels\MirrorFinished')
         $settings = 'HKCU:\SOFTWARE\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface'
+        # Which of the four an uninstall left: all of them while another copy needs them, none
+        # once the last copy goes. Naming what survived beats a bare count in the failure.
+        function Get-SharedState {
+          $k = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
+          return @(
+            foreach ($v in 'SetupRun', 'SetupHasRegistered') { if ($null -ne $k.$v) { $v } }
+            foreach ($q in $shared) { if (Test-Path -LiteralPath $q) { $q } }
+          )
+        }
         $userIcons = @((Join-Path ([Environment]::GetFolderPath('Programs')) 'WinHTTrack\WinHTTrack Website Copier.lnk'),
                        (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'HTTrack Website Copier.lnk'))
         $machinePaths = @("$env:ProgramFiles\WinHTTrack", "${env:ProgramFiles(x86)}\WinHTTrack",
@@ -425,10 +434,8 @@ runs:
           if (Test-Path -LiteralPath $q) { throw "$q is still there: the per-user checks below would be vacuous" }
         }
         # The uninstall above had no other copy to spare, so this is where the deleting half is seen.
-        $gone = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
-        foreach ($v in 'SetupRun', 'SetupHasRegistered') {
-          if ($null -ne $gone.$v) { throw "the machine-wide uninstall left $v behind" }
-        }
+        $held = Get-SharedState
+        if ($held.Count -ne 0) { throw "the machine-wide uninstall left $($held -join ', ')" }
         $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
           '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser.log"
         if ($p.ExitCode -ne 0) { throw "the per-user installer exited $($p.ExitCode)" }
@@ -466,22 +473,28 @@ runs:
           '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser-both.log"
         if ($p.ExitCode -ne 0) { throw "the Store update path exited $($p.ExitCode) with both copies installed" }
         if (-not (Test-Path $userExe)) { throw "the per-user upgrade removed $userExe" }
-        # Removed per-user first, the only direction that asks about the machine-wide copy.
+        # Removed per-user first, the only direction that asks whether a machine-wide copy is there.
         $unins = Get-ChildItem "$userDir\unins*.exe" | Select-Object -First 1
         $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
         if ($p.ExitCode -ne 0) { throw "the per-user uninstaller beside the machine-wide copy exited $($p.ExitCode)" }
         Start-Sleep -Seconds 3
-        $kept = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
-        foreach ($v in 'SetupRun', 'SetupHasRegistered') {
-          if ($null -eq $kept.$v) { throw "the per-user uninstall took $v from the machine-wide copy" }
-        }
-        foreach ($q in $shared) {
-          if (-not (Test-Path -LiteralPath $q)) { throw "the per-user uninstall took $q from the machine-wide copy" }
-        }
-        # Back to both installed, for the other direction.
+        $held = Get-SharedState
+        if ($held.Count -ne 4) { throw "the per-user uninstall took what the machine-wide copy needs, leaving $($held -join ', ')" }
+        # Put the per-user copy back for the other direction. The machine-wide copy has to go
+        # first, because InitializeSetup declines a per-user install beside one.
+        $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
+        $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
+        if ($p.ExitCode -ne 0) { throw "removing the machine-wide copy exited $($p.ExitCode)" }
+        Start-Sleep -Seconds 3
+        $held = Get-SharedState
+        if ($held.Count -ne 0) { throw "with no copy left installed, the uninstall kept $($held -join ', ')" }
         $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
           '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser-again.log"
-        if ($p.ExitCode -ne 0) { throw "reinstalling the per-user copy beside the machine-wide one exited $($p.ExitCode)" }
+        if ($p.ExitCode -ne 0) { throw "reinstalling the per-user copy exited $($p.ExitCode)" }
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\machine-again.log"
+        if ($p.ExitCode -ne 0) { throw "reinstalling the machine-wide copy exited $($p.ExitCode)" }
+        # Now the machine-wide copy goes while the per-user one stands.
         $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
         $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
         if ($p.ExitCode -ne 0) { throw "removing the machine-wide copy beside the per-user one exited $($p.ExitCode)" }
@@ -492,15 +505,9 @@ runs:
         }
         $entries = @(Get-UninstallEntries)
         if ($entries.Count -ne 1 -or $entries[0] -notlike 'HKCU:*') { throw "the machine-wide uninstall left: $($entries -join '; ')" }
-        # The per-user copy is still installed and still needs the HKCU state both installs
-        # write, so that uninstall had to leave every part of it alone.
-        $kept = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
-        foreach ($v in 'SetupRun', 'SetupHasRegistered') {
-          if ($null -eq $kept.$v) { throw "the machine-wide uninstall took $v from the per-user copy" }
-        }
-        foreach ($q in $shared) {
-          if (-not (Test-Path -LiteralPath $q)) { throw "the machine-wide uninstall took $q from the per-user copy" }
-        }
+        # The per-user copy is still installed and still needs the HKCU state both installs write.
+        $held = Get-SharedState
+        if ($held.Count -ne 4) { throw "the machine-wide uninstall took what the per-user copy needs, leaving $($held -join ', ')" }
         Write-Host "::notice::uninstalling one copy leaves the other's settings, and the update path still upgrades it"
 
         # Two installs share this key, so an uninstall that took it whole would wipe the
