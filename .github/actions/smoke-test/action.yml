@@ -92,6 +92,11 @@ runs:
             }
           })
         }
+        # unins000.exe copies itself under %TEMP% and returns at once, so this is the only
+        # sign the real uninstall is still going. Its name there is _iu<random>.tmp.
+        function Test-UninstallerRunning {
+          return @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like '_iu*' }).Count -ne 0
+        }
         # The sign job runs both arches on one runner, so start by proving nothing is left
         # over: otherwise a key orphaned by the previous leg fails THIS one and blames it.
         $before = Get-UninstallEntries
@@ -578,10 +583,15 @@ runs:
         if (-not $unins) { throw 'a standard-user install left no uninstaller' }
         $code = [Unelevated]::Run("`"$($unins.FullName)`" /VERYSILENT /NORESTART", $PWD.Path, 300000)
         if ($code -ne 0) { throw "a standard-user uninstall exited $code" }
-        # unins000.exe hands off to a copy of itself, so that code is the launcher's. Wait on
-        # the uninstall entry, which goes last: the files are gone well before the registry is.
-        $deadline = (Get-Date).AddSeconds(60)
-        while (@(Get-UninstallEntries).Count -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+        # That code is the launcher's, and the uninstall entry is no better: it went in under
+        # half a second here while an HKCU row the copy had not reached yet still stood. Wait
+        # for the copy itself, first to appear and then to finish.
+        $deadline = (Get-Date).AddSeconds(10)
+        while (-not (Test-UninstallerRunning) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+        $deadline = (Get-Date).AddSeconds(120)
+        while (((Test-UninstallerRunning) -or @(Get-UninstallEntries).Count) -and (Get-Date) -lt $deadline) {
+          Start-Sleep -Milliseconds 500
+        }
         if (Test-Path $userExe) { throw "a standard-user uninstall left $userExe behind" }
         foreach ($q in (@($userExtKey, $userVerb) + $shared + $userIcons)) {
           if (Test-Path -LiteralPath $q) { throw "a standard-user uninstall left $q behind" }
