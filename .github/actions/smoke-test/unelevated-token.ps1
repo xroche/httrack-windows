@@ -1,14 +1,9 @@
-# Install and uninstall WinHTTrack with the runner's NON-elevated token.
+# Defines [Unelevated], which runs a program with the runner's NON-elevated token.
 #
-# Every other install in the smoke test inherits the runner's elevated token, so none of
-# them can say whether setup.exe finishes without asking for elevation. That is the question
-# the Microsoft Store's silent-install check asks, and it is what issue #184 reports.
-[CmdletBinding()]
-param(
-    [Parameter(Mandatory)][string]$Setup,
-    [Parameter(Mandatory)][string]$UserExe,
-    [Parameter(Mandatory)][string]$LogDir
-)
+# Every install in the smoke test goes through Start-Process and inherits the runner's
+# elevated token, so none of them can say whether setup.exe finishes without asking for
+# elevation. That is the question the Microsoft Store's silent-install check asks (#184).
+# Dot-sourced rather than run, so the caller keeps its own assertions.
 
 $ErrorActionPreference = 'Stop'
 
@@ -18,14 +13,14 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
 
-// Runs a program with the UAC-filtered token linked to this elevated one. Same user and
-// same environment, so %LOCALAPPDATA% and HKCU still name the paths the caller asserts on.
+// Runs a program with the UAC-filtered token linked to this elevated one. Same user, so
+// %LOCALAPPDATA% and HKCU still name the paths the caller asserts on.
 public static class Unelevated
 {
     const int TokenElevation = 20, TokenLinkedToken = 19;
     const uint TOKEN_QUERY = 0x0008, TOKEN_DUPLICATE = 0x0002;
     const uint MAXIMUM_ALLOWED = 0x02000000, CREATE_UNICODE_ENVIRONMENT = 0x00000400;
-    const uint INFINITE = 0xFFFFFFFF;
+    const uint WAIT_TIMEOUT = 0x102, WAIT_FAILED = 0xFFFFFFFF;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     struct StartupInfo
@@ -44,6 +39,7 @@ public static class Unelevated
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll", SetLastError = true)] static extern uint WaitForSingleObject(IntPtr h, uint ms);
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetExitCodeProcess(IntPtr h, out uint code);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool TerminateProcess(IntPtr h, uint code);
     [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr p, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError = true)]
     static extern bool GetTokenInformation(IntPtr token, int cls, IntPtr info, int len, out int need);
@@ -64,8 +60,9 @@ public static class Unelevated
         int need;
         if (!GetTokenInformation(token, cls, buf, size, out need))
         {
+            int err = Marshal.GetLastWin32Error();
             Marshal.FreeHGlobal(buf);
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "GetTokenInformation(" + cls + ") failed");
+            throw new Win32Exception(err, "GetTokenInformation(" + cls + ") failed");
         }
         return buf;
     }
@@ -83,7 +80,7 @@ public static class Unelevated
         try { return IsTokenElevated(token); } finally { CloseHandle(token); }
     }
 
-    public static int Run(string commandLine, string workingDirectory)
+    public static int Run(string commandLine, string workingDirectory, uint timeoutMs)
     {
         IntPtr token, linked = IntPtr.Zero, primary = IntPtr.Zero;
         Check(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, out token), "OpenProcessToken");
@@ -91,6 +88,11 @@ public static class Unelevated
         {
             if (!IsTokenElevated(token))
                 throw new InvalidOperationException("this process is not elevated, so it has no filtered token to drop to");
+
+            // Error 1312 here means the job token came from a service or S4U logon, which has
+            // no linked token. The way out is CreateRestrictedToken with a medium integrity
+            // level, which is what runas /trustlevel:0x20000 does. Unwritten until it fires,
+            // because a fallback nothing exercises is worth less than a clear failure.
 
             IntPtr buf = Query(token, TokenLinkedToken, IntPtr.Size);
             try { linked = Marshal.ReadIntPtr(buf); } finally { Marshal.FreeHGlobal(buf); }
@@ -104,14 +106,21 @@ public static class Unelevated
 
             StartupInfo si = new StartupInfo();
             si.cb = Marshal.SizeOf(si);
-            si.lpDesktop = @"winsta0\default";
             ProcessInformation pi;
             // CreateProcessWithTokenW may write to the command line, so it gets a buffer.
-            Check(CreateProcessWithTokenW(primary, 0, null, new StringBuilder(commandLine),
+            Check(CreateProcessWithTokenW(primary, 0, null, new StringBuilder(commandLine, commandLine.Length + 1),
                 CREATE_UNICODE_ENVIRONMENT, IntPtr.Zero, workingDirectory, ref si, out pi), "CreateProcessWithTokenW");
             try
             {
-                WaitForSingleObject(pi.hProcess, INFINITE);
+                // Bounded: a build that started demanding elevation would otherwise sit on a
+                // prompt nobody can answer until the job times out, which reads as flakiness.
+                uint waited = WaitForSingleObject(pi.hProcess, timeoutMs);
+                if (waited == WAIT_FAILED) Check(false, "WaitForSingleObject");
+                if (waited == WAIT_TIMEOUT)
+                {
+                    TerminateProcess(pi.hProcess, 1);
+                    throw new TimeoutException("the standard-user run did not finish in " + timeoutMs + " ms");
+                }
                 uint code;
                 Check(GetExitCodeProcess(pi.hProcess, out code), "GetExitCodeProcess");
                 return (int)code;
@@ -127,24 +136,3 @@ public static class Unelevated
     }
 }
 '@
-
-# A premise, not a skip: if the runner ever stops being elevated, every install above is
-# already a standard-user run and this leg has to be rewritten rather than quietly pass.
-if (-not [Unelevated]::IsElevated()) {
-    throw 'the runner is no longer elevated, so this leg cannot tell the two token kinds apart'
-}
-if (Test-Path $UserExe) { throw "$UserExe is already there, so the install below would prove nothing" }
-
-$code = [Unelevated]::Run("`"$Setup`" /CURRENTUSER /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=$LogDir\unelevated.log", $LogDir)
-if ($code -ne 0) { throw "a standard-user install exited $code" }
-if (-not (Test-Path $UserExe)) { throw "a standard-user install placed no $UserExe" }
-
-# The uninstaller has to manage without elevation too, or Add/Remove Programs strands it.
-$unins = Get-ChildItem (Join-Path (Split-Path $UserExe) 'unins*.exe') | Select-Object -First 1
-if (-not $unins) { throw 'a standard-user install left no uninstaller' }
-$code = [Unelevated]::Run("`"$($unins.FullName)`" /VERYSILENT /NORESTART", $LogDir)
-if ($code -ne 0) { throw "a standard-user uninstall exited $code" }
-Start-Sleep -Seconds 3
-if (Test-Path $UserExe) { throw "a standard-user uninstall left $UserExe behind" }
-
-Write-Host "::notice::setup.exe installs and uninstalls with a standard-user token, no elevation asked"
