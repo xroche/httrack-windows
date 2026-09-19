@@ -408,6 +408,7 @@ runs:
         $userVerb = 'HKCU:\SOFTWARE\Classes\WinHTTrackProject\shell\open\command'
         # Written by a machine-wide install too, into this same user's hive.
         $shared = @('HKCU:\AppEvents\Schemes\Apps\WinHTTrack', 'HKCU:\AppEvents\EventLabels\MirrorFinished')
+        $settings = 'HKCU:\SOFTWARE\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface'
         $userIcons = @((Join-Path ([Environment]::GetFolderPath('Programs')) 'WinHTTrack\WinHTTrack Website Copier.lnk'),
                        (Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'HTTrack Website Copier.lnk'))
         $machinePaths = @("$env:ProgramFiles\WinHTTrack", "${env:ProgramFiles(x86)}\WinHTTrack",
@@ -422,6 +423,11 @@ runs:
         # Files rather than their directories, because Inno drops $userDir after it exits.
         foreach ($q in (@($userExe, $userExtKey, $userVerb) + $shared + $userIcons + $machinePaths)) {
           if (Test-Path -LiteralPath $q) { throw "$q is still there: the per-user checks below would be vacuous" }
+        }
+        # The uninstall above had no other copy to spare, so this is where the deleting half is seen.
+        $gone = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
+        foreach ($v in 'SetupRun', 'SetupHasRegistered') {
+          if ($null -ne $gone.$v) { throw "the machine-wide uninstall left $v behind" }
         }
         $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
           '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser.log"
@@ -460,6 +466,22 @@ runs:
           '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser-both.log"
         if ($p.ExitCode -ne 0) { throw "the Store update path exited $($p.ExitCode) with both copies installed" }
         if (-not (Test-Path $userExe)) { throw "the per-user upgrade removed $userExe" }
+        # Removed per-user first, the only direction that asks about the machine-wide copy.
+        $unins = Get-ChildItem "$userDir\unins*.exe" | Select-Object -First 1
+        $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
+        if ($p.ExitCode -ne 0) { throw "the per-user uninstaller beside the machine-wide copy exited $($p.ExitCode)" }
+        Start-Sleep -Seconds 3
+        $kept = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
+        foreach ($v in 'SetupRun', 'SetupHasRegistered') {
+          if ($null -eq $kept.$v) { throw "the per-user uninstall took $v from the machine-wide copy" }
+        }
+        foreach ($q in $shared) {
+          if (-not (Test-Path -LiteralPath $q)) { throw "the per-user uninstall took $q from the machine-wide copy" }
+        }
+        # Back to both installed, for the other direction.
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser-again.log"
+        if ($p.ExitCode -ne 0) { throw "reinstalling the per-user copy beside the machine-wide one exited $($p.ExitCode)" }
         $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
         $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
         if ($p.ExitCode -ne 0) { throw "removing the machine-wide copy beside the per-user one exited $($p.ExitCode)" }
@@ -472,7 +494,6 @@ runs:
         if ($entries.Count -ne 1 -or $entries[0] -notlike 'HKCU:*') { throw "the machine-wide uninstall left: $($entries -join '; ')" }
         # The per-user copy is still installed and still needs the HKCU state both installs
         # write, so that uninstall had to leave every part of it alone.
-        $settings = 'HKCU:\SOFTWARE\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface'
         $kept = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
         foreach ($v in 'SetupRun', 'SetupHasRegistered') {
           if ($null -eq $kept.$v) { throw "the machine-wide uninstall took $v from the per-user copy" }

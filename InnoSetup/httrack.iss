@@ -123,7 +123,8 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\HTTrack Website Co
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier"; Flags: noerror
 ; A machine-wide and a per-user copy write this same key, and MFC keeps the user's options,
 ; language and proxy in it. So no row here logs a deletion. CurUninstallStepChanged removes
-; what we wrote, and only once no other copy is left needing it.
+; what we wrote, and only once no other copy is left needing it. An upgrade appends to the old
+; uninstall log, so this reaches a machine at its next fresh install.
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: noerror
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupRun"; ValueData: 1; Flags: noerror
 Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupHasRegistered"; ValueData: 1; Flags: noerror; Tasks: regfiles
@@ -160,26 +161,23 @@ const
 
 procedure ExitProcess(uExitCode: Cardinal); external 'ExitProcess@kernel32.dll stdcall';
 
-{ Where the copy recorded under RootKey lives, or empty when none is. A key whose directory is
-  gone names nothing installed, and refusing an install the user cannot get past is worse than
-  missing a copy, so it does not count as one. }
-function InstalledPath(const RootKey: Integer): String;
+{ A key whose directory is gone names nothing installed. Refusing an install the user cannot
+  get past is worse than missing a copy, so it does not count as one. }
+function InstalledUnder(const RootKey: Integer): Boolean;
 var
   Path: String;
 begin
-  Result := '';
-  if not RegQueryStringValue(RootKey, UninstallSubkey, 'Inno Setup: App Path', Path) then
-    Exit;
-  if DirExists(Path) then
-    Result := Path;
+  Result := False;
+  if RegQueryStringValue(RootKey, UninstallSubkey, 'Inno Setup: App Path', Path) then
+    Result := DirExists(Path);
 end;
 
 { Both views are read, because the x86 installer registers under WOW6432Node. }
 function MachineWideInstallExists(): Boolean;
 begin
-  Result := InstalledPath(HKLM32) <> '';
+  Result := InstalledUnder(HKLM32);
   if (not Result) and IsWin64() then
-    Result := InstalledPath(HKLM64) <> '';
+    Result := InstalledUnder(HKLM64);
 end;
 
 { The Store has one Installer parameters box and no install-scope field, so the /CURRENTUSER
@@ -207,14 +205,14 @@ begin
   ExitProcess(ExitAlreadyInstalled);
 end;
 
-{ A copy under RootKey that is not the one at Mine. }
+{ A copy under RootKey that is not the one at Mine. The key alone answers it here, where
+  InstalledUnder would not: a copy whose folder is gone still owns what is left of its state. }
 function OtherCopyUnder(const RootKey: Integer; const Mine: String): Boolean;
 var
   Path: String;
 begin
-  Path := InstalledPath(RootKey);
   Result := False;
-  if Path <> '' then
+  if RegQueryStringValue(RootKey, UninstallSubkey, 'Inno Setup: App Path', Path) then
     Result := CompareText(Path, Mine) <> 0;
 end;
 
@@ -232,7 +230,10 @@ begin
     Result := OtherCopyUnder(HKLM64, Mine);
 end;
 
-{ Both copies write the HKCU state above, so whichever is removed first must leave it. }
+{ Both copies write the HKCU state above, so whichever is removed first must leave it. A
+  machine-wide uninstall run by another administrator reads that account's hive, as the old
+  rows did. Nothing here depends on when this runs against the log: it only ever deletes what
+  no row logs any more. }
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep <> usPostUninstall then
