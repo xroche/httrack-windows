@@ -20,7 +20,7 @@ public static class Unelevated
     const int TokenGroups = 2, TokenLinkedToken = 19, TokenElevation = 20, TokenIntegrityLevel = 25;
     const uint TOKEN_QUERY = 0x0008, TOKEN_DUPLICATE = 0x0002;
     const uint SAFER_SCOPEID_USER = 2, SAFER_LEVELID_NORMALUSER = 0x20000, SAFER_LEVEL_OPEN = 1;
-    const uint SE_GROUP_ENABLED = 0x00000004, SE_GROUP_INTEGRITY = 0x00000020, SE_GROUP_USE_FOR_DENY_ONLY = 0x00000010;
+    const uint SE_GROUP_INTEGRITY = 0x00000020, SE_GROUP_USE_FOR_DENY_ONLY = 0x00000010;
     const uint MAXIMUM_ALLOWED = 0x02000000, CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     const uint WAIT_TIMEOUT = 0x102, WAIT_FAILED = 0xFFFFFFFF;
 
@@ -97,8 +97,8 @@ public static class Unelevated
         try { return Marshal.ReadInt32(buf) != 0; } finally { Marshal.FreeHGlobal(buf); }
     }
 
-    // TokenElevation cannot answer this: a filtered token keeps the elevation flag of the one
-    // it was built from. Whether the admin group is still enabled is what decides it.
+    // TokenElevation cannot answer this, because a filtered token keeps the elevation flag of
+    // the one it came from. A deny-only admin group grants nothing, and that is what decides it.
     static bool CanAdminister(IntPtr token)
     {
         IntPtr admins;
@@ -115,7 +115,7 @@ public static class Unelevated
                 {
                     SidAndAttributes g = (SidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(groups, i * size), typeof(SidAndAttributes));
                     if (EqualSid(g.Sid, admins))
-                        return (g.Attributes & SE_GROUP_ENABLED) != 0 && (g.Attributes & SE_GROUP_USE_FOR_DENY_ONLY) == 0;
+                        return (g.Attributes & SE_GROUP_USE_FOR_DENY_ONLY) == 0;
                 }
                 return false;
             }
@@ -142,23 +142,34 @@ public static class Unelevated
         try { Check(SaferComputeTokenFromLevel(level, IntPtr.Zero, out token, 0, IntPtr.Zero), "SaferComputeTokenFromLevel"); }
         finally { SaferCloseLevel(level); }
 
-        Check(ConvertStringSidToSid("S-1-16-8192", out sid), "ConvertStringSidToSid");  // medium integrity
         try
         {
-            TokenMandatoryLabel label;
-            label.Sid = sid;
-            label.Attributes = SE_GROUP_INTEGRITY;
-            int size = Marshal.SizeOf(typeof(TokenMandatoryLabel));
-            IntPtr buf = Marshal.AllocHGlobal(size);
+            Check(ConvertStringSidToSid("S-1-16-8192", out sid), "ConvertStringSidToSid");  // medium integrity
             try
             {
-                Marshal.StructureToPtr(label, buf, false);
-                Check(SetTokenInformation(token, TokenIntegrityLevel, buf, size + GetLengthSid(sid)), "SetTokenInformation(integrity)");
+                TokenMandatoryLabel label;
+                label.Sid = sid;
+                label.Attributes = SE_GROUP_INTEGRITY;
+                // The kernel reads the SID through the length, so the block has to hold it.
+                int size = Marshal.SizeOf(typeof(TokenMandatoryLabel)) + GetLengthSid(sid);
+                IntPtr buf = Marshal.AllocHGlobal(size);
+                try
+                {
+                    Marshal.StructureToPtr(label, buf, false);
+                    Check(SetTokenInformation(token, TokenIntegrityLevel, buf, size), "SetTokenInformation(integrity)");
+                }
+                finally { Marshal.FreeHGlobal(buf); }
             }
-            finally { Marshal.FreeHGlobal(buf); }
+            finally { LocalFree(sid); }
+
+            // SAFER documents no access rights on what it returns, and CreateProcessWithTokenW
+            // needs TOKEN_ASSIGN_PRIMARY. Duplicating asks for them where a failure still names
+            // the token API. The duplicate carries the label set above.
+            IntPtr primary;
+            Check(DuplicateTokenEx(token, MAXIMUM_ALLOWED, IntPtr.Zero, 2, 1, out primary), "DuplicateTokenEx(SAFER)");
+            return primary;
         }
-        finally { LocalFree(sid); }
-        return token;
+        finally { CloseHandle(token); }
     }
 
     // The UAC-linked token where the account has one, because it is the real standard-user

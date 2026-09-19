@@ -553,11 +553,15 @@ runs:
         # names the API rather than blaming setup.exe.
         $probe = [Unelevated]::Run('cmd.exe /c exit 7', $PWD.Path, 60000)
         if ($probe -ne 7) { throw "the standard-user token ran cmd.exe and got $probe, not 7" }
-        # And prove the token is really standard-user by watching an administrator-only write
-        # be refused, because every assertion below passes for the wrong reason if it is not.
+        # And prove the token is really standard-user by watching an administrator-only write be
+        # refused, because every assertion below passes for the wrong reason if it is not. The
+        # same command under HKCU is the control: without it a mistyped one reads as refused.
+        $ok = [Unelevated]::Run('cmd.exe /c reg add "HKCU\Software\WinHTTrackTokenProbe" /f', $PWD.Path, 60000)
         $denied = [Unelevated]::Run('cmd.exe /c reg add "HKLM\SOFTWARE\WinHTTrackTokenProbe" /f', $PWD.Path, 60000)
-        Remove-Item -LiteralPath 'HKLM:\SOFTWARE\WinHTTrackTokenProbe' -Recurse -Force -ErrorAction SilentlyContinue
-        if ($denied -eq 0) { throw 'the standard-user token created a key under HKLM, so it is not one' }
+        $made = Test-Path -LiteralPath 'HKLM:\SOFTWARE\WinHTTrackTokenProbe'
+        Remove-Item -LiteralPath 'HKCU:\Software\WinHTTrackTokenProbe', 'HKLM:\SOFTWARE\WinHTTrackTokenProbe' -Recurse -Force -ErrorAction SilentlyContinue
+        if ($ok -ne 0) { throw "the standard-user token could not write its own HKCU key: reg exited $ok" }
+        if ($denied -eq 0 -or $made) { throw 'the standard-user token created a key under HKLM, so it is not standard-user' }
         $code = [Unelevated]::Run("`"$($setup.FullName)`" /CURRENTUSER /VERYSILENT /SUPPRESSMSGBOXES /NORESTART `"/LOG=$PWD\unelevated.log`"", $PWD.Path, 300000)
         if ($code -ne 0) { throw "a standard-user install exited $code" }
         if (-not (Test-Path $userExe)) { throw "a standard-user install placed no $userExe" }
