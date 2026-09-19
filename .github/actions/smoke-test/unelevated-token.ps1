@@ -17,10 +17,10 @@ using System.Text;
 // %LOCALAPPDATA% and HKCU still name the paths the caller asserts on.
 public static class Unelevated
 {
-    const int TokenElevation = 20, TokenLinkedToken = 19, TokenIntegrityLevel = 25;
+    const int TokenGroups = 2, TokenLinkedToken = 19, TokenElevation = 20, TokenIntegrityLevel = 25;
     const uint TOKEN_QUERY = 0x0008, TOKEN_DUPLICATE = 0x0002;
     const uint SAFER_SCOPEID_USER = 2, SAFER_LEVELID_NORMALUSER = 0x20000, SAFER_LEVEL_OPEN = 1;
-    const uint SE_GROUP_INTEGRITY = 0x00000020;
+    const uint SE_GROUP_ENABLED = 0x00000004, SE_GROUP_INTEGRITY = 0x00000020, SE_GROUP_USE_FOR_DENY_ONLY = 0x00000010;
     const uint MAXIMUM_ALLOWED = 0x02000000, CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     const uint WAIT_TIMEOUT = 0x102, WAIT_FAILED = 0xFFFFFFFF;
 
@@ -39,6 +39,9 @@ public static class Unelevated
 
     [StructLayout(LayoutKind.Sequential)]
     struct TokenMandatoryLabel { public IntPtr Sid; public uint Attributes; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct SidAndAttributes { public IntPtr Sid; public uint Attributes; }
 
     [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool CloseHandle(IntPtr h);
@@ -61,6 +64,7 @@ public static class Unelevated
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     static extern bool ConvertStringSidToSid(string sid, out IntPtr result);
     [DllImport("advapi32.dll")] static extern int GetLengthSid(IntPtr sid);
+    [DllImport("advapi32.dll")] static extern bool EqualSid(IntPtr a, IntPtr b);
     [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr p);
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     static extern bool CreateProcessWithTokenW(IntPtr token, int logonFlags, string app, StringBuilder cmd,
@@ -71,8 +75,11 @@ public static class Unelevated
         if (!ok) throw new Win32Exception(Marshal.GetLastWin32Error(), what + " failed");
     }
 
-    static IntPtr Query(IntPtr token, int cls, int size)
+    static IntPtr Query(IntPtr token, int cls)
     {
+        int size;
+        GetTokenInformation(token, cls, IntPtr.Zero, 0, out size);
+        if (size <= 0) Check(false, "GetTokenInformation(" + cls + ") sizing");
         IntPtr buf = Marshal.AllocHGlobal(size);
         int need;
         if (!GetTokenInformation(token, cls, buf, size, out need))
@@ -86,8 +93,35 @@ public static class Unelevated
 
     static bool IsTokenElevated(IntPtr token)
     {
-        IntPtr buf = Query(token, TokenElevation, sizeof(int));
+        IntPtr buf = Query(token, TokenElevation);
         try { return Marshal.ReadInt32(buf) != 0; } finally { Marshal.FreeHGlobal(buf); }
+    }
+
+    // TokenElevation cannot answer this: a filtered token keeps the elevation flag of the one
+    // it was built from. Whether the admin group is still enabled is what decides it.
+    static bool CanAdminister(IntPtr token)
+    {
+        IntPtr admins;
+        Check(ConvertStringSidToSid("S-1-5-32-544", out admins), "ConvertStringSidToSid");
+        try
+        {
+            IntPtr buf = Query(token, TokenGroups);
+            try
+            {
+                int count = Marshal.ReadInt32(buf);
+                IntPtr groups = IntPtr.Add(buf, IntPtr.Size);  // the count is padded to a pointer
+                int size = Marshal.SizeOf(typeof(SidAndAttributes));
+                for (int i = 0; i < count; i++)
+                {
+                    SidAndAttributes g = (SidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(groups, i * size), typeof(SidAndAttributes));
+                    if (EqualSid(g.Sid, admins))
+                        return (g.Attributes & SE_GROUP_ENABLED) != 0 && (g.Attributes & SE_GROUP_USE_FOR_DENY_ONLY) == 0;
+                }
+                return false;
+            }
+            finally { Marshal.FreeHGlobal(buf); }
+        }
+        finally { LocalFree(admins); }
     }
 
     public static bool IsElevated()
@@ -163,11 +197,10 @@ public static class Unelevated
 
             primary = StandardUserToken(token);
 
-            // The control, and it guards both routes. Without it this class would silently run
-            // the child elevated and every assertion the caller makes would pass for the wrong
-            // reason. A SAFER token reads as unelevated here because the admin group is denied.
-            if (IsTokenElevated(primary))
-                throw new InvalidOperationException("the token built here is still elevated, so nothing would be a standard-user run");
+            // The control, and it guards both routes: without it the child would keep
+            // administrator rights and every assertion the caller makes would pass for nothing.
+            if (CanAdminister(primary))
+                throw new InvalidOperationException("the token built here can still administer, so nothing would be a standard-user run");
 
             StartupInfo si = new StartupInfo();
             si.cb = Marshal.SizeOf(si);
