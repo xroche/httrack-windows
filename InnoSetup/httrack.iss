@@ -151,13 +151,14 @@ Root: HKCU; Subkey: "AppEvents\EventLabels\MirrorFinished"; ValueType: string; V
 const
   { ERROR_PRODUCT_VERSION. Partner Center maps it to the Store's "Application already exists". }
   ExitAlreadyInstalled = 1638;
-  { AppId is unset, so Inno names the key after AppName. CI rejects one, because the
+  { AppId is unset, so Inno names the key after AppName. CI rejects setting AppId, because the
     install-over-itself test stands in for an upgrade. }
   UninstallSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1';
 
 procedure ExitProcess(uExitCode: Cardinal); external 'ExitProcess@kernel32.dll stdcall';
 
-{ The recorded directory must still exist, or a key left by an interrupted uninstall blocks every later install. }
+{ A key whose directory is gone names nothing installed. Refusing an install the user cannot
+  get past is worse than missing a copy, so it does not count as one. }
 function InstalledUnder(const RootKey: Integer): Boolean;
 var
   Path: String;
@@ -184,8 +185,9 @@ begin
   { A machine-wide install proceeds next to a per-user copy, because blocking the website's own installer would be worse. }
   if IsAdminInstallMode() then
     Exit;
-  { The per-user copy is being upgraded, not doubled. The Store re-runs this line for every update, so a refusal would strand it. }
-  if InstalledUnder(HKCU) then
+  { The per-user copy is being upgraded, not doubled, and Inno reuses this key even where the
+    directory is gone. The Store re-runs this line for every update, so a refusal would strand it. }
+  if RegKeyExists(HKCU, UninstallSubkey) then
     Exit;
   if not MachineWideInstallExists() then
     Exit;
