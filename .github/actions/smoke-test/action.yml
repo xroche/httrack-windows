@@ -541,6 +541,11 @@ runs:
         if ($null -ne $after.SetupRun) { throw "the uninstall left SetupRun behind" }
         if ($null -ne $after.SetupHasRegistered) { throw "the uninstall left SetupHasRegistered behind" }
         Write-Host "  settings key kept the user's value and lost both the installer's"
+
+        # Everything above ran with the runner's elevated token, so none of it can say whether
+        # setup.exe finishes without asking for elevation, which is what the Store checks.
+        & "$env:GITHUB_ACTION_PATH\unelevated-install.ps1" -Setup $setup.FullName -UserExe $userExe -LogDir $PWD.Path
+
         # The next architecture leg on this runner must not inherit any of it.
         Remove-Item -LiteralPath 'HKCU:\SOFTWARE\WinHTTrack Website Copier' -Recurse -Force
         Write-Host "::notice::/CURRENTUSER installs $env:APPVER into $userDir and writes nothing machine-wide"
