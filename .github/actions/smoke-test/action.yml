@@ -92,11 +92,6 @@ runs:
             }
           })
         }
-        # unins000.exe copies itself under %TEMP% and returns at once, so this is the only
-        # sign the real uninstall is still going. Its name there is _iu<random>.tmp.
-        function Test-UninstallerRunning {
-          return @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like '_iu*' }).Count -ne 0
-        }
         # The sign job runs both arches on one runner, so start by proving nothing is left
         # over: otherwise a key orphaned by the previous leg fails THIS one and blames it.
         $before = Get-UninstallEntries
@@ -547,6 +542,16 @@ runs:
         if ($null -ne $after.SetupHasRegistered) { throw "the uninstall left SetupHasRegistered behind" }
         Write-Host "  settings key kept the user's value and lost both the installer's"
 
+        # Everything a standard-user install puts on the machine, so an uninstall is done when
+        # this comes back empty.
+        function Get-UserLeftovers {
+          return @(
+            if (Test-Path $userExe) { $userExe }
+            foreach ($q in (@($userExtKey, $userVerb) + $shared + $userIcons)) { if (Test-Path -LiteralPath $q) { $q } }
+            Get-UninstallEntries
+          )
+        }
+
         # Everything above ran with the runner's elevated token, so none of it can say whether
         # setup.exe finishes without asking for elevation, which is what the Store checks. The
         # same assertions run again here, under the standard-user token linked to this one.
@@ -583,21 +588,18 @@ runs:
         if (-not $unins) { throw 'a standard-user install left no uninstaller' }
         $code = [Unelevated]::Run("`"$($unins.FullName)`" /VERYSILENT /NORESTART", $PWD.Path, 300000)
         if ($code -ne 0) { throw "a standard-user uninstall exited $code" }
-        # That code is the launcher's, and the uninstall entry is no better: it went in under
-        # half a second here while an HKCU row the copy had not reached yet still stood. Wait
-        # for the copy itself, first to appear and then to finish.
-        $deadline = (Get-Date).AddSeconds(10)
-        while (-not (Test-UninstallerRunning) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
-        $deadline = (Get-Date).AddSeconds(120)
-        while (((Test-UninstallerRunning) -or @(Get-UninstallEntries).Count) -and (Get-Date) -lt $deadline) {
-          Start-Sleep -Milliseconds 500
+        # That code is the launcher's, and nothing the uninstaller leaves is a marker for
+        # "done" either: the Add/Remove entry, WinHTTrack.exe and unins000.exe itself all went
+        # within half a second, while rows it had not reached still stood. So poll the state it
+        # has to end in. The install above proved every one of these was there to remove.
+        $waited = [Diagnostics.Stopwatch]::StartNew()
+        while (@(Get-UserLeftovers).Count -and $waited.Elapsed.TotalSeconds -lt 120) { Start-Sleep -Milliseconds 500 }
+        $left = @(Get-UserLeftovers)
+        if ($left.Count) {
+          throw "after $([int]$waited.Elapsed.TotalSeconds)s a standard-user uninstall still had: $($left -join ', ')"
         }
-        if (Test-Path $userExe) { throw "a standard-user uninstall left $userExe behind" }
-        foreach ($q in (@($userExtKey, $userVerb) + $shared + $userIcons)) {
-          if (Test-Path -LiteralPath $q) { throw "a standard-user uninstall left $q behind" }
-        }
-        $left = @(Get-UninstallEntries)
-        if ($left.Count -ne 0) { throw "a standard-user uninstall left $($left.Count) entry in Add/Remove Programs" }
+        # Printing it says the wait watched something. A deadline met in silence reads like a pass.
+        Write-Host ("  the standard-user uninstall finished in {0:n1}s" -f $waited.Elapsed.TotalSeconds)
         Write-Host "::notice::setup.exe installs and uninstalls with a standard-user token, no elevation asked"
 
         # The next architecture leg on this runner must not inherit any of it.
