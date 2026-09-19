@@ -92,11 +92,6 @@ runs:
             }
           })
         }
-        # unins000.exe copies itself under %TEMP% and returns at once, so this is the only
-        # sign the real uninstall is still going. Its name there is _iu<random>.tmp.
-        function Test-UninstallerRunning {
-          return @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like '_iu*' }).Count -ne 0
-        }
         # The sign job runs both arches on one runner, so start by proving nothing is left
         # over: otherwise a key orphaned by the previous leg fails THIS one and blames it.
         $before = Get-UninstallEntries
@@ -584,14 +579,15 @@ runs:
         $code = [Unelevated]::Run("`"$($unins.FullName)`" /VERYSILENT /NORESTART", $PWD.Path, 300000)
         if ($code -ne 0) { throw "a standard-user uninstall exited $code" }
         # That code is the launcher's, and the uninstall entry is no better: it went in under
-        # half a second here while an HKCU row the copy had not reached yet still stood. Wait
-        # for the copy itself, first to appear and then to finish.
-        $deadline = (Get-Date).AddSeconds(10)
-        while (-not (Test-UninstallerRunning) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
-        $deadline = (Get-Date).AddSeconds(120)
-        while (((Test-UninstallerRunning) -or @(Get-UninstallEntries).Count) -and (Get-Date) -lt $deadline) {
+        # half a second while a row the copy had not reached yet still stood. What goes last is
+        # the uninstaller itself, which is why it runs from a copy under %TEMP%.
+        $waited = [Diagnostics.Stopwatch]::StartNew()
+        while ((Test-Path -LiteralPath $unins.FullName) -and $waited.Elapsed.TotalSeconds -lt 120) {
           Start-Sleep -Milliseconds 500
         }
+        # Saying how long says the wait ran. A deadline reached in silence reads like a pass.
+        if (Test-Path -LiteralPath $unins.FullName) { throw 'the standard-user uninstall never removed its own uninstaller' }
+        Write-Host ("  the standard-user uninstall finished in {0:n1}s" -f $waited.Elapsed.TotalSeconds)
         if (Test-Path $userExe) { throw "a standard-user uninstall left $userExe behind" }
         foreach ($q in (@($userExtKey, $userVerb) + $shared + $userIcons)) {
           if (Test-Path -LiteralPath $q) { throw "a standard-user uninstall left $q behind" }
