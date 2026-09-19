@@ -466,18 +466,24 @@ runs:
         foreach ($q in $machinePaths) {
           if (Test-Path -LiteralPath $q) { throw "$q survived the machine-wide uninstall" }
         }
+        # Asserted before the repair below, which would otherwise put a wrongly deleted entry back.
+        $entries = @(Get-UninstallEntries)
+        if ($entries.Count -ne 1 -or $entries[0] -notlike 'HKCU:*') { throw "the machine-wide uninstall left: $($entries -join '; ')" }
         # Both installs write SetupRun and SetupHasRegistered, so that uninstall took the pair
         # while the per-user copy still needed them. Put them back before the checks below read them.
+        $settings = 'HKCU:\SOFTWARE\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface'
         $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
           '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\peruser-restore.log"
         if ($p.ExitCode -ne 0) { throw "reinstalling the per-user copy exited $($p.ExitCode)" }
-        $entries = @(Get-UninstallEntries)
-        if ($entries.Count -ne 1 -or $entries[0] -notlike 'HKCU:*') { throw "expected only the per-user entry left, found: $($entries -join '; ')" }
+        # The end of this leg asserts both values are gone, which proves nothing unless they are here now.
+        $restored = Get-ItemProperty -LiteralPath $settings -ErrorAction SilentlyContinue
+        if ($null -eq $restored.SetupRun -or $null -eq $restored.SetupHasRegistered) {
+          throw "the per-user reinstall wrote neither installer value back, so the check below is vacuous"
+        }
         Write-Host "::notice::with both copies installed, the Store update path still upgrades the per-user one"
 
         # Two installs share this key, so an uninstall that took it whole would wipe the
         # other copy's options, language and proxy.
-        $settings = 'HKCU:\SOFTWARE\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface'
         if (-not (Test-Path -LiteralPath $settings)) { throw "the installer wrote no $settings" }
         New-ItemProperty -LiteralPath $settings -Name 'SmokeTestUserSetting' -Value 42 `
           -PropertyType DWord -Force | Out-Null
