@@ -141,3 +141,62 @@ Root: HKA; Subkey: "Software\Classes\WinHTTrackProject\shell\open\command"; Flag
 Root: HKA; Subkey: "Software\Classes\Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKCU; Subkey: "AppEvents\Schemes\Apps\WinHTTrack"; ValueType: string; ValueData: "WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKCU; Subkey: "AppEvents\EventLabels\MirrorFinished"; ValueType: string; ValueData: "Mirror Finished"; Flags: uninsdeletekey noerror; Tasks: regfiles
+
+
+#if SetupSetting("AppName") == ""
+  #error AppName must be set above [Code], or the uninstall key below would match nothing
+#endif
+
+[Code]
+const
+  { ERROR_PRODUCT_VERSION. Partner Center maps it to the Store's "Application already exists". }
+  ExitAlreadyInstalled = 1638;
+  { AppId is unset, so Inno names the key after AppName. CI rejects setting AppId, because the
+    install-over-itself test stands in for an upgrade. }
+  UninstallSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1';
+
+procedure ExitProcess(uExitCode: Cardinal); external 'ExitProcess@kernel32.dll stdcall';
+
+{ A key whose directory is gone names nothing installed. Refusing an install the user cannot
+  get past is worse than missing a copy, so it does not count as one. }
+function InstalledUnder(const RootKey: Integer): Boolean;
+var
+  Path: String;
+begin
+  Result := False;
+  if RegQueryStringValue(RootKey, UninstallSubkey, 'Inno Setup: App Path', Path) then
+    Result := DirExists(Path);
+end;
+
+{ Both views are read, because the x86 installer registers under WOW6432Node. }
+function MachineWideInstallExists(): Boolean;
+begin
+  Result := InstalledUnder(HKLM32);
+  if (not Result) and IsWin64() then
+    Result := InstalledUnder(HKLM64);
+end;
+
+{ The Store has one Installer parameters box and no install-scope field, so the /CURRENTUSER
+  it passes applies to every customer. Beside a machine-wide copy it would add a second
+  installation that shares its settings key, so decline and let the Store say why. }
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  { A machine-wide install proceeds next to a per-user copy, because blocking the website's own installer would be worse. }
+  if IsAdminInstallMode() then
+    Exit;
+  { The per-user copy is being upgraded, not doubled, and Inno reuses this key even where the
+    directory is gone. The Store re-runs this line for every update, so a refusal would strand it. }
+  if RegKeyExists(HKCU, UninstallSubkey) then
+    Exit;
+  if not MachineWideInstallExists() then
+    Exit;
+  Result := False;
+  { /SUPPRESSMSGBOXES is the caller's to pass, so a silent run must not risk a box nobody can click. }
+  if not WizardSilent() then
+    SuppressibleMsgBox('WinHTTrack Website Copier is already installed for all users of this computer.'#13#10#13#10 +
+      'A second copy for this user alone would share one set of settings with it. Use the copy you have, ' +
+      'or remove it first from Settings > Apps.', mbInformation, MB_OK, IDOK);
+  { Inno's exit codes stop at 8, so ExitProcess is what carries 1638 out to the caller. }
+  ExitProcess(ExitAlreadyInstalled);
+end;
