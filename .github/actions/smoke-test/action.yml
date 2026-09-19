@@ -367,6 +367,21 @@ runs:
         if ($entries[0] -notlike 'HKLM:*') { throw "the default install went per-user: $($entries[0])" }
         Write-Host "::notice::installing $env:APPVER over itself upgrades in place, one uninstall entry"
 
+        # Still installed machine-wide, so a Store /CURRENTUSER install must decline instead of
+        # laying a second copy beside it. The per-user leg further down, which runs once this
+        # copy is gone, is the control: a guard that always declined would look the same here.
+        $userDir = Join-Path $env:LOCALAPPDATA 'Programs\WinHTTrack'
+        $userExe = Join-Path $userDir 'WinHTTrack.exe'
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/LOG=$PWD\declined.log"
+        # 1638 is ERROR_PRODUCT_VERSION, the code InnoSetup/httrack.iss returns for this.
+        if ($p.ExitCode -ne 1638) { throw "a per-user install beside the machine-wide copy exited $($p.ExitCode), expected 1638" }
+        if (Test-Path $userExe) { throw "the declined install wrote $userExe anyway" }
+        $entries = @(Get-UninstallEntries)
+        foreach ($e in $entries) { Write-Host "  uninstall entry: $e" }
+        if ($entries.Count -ne 1) { throw "the declined install left $($entries.Count) uninstall entries, expected the 1 already there" }
+        Write-Host "::notice::/CURRENTUSER declines with 1638 while a machine-wide copy is installed"
+
         $unins = Get-ChildItem "$dir\unins*.exe" | Select-Object -First 1
         $p = Start-Process $unins.FullName -Wait -PassThru -ArgumentList '/VERYSILENT','/NORESTART'
         if ($p.ExitCode -ne 0) { throw "uninstaller exited $($p.ExitCode)" }
@@ -380,8 +395,6 @@ runs:
 
         # The Microsoft Store passes /CURRENTUSER, and a standard user has no HKLM and
         # no Program Files to write. Every constant below is from InnoSetup/httrack.iss.
-        $userDir = Join-Path $env:LOCALAPPDATA 'Programs\WinHTTrack'
-        $userExe = Join-Path $userDir 'WinHTTrack.exe'
         $userExtKey = 'HKCU:\SOFTWARE\Classes\.whtt'
         # The open verb, which MFC cannot create for a standard user. See the .iss comment.
         $userVerb = 'HKCU:\SOFTWARE\Classes\WinHTTrackProject\shell\open\command'

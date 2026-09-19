@@ -141,3 +141,36 @@ Root: HKA; Subkey: "Software\Classes\WinHTTrackProject\shell\open\command"; Flag
 Root: HKA; Subkey: "Software\Classes\Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKCU; Subkey: "AppEvents\Schemes\Apps\WinHTTrack"; ValueType: string; ValueData: "WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKCU; Subkey: "AppEvents\EventLabels\MirrorFinished"; ValueType: string; ValueData: "Mirror Finished"; Flags: uninsdeletekey noerror; Tasks: regfiles
+
+[Code]
+const
+  { ERROR_PRODUCT_VERSION. Partner Center maps it to the Store's "Application already exists". }
+  ExitAlreadyInstalled = 1638;
+  { AppId is unset, so Inno names the key after AppName; the encoding job forbids adding one. }
+  UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1';
+
+procedure ExitProcess(uExitCode: Cardinal); external 'ExitProcess@kernel32.dll stdcall';
+
+{ The x86 installer registers under WOW6432Node, the x64 one natively. }
+function MachineWideInstallExists(): Boolean;
+begin
+  Result := RegKeyExists(HKLM32, UninstallKey);
+  if (not Result) and IsWin64() then
+    Result := RegKeyExists(HKLM64, UninstallKey);
+end;
+
+{ The Store has one Installer parameters box and no install-scope field, so the /CURRENTUSER
+  it passes applies to every customer. Beside a machine-wide copy that would leave two
+  installations sharing one settings key, so decline and let the Store say why. }
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  if IsAdminInstallMode() or (not MachineWideInstallExists()) then
+    Exit;
+  Result := False;
+  SuppressibleMsgBox('WinHTTrack Website Copier is already installed for all users of this computer.'#13#10#13#10 +
+    'A second copy for this user alone would share one set of settings with it. Use the copy you have, ' +
+    'or remove it first from Settings > Apps.', mbInformation, MB_OK, IDOK);
+  { Inno owns exit codes 0 to 8 and cannot add one, and the Store must not read an ordinary failure as this. }
+  ExitProcess(ExitAlreadyInstalled);
+end;
