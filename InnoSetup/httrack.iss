@@ -120,13 +120,14 @@ Name: "{autodesktop}\HTTrack Website Copier"; Filename: "{app}\WinHTTrack.exe"; 
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\HTTrack Website Copier"; Filename: "{app}\WinHTTrack.exe"; Tasks: quicklaunchicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror
-; MFC also keeps the options, the language and the proxy under this key. uninsdeletekey would
-; take those too, even on a row naming one value, so we remove only the two values we wrote.
-; An upgrade appends to the old uninstall log, so this reaches a machine at its next fresh install.
-Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror
-Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupRun"; ValueData: 1; Flags: uninsdeletevalue uninsdeletekeyifempty noerror
-Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupHasRegistered"; ValueData: 1; Flags: uninsdeletevalue uninsdeletekeyifempty noerror; Tasks: regfiles
+Root: HKCU; Subkey: "Software\WinHTTrack Website Copier"; Flags: noerror
+; A machine-wide and a per-user copy write this same key, and MFC keeps the user's options,
+; language and proxy in it. So no row here logs a deletion. CurUninstallStepChanged removes
+; what we wrote, and only once no other copy is left needing it. An upgrade appends to the old
+; uninstall log, so this reaches a machine at its next fresh install.
+Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: noerror
+Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupRun"; ValueData: 1; Flags: noerror
+Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface"; ValueType: dword; ValueName: "SetupHasRegistered"; ValueData: 1; Flags: noerror; Tasks: regfiles
 ; Nothing reads these. They stay only so a machine-wide install is unchanged, and a per-user one may not write HKLM.
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
@@ -139,5 +140,112 @@ Root: HKA; Subkey: "Software\Classes\.whtt"; Flags: uninsdeletekey noerror; Task
 Root: HKA; Subkey: "Software\Classes\WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKA; Subkey: "Software\Classes\WinHTTrackProject\shell\open\command"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKA; Subkey: "Software\Classes\Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKCU; Subkey: "AppEvents\Schemes\Apps\WinHTTrack"; ValueType: string; ValueData: "WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKCU; Subkey: "AppEvents\EventLabels\MirrorFinished"; ValueType: string; ValueData: "Mirror Finished"; Flags: uninsdeletekey noerror; Tasks: regfiles
+; Shared with the other copy the same way, so these are removed from [Code] too.
+Root: HKCU; Subkey: "AppEvents\Schemes\Apps\WinHTTrack"; ValueType: string; ValueData: "WinHTTrack Website Copier"; Flags: noerror; Tasks: regfiles
+Root: HKCU; Subkey: "AppEvents\EventLabels\MirrorFinished"; ValueType: string; ValueData: "Mirror Finished"; Flags: noerror; Tasks: regfiles
+
+
+#if SetupSetting("AppName") == ""
+  #error AppName must be set above [Code], or the uninstall key below would match nothing
+#endif
+
+[Code]
+const
+  { ERROR_PRODUCT_VERSION. Partner Center maps it to the Store's "Application already exists". }
+  ExitAlreadyInstalled = 1638;
+  { AppId is unset, so Inno names the key after AppName. CI rejects setting AppId, because the
+    install-over-itself test stands in for an upgrade. }
+  UninstallSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#SetupSetting("AppName")}_is1';
+  { The [Registry] rows above write SetupRun and SetupHasRegistered here. }
+  InterfaceSubkey = 'Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface';
+
+procedure ExitProcess(uExitCode: Cardinal); external 'ExitProcess@kernel32.dll stdcall';
+
+{ A key whose directory is gone names nothing installed. Refusing an install the user cannot
+  get past is worse than missing a copy, so it does not count as one. }
+function InstalledUnder(const RootKey: Integer): Boolean;
+var
+  Path: String;
+begin
+  Result := False;
+  if RegQueryStringValue(RootKey, UninstallSubkey, 'Inno Setup: App Path', Path) then
+    Result := DirExists(Path);
+end;
+
+{ Both views are read, because the x86 installer registers under WOW6432Node. }
+function MachineWideInstallExists(): Boolean;
+begin
+  Result := InstalledUnder(HKLM32);
+  if (not Result) and IsWin64() then
+    Result := InstalledUnder(HKLM64);
+end;
+
+{ The Store has one Installer parameters box and no install-scope field, so the /CURRENTUSER
+  it passes applies to every customer. Beside a machine-wide copy it would add a second
+  installation that shares its settings key, so decline and let the Store say why. }
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  { A machine-wide install proceeds next to a per-user copy, because blocking the website's own installer would be worse. }
+  if IsAdminInstallMode() then
+    Exit;
+  { The per-user copy is being upgraded, not doubled, and Inno reuses this key even where the
+    directory is gone. The Store re-runs this line for every update, so a refusal would strand it. }
+  if RegKeyExists(HKCU, UninstallSubkey) then
+    Exit;
+  if not MachineWideInstallExists() then
+    Exit;
+  Result := False;
+  { /SUPPRESSMSGBOXES is the caller's to pass, so a silent run must not risk a box nobody can click. }
+  if not WizardSilent() then
+    SuppressibleMsgBox('WinHTTrack Website Copier is already installed for all users of this computer.'#13#10#13#10 +
+      'A second copy for this user alone would share one set of settings with it. Use the copy you have, ' +
+      'or remove it first from Settings > Apps.', mbInformation, MB_OK, IDOK);
+  { Inno's exit codes stop at 8, so ExitProcess is what carries 1638 out to the caller. }
+  ExitProcess(ExitAlreadyInstalled);
+end;
+
+{ A copy under RootKey that is not the one at Mine. The key alone answers it here, where
+  InstalledUnder would not: a copy whose folder is gone still owns what is left of its state. }
+function OtherCopyUnder(const RootKey: Integer; const Mine: String): Boolean;
+var
+  Path: String;
+begin
+  Result := False;
+  if RegQueryStringValue(RootKey, UninstallSubkey, 'Inno Setup: App Path', Path) then
+    Result := CompareText(Path, Mine) <> 0;
+end;
+
+{ Found by directory, because in the uninstaller IsAdminInstallMode says whether we are
+  elevated, not which of the two copies this one is. }
+function AnotherCopyRemains(): Boolean;
+var
+  Mine: String;
+begin
+  Mine := ExpandConstant('{app}');
+  Result := OtherCopyUnder(HKCU, Mine);
+  if not Result then
+    Result := OtherCopyUnder(HKLM32, Mine);
+  if (not Result) and IsWin64() then
+    Result := OtherCopyUnder(HKLM64, Mine);
+end;
+
+{ Both copies write the HKCU state above, so whichever is removed first must leave it. A
+  machine-wide uninstall run by another administrator reads that account's hive, as the old
+  rows did. Nothing here depends on when this runs against the log: it only ever deletes what
+  no row logs any more. }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep <> usPostUninstall then
+    Exit;
+  if AnotherCopyRemains() then
+    Exit;
+  RegDeleteValue(HKCU, InterfaceSubkey, 'SetupRun');
+  RegDeleteValue(HKCU, InterfaceSubkey, 'SetupHasRegistered');
+  RegDeleteKeyIncludingSubkeys(HKCU, 'AppEvents\Schemes\Apps\WinHTTrack');
+  RegDeleteKeyIncludingSubkeys(HKCU, 'AppEvents\EventLabels\MirrorFinished');
+  { Deepest first, and only when empty, because the user's own options live under these. }
+  RegDeleteKeyIfEmpty(HKCU, InterfaceSubkey);
+  RegDeleteKeyIfEmpty(HKCU, 'Software\WinHTTrack Website Copier\WinHTTrack Website Copier');
+  RegDeleteKeyIfEmpty(HKCU, 'Software\WinHTTrack Website Copier');
+end;
