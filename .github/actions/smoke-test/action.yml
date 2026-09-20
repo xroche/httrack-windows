@@ -588,18 +588,22 @@ runs:
         if (-not $unins) { throw 'a standard-user install left no uninstaller' }
         $code = [Unelevated]::Run("`"$($unins.FullName)`" /VERYSILENT /NORESTART", $PWD.Path, 300000)
         if ($code -ne 0) { throw "a standard-user uninstall exited $code" }
-        # That code is the launcher's, and nothing the uninstaller leaves is a marker for
-        # "done" either: the Add/Remove entry, WinHTTrack.exe and unins000.exe itself all went
-        # within half a second, while rows it had not reached still stood. So poll the state it
-        # has to end in. The install above proved every one of these was there to remove.
+        # That code is the launcher's, and nothing the uninstaller leaves marks the end either.
+        # The Add/Remove entry, WinHTTrack.exe and unins000.exe all went within half a second,
+        # while rows it had not reached still stood. So poll the state it must end in. The
+        # install above proved every item was there to remove.
         $waited = [Diagnostics.Stopwatch]::StartNew()
-        while (@(Get-UserLeftovers).Count -and $waited.Elapsed.TotalSeconds -lt 120) { Start-Sleep -Milliseconds 500 }
-        $left = @(Get-UserLeftovers)
+        $polls = 0
+        do {
+          $left = @(Get-UserLeftovers)
+          $polls++
+          if ($left.Count) { Start-Sleep -Milliseconds 500 }
+        } while ($left.Count -and $waited.Elapsed.TotalSeconds -lt 120)
         if ($left.Count) {
-          throw "after $([int]$waited.Elapsed.TotalSeconds)s a standard-user uninstall still had: $($left -join ', ')"
+          throw "after $([int]$waited.Elapsed.TotalSeconds)s and $polls polls, a standard-user uninstall still had: $($left -join ', ')"
         }
-        # Printing it says the wait watched something. A deadline met in silence reads like a pass.
-        Write-Host ("  the standard-user uninstall finished in {0:n1}s" -f $waited.Elapsed.TotalSeconds)
+        # The poll count, because the elapsed time alone cannot say whether this ever looked twice.
+        Write-Host ("  the standard-user uninstall finished after {0} polls in {1:n1}s" -f $polls, $waited.Elapsed.TotalSeconds)
         Write-Host "::notice::setup.exe installs and uninstalls with a standard-user token, no elevation asked"
 
         # The next architecture leg on this runner must not inherit any of it.
