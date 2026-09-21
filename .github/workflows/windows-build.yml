@@ -591,6 +591,7 @@ jobs:
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
           $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
           $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
+          if (-not (Test-Path $dumpbin)) { throw "dumpbin not found at $dumpbin" }
 
           # This checks our exe only, because the engine asserts its own flags.
           $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
