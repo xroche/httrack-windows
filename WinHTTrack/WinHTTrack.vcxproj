@@ -71,7 +71,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <!-- Hardening: /guard:cf and an explicit /GS, so the set is a contract. -->
+      <!-- We name these rather than inherit them, so dropping one shows in CI. -->
       <ControlFlowGuard>Guard</ControlFlowGuard>
       <BufferSecurityCheck>true</BufferSecurityCheck>
     </ClCompile>
@@ -81,7 +81,6 @@
       <Culture>0x040c</Culture>
     </ResourceCompile>
     <Link>
-      <ControlFlowGuard>Guard</ControlFlowGuard>
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
