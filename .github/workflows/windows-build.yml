@@ -583,6 +583,87 @@ jobs:
           }
           Write-Host "CRT check passed: both share [$exeRt]. (controls: filter rejects cmd.exe; comparison discriminates)"
 
+      # A property dropped from the .vcxproj still builds and still passes every
+      # other check here, so assert the mitigations where they end up.
+      - name: Check the hardening flags reached WinHTTrack.exe
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
+          if (-not (Test-Path $dumpbin)) { throw "dumpbin not found at $dumpbin" }
+
+          # This checks our exe only, because the engine asserts its own flags.
+          $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
+          if (-not (Test-Path $exe)) { throw "missing $exe" }
+          $dump = (& $dumpbin /headers /loadconfig $exe) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $exe" }
+
+          # $Matches goes stale after a failed match, so capture inside the if.
+          function Field($text, $pattern) {
+            if ($text -match $pattern) { $Matches[1] } else { $null }
+          }
+
+          # The verdict is a function of the dump alone, so a fixture can run it.
+          function Failures($text, $platform) {
+            $bad = @()
+            $word = Field $text '(?m)^\s*([0-9A-Fa-f]+) DLL characteristics'
+            if (-not $word) { return @("no DLL characteristics word in the dump") }
+
+            # Test the bit, not the words dumpbin decodes from it.
+            $ch = [Convert]::ToInt32($word, 16)
+            foreach ($b in @(@{n = 'ASLR (/DYNAMICBASE)'; m = 0x0040},
+                             @{n = 'DEP (/NXCOMPAT)'; m = 0x0100},
+                             @{n = 'Control Flow Guard'; m = 0x4000})) {
+              if (-not ($ch -band $b.m)) { $bad += "is missing $($b.n)" }
+            }
+
+            # The load-config stack cookie cannot answer /GS, because the CRT plants
+            # that field whatever the compiler was told. These per-object counts can.
+            $cpp = Field $text 'C/C\+\+=(\d+)'
+            $gs = Field $text '/GS=(\d+)'
+            if ($null -eq $cpp -or $null -eq $gs) {
+              $bad += "has no feat record, so /GS is unproven"
+            } elseif ([int]$gs -lt [int]$cpp) {
+              $bad += "was built with /GS for only $gs of $cpp objects"
+            }
+
+            if ($platform -eq 'x64' -and $text -notmatch 'CET compatible') {
+              $bad += "is missing /CETCOMPAT"
+            }
+
+            # Windows 7 is 6.1, and an image declaring more will not load there at all.
+            $sub = Field $text '(?m)^\s*([0-9]+\.[0-9]+) subsystem version'
+            if (-not $sub) {
+              $bad += "has no subsystem version in the dump"
+            } elseif ([version]$sub -gt [version]"6.1") {
+              $bad += "declares subsystem version $sub, so Windows 7 will not load it"
+            }
+            $bad
+          }
+
+          $fail = @(Failures $dump "${{ matrix.platform }}")
+
+          # The control runs the same parse over what this exe really dumped before
+          # the flags went on. A check nobody has watched fail is not a check.
+          $before = @(
+            '            8160 DLL characteristics',
+            '            6.00 subsystem version',
+            '        68CE0C1E feat     00000014 001B2AC4  1B1CC4    Counts: Pre-VC++ 11.00=0, C/C++=103, /GS=0, /sdl=0, guardN=0'
+          ) -join "`n"
+          $control = @(Failures $before "x64")
+          foreach ($expected in @('Control Flow Guard', '/GS for only', '/CETCOMPAT')) {
+            if (-not ($control -match [regex]::Escape($expected))) {
+              throw "control failed: the parse no longer reports '$expected' on the pre-flag dump"
+            }
+          }
+
+          if ($fail) {
+            $fail | ForEach-Object { Write-Host "::error::WinHTTrack.exe $_" }
+            exit 1
+          }
+          Write-Host "hardening ok (control: the same parse reports $($control.Count) failures on the pre-flag dump)"
+
       # An invalid embedded manifest does not fail the build: Windows refuses to
       # start the exe with "side-by-side configuration is incorrect", which only
       # shows up on a user's machine. That shipped once, because mt.exe merges
