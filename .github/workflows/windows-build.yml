@@ -583,6 +583,77 @@ jobs:
           }
           Write-Host "CRT check passed: both share [$exeRt]. (controls: filter rejects cmd.exe; comparison discriminates)"
 
+      # A property dropped from the .vcxproj still builds and still passes every
+      # other check here, so assert the mitigations where they end up.
+      - name: Check the hardening flags reached WinHTTrack.exe
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
+
+          # Ours only. The engine builds from its own tree and asserts its own flags.
+          $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
+          if (-not (Test-Path $exe)) { throw "missing $exe" }
+          $dump = (& $dumpbin /headers /loadconfig $exe) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $exe" }
+
+          # Test the bit, not the wording dumpbin decodes from it. Read $Matches inside
+          # the match, because a failed match leaves the previous match in place.
+          if ($dump -match '(?m)^\s*([0-9A-Fa-f]+) DLL characteristics') {
+            $dllch = [Convert]::ToInt32($Matches[1], 16)
+          } else {
+            throw "cannot find the DLL characteristics word in the dump"
+          }
+          Write-Host ("DllCharacteristics = 0x{0:X4}" -f $dllch)
+
+          $fail = @()
+          $bits = [ordered]@{
+            "ASLR (/DYNAMICBASE)" = 0x0040
+            "DEP (/NXCOMPAT)"     = 0x0100
+            "Control Flow Guard"  = 0x4000
+          }
+          foreach ($k in $bits.Keys) {
+            if ($dllch -band $bits[$k]) { Write-Host "  $k" } else { $fail += "WinHTTrack.exe is missing $k" }
+          }
+
+          # /GS leaves a stack cookie in the load config, and an all-zero one is no /GS.
+          $cookie = if ($dump -match '(?m)^\s*([0-9A-Fa-f]+) Security Cookie') { $Matches[1] } else { "" }
+          if ($cookie -match '[1-9A-Fa-f]') {
+            Write-Host "  Stack cookie (/GS)"
+          } else {
+            $fail += "WinHTTrack.exe has no /GS stack cookie"
+          }
+
+          if ("${{ matrix.platform }}" -eq "x64") {
+            if ($dump -match 'CET\s*Compat') { Write-Host "  Shadow stacks (/CETCOMPAT)" }
+            else { $fail += "WinHTTrack.exe is missing /CETCOMPAT" }
+          }
+
+          # Windows 7 is 6.1, and an image declaring a higher subsystem version will not
+          # load there at all. Pin the floor rather than trust no option ever moves it.
+          if ($dump -match '(?m)^\s*([0-9]+\.[0-9]+) subsystem version') {
+            $sub = [version]$Matches[1]
+          } else {
+            throw "cannot find the subsystem version in the dump"
+          }
+          Write-Host "subsystem version = $sub"
+          if ($sub -gt [version]"6.1") {
+            $fail += "subsystem version $sub is above 6.1, so the image will not load on Windows 7"
+          }
+
+          # Controls, because a check nobody has watched fail is not a check. 0x8160 is
+          # what this exe really read before CFG, so the bit test faces the real binary.
+          if (-not ((0xC160 -band 0x4000) -and -not (0x8160 -band 0x4000))) {
+            throw "the CFG bit test no longer discriminates"
+          }
+          if (-not ([version]"10.0" -gt [version]"6.1")) {
+            throw "the Windows 7 floor comparison no longer discriminates"
+          }
+
+          if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host "hardening check passed (controls: the bit test rejects the old 0x8160 word; the floor test rejects 10.0)"
+
       # An invalid embedded manifest does not fail the build: Windows refuses to
       # start the exe with "side-by-side configuration is incorrect", which only
       # shows up on a user's machine. That shipped once, because mt.exe merges
