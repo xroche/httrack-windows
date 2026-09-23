@@ -845,11 +845,10 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("single-file caps ok on %d checks\n", nchecks);
     }
-    /* The cap is the engine's, and it is not HTS_CDLMAXSIZE: --max-retry-after glues its
-       value onto the short form, so the whole token shares one buffer. */
+    /* The cap is HTS_MAXRETRYAFTER_MAXBYTES, not HTS_CDLMAXSIZE (see Shell.h). */
     {
       static const struct { const char *lead; int repeat; const char *tail; BOOL want; } delays[] = {
-        { "", 0, "0", TRUE },   /* retry with no wait, the case an empty box must not mean */
+        { "", 0, "0", TRUE },   /* 0 is a value, not an empty box */
         { "", 0, "60", TRUE },
         { "", 0, "3600", TRUE },   /* HTS_MAX_RETRY_AFTER_LIMIT, which the engine accepts */
         { "", 0, "3601", FALSE },
@@ -862,7 +861,7 @@ BOOL CWinHTTrackApp::InitInstance()
         /* zeros and out of range together: reading a prefix of the digits passes every
            other row here, and accepts this one */
         { "0", 4, "3601", FALSE },
-        { "9", 12, "", FALSE },   /* far out of range, but short enough to be no length case */
+        { "9", 12, "", FALSE },   /* far out of range, but short enough that the length never decides it */
         /* value 1 either way, so only the glued argv length decides these two */
         { "0", HTS_MAXRETRYAFTER_MAXBYTES - 2, "1", TRUE },
         { "0", HTS_MAXRETRYAFTER_MAXBYTES - 1, "1", FALSE },

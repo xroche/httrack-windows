@@ -119,7 +119,7 @@ BOOL COptionTab4::OnInitDialog()
     SetDlgItemTextCP(this, IDC_ka,LANG(LANG_I47e));
     SetDlgItemTextCP(this, IDC_STATIC_timeout,LANG_I47d); // TimeOut(s)
     SetDlgItemTextCP(this, IDC_STATIC_pausefiles,LANG(LANG_PAUSEFILES));
-    SetDlgItemTextLang(this, IDC_STATIC_maxretryafter,LANG(LANG_MAXRETRYAFTER));
+    SetDlgItemTextLang(this, IDC_STATIC_maxretryafter,LANG(LANG_MAXRETRYAFTER)); // new key: keeps the .rc caption where a catalog lacks it
   }
 	
 	return TRUE;  // return TRUE unless you set the focus to a control

@@ -2025,8 +2025,7 @@ BOOL isSingleFileMaxArgument(const CString &value) {
 
 // see Shell.h
 BOOL isMaxRetryAfterArgument(const CString &value) {
-  // digits only: strtol would otherwise take a sign, and an overflowing run saturates
-  // at LONG_MAX, which the ceiling then rejects
+  // strtol takes a sign and saturates silently at LONG_MAX, so digits come first
   if (!isAllDigits(value))
     return FALSE;
   return strtol((LPCSTR) value, NULL, 10) <= HTS_MAX_RETRY_AFTER_LIMIT
@@ -2282,6 +2281,7 @@ void lance(void) {
     args.Add(ShellOptions->pausefiles);
   }
 
+  // longest Retry-After delay the engine will obey, seconds (--max-retry-after)
   {
     CString maxretryafter = ShellOptions->maxretryafter;
 
