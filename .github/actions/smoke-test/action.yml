@@ -280,6 +280,10 @@ runs:
         if ("$so" -notmatch 'single-file caps ok on 7 checks') {
           throw "selftest did not check the single-file cap"
         }
+        # A delay the engine refuses aborts the mirror, and a typed 0 must survive as a value.
+        if ("$so" -notmatch 'max retry-after ok on 14 checks') {
+          throw "selftest did not check the max retry-after delay"
+        }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
         if ("$so" -notmatch 'host-alias rules ok on 34 checks') {
           throw "selftest did not check the host-alias grammar"

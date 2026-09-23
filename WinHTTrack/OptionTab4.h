@@ -59,6 +59,7 @@ public:
 	CString	m_rate;
 	BOOL	m_ka;
 	CString	m_pausefiles;
+	CString	m_maxretryafter;
 	//}}AFX_DATA
 
 

@@ -845,6 +845,46 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("single-file caps ok on %d checks\n", nchecks);
     }
+    /* The cap is HTS_MAXRETRYAFTER_MAXBYTES, not HTS_CDLMAXSIZE (see Shell.h). */
+    {
+      static const struct { const char *lead; int repeat; const char *tail; BOOL want; } delays[] = {
+        { "", 0, "0", TRUE },   /* 0 is a value, not an empty box */
+        { "", 0, "60", TRUE },
+        { "", 0, "3600", TRUE },   /* HTS_MAX_RETRY_AFTER_LIMIT, which the engine accepts */
+        { "", 0, "3601", FALSE },
+        { "", 0, "", FALSE },   /* no value at all, so no option */
+        { "", 0, "+5", FALSE },   /* the engine's %d would take the sign, we will not */
+        { "", 0, " 5", FALSE },
+        { "", 0, "5s", FALSE },
+        { "", 0, "-1", FALSE },
+        { "0", 4, "60", TRUE },   /* leading zeros keep it in range however it is written */
+        /* zeros and out of range together: reading a prefix of the digits passes every
+           other row here, and accepts this one */
+        { "0", 4, "3601", FALSE },
+        { "9", 12, "", FALSE },   /* far out of range, but short enough that the length never decides it */
+        /* value 1 either way, so only the glued argv length decides these two */
+        { "0", HTS_MAXRETRYAFTER_MAXBYTES - 2, "1", TRUE },
+        { "0", HTS_MAXRETRYAFTER_MAXBYTES - 1, "1", FALSE },
+        { NULL, 0, NULL, FALSE }
+      };
+      int nchecks = 0;
+      for(int k=0 ; delays[k].lead != NULL ; k++) {
+        CString value;
+
+        for(int n=0 ; n<delays[k].repeat ; n++)
+          value += delays[k].lead;
+        value += delays[k].tail;
+        if (isMaxRetryAfterArgument(value) != delays[k].want) {
+          fprintf(stderr, "FATAL: max retry-after '%s' (%d chars) judged %s\n",
+                  (LPCSTR) value.Left(40), (int) value.GetLength(),
+                  delays[k].want ? "bad, expected good" : "good, expected bad");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("max retry-after ok on %d checks\n", nchecks);
+    }
     /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
        refuses costs the whole mirror, and each field carries its own cap. */
     {

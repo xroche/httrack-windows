@@ -618,6 +618,7 @@ void compute_options() {
   else                               ShellOptions->urlhack = "%u0";
   ShellOptions->cookiesfile = maintab->m_option8.m_cookiesfile;
   ShellOptions->pausefiles = maintab->m_option4.m_pausefiles;
+  ShellOptions->maxretryafter = maintab->m_option4.m_maxretryafter;
   
   // store all in cache,logtype
   if(maintab->m_option9.m_Cache2!=0) ShellOptions->Cache2 = "k";
@@ -2023,6 +2024,15 @@ BOOL isSingleFileMaxArgument(const CString &value) {
 }
 
 // see Shell.h
+BOOL isMaxRetryAfterArgument(const CString &value) {
+  // strtol takes a sign and saturates silently at LONG_MAX, so digits come first
+  if (!isAllDigits(value))
+    return FALSE;
+  return strtol((LPCSTR) value, NULL, 10) <= HTS_MAX_RETRY_AFTER_LIMIT
+         && fitsEngineArgument(value, HTS_MAXRETRYAFTER_MAXBYTES);
+}
+
+// see Shell.h
 BOOL waitForEngineResults(HANDLE ready, const volatile int* endCalled, DWORD timeoutMs) {
   if (ready == NULL) {
     while (!*endCalled)     // no event to wait on, so fall back to the callback
@@ -2269,6 +2279,17 @@ void lance(void) {
   if (ShellOptions->pausefiles.GetLength() != 0) {
     args.Add("--pause");
     args.Add(ShellOptions->pausefiles);
+  }
+
+  // longest Retry-After delay the engine will obey, seconds (--max-retry-after)
+  {
+    CString maxretryafter = ShellOptions->maxretryafter;
+
+    maxretryafter.Trim();
+    if (isMaxRetryAfterArgument(maxretryafter)) {
+      args.Add("--max-retry-after");
+      args.Add(maxretryafter);
+    }
   }
 
   // URL-hack opt-outs (only meaningful with -%u url hacks on)
@@ -2924,6 +2945,7 @@ void Write_profile(CString path,int load_path) {
   MyWriteProfileInt(path,strSection, "URLHack",maintab->m_option8.m_urlhack);
   MyWriteProfileString(path,strSection, "CookiesFile",maintab->m_option8.m_cookiesfile);
   MyWriteProfileString(path,strSection, "PauseFiles",maintab->m_option4.m_pausefiles);
+  MyWriteProfileString(path,strSection, "MaxRetryAfter",maintab->m_option4.m_maxretryafter);
   MyWriteProfileInt(path,strSection, "StoreAllInCache",maintab->m_option9.m_Cache2);
   MyWriteProfileInt(path,strSection, "LogType",maintab->m_option9.m_logtype);
   MyWriteProfileInt(path,strSection, "UseHTTPProxyForFTP",maintab->m_option10.m_ftpprox);
@@ -3104,6 +3126,8 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option8.m_urlhack    = MyGetProfileInt(path,strSection, "URLHack",1);
   maintab->m_option8.m_cookiesfile = MyGetProfileString(path,strSection, "CookiesFile");
   maintab->m_option4.m_pausefiles = MyGetProfileString(path,strSection, "PauseFiles");
+  /* No default: a substituted 60 could not be told from a chosen one. */
+  maintab->m_option4.m_maxretryafter = MyGetProfileString(path,strSection, "MaxRetryAfter");
   maintab->m_option8.m_http10     = MyGetProfileInt(path,strSection, "HTTP10",0);
   maintab->m_option9.m_Cache2     = MyGetProfileInt(path,strSection, "StoreAllInCache",0);
   maintab->m_option9.m_logtype    = MyGetProfileInt(path,strSection, "LogType",0);

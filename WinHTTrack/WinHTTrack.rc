@@ -501,7 +501,7 @@ BEGIN
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,120,242,10
 END
 
-IDD_OPTION4 DIALOGEX 0, 0, 324, 137
+IDD_OPTION4 DIALOGEX 0, 0, 324, 152
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Flow Control"
 FONT 8, "MS Sans Serif", 0, 0, 0x0
@@ -521,6 +521,8 @@ BEGIN
     CONTROL         "Remove host if low",IDC_rems,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,109,183,10
     LTEXT           "Pause between files (s):",IDC_STATIC_pausefiles,16,124,110,8
     EDITTEXT        IDC_pausefiles,130,122,45,12,ES_AUTOHSCROLL
+    LTEXT           "Max Retry-After(s)",IDC_STATIC_maxretryafter,16,139,110,8
+    EDITTEXT        IDC_maxretryafter,130,137,45,12,ES_AUTOHSCROLL | ES_NUMBER
 END
 
 IDD_OPTION5 DIALOGEX 0, 0, 260, 198
