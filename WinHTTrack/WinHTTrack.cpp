@@ -845,13 +845,13 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("single-file caps ok on %d checks\n", nchecks);
     }
-    /* Zero is a value here and not an absence, so an empty box and a typed 0 must part
-       company: one passes nothing and leaves the engine its 60, the other waives the wait. */
+    /* The cap is the engine's, and it is not HTS_CDLMAXSIZE: --max-retry-after glues its
+       value onto the short form, so the whole token shares one buffer. */
     {
       static const struct { const char *lead; int repeat; const char *tail; BOOL want; } delays[] = {
         { "", 0, "0", TRUE },   /* retry with no wait, the case an empty box must not mean */
         { "", 0, "60", TRUE },
-        { "", 0, "3600", TRUE },   /* the engine's ceiling, which it accepts */
+        { "", 0, "3600", TRUE },   /* HTS_MAX_RETRY_AFTER_LIMIT, which the engine accepts */
         { "", 0, "3601", FALSE },
         { "", 0, "", FALSE },   /* no value at all, so no option */
         { "", 0, "+5", FALSE },   /* the engine's %d would take the sign, we will not */
@@ -859,9 +859,13 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", 0, "5s", FALSE },
         { "", 0, "-1", FALSE },
         { "0", 4, "60", TRUE },   /* leading zeros keep it in range however it is written */
-        /* value 1 either way, so only the argv length decides these two */
-        { "0", HTS_CDLMAXSIZE - 2, "1", TRUE },
-        { "0", HTS_CDLMAXSIZE - 1, "1", FALSE },
+        /* zeros and out of range together: reading a prefix of the digits passes every
+           other row here, and accepts this one */
+        { "0", 4, "3601", FALSE },
+        { "9", 12, "", FALSE },   /* far out of range, but short enough to be no length case */
+        /* value 1 either way, so only the glued argv length decides these two */
+        { "0", HTS_MAXRETRYAFTER_MAXBYTES - 2, "1", TRUE },
+        { "0", HTS_MAXRETRYAFTER_MAXBYTES - 1, "1", FALSE },
         { NULL, 0, NULL, FALSE }
       };
       int nchecks = 0;

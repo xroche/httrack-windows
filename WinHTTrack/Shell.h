@@ -274,9 +274,15 @@ BOOL isHostAliasArgument(const CString &rule);
    enough for argv. A cap the engine refuses aborts the mirror. Exposed for --selftest. */
 BOOL isSingleFileMaxArgument(const CString &value);
 
+/* The engine's alias expander glues this option's value onto "-%J" in one
+   HTS_CDLMAXSIZE buffer and refuses rather than clipping, so those three bytes come off
+   the value's cap. Options whose value travels detached keep the whole buffer. */
+#define HTS_MAXRETRYAFTER_MAXBYTES (HTS_CDLMAXSIZE - 3)
+
 /* TRUE if VALUE may be handed to --max-retry-after: digits only, 0 to
-   HTS_MAX_RETRY_AFTER_LIMIT. A delay the engine refuses aborts the mirror. Zero is
-   legal and waives the wait, so it is not "unset". Exposed for --selftest. */
+   HTS_MAX_RETRY_AFTER_LIMIT, and short enough for argv. A delay the engine refuses
+   aborts the mirror. Zero is accepted and means retry with no wait.
+   Exposed for --selftest. */
 BOOL isMaxRetryAfterArgument(const CString &value);
 
 /* TRUE if the engine's verdict says the mirror was cut short. Valid only once the

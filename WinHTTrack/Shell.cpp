@@ -2025,16 +2025,12 @@ BOOL isSingleFileMaxArgument(const CString &value) {
 
 // see Shell.h
 BOOL isMaxRetryAfterArgument(const CString &value) {
-  char *end;
-  long v;
-
-  if (!isAllDigits(value))   // strtol would otherwise take a sign or leading spaces
+  // digits only: strtol would otherwise take a sign, and an overflowing run saturates
+  // at LONG_MAX, which the ceiling then rejects
+  if (!isAllDigits(value))
     return FALSE;
-  errno = 0;
-  v = strtol((LPCSTR) value, &end, 10);
-  // zero is a value here, not an absence: it waives the wait
-  return *end == '\0' && errno != ERANGE && v >= 0 && v <= HTS_MAX_RETRY_AFTER_LIMIT
-         && fitsEngineArgument(value, HTS_CDLMAXSIZE);
+  return strtol((LPCSTR) value, NULL, 10) <= HTS_MAX_RETRY_AFTER_LIMIT
+         && fitsEngineArgument(value, HTS_MAXRETRYAFTER_MAXBYTES);
 }
 
 // see Shell.h
@@ -2286,7 +2282,6 @@ void lance(void) {
     args.Add(ShellOptions->pausefiles);
   }
 
-  /* An empty box is not a zero: it passes nothing and leaves the engine its own default. */
   {
     CString maxretryafter = ShellOptions->maxretryafter;
 

@@ -281,7 +281,7 @@ runs:
           throw "selftest did not check the single-file cap"
         }
         # A delay the engine refuses aborts the mirror, and a typed 0 must survive as a value.
-        if ("$so" -notmatch 'max retry-after ok on 12 checks') {
+        if ("$so" -notmatch 'max retry-after ok on 14 checks') {
           throw "selftest did not check the max retry-after delay"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
