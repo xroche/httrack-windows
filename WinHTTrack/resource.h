@@ -554,6 +554,8 @@ Please visit our Website: http://www.httrack.com
 #define IDC_ch7                         1341
 #define IDC_ch8                         1342
 #define IDC_hostscope                   1343
+#define IDC_maxretryafter               1344
+#define IDC_STATIC_maxretryafter        1345
 #define ID_MENUITEM32771                32771
 #define ID_MENUITEM32772                32772
 #define ID_EXIT                         32772
@@ -625,7 +627,7 @@ Please visit our Website: http://www.httrack.com
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        248
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1344
+#define _APS_NEXT_CONTROL_VALUE         1346
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif

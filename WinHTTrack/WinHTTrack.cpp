@@ -845,6 +845,43 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("single-file caps ok on %d checks\n", nchecks);
     }
+    /* Zero is a value here and not an absence, so an empty box and a typed 0 must part
+       company: one passes nothing and leaves the engine its 60, the other waives the wait. */
+    {
+      static const struct { const char *lead; int repeat; const char *tail; BOOL want; } delays[] = {
+        { "", 0, "0", TRUE },   /* retry with no wait, the case an empty box must not mean */
+        { "", 0, "60", TRUE },
+        { "", 0, "3600", TRUE },   /* the engine's ceiling, which it accepts */
+        { "", 0, "3601", FALSE },
+        { "", 0, "", FALSE },   /* no value at all, so no option */
+        { "", 0, "+5", FALSE },   /* the engine's %d would take the sign, we will not */
+        { "", 0, " 5", FALSE },
+        { "", 0, "5s", FALSE },
+        { "", 0, "-1", FALSE },
+        { "0", 4, "60", TRUE },   /* leading zeros keep it in range however it is written */
+        /* value 1 either way, so only the argv length decides these two */
+        { "0", HTS_CDLMAXSIZE - 2, "1", TRUE },
+        { "0", HTS_CDLMAXSIZE - 1, "1", FALSE },
+        { NULL, 0, NULL, FALSE }
+      };
+      int nchecks = 0;
+      for(int k=0 ; delays[k].lead != NULL ; k++) {
+        CString value;
+
+        for(int n=0 ; n<delays[k].repeat ; n++)
+          value += delays[k].lead;
+        value += delays[k].tail;
+        if (isMaxRetryAfterArgument(value) != delays[k].want) {
+          fprintf(stderr, "FATAL: max retry-after '%s' (%d chars) judged %s\n",
+                  (LPCSTR) value.Left(40), (int) value.GetLength(),
+                  delays[k].want ? "bad, expected good" : "good, expected bad");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("max retry-after ok on %d checks\n", nchecks);
+    }
     /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
        refuses costs the whole mirror, and each field carries its own cap. */
     {

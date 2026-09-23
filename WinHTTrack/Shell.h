@@ -274,6 +274,11 @@ BOOL isHostAliasArgument(const CString &rule);
    enough for argv. A cap the engine refuses aborts the mirror. Exposed for --selftest. */
 BOOL isSingleFileMaxArgument(const CString &value);
 
+/* TRUE if VALUE may be handed to --max-retry-after: digits only, 0 to
+   HTS_MAX_RETRY_AFTER_LIMIT. A delay the engine refuses aborts the mirror. Zero is
+   legal and waives the wait, so it is not "unset". Exposed for --selftest. */
+BOOL isMaxRetryAfterArgument(const CString &value);
+
 /* TRUE if the engine's verdict says the mirror was cut short. Valid only once the
    mirror has ended, because HTS_FALSE also means still running. HTS_DEFAULT means
    no mirror ran, so it is not a stop. Exposed for --selftest. */
@@ -367,7 +372,7 @@ public:
     toler, updhack, urlhack, http10, waittime, maxtime, maxrate, 
     maxconn, maxlinks, hh, mm, ss, buff_filtres, buff_MIME, 
     _RasString, accept_language, other_headers, default_referer,
-    cookiesfile, pausefiles, keepwww, keepslashes, keepqueryorder,
+    cookiesfile, pausefiles, maxretryafter, keepwww, keepslashes, keepqueryorder,
     stripquery, hostalias, sitemap, sitemapurl, singlefile, singlefilemax,
     changes, warccdx, wacz, buildstring;
   CString LINE_back;
