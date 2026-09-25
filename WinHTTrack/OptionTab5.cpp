@@ -130,6 +130,15 @@ BOOL COptionTab5::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_pausebytes,LANG_I65); // Pause after downloading..
     SetDlgItemTextCP(this, IDC_STATIC_maxlinks,LANG_I64b);
   }
+
+  /* What the engine uses when the field is left empty. */
+  {
+    const httrackp *const defaults = WhttEngineDefaults();
+
+    SetDlgItemDefaultCue(this, IDC_maxrate, defaults->maxrate);
+    SetDlgItemDefaultCue(this, IDC_maxconn, defaults->maxconn);
+    SetDlgItemDefaultCue(this, IDC_maxlinks, defaults->maxlink);
+  }
 	
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE

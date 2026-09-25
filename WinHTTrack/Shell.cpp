@@ -2059,6 +2059,37 @@ void firstLineOf(const char *msg, char *dest, size_t size) {
 }
 
 // see Shell.h
+const httrackp* WhttEngineDefaults() {
+  static httrackp *defaults = NULL;
+
+  if (defaults == NULL)
+    defaults = hts_create_opt();
+  return defaults;
+}
+
+// see Shell.h
+void WhttFormatDefaultCue(double value, WCHAR *text, size_t count) {
+  /* %.10g drops a float default's trailing ".0" and never reaches exponent form here. */
+  _snwprintf_s(text, count, _TRUNCATE, L"%.10g", value);
+}
+
+// see Shell.h
+void SetDlgItemDefaultCue(CWnd *wnd, int nIDDlgItem, double value) {
+  const HWND item = ::GetDlgItem(wnd->m_hWnd, nIDDlgItem);
+  char className[16];
+  WCHAR text[32];
+
+  if (item == NULL)
+    return;
+  WhttFormatDefaultCue(value, text, sizeof(text) / sizeof(text[0]));
+  /* Both messages carry a wide string even in this MBCS build, and being above
+     WM_USER neither is translated on the way in. */
+  ::GetClassName(item, className, sizeof(className));
+  ::SendMessageW(item, _stricmp(className, "ComboBox") == 0
+                 ? CB_SETCUEBANNER : EM_SETCUEBANNER, 0, (LPARAM) text);
+}
+
+// see Shell.h
 BOOL isBuildStringArgument(const CString &value) {
   return isEngineArgument(value, BUILDSTRING_MAXSIZE);
 }

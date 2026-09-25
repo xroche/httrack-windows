@@ -521,6 +521,49 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok on %d checks\n", nchecks);
     }
+    /* The grey hint the option pages draw in a field left empty, and the engine
+       defaults they name. */
+    {
+      static const struct { double value; const WCHAR *want; } cues[] = {
+        { 2, L"2" }, { 5.0f, L"5" }, { 0.5, L"0.5" }, { 120, L"120" },
+        { 100000, L"100000" }, { 0, NULL }
+      };
+      const httrackp *const defaults = WhttEngineDefaults();
+      /* Only a field the engine answers with a real number gets a hint, so a default
+         below its floor means "no limit" and the hint would state it as a value. */
+      const struct { const char *what; double value; double least; } shown[] = {
+        { "connections", defaults->maxsoc, 1 },
+        { "timeout", defaults->timeout, 1 },
+        { "retries", defaults->retry, 0 },
+        { "max Retry-After", defaults->max_retry_after, 1 },
+        { "max transfer rate", defaults->maxrate, 1 },
+        { "max connections per second", defaults->maxconn, 1 },
+        { "max links", defaults->maxlink, 1 },
+        { NULL, 0, 0 }
+      };
+      int nchecks = 0;
+      for(int k=0 ; cues[k].want != NULL ; k++) {
+        WCHAR got[32];
+        WhttFormatDefaultCue(cues[k].value, got, sizeof(got) / sizeof(got[0]));
+        if (wcscmp(got, cues[k].want) != 0) {
+          fprintf(stderr, "FATAL: default %g was written '%ls', expected '%ls'\n",
+                  cues[k].value, got, cues[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      for(int k=0 ; shown[k].what != NULL ; k++) {
+        if (shown[k].value < shown[k].least) {
+          fprintf(stderr, "FATAL: the engine default for %s is %g, under %g\n",
+                  shown[k].what, shown[k].value, shown[k].least);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("default hints ok on %d checks\n", nchecks);
+    }
     /* winprofile.ini escaping: WebHTTrack writes the same file, so both what we
        emit and what we accept are a cross-front-end contract. */
     {
