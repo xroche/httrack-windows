@@ -521,48 +521,51 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok on %d checks\n", nchecks);
     }
-    /* The grey hint the option pages draw in a field left empty, and the engine
-       defaults they name. */
+    /* The grey cue the Flow Control and Limits pages draw in an empty field. */
     {
       static const struct { double value; const WCHAR *want; } cues[] = {
-        { 2, L"2" }, { 5.0f, L"5" }, { 0.5, L"0.5" }, { 120, L"120" },
-        { 100000, L"100000" }, { 0, NULL }
+        { 2, L"2" },
+        { 2147483647, L"2147483647" },  /* the widest int field, never in exponent form */
+        { 5.0f, L"5" },                 /* maxconn is the one float, and 5.0f is exact */
+        { 0.1f, L"0.1" },               /* one that is not, so its noise must not show */
+        { 0.5, L"0.5" },                /* a fraction survives */
+        { 0, NULL }
       };
       const httrackp *const defaults = WhttEngineDefaults();
-      /* Only a field the engine answers with a real number gets a hint, so a default
-         below its floor means "no limit" and the hint would state it as a value. */
-      const struct { const char *what; double value; double least; } shown[] = {
-        { "connections", defaults->maxsoc, 1 },
-        { "timeout", defaults->timeout, 1 },
-        { "retries", defaults->retry, 0 },
-        { "max Retry-After", defaults->max_retry_after, 1 },
-        { "max transfer rate", defaults->maxrate, 1 },
-        { "max connections per second", defaults->maxconn, 1 },
-        { "max links", defaults->maxlink, 1 },
+      /* A cue states its number as a value, so an engine default that moved to a
+         "no limit" marker would make it lie. Retries and Retry-After take 0, which
+         means no retry and no wait rather than no limit. */
+      const struct { const char *what; double value; double minimum; } shown[] = {
+        { "IDC_connexion", defaults->maxsoc, 1 },
+        { "IDC_timeout", defaults->timeout, 1 },
+        { "IDC_retry", defaults->retry, 0 },
+        { "IDC_maxretryafter", defaults->max_retry_after, 0 },
+        { "IDC_maxrate", defaults->maxrate, 1 },
+        { "IDC_maxconn", defaults->maxconn, 1 },
+        { "IDC_maxlinks", defaults->maxlink, 1 },
         { NULL, 0, 0 }
       };
-      int nchecks = 0;
+      int nwritten = 0, ndefaults = 0;
       for(int k=0 ; cues[k].want != NULL ; k++) {
-        WCHAR got[32];
-        WhttFormatDefaultCue(cues[k].value, got, sizeof(got) / sizeof(got[0]));
-        if (wcscmp(got, cues[k].want) != 0) {
+        const CStringW got = WhttFormatDefaultCue(cues[k].value);
+        if (got != cues[k].want) {
           fprintf(stderr, "FATAL: default %g was written '%ls', expected '%ls'\n",
-                  cues[k].value, got, cues[k].want);
+                  cues[k].value, (LPCWSTR) got, cues[k].want);
           fflush(stderr);
           ExitProcess(3);
         } else
-          nchecks++;
+          nwritten++;
       }
       for(int k=0 ; shown[k].what != NULL ; k++) {
-        if (shown[k].value < shown[k].least) {
-          fprintf(stderr, "FATAL: the engine default for %s is %g, under %g\n",
-                  shown[k].what, shown[k].value, shown[k].least);
+        if (shown[k].value < shown[k].minimum) {
+          fprintf(stderr, "FATAL: the engine default the cue on %s names is %g, under %g\n",
+                  shown[k].what, shown[k].value, shown[k].minimum);
           fflush(stderr);
           ExitProcess(3);
         } else
-          nchecks++;
+          ndefaults++;
       }
-      printf("default hints ok on %d checks\n", nchecks);
+      printf("default cues ok on %d checks and %d engine defaults\n", nwritten, ndefaults);
     }
     /* winprofile.ini escaping: WebHTTrack writes the same file, so both what we
        emit and what we accept are a cross-front-end contract. */

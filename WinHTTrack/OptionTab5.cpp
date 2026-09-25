@@ -131,7 +131,7 @@ BOOL COptionTab5::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_maxlinks,LANG_I64b);
   }
 
-  /* What the engine uses when the field is left empty. */
+  /* Show what the engine uses when the field is left empty. */
   {
     const httrackp *const defaults = WhttEngineDefaults();
 

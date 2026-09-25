@@ -293,17 +293,18 @@ BOOL isMirrorCutShort(hts_tristate completed);
    Exposed for --selftest. */
 void firstLineOf(const char *msg, char *dest, size_t size);
 
-/* The engine's own defaults, for telling the user what a field left empty will do.
-   Created once and never freed: hts_free_opt() stops every running FTP worker. */
+/* The engine's defaults, for telling the user what a field left empty will do. Never
+   freed, because hts_free_opt() stops every running FTP worker. */
 const httrackp* WhttEngineDefaults();
 
-/* Writes an engine default as a hint reads it: "5", never "5.000000". COUNT is in
-   characters. Exposed for --selftest. */
-void WhttFormatDefaultCue(double value, WCHAR *text, size_t count);
+/* Writes VALUE the way a field cue shows it: "5", never "5.000000" or "1e+06".
+   Exposed for --selftest. */
+CStringW WhttFormatDefaultCue(double value);
 
-/* Draws VALUE greyed inside an empty field, the Windows cue banner. Not the field's
-   text, so nothing reaches the engine or the profile. */
-void SetDlgItemDefaultCue(CWnd *wnd, int nIDDlgItem, double value);
+/* Draws VALUE greyed inside the field while it is empty, the Windows cue banner. It is
+   not the field's text, so nothing reaches the engine or the profile. Returns FALSE
+   where the page carries no such control. */
+BOOL SetDlgItemDefaultCue(CWnd *wnd, int nIDDlgItem, double value);
 
 /* How long the engine may spend closing the cache and renaming files after its
    end-of-mirror callback. Past it the GUI gives up waiting rather than wedging. */

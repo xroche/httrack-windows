@@ -34,6 +34,8 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "NewProj.h"
 
+#include <limits.h>   /* after the PCH, which is where the compiler starts reading */
+
 #include <WS2tcpip.h>  // Note: weird C2894 error if not included here
 extern "C" {
   #include "HTTrackInterface.h"
@@ -2060,33 +2062,45 @@ void firstLineOf(const char *msg, char *dest, size_t size) {
 
 // see Shell.h
 const httrackp* WhttEngineDefaults() {
-  static httrackp *defaults = NULL;
+  static httrackp *const defaults = hts_create_opt();
 
-  if (defaults == NULL)
-    defaults = hts_create_opt();
+  assert(defaults->size_httrackp == sizeof(httrackp));
   return defaults;
 }
 
 // see Shell.h
-void WhttFormatDefaultCue(double value, WCHAR *text, size_t count) {
-  /* %.10g drops a float default's trailing ".0" and never reaches exponent form here. */
-  _snwprintf_s(text, count, _TRUNCATE, L"%.10g", value);
+CStringW WhttFormatDefaultCue(double value) {
+  CStringW text;
+
+  /* A whole number is written in full, because %g turns one past six digits into
+     exponent form, and a fraction keeps float precision to hide conversion noise. */
+  if (value >= INT_MIN && value <= INT_MAX && value == (double) (int) value)
+    text.Format(L"%d", (int) value);
+  else
+    text.Format(L"%.7g", value);
+  return text;
 }
 
 // see Shell.h
-void SetDlgItemDefaultCue(CWnd *wnd, int nIDDlgItem, double value) {
-  const HWND item = ::GetDlgItem(wnd->m_hWnd, nIDDlgItem);
-  char className[16];
-  WCHAR text[32];
+BOOL SetDlgItemDefaultCue(CWnd *wnd, int nIDDlgItem, double value) {
+  HWND item = ::GetDlgItem(wnd->m_hWnd, nIDDlgItem);
+  char className[16] = "";
+  COMBOBOXINFO combo = { sizeof(combo) };
 
   if (item == NULL)
-    return;
-  WhttFormatDefaultCue(value, text, sizeof(text) / sizeof(text[0]));
-  /* Both messages carry a wide string even in this MBCS build, and being above
-     WM_USER neither is translated on the way in. */
-  ::GetClassName(item, className, sizeof(className));
-  ::SendMessageW(item, _stricmp(className, "ComboBox") == 0
-                 ? CB_SETCUEBANNER : EM_SETCUEBANNER, 0, (LPARAM) text);
+    return FALSE;
+  /* Through the edit box the combo owns, because only EM_SETCUEBANNER can keep the cue
+     while the field has focus, and each page opens with its first field focused. */
+  if (::GetClassName(item, className, (int) _countof(className)) > 0
+      && _stricmp(className, "ComboBox") == 0) {
+    if (!::GetComboBoxInfo(item, &combo))
+      return FALSE;
+    item = combo.hwndItem;
+  }
+  /* EM_SETCUEBANNER takes a wide string even in this MBCS build, and passes it through
+     untranslated because it sits above WM_USER. */
+  return (BOOL) ::SendMessageW(item, EM_SETCUEBANNER, TRUE,
+                               (LPARAM) (LPCWSTR) WhttFormatDefaultCue(value));
 }
 
 // see Shell.h

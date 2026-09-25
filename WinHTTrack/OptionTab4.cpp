@@ -122,7 +122,7 @@ BOOL COptionTab4::OnInitDialog()
     SetDlgItemTextLang(this, IDC_STATIC_maxretryafter,LANG(LANG_MAXRETRYAFTER)); // new key: keeps the .rc caption where a catalog lacks it
   }
 
-  /* What the engine uses when the field is left empty. */
+  /* Show what the engine uses when the field is left empty. */
   {
     const httrackp *const defaults = WhttEngineDefaults();
 
