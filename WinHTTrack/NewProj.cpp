@@ -75,9 +75,6 @@ extern Wid1* dialog1;
 /* shellapp */
 extern CShellApp* CShellApp_app;
 
-/* création structure */
-extern "C" HTSEXT_API int structcheck(const char* s);
-
 
 /////////////////////////////////////////////////////////////////////////////
 // CNewProj dialog
