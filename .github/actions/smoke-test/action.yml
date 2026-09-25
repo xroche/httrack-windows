@@ -264,6 +264,11 @@ runs:
         if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
+        # The engine owns these numbers, so a bump there must not leave a cue stating a
+        # value the mirror no longer uses.
+        if ("$so" -notmatch 'default cues ok on 5 checks and 9 engine defaults') {
+          throw "selftest did not check the option-field default cues"
+        }
         # winprofile.ini is a cross-front-end contract: WebHTTrack and Android read what we write.
         if ("$so" -notmatch 'profile escaping ok on 8 decodes, 4 round trips and 2 terminators') {
           throw "selftest did not check the winprofile.ini escaping"

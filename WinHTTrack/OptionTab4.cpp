@@ -121,6 +121,16 @@ BOOL COptionTab4::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_pausefiles,LANG(LANG_PAUSEFILES));
     SetDlgItemTextLang(this, IDC_STATIC_maxretryafter,LANG(LANG_MAXRETRYAFTER)); // new key: keeps the .rc caption where a catalog lacks it
   }
+
+  /* Show what the engine uses when the field is left empty. */
+  {
+    const httrackp *const defaults = WhttEngineDefaults();
+
+    SetDlgItemDefaultCue(this, IDC_connexion, defaults->maxsoc);
+    SetDlgItemDefaultCue(this, IDC_timeout, defaults->timeout);
+    SetDlgItemDefaultCue(this, IDC_retry, defaults->retry);
+    SetDlgItemDefaultCue(this, IDC_maxretryafter, defaults->max_retry_after);
+  }
 	
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE

@@ -34,6 +34,8 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "NewProj.h"
 
+#include <limits.h>   /* after the PCH, which is where the compiler starts reading */
+
 #include <WS2tcpip.h>  // Note: weird C2894 error if not included here
 extern "C" {
   #include "HTTrackInterface.h"
@@ -2056,6 +2058,49 @@ void firstLineOf(const char *msg, char *dest, size_t size) {
     n++;
   memcpy(dest, msg, n);
   dest[n] = '\0';
+}
+
+// see Shell.h
+const httrackp* WhttEngineDefaults() {
+  static httrackp *const defaults = hts_create_opt();
+
+  assert(defaults->size_httrackp == sizeof(httrackp));
+  return defaults;
+}
+
+// see Shell.h
+CStringW WhttFormatDefaultCue(double value) {
+  CStringW text;
+
+  /* A whole number is written in full, because %g turns one past six digits into
+     exponent form, and a fraction keeps float precision to hide conversion noise. */
+  if (value >= INT_MIN && value <= INT_MAX && value == (double) (int) value)
+    text.Format(L"%d", (int) value);
+  else
+    text.Format(L"%.7g", value);
+  return text;
+}
+
+// see Shell.h
+BOOL SetDlgItemDefaultCue(CWnd *wnd, int nIDDlgItem, double value) {
+  HWND item = ::GetDlgItem(wnd->m_hWnd, nIDDlgItem);
+  char className[16] = "";
+  COMBOBOXINFO combo = { sizeof(combo) };
+
+  if (item == NULL)
+    return FALSE;
+  /* Through the edit box the combo owns, because only EM_SETCUEBANNER can keep the cue
+     while the field has focus, and each page opens with its first field focused. */
+  if (::GetClassName(item, className, (int) _countof(className)) > 0
+      && _stricmp(className, "ComboBox") == 0) {
+    if (!::GetComboBoxInfo(item, &combo))
+      return FALSE;
+    item = combo.hwndItem;
+  }
+  /* EM_SETCUEBANNER takes a wide string even in this MBCS build, and passes it through
+     untranslated because it sits above WM_USER. */
+  return (BOOL) ::SendMessageW(item, EM_SETCUEBANNER, TRUE,
+                               (LPARAM) (LPCWSTR) WhttFormatDefaultCue(value));
 }
 
 // see Shell.h
