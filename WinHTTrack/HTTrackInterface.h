@@ -55,7 +55,6 @@ extern void hts_lowcase(char* s);
 extern char* next_token(char* p,int flag);
 
 // Engine internal variables
-extern HTSEXT_API hts_stat_struct HTS_STAT;
 extern int _DEBUG_HEAD;
 extern FILE* ioinfo;
 
