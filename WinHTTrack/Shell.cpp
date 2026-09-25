@@ -155,13 +155,6 @@ httrackp *global_opt = NULL;
 //        principal ayant quitté le formulaire affiche le message de fin
 
 
-// htslib.c
-extern "C" {
-  HTSEXT_API void qsec2str(char *st,TStamp t);
-  HTSEXT_API char *hts_convertStringSystemToUTF8(const char *s, size_t size);
-  HTSEXT_API char *hts_convertStringUTF8ToSystem(const char *s, size_t size);
-}
-
 // construction index général
 // void Build_TopIndex();
 
