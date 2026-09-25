@@ -135,6 +135,8 @@ BOOL COptionTab5::OnInitDialog()
   {
     const httrackp *const defaults = WhttEngineDefaults();
 
+    SetDlgItemDefaultCue(this, IDC_depth, defaults->depth);
+    SetDlgItemDefaultCue(this, IDC_depth2, defaults->extdepth);
     SetDlgItemDefaultCue(this, IDC_maxrate, defaults->maxrate);
     SetDlgItemDefaultCue(this, IDC_maxconn, defaults->maxconn);
     SetDlgItemDefaultCue(this, IDC_maxlinks, defaults->maxlink);

@@ -266,7 +266,7 @@ runs:
         }
         # The engine owns these numbers, so a bump there must not leave a cue stating a
         # value the mirror no longer uses.
-        if ("$so" -notmatch 'default cues ok on 5 checks and 7 engine defaults') {
+        if ("$so" -notmatch 'default cues ok on 5 checks and 9 engine defaults') {
           throw "selftest did not check the option-field default cues"
         }
         # winprofile.ini is a cross-front-end contract: WebHTTrack and Android read what we write.

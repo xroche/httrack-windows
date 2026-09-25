@@ -533,13 +533,15 @@ BOOL CWinHTTrackApp::InitInstance()
       };
       const httrackp *const defaults = WhttEngineDefaults();
       /* A cue states its number as a value, so an engine default that moved to a
-         "no limit" marker would make it lie. Retries and Retry-After take 0, which
-         means no retry and no wait rather than no limit. */
+         "no limit" marker would make it lie. Retries, Retry-After and external depth
+         take 0, which means none of them rather than no limit. */
       const struct { const char *what; double value; double minimum; } shown[] = {
         { "IDC_connexion", defaults->maxsoc, 1 },
         { "IDC_timeout", defaults->timeout, 1 },
         { "IDC_retry", defaults->retry, 0 },
         { "IDC_maxretryafter", defaults->max_retry_after, 0 },
+        { "IDC_depth", defaults->depth, 1 },
+        { "IDC_depth2", defaults->extdepth, 0 },
         { "IDC_maxrate", defaults->maxrate, 1 },
         { "IDC_maxconn", defaults->maxconn, 1 },
         { "IDC_maxlinks", defaults->maxlink, 1 },
