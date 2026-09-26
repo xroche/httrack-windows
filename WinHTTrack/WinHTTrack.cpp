@@ -341,6 +341,8 @@ static BOOL WhttShouldAssociate() {
 #define WHTT_PROGID "WinHTTrackProject"
 #define WHTT_TYPENAME "WinHTTrack Project"
 #define WHTT_CLASSES "Software\\Classes\\"
+/* Where the machine-wide installer records {app}, under the same name SetRegistryKey uses. */
+#define WHTT_MACHINE_KEY "Software\\WinHTTrack Website Copier\\WinHTTrack Website Copier"
 
 /* Where is this copy of the program? GetModuleFileName reports truncation by filling the
    buffer rather than by failing, and a truncated path would open nothing. */
@@ -353,14 +355,16 @@ static BOOL WhttModulePath(CString &path) {
   return !path.IsEmpty();
 }
 
-/* Does root\subkey hold a non-empty REG_SZ default value? Returns it in value. */
-static BOOL WhttReadClassDefault(HKEY root, const char *const subkey, CString &value) {
+/* Does root\subkey hold a non-empty REG_SZ under this name? Returns it in value. A NULL name
+   reads the key's own default value. */
+static BOOL WhttReadRegString(HKEY root, const char *const subkey, const char *const name,
+                              CString &value) {
   HKEY hKey;
   if (RegOpenKeyEx(root, subkey, 0, KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS)
     return FALSE;
   char buff[MAX_PATH * 2];
   DWORD size = sizeof(buff) - 1, type = REG_NONE;   /* the spare byte is the terminator below */
-  const BOOL got = RegQueryValueEx(hKey, NULL, NULL, &type, (LPBYTE) buff, &size) == ERROR_SUCCESS
+  const BOOL got = RegQueryValueEx(hKey, name, NULL, &type, (LPBYTE) buff, &size) == ERROR_SUCCESS
     && type == REG_SZ;
   RegCloseKey(hKey);
   if (!got)
@@ -401,23 +405,28 @@ static BOOL WhttWriteFileType(HKEY root) {
   /* An extension another program answers for is left alone, as MFC left it. Read through the
      merged view, so a claim in either hive counts. */
   CString owner;
-  if (WhttReadClassDefault(HKEY_CLASSES_ROOT, WHTT_EXT, owner) && owner != WHTT_PROGID)
+  if (WhttReadRegString(HKEY_CLASSES_ROOT, WHTT_EXT, NULL, owner) && owner != WHTT_PROGID)
     return TRUE;
   return WhttSetClassValue(root, WHTT_CLASSES WHTT_EXT, NULL, WHTT_PROGID)
     /* What puts "New > WinHTTrack Project" in the Explorer menu. */
     && WhttSetClassValue(root, WHTT_CLASSES WHTT_EXT "\\ShellNew", "NullFile", "");
 }
 
-/* The hive this copy belongs in, which is the one the installer's own class keys are in: the
-   /CURRENTUSER rows land in HKCU, the machine-wide rows in HKLM. Writing the other one would
-   publish a command inside one profile that no other account can read. */
+/* The hive this copy belongs in. Only an administrator's install records its own directory under
+   HKLM, so that value is what says this copy was installed for everyone. An elevated run proves
+   nothing, and a copy unpacked inside one profile must not publish that path to the machine:
+   every other account would resolve .whtt to a path it cannot even read. */
 static HKEY WhttFileTypeRoot() {
-  HKEY hKey;
-  if (RegOpenKeyEx(HKEY_CURRENT_USER, WHTT_CLASSES WHTT_PROGID, 0, KEY_QUERY_VALUE, &hKey)
-      != ERROR_SUCCESS)
-    return HKEY_LOCAL_MACHINE;
-  RegCloseKey(hKey);
-  return HKEY_CURRENT_USER;
+  CString module, installed;
+  if (!WhttModulePath(module)
+      || !WhttReadRegString(HKEY_LOCAL_MACHINE, WHTT_MACHINE_KEY, "Path", installed))
+    return HKEY_CURRENT_USER;
+  const int at = module.ReverseFind('\\');
+  if (at < 0)
+    return HKEY_CURRENT_USER;
+  if (installed.Right(1) == "\\")   /* the installer writes no trailing separator, but allow one */
+    installed = installed.Left(installed.GetLength() - 1);
+  return module.Left(at).CompareNoCase(installed) == 0 ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
 }
 
 /* Which hive answers for .whtt once the shell has merged them: "user", "machine", or NULL when
@@ -426,9 +435,9 @@ static const char *WhttFileTypeHive() {
   CString module, shortModule, progid, command;
   if (!WhttModulePath(module))
     return NULL;
-  if (!WhttReadClassDefault(HKEY_CLASSES_ROOT, WHTT_EXT, progid) || progid != WHTT_PROGID)
+  if (!WhttReadRegString(HKEY_CLASSES_ROOT, WHTT_EXT, NULL, progid) || progid != WHTT_PROGID)
     return NULL;
-  if (!WhttReadClassDefault(HKEY_CLASSES_ROOT, WHTT_PROGID "\\shell\\open\\command", command))
+  if (!WhttReadRegString(HKEY_CLASSES_ROOT, WHTT_PROGID "\\shell\\open\\command", NULL, command))
     return NULL;
   /* MFC registered the 8.3 path, so an older registration names this copy in short form. */
   char buff[MAX_PATH + 1];
@@ -444,7 +453,7 @@ static const char *WhttFileTypeHive() {
   if (command.Find(module) != 0 && (shortModule.IsEmpty() || command.Find(shortModule) != 0))
     return NULL;
   /* The extension is what the shell looks up, so the hive holding it names the answer. */
-  return WhttReadClassDefault(HKEY_CURRENT_USER, WHTT_CLASSES WHTT_EXT, progid)
+  return WhttReadRegString(HKEY_CURRENT_USER, WHTT_CLASSES WHTT_EXT, NULL, progid)
     && progid == WHTT_PROGID ? "user" : "machine";
 }
 
@@ -1848,7 +1857,7 @@ BOOL CWinHTTrackApp::InitInstance()
         CString owner;
         hive = WhttAssociateFileType();
         /* Not a failure: leaving another program's extension alone is what the writer does. */
-        if (hive == NULL && WhttReadClassDefault(HKEY_CLASSES_ROOT, WHTT_EXT, owner)
+        if (hive == NULL && WhttReadRegString(HKEY_CLASSES_ROOT, WHTT_EXT, NULL, owner)
             && owner != WHTT_PROGID)
           hive = "taken";
         if (hive == NULL) {
