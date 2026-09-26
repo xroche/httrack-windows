@@ -211,9 +211,34 @@ runs:
           }
           return $null
         }
-        # Read before the run, because the file-type checks further down are about what THIS
-        # run wrote. An install leaves the key with no value.
-        $preState = Get-ClassDefault LocalMachine $extKey
+        # Back to the state installs up to 3.50-4 left, with the keys there and empty. Each leg
+        # below has to start without the values, and the standard-user one needs the HKLM ACL
+        # to be what refuses it rather than a missing key.
+        function Reset-FileTypeKeys {
+          foreach ($view in @('Registry64', 'Registry32')) {
+            $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', $view)
+            try {
+              $base.DeleteSubKeyTree($extKey, $false)
+              $base.DeleteSubKeyTree($progKey, $false)
+              $base.CreateSubKey("$extKey\ShellNew").Close()
+              $base.CreateSubKey($verbKey).Close()
+            } finally { $base.Close() }
+          }
+          if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the reset kept a value, so what follows it proves nothing' }
+          foreach ($q in @("HKLM:\$extKey", "HKLM:\$verbKey")) {
+            if (-not (Test-Path -LiteralPath $q)) { throw "the reset removed $q, which an install leaves behind" }
+          }
+        }
+        # The installer associates the file type itself, and nothing has run yet, so this is its
+        # work. Installing over the copy further down proves the same rows from emptied keys.
+        $named = Get-ClassDefault LocalMachine $extKey
+        if ($named -ne 'WinHTTrackProject') { throw "the installer left HKLM\$extKey naming '$named'" }
+        $command = Get-ClassDefault LocalMachine $verbKey
+        if ("$command" -notlike "*$exe*" -or "$command" -notlike '*"%1"*') {
+          throw "the installer left HKLM\$verbKey opening '$command', not $exe with a quoted argument"
+        }
+        # Emptied, so what the run below reports is the program's own write.
+        Reset-FileTypeKeys
         $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru `
                -RedirectStandardOutput "$PWD\selftest.txt" -RedirectStandardError "$PWD\selftest.err"
         $so = (Get-Content "$PWD\selftest.txt" -Raw -ErrorAction SilentlyContinue)
@@ -355,14 +380,12 @@ runs:
           if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
         }
 
-        # Which hive answers for .whtt (#182). Every name here is from WinHTTrack.cpp, and the
-        # run above was elevated, so the machine-wide keys are the ones it could fill.
+        # Which hive answers for .whtt (#182). Every name here is from WinHTTrack.cpp. The keys
+        # went in empty and the run was elevated, so what they hold now is the program's own
+        # machine-wide write, which an installation older than the rows above still depends on.
         if ("$so" -notmatch 'file type ok on 2 checks \(machine\)') {
           throw 'the elevated selftest did not register .whtt machine-wide'
         }
-        # The installer creates these keys empty, so a value here came from the run above and not
-        # from an earlier install on this runner. The signing job installs twice.
-        if ($null -ne $preState) { throw "before the selftest, HKLM\$extKey already named '$preState'" }
         $named = Get-ClassDefault LocalMachine $extKey
         if ($named -ne 'WinHTTrackProject') { throw "HKLM\$extKey names '$named', not the file type" }
         $named = Get-ClassDefault LocalMachine $progKey
@@ -385,24 +408,9 @@ runs:
           if (Test-Path -LiteralPath $q) { throw "the elevated run wrote $q as well" }
         }
 
-        # The other half: the state a machine-wide install leaves, with the keys there and empty.
-        # Only an elevated run can fill them, and until #182 a standard user's attempt was
-        # refused in silence, so .whtt opened nothing for anybody.
-        foreach ($view in @('Registry64', 'Registry32')) {
-          $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', $view)
-          try {
-            $base.DeleteSubKeyTree($extKey, $false)
-            $base.DeleteSubKeyTree($progKey, $false)
-            $base.CreateSubKey("$extKey\ShellNew").Close()
-            $base.CreateSubKey($verbKey).Close()
-          } finally { $base.Close() }
-        }
-        if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the reset kept a value, so the refusal below could not happen' }
-        # The keys have to be BACK, because that is the state an install leaves. What refuses the
-        # write below is the HKLM ACL, not their absence.
-        foreach ($q in @("HKLM:\$extKey", "HKLM:\$verbKey")) {
-          if (-not (Test-Path -LiteralPath $q)) { throw "the reset removed $q, which an install leaves behind" }
-        }
+        # The other half: a standard user, whose write to HKLM was refused in silence until #182,
+        # so .whtt opened nothing for anybody.
+        Reset-FileTypeKeys
         . "$env:GITHUB_ACTION_PATH\unelevated-token.ps1"
         if (-not [Unelevated]::IsElevated()) { throw 'the runner is not elevated, so this leg tests nothing new' }
         # Demonstrate the refusal on the value the writer is stopped at, which is the ProgID name
@@ -478,6 +486,19 @@ runs:
           '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\reinstall.log"
         if ($p.ExitCode -ne 0) { throw "installing over the existing copy exited $($p.ExitCode)" }
         if (-not (Test-Path $exe)) { throw "installing over the existing copy removed WinHTTrack.exe" }
+        # The keys were emptied above and the standard-user run was refused HKLM, so all four
+        # values can only be the installer's own rows.
+        $named = Get-ClassDefault LocalMachine $extKey
+        if ($named -ne 'WinHTTrackProject') { throw "installing over left HKLM\$extKey naming '$named'" }
+        $named = Get-ClassDefault LocalMachine $progKey
+        if ($named -ne 'WinHTTrack Project') { throw "installing over called the file type '$named'" }
+        $command = Get-ClassDefault LocalMachine $verbKey
+        if ("$command" -notlike "*$exe*" -or "$command" -notlike '*"%1"*') {
+          throw "installing over left HKLM\$verbKey opening '$command', not $exe with a quoted argument"
+        }
+        if ($null -eq (Get-ItemProperty -LiteralPath "HKLM:\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue)) {
+          throw "installing over left HKLM\$extKey\ShellNew with no NullFile, so the New menu entry is gone"
+        }
         $vo = "$PWD\overversion.txt"
         $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $vo
         if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe exited $($p.ExitCode) after installing over" }
@@ -579,6 +600,13 @@ runs:
         }
         foreach ($q in (@($userExtKey, $userVerb) + $shared)) {
           if (-not (Test-Path -LiteralPath $q)) { throw "a per-user install registered no $q" }
+        }
+        # A Store install has no elevated first run behind it, so the rows carry the values.
+        $named = Get-ClassDefault CurrentUser $extKey
+        if ($named -ne 'WinHTTrackProject') { throw "a per-user install left HKCU\$extKey naming '$named'" }
+        $command = Get-ClassDefault CurrentUser $verbKey
+        if ("$command" -notlike "*$userExe*" -or "$command" -notlike '*"%1"*') {
+          throw "a per-user install left HKCU\$verbKey opening '$command', not $userExe with a quoted argument"
         }
         $entries = @(Get-UninstallEntries)
         foreach ($e in $entries) { Write-Host "  per-user uninstall entry: $e" }

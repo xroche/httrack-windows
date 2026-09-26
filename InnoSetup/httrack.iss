@@ -133,12 +133,12 @@ Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copie
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
-; The app fills these in itself on first run, in the user's own classes where it cannot write
-; HKLM. The rows stay because an uninstall deletes what they name, the open verb included.
-Root: HKA; Subkey: "Software\Classes\.whtt\ShellNew"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKA; Subkey: "Software\Classes\.whtt"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKA; Subkey: "Software\Classes\WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles
-Root: HKA; Subkey: "Software\Classes\WinHTTrackProject\shell\open\command"; Flags: uninsdeletekey noerror; Tasks: regfiles
+; The four values that associate .whtt, so no account waits for an administrator to start the
+; program once. The program still writes them itself for an older installation and the ZIP.
+Root: HKA; Subkey: "Software\Classes\.whtt\ShellNew"; ValueType: string; ValueName: "NullFile"; ValueData: ""; Flags: uninsdeletekey noerror; Tasks: regfiles; Check: WhttExtensionIsFree
+Root: HKA; Subkey: "Software\Classes\.whtt"; ValueType: string; ValueData: "WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles; Check: WhttExtensionIsFree
+Root: HKA; Subkey: "Software\Classes\WinHTTrackProject"; ValueType: string; ValueData: "WinHTTrack Project"; Flags: uninsdeletekey noerror; Tasks: regfiles
+Root: HKA; Subkey: "Software\Classes\WinHTTrackProject\shell\open\command"; ValueType: string; ValueData: """{app}\WinHTTrack.exe"" ""%1"""; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKA; Subkey: "Software\Classes\Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
 ; Shared with the other copy the same way, so these are removed from [Code] too.
 Root: HKCU; Subkey: "AppEvents\Schemes\Apps\WinHTTrack"; ValueType: string; ValueData: "WinHTTrack Website Copier"; Flags: noerror; Tasks: regfiles
@@ -160,6 +160,18 @@ const
   InterfaceSubkey = 'Software\WinHTTrack Website Copier\WinHTTrack Website Copier\Interface';
 
 procedure ExitProcess(uExitCode: Cardinal); external 'ExitProcess@kernel32.dll stdcall';
+
+{ Whether .whtt is ours to claim. A program already answering for it keeps the association, as
+  the program's own writer leaves it, and the uninstall then deletes nothing of theirs. }
+function WhttExtensionIsFree(): Boolean;
+var
+  Owner: String;
+begin
+  if not RegQueryStringValue(HKCR, '.whtt', '', Owner) then
+    Result := True
+  else
+    Result := (Owner = '') or (CompareText(Owner, 'WinHTTrackProject') = 0);
+end;
 
 { A key whose directory is gone names nothing installed. Refusing an install the user cannot
   get past is worse than missing a copy, so it does not count as one. }
