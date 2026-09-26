@@ -398,8 +398,8 @@ runs:
           } finally { $base.Close() }
         }
         if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the reset kept a value, so the refusal below could not happen' }
-        # The keys have to be BACK, because the write below is refused on keys that HKLM already
-        # holds. A reset that removed them would prove something else.
+        # The keys have to be BACK, because that is the state an install leaves. What refuses the
+        # write below is the HKLM ACL, not their absence.
         foreach ($q in @("HKLM:\$extKey", "HKLM:\$verbKey")) {
           if (-not (Test-Path -LiteralPath $q)) { throw "the reset removed $q, which an install leaves behind" }
         }
@@ -450,8 +450,9 @@ runs:
           throw "the shell does not open $extKey with $exe"
         }
         Write-Host "::notice::a standard user registers .whtt in its own classes when HKLM refuses it"
-        # The per-user leg below asserts these are absent, and no uninstaller reaches them.
-        Remove-Item -LiteralPath "HKCU:\$extKey", "HKCU:\$progKey" -Recurse -Force
+        # The per-user leg below asserts these are absent, and no uninstaller reaches them. A
+        # 32-bit build writes a view this provider path does not see, hence the tolerated failure.
+        Remove-Item -LiteralPath "HKCU:\$extKey", "HKCU:\$progKey" -Recurse -Force -ErrorAction SilentlyContinue
 
         # The CLI is a separate binary against the same DLL: it can be broken while the
         # GUI is fine. -#h prints the version -- the engine's, which stamps it -- and exits 0.
