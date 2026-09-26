@@ -193,6 +193,27 @@ runs:
         # asserted against instead of this run.
         Remove-Item $report -Force -ErrorAction SilentlyContinue
         if (Test-Path $report) { throw "$report survived deletion" }
+        $extKey = 'SOFTWARE\Classes\.whtt'
+        $progKey = 'SOFTWARE\Classes\WinHTTrackProject'
+        $verbKey = "$progKey\shell\open\command"
+        # Read through both registry views. These keys are shared between them today, so the
+        # second read is a guard for the Win32 leg rather than an expectation.
+        function Get-ClassDefault($hive, $key) {
+          foreach ($view in @('Registry64', 'Registry32')) {
+            $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, $view)
+            try {
+              $k = $base.OpenSubKey($key)
+              if ($k) {
+                try { $v = $k.GetValue('') } finally { $k.Close() }
+                if ($null -ne $v) { return $v }
+              }
+            } finally { $base.Close() }
+          }
+          return $null
+        }
+        # Read before the run, because the file-type checks further down are about what THIS
+        # run wrote. An install leaves the key with no value.
+        $preState = Get-ClassDefault LocalMachine $extKey
         $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru `
                -RedirectStandardOutput "$PWD\selftest.txt" -RedirectStandardError "$PWD\selftest.err"
         $so = (Get-Content "$PWD\selftest.txt" -Raw -ErrorAction SilentlyContinue)
@@ -333,6 +354,105 @@ runs:
           if (-not $trace) { throw "no crash report written: the first-chance hook never ran" }
           if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
         }
+
+        # Which hive answers for .whtt (#182). Every name here is from WinHTTrack.cpp, and the
+        # run above was elevated, so the machine-wide keys are the ones it could fill.
+        if ("$so" -notmatch 'file type ok on 2 checks \(machine\)') {
+          throw 'the elevated selftest did not register .whtt machine-wide'
+        }
+        # The installer creates these keys empty, so a value here came from the run above and not
+        # from an earlier install on this runner. The signing job installs twice.
+        if ($null -ne $preState) { throw "before the selftest, HKLM\$extKey already named '$preState'" }
+        $named = Get-ClassDefault LocalMachine $extKey
+        if ($named -ne 'WinHTTrackProject') { throw "HKLM\$extKey names '$named', not the file type" }
+        $named = Get-ClassDefault LocalMachine $progKey
+        if ($named -ne 'WinHTTrack Project') { throw "the file type is called '$named' in Explorer" }
+        # The quoted %1 as well as the exe: without it a project path containing a space is
+        # split, and the shell hands the program half a filename.
+        $command = Get-ClassDefault LocalMachine $verbKey
+        if ("$command" -notlike "*$exe*" -or "$command" -notlike '*"%1"*') {
+          throw "HKLM\$verbKey opens '$command', not $exe with a quoted argument"
+        }
+        # "New > WinHTTrack Project" in the Explorer menu is this value and nothing else.
+        if ($null -eq (Get-ItemProperty -LiteralPath "HKLM:\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue)) {
+          throw "HKLM\$extKey\ShellNew has no NullFile, so the New menu entry is gone"
+        }
+        # What the shell resolves, which the key reads above cannot answer.
+        if ("$so" -notmatch [regex]::Escape("file type opens $exe")) { throw "the shell does not open .whtt with $exe" }
+        # A per-user copy beside it would answer for a user no uninstaller can reach, so an
+        # elevated run has to leave both HKCU keys alone.
+        foreach ($q in @("HKCU:\$extKey", "HKCU:\$progKey")) {
+          if (Test-Path -LiteralPath $q) { throw "the elevated run wrote $q as well" }
+        }
+
+        # The other half: the state a machine-wide install leaves, with the keys there and empty.
+        # Only an elevated run can fill them, and until #182 a standard user's attempt was
+        # refused in silence, so .whtt opened nothing for anybody.
+        foreach ($view in @('Registry64', 'Registry32')) {
+          $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', $view)
+          try {
+            $base.DeleteSubKeyTree($extKey, $false)
+            $base.DeleteSubKeyTree($progKey, $false)
+            $base.CreateSubKey("$extKey\ShellNew").Close()
+            $base.CreateSubKey($verbKey).Close()
+          } finally { $base.Close() }
+        }
+        if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the reset kept a value, so the refusal below could not happen' }
+        # The keys have to be BACK, because that is the state an install leaves. What refuses the
+        # write below is the HKLM ACL, not their absence.
+        foreach ($q in @("HKLM:\$extKey", "HKLM:\$verbKey")) {
+          if (-not (Test-Path -LiteralPath $q)) { throw "the reset removed $q, which an install leaves behind" }
+        }
+        . "$env:GITHUB_ACTION_PATH\unelevated-token.ps1"
+        if (-not [Unelevated]::IsElevated()) { throw 'the runner is not elevated, so this leg tests nothing new' }
+        # Demonstrate the refusal on the value the writer is stopped at, which is the ProgID name
+        # it writes first. HKCU is the control, because without it a mistyped probe reads as
+        # refused, and the value has to be absent afterwards as well as the exit non-zero.
+        $probe = "reg add `"{0}\$progKey`" /ve /d probe /f"
+        $allowed = [Unelevated]::Run("cmd.exe /c $($probe -f 'HKCU')", $PWD.Path, 60000)
+        $denied = [Unelevated]::Run("cmd.exe /c $($probe -f 'HKLM')", $PWD.Path, 60000)
+        Remove-Item -LiteralPath "HKCU:\$progKey" -Recurse -Force -ErrorAction SilentlyContinue
+        if ($allowed -ne 0) { throw "the probe cannot write HKCU either, so it proves nothing: reg exited $allowed" }
+        # The probe key has to go: the program reads it to decide which hive the installer chose,
+        # so leaving it would make the run below write HKCU by choice instead of by refusal.
+        if (Test-Path -LiteralPath "HKCU:\$progKey") { throw 'the probe key stayed behind' }
+        if ($denied -eq 0 -or $null -ne (Get-ClassDefault LocalMachine $progKey)) {
+          throw 'a standard user could name the file type in HKLM, so nothing below is refused'
+        }
+        # A .cmd file, because cmd.exe re-splits a quoted command line of its own.
+        $uout = Join-Path $PWD 'selftest-unelevated.txt'
+        $runner = Join-Path $PWD 'selftest-unelevated.cmd'
+        Remove-Item $uout -Force -ErrorAction SilentlyContinue
+        Set-Content $runner "@echo off`r`n`"$exe`" --selftest > `"$uout`" 2>&1"
+        $code = [Unelevated]::Run("cmd.exe /c `"$runner`"", $PWD.Path, 300000)
+        $uo = (Get-Content $uout -Raw -ErrorAction SilentlyContinue)
+        Write-Host "--- standard-user selftest ---`n$uo"
+        if ($code -ne 0) { throw "the standard-user selftest exited $code" }
+        if ("$uo" -notmatch 'file type ok on 2 checks \(user\)') {
+          throw 'a standard user did not fall back to its own classes, so .whtt opens nothing'
+        }
+        $named = Get-ClassDefault CurrentUser $extKey
+        if ($named -ne 'WinHTTrackProject') { throw "HKCU\$extKey names '$named', not the file type" }
+        $named = Get-ClassDefault CurrentUser $progKey
+        if ($named -ne 'WinHTTrack Project') { throw "the file type is called '$named' in Explorer" }
+        $command = Get-ClassDefault CurrentUser $verbKey
+        if ("$command" -notlike "*$exe*" -or "$command" -notlike '*"%1"*') {
+          throw "HKCU\$verbKey opens '$command', not $exe with a quoted argument"
+        }
+        # "New > WinHTTrack Project" in the Explorer menu is this value and nothing else.
+        $shellNew = Get-ItemProperty -LiteralPath "HKCU:\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue
+        if ($null -eq $shellNew) { throw "HKCU\$extKey\ShellNew has no NullFile, so the New menu entry is gone" }
+        # The control: that run had to be refused HKLM. A value there means the token could
+        # administer after all, and the fallback was never reached.
+        if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the standard-user run wrote HKLM after all' }
+        # What the shell resolves, which the key reads above cannot answer.
+        if ("$uo" -notmatch [regex]::Escape("file type opens $exe")) {
+          throw "the shell does not open $extKey with $exe"
+        }
+        Write-Host "::notice::a standard user registers .whtt in its own classes when HKLM refuses it"
+        # The per-user leg below asserts these are absent, and no uninstaller reaches them. A
+        # 32-bit build writes a view this provider path does not see, hence the tolerated failure.
+        Remove-Item -LiteralPath "HKCU:\$extKey", "HKCU:\$progKey" -Recurse -Force -ErrorAction SilentlyContinue
 
         # The CLI is a separate binary against the same DLL: it can be broken while the
         # GUI is fine. -#h prints the version -- the engine's, which stamps it -- and exits 0.
