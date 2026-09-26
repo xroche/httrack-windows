@@ -334,6 +334,75 @@ runs:
           if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
         }
 
+        # Which hive answers for .whtt (#182). Every name here is from WinHTTrack.cpp, and the
+        # run above was elevated, so the machine-wide keys are the ones it could fill.
+        $extKey = 'SOFTWARE\Classes\.whtt'
+        $progKey = 'SOFTWARE\Classes\WinHTTrackProject'
+        $verbKey = "$progKey\shell\open\command"
+        # Read through both registry views: Windows redirects what a 32-bit build writes under
+        # HKLM\Software\Classes, and this action tests either architecture.
+        function Get-ClassDefault($hive, $key) {
+          foreach ($view in @('Registry64', 'Registry32')) {
+            $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, $view)
+            try {
+              $k = $base.OpenSubKey($key)
+              if ($k) {
+                try { $v = $k.GetValue('') } finally { $k.Close() }
+                if ($null -ne $v) { return $v }
+              }
+            } finally { $base.Close() }
+          }
+          return $null
+        }
+        if ("$so" -notmatch 'file type ok on 2 checks \(machine\)') {
+          throw 'the elevated selftest did not register .whtt machine-wide'
+        }
+        $named = Get-ClassDefault LocalMachine $extKey
+        if ($named -ne 'WinHTTrackProject') { throw "HKLM\$extKey names '$named', not the file type" }
+        $verb = Get-ClassDefault LocalMachine $verbKey
+        if ("$verb" -notlike "*$exe*") { throw "HKLM\$verbKey opens '$verb', not $exe" }
+        # A per-user copy beside it would answer for a user no uninstaller can reach, so an
+        # elevated run has to leave HKCU alone.
+        if ($null -ne (Get-ClassDefault CurrentUser $extKey)) { throw 'the elevated run wrote HKCU as well' }
+
+        # The other half: exactly the state a machine-wide install leaves, with the keys there
+        # and empty. Only an elevated run can fill them, and until #182 a standard user's
+        # attempt was refused in silence, so .whtt opened nothing for anybody.
+        foreach ($view in @('Registry64', 'Registry32')) {
+          $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', $view)
+          try {
+            $base.DeleteSubKeyTree($extKey, $false)
+            $base.DeleteSubKeyTree($progKey, $false)
+            $base.CreateSubKey("$extKey\ShellNew").Close()
+            $base.CreateSubKey($verbKey).Close()
+          } finally { $base.Close() }
+        }
+        if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the reset kept a value, so nothing below would be refused' }
+        . "$env:GITHUB_ACTION_PATH\unelevated-token.ps1"
+        if (-not [Unelevated]::IsElevated()) { throw 'the runner is not elevated, so this leg tests nothing new' }
+        # A .cmd file, because cmd.exe re-splits a quoted command line of its own.
+        $uout = Join-Path $PWD 'selftest-unelevated.txt'
+        $runner = Join-Path $PWD 'selftest-unelevated.cmd'
+        Remove-Item $uout -Force -ErrorAction SilentlyContinue
+        Set-Content $runner "@echo off`r`n`"$exe`" --selftest > `"$uout`" 2>&1"
+        $code = [Unelevated]::Run("cmd.exe /c `"$runner`"", $PWD.Path, 300000)
+        $uo = (Get-Content $uout -Raw -ErrorAction SilentlyContinue)
+        Write-Host "--- standard-user selftest ---`n$uo"
+        if ($code -ne 0) { throw "the standard-user selftest exited $code" }
+        if ("$uo" -notmatch 'file type ok on 2 checks \(user\)') {
+          throw 'a standard user did not fall back to its own classes, so .whtt opens nothing'
+        }
+        $named = Get-ClassDefault CurrentUser $extKey
+        if ($named -ne 'WinHTTrackProject') { throw "HKCU\$extKey names '$named', not the file type" }
+        $verb = Get-ClassDefault CurrentUser $verbKey
+        if ("$verb" -notlike "*$exe*") { throw "HKCU\$verbKey opens '$verb', not $exe" }
+        # The control: that run had to be refused HKLM. A value there means the token could
+        # administer after all, and the fallback was never reached.
+        if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the standard-user run wrote HKLM after all' }
+        Write-Host "::notice::a standard user registers .whtt in its own classes when HKLM refuses it"
+        # The per-user leg below asserts these are absent, and no uninstaller reaches them.
+        Remove-Item -LiteralPath "HKCU:\$extKey", "HKCU:\$progKey" -Recurse -Force
+
         # The CLI is a separate binary against the same DLL: it can be broken while the
         # GUI is fine. -#h prints the version -- the engine's, which stamps it -- and exits 0.
         $cli = Join-Path $dir 'httrack.exe'

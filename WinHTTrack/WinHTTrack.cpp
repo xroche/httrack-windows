@@ -333,6 +333,104 @@ static BOOL WhttShouldAssociate() {
         || pApp->GetProfileInt("Interface","SetupHasRegistered",0) == 1);
 }
 
+/* The .whtt file type, in the values RegisterShellFileTypes() used to write. The last two
+   come from the document template in WinHTTrack.rc, which --selftest holds them to. */
+#define WHTT_EXT ".whtt"
+#define WHTT_PROGID "WinHTTrackProject"
+#define WHTT_TYPENAME "WinHTTrack Project"
+#define WHTT_USER_CLASSES "Software\\Classes\\"
+
+/* A key's default value, TRUE when it holds a non-empty string. */
+static BOOL WhttRegDefault(HKEY root, const char *const subkey, CString &value) {
+  HKEY hKey;
+  if (RegOpenKeyEx(root, subkey, 0, KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS)
+    return FALSE;
+  char buff[MAX_PATH * 2];
+  DWORD size = sizeof(buff) - 1, type = REG_NONE;
+  const BOOL got = RegQueryValueEx(hKey, NULL, NULL, &type, (LPBYTE) buff, &size) == ERROR_SUCCESS
+    && type == REG_SZ;
+  RegCloseKey(hKey);
+  if (!got || size >= sizeof(buff))
+    return FALSE;
+  buff[size] = '\0';   /* a REG_SZ need not carry its own terminator */
+  value = buff;
+  return !value.IsEmpty();
+}
+
+/* Writes one class value, creating the key it belongs to. */
+static LONG WhttSetClassValue(HKEY root, const CString &subkey, const char *const name,
+                              const char *const value) {
+  HKEY hKey;
+  LONG err = RegCreateKeyEx(root, subkey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, NULL,
+                            &hKey, NULL);
+  if (err == ERROR_SUCCESS) {
+    err = RegSetValueEx(hKey, name, 0, REG_SZ, (const BYTE*) value, (DWORD) strlen(value) + 1);
+    RegCloseKey(hKey);
+  }
+  return err;
+}
+
+/* Writes the file type under one root, and returns the first refusal. Called with
+   HKEY_CLASSES_ROOT and no prefix for the machine, or with the user's own copy of it. */
+static LONG WhttWriteFileType(HKEY root, const char *const prefix) {
+  char module[MAX_PATH + 1];
+  module[0] = '\0';
+  if (GetModuleFileName(NULL, module, sizeof(module) / sizeof(module[0]) - 1) == 0)
+    return (LONG) GetLastError();
+  CString command;
+  command.Format("\"%s\" \"%%1\"", module);
+  LONG err = WhttSetClassValue(root, CString(prefix) + WHTT_PROGID, NULL, WHTT_TYPENAME);
+  if (err == ERROR_SUCCESS)
+    err = WhttSetClassValue(root, CString(prefix) + WHTT_PROGID "\\shell\\open\\command", NULL,
+                            command);
+  if (err == ERROR_SUCCESS) {
+    /* An extension another program answers for is left alone, as MFC left it. */
+    CString owner;
+    const BOOL taken = WhttRegDefault(HKEY_CLASSES_ROOT, WHTT_EXT, owner) && owner != WHTT_PROGID;
+    if (!taken) {
+      err = WhttSetClassValue(root, CString(prefix) + WHTT_EXT, NULL, WHTT_PROGID);
+      if (err == ERROR_SUCCESS)   /* what puts "New > WinHTTrack Project" in the Explorer menu */
+        err = WhttSetClassValue(root, CString(prefix) + WHTT_EXT "\\ShellNew", "NullFile", "");
+    }
+  }
+  return err;
+}
+
+/* Which hive answers for .whtt once the shell has merged them: "user", "machine", or NULL
+   when nothing opens it with this copy. */
+static const char *WhttFileTypeHive() {
+  char buff[MAX_PATH + 1];
+  buff[0] = '\0';
+  GetModuleFileName(NULL, buff, sizeof(buff) / sizeof(buff[0]) - 1);
+  CString module(buff), progid, command;
+  if (!WhttRegDefault(HKEY_CLASSES_ROOT, WHTT_EXT, progid) || progid != WHTT_PROGID)
+    return NULL;
+  if (!WhttRegDefault(HKEY_CLASSES_ROOT, WHTT_PROGID "\\shell\\open\\command", command))
+    return NULL;
+  module.MakeLower();
+  command.MakeLower();
+  if (module.IsEmpty() || command.Find(module) < 0)
+    return NULL;
+  /* The extension is what the shell looks up, so the hive holding it names the answer. */
+  return WhttRegDefault(HKEY_CURRENT_USER, WHTT_USER_CLASSES WHTT_EXT, progid)
+    && progid == WHTT_PROGID ? "user" : "machine";
+}
+
+/* Registers .whtt and says which hive took it. Machine-wide first, so one administrator still
+   serves every account, then the user's own classes. HKEY_CLASSES_ROOT creates a key that is
+   not there yet under HKLM, which a standard user cannot write, and RegisterShellFileTypes()
+   dropped that refusal without a word: issue #182. */
+static const char *WhttAssociateFileType() {
+  /* A machine-wide registration that already works is left as it is, so a second user adds no
+     copy of it to a hive no uninstaller can reach. */
+  const char *const hive = WhttFileTypeHive();
+  if (hive != NULL)
+    return hive;
+  if (WhttWriteFileType(HKEY_CLASSES_ROOT, "") != ERROR_SUCCESS)
+    WhttWriteFileType(HKEY_CURRENT_USER, WHTT_USER_CLASSES);
+  return WhttFileTypeHive();
+}
+
 BOOL CWinHTTrackApp::InitInstance()
 {
   /* Answer --version without bringing up the UI, so a smoke test can prove the
@@ -1688,11 +1786,58 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      /* The association block runs long after --selftest has exited, so its decision is
-         reported rather than asserted; the two CI legs pin opposite answers. */
+      /* The two CI legs pin opposite answers here. The block below carries the decision out
+         and reports where it landed. */
       printf("settings store ok on %d checks (%s, %s)\n", nchecks,
              portable ? "portable ini" : "registry",
              WhttShouldAssociate() ? "associates" : "no association");
+    }
+    /* Registered for real, because which hive answers for .whtt is what broke and no
+       read-only check can see it. */
+    {
+      int nchecks = 0;
+      const BOOL wanted = WhttShouldAssociate();
+      /* The writer hardcodes what WinHTTrack.rc gives the document template, so a rename there
+         would register a type that opens nothing. Fields 4, 5 and 6 of the doc string are
+         CDocTemplate::filterExt, regFileTypeId and regFileTypeName. */
+      CString doc, field[7];
+      doc.LoadString(IDR_MAINFRAME);
+      for (int i = 0, at = 0; i < 7 && at >= 0; i++) {
+        const int next = doc.Find('\n', at);
+        field[i] = next >= 0 ? doc.Mid(at, next - at) : doc.Mid(at);
+        at = next >= 0 ? next + 1 : -1;
+      }
+      if (field[4] != WHTT_EXT || field[5] != WHTT_PROGID || field[6] != WHTT_TYPENAME) {
+        fprintf(stderr, "FATAL: the document template says '%s' '%s' '%s'\n",
+                (LPCSTR) field[4], (LPCSTR) field[5], (LPCSTR) field[6]);
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      const char *hive = "not asked";
+      if (wanted) {
+        CString owner;
+        hive = WhttAssociateFileType();
+        /* Not a failure: leaving another program's extension alone is what the writer does. */
+        if (hive == NULL && WhttRegDefault(HKEY_CLASSES_ROOT, WHTT_EXT, owner)
+            && owner != WHTT_PROGID)
+          hive = "taken";
+        if (hive == NULL) {
+          fprintf(stderr, "FATAL: %s opens nothing, and this copy asked to be registered\n",
+                  WHTT_EXT);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* Straight-line, so this fires on a deleted check rather than on any input. */
+      const int want = wanted ? 2 : 1;
+      if (nchecks != want) {
+        fprintf(stderr, "FATAL: file type ran %d checks, expected %d\n", nchecks, want);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("file type ok on %d checks (%s)\n", nchecks, hive);
     }
     /* Exercise the crash reporter for real: a Release PDB built without line info, or a
        first-chance hook that never registered, both still produce a plausible-looking
@@ -1828,22 +1973,8 @@ BOOL CWinHTTrackApp::InitInstance()
 
     CWinApp* pApp = AfxGetApp();
 
-    if (WhttShouldAssociate()) {
-        HKEY phkResult;
-        DWORD creResult;
-
-      RegisterShellFileTypes();
-
-      // register "New File" handler
-      if (RegCreateKeyEx(HKEY_CLASSES_ROOT,".whtt",0,NULL,REG_OPTION_NON_VOLATILE,KEY_ALL_ACCESS,NULL,&phkResult,&creResult)==ERROR_SUCCESS) {
-        RegCloseKey(phkResult);
-        if (RegCreateKeyEx(HKEY_CLASSES_ROOT,".whtt\\ShellNew",0,NULL,REG_OPTION_NON_VOLATILE,KEY_ALL_ACCESS,NULL,&phkResult,&creResult)==ERROR_SUCCESS) {
-          char voidbuff='\0';
-          RegSetValueEx(phkResult,"NullFile",0,REG_SZ,(LPBYTE)&voidbuff,1);
-          RegCloseKey(phkResult);
-        }
-      }   
-    }
+    if (WhttShouldAssociate())
+      WhttAssociateFileType();
 
     // Infos la 1ere fois!
     if (pApp->GetProfileInt("Interface","FirstRun",0) != 3) {

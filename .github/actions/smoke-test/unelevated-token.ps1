@@ -7,6 +7,8 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Guarded, because one step dot-sources this twice and a type compiles once.
+if (-not ('Unelevated' -as [type])) {
 Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
@@ -244,3 +246,4 @@ public static class Unelevated
     }
 }
 '@
+}

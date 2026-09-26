@@ -132,9 +132,8 @@ Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copie
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
-; The app fills these in itself on first run, through HKEY_CLASSES_ROOT. A key that does not yet exist goes
-; to HKLM, which a standard user cannot write, and MFC skips the failure without a word.
-; So every key it touches has to exist under HKCU first, the open verb included.
+; The app fills these in itself on first run, in the user's own classes where it cannot write
+; HKLM. The rows stay because an uninstall deletes what they name, the open verb included.
 Root: HKA; Subkey: "Software\Classes\.whtt\ShellNew"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKA; Subkey: "Software\Classes\.whtt"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKA; Subkey: "Software\Classes\WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles
