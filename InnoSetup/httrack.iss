@@ -133,10 +133,10 @@ Root: HKCU; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copie
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier"; Flags: uninsdeletekeyifempty noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
 Root: HKLM; Subkey: "Software\WinHTTrack Website Copier\WinHTTrack Website Copier"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey noerror; Check: IsAdminInstallMode
-; The four values that associate .whtt, so no account waits for an administrator to start the
-; program once. The program still writes them itself for an older installation and the ZIP.
-Root: HKA; Subkey: "Software\Classes\.whtt\ShellNew"; ValueType: string; ValueName: "NullFile"; ValueData: ""; Flags: uninsdeletekey noerror; Tasks: regfiles; Check: WhttExtensionIsFree
-Root: HKA; Subkey: "Software\Classes\.whtt"; ValueType: string; ValueData: "WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles; Check: WhttExtensionIsFree
+; These four values associate .whtt, so the association works with no first run as an
+; administrator. The program still writes them itself for an older installation and the ZIP.
+Root: HKA; Subkey: "Software\Classes\.whtt\ShellNew"; ValueType: string; ValueName: "NullFile"; ValueData: ""; Flags: uninsdeletekey noerror; Tasks: regfiles; Check: WhttCanClaimExtension
+Root: HKA; Subkey: "Software\Classes\.whtt"; ValueType: string; ValueData: "WinHTTrackProject"; Flags: uninsdeletekey noerror; Tasks: regfiles; Check: WhttCanClaimExtension
 Root: HKA; Subkey: "Software\Classes\WinHTTrackProject"; ValueType: string; ValueData: "WinHTTrack Project"; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKA; Subkey: "Software\Classes\WinHTTrackProject\shell\open\command"; ValueType: string; ValueData: """{app}\WinHTTrack.exe"" ""%1"""; Flags: uninsdeletekey noerror; Tasks: regfiles
 Root: HKA; Subkey: "Software\Classes\Applications\WinHTTrack.exe"; Flags: uninsdeletekey noerror; Tasks: regfiles
@@ -161,16 +161,16 @@ const
 
 procedure ExitProcess(uExitCode: Cardinal); external 'ExitProcess@kernel32.dll stdcall';
 
-{ Whether .whtt is ours to claim. A program already answering for it keeps the association, as
-  the program's own writer leaves it, and the uninstall then deletes nothing of theirs. }
-function WhttExtensionIsFree(): Boolean;
+{ Is .whtt ours to claim? A program that already answers for it keeps it, so the uninstall
+  deletes nothing of theirs. }
+function WhttCanClaimExtension(): Boolean;
 var
   Owner: String;
 begin
+  Result := True;
   if not RegQueryStringValue(HKCR, '.whtt', '', Owner) then
-    Result := True
-  else
-    Result := (Owner = '') or (CompareText(Owner, 'WinHTTrackProject') = 0);
+    Exit;
+  Result := (Owner = '') or (CompareText(Owner, 'WinHTTrackProject') = 0);
 end;
 
 { A key whose directory is gone names nothing installed. Refusing an install the user cannot
