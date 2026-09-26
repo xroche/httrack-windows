@@ -96,6 +96,12 @@ runs:
         # over: otherwise a key orphaned by the previous leg fails THIS one and blames it.
         $before = Get-UninstallEntries
         if ($before.Count -ne 0) { throw "$($before.Count) WinHTTrack uninstall entry already present before installing" }
+        $extKey = 'SOFTWARE\Classes\.whtt'
+        $progKey = 'SOFTWARE\Classes\WinHTTrackProject'
+        $verbKey = "$progKey\shell\open\command"
+        # Same reason: every value check below is about what THIS install wrote.
+        $owner = if (Test-Path -LiteralPath "HKLM:\$extKey") { (Get-Item -LiteralPath "HKLM:\$extKey").GetValue('') } else { $null }
+        if ($null -ne $owner) { throw "HKLM\$extKey already names '$owner' before installing" }
 
         $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
           '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\install.log"
@@ -193,9 +199,6 @@ runs:
         # asserted against instead of this run.
         Remove-Item $report -Force -ErrorAction SilentlyContinue
         if (Test-Path $report) { throw "$report survived deletion" }
-        $extKey = 'SOFTWARE\Classes\.whtt'
-        $progKey = 'SOFTWARE\Classes\WinHTTrackProject'
-        $verbKey = "$progKey\shell\open\command"
         # Read through both registry views. These keys are shared between them today, so the
         # second read is a guard for the Win32 leg rather than an expectation.
         function Get-ClassDefault($hive, $key) {
@@ -211,9 +214,46 @@ runs:
           }
           return $null
         }
-        # Read before the run, because the file-type checks further down are about what THIS
-        # run wrote. An install leaves the key with no value.
-        $preState = Get-ClassDefault LocalMachine $extKey
+        # The values go and the keys stay, which is the state installs up to 3.50-4 left and what
+        # every leg below starts from. The HKLM ACL refuses the standard user, not a missing key.
+        function Clear-FileTypeValues {
+          foreach ($view in @('Registry64', 'Registry32')) {
+            $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', $view)
+            try {
+              $base.DeleteSubKeyTree($extKey, $false)
+              $base.DeleteSubKeyTree($progKey, $false)
+              $base.CreateSubKey("$extKey\ShellNew").Close()
+              $base.CreateSubKey($verbKey).Close()
+            } finally { $base.Close() }
+          }
+          if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'a value survived, so what follows proves nothing' }
+          foreach ($q in @("HKLM:\$extKey", "HKLM:\$verbKey")) {
+            if (-not (Test-Path -LiteralPath $q)) { throw "$q went with the values, and an install leaves it behind" }
+          }
+        }
+        # Five legs below ask the same four values of one hive. A call names the hive, the copy
+        # the open verb has to name, and who was supposed to write them.
+        function Assert-FileTypeValues($hive, $opener, $who) {
+          $root = if ($hive -eq 'LocalMachine') { 'HKLM:' } else { 'HKCU:' }
+          $named = Get-ClassDefault $hive $extKey
+          if ($named -ne 'WinHTTrackProject') { throw "$who left $root\$extKey naming '$named'" }
+          $named = Get-ClassDefault $hive $progKey
+          if ($named -ne 'WinHTTrack Project') { throw "$who called the file type '$named' in Explorer" }
+          # The quoted %1 as well as the exe: without it a project path containing a space is
+          # split, and the shell hands the program half a filename.
+          $command = Get-ClassDefault $hive $verbKey
+          if ("$command" -notlike "*$opener*" -or "$command" -notlike '*"%1"*') {
+            throw "$who left $root\$verbKey opening '$command', not $opener with a quoted argument"
+          }
+          # "New > WinHTTrack Project" in the Explorer menu is this value and nothing else.
+          if ($null -eq (Get-ItemProperty -LiteralPath "$root\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue)) {
+            throw "$who left $root\$extKey\ShellNew with no NullFile, so the New menu entry is gone"
+          }
+        }
+        # The installer associates the file type itself, and nothing has run yet.
+        Assert-FileTypeValues LocalMachine $exe 'the installer'
+        # The values go, so what the run below reports is the program's own write.
+        Clear-FileTypeValues
         $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru `
                -RedirectStandardOutput "$PWD\selftest.txt" -RedirectStandardError "$PWD\selftest.err"
         $so = (Get-Content "$PWD\selftest.txt" -Raw -ErrorAction SilentlyContinue)
@@ -355,28 +395,13 @@ runs:
           if ($trace -notmatch 'throw site') { throw "report holds the handler stack, not the throw stack" }
         }
 
-        # Which hive answers for .whtt (#182). Every name here is from WinHTTrack.cpp, and the
-        # run above was elevated, so the machine-wide keys are the ones it could fill.
+        # Which hive answers for .whtt (#182). Every name here is from WinHTTrack.cpp. The values
+        # went before this run and the run was elevated, so it wrote these itself. An installation
+        # older than the installer's own rows still depends on that.
         if ("$so" -notmatch 'file type ok on 2 checks \(machine\)') {
           throw 'the elevated selftest did not register .whtt machine-wide'
         }
-        # The installer creates these keys empty, so a value here came from the run above and not
-        # from an earlier install on this runner. The signing job installs twice.
-        if ($null -ne $preState) { throw "before the selftest, HKLM\$extKey already named '$preState'" }
-        $named = Get-ClassDefault LocalMachine $extKey
-        if ($named -ne 'WinHTTrackProject') { throw "HKLM\$extKey names '$named', not the file type" }
-        $named = Get-ClassDefault LocalMachine $progKey
-        if ($named -ne 'WinHTTrack Project') { throw "the file type is called '$named' in Explorer" }
-        # The quoted %1 as well as the exe: without it a project path containing a space is
-        # split, and the shell hands the program half a filename.
-        $command = Get-ClassDefault LocalMachine $verbKey
-        if ("$command" -notlike "*$exe*" -or "$command" -notlike '*"%1"*') {
-          throw "HKLM\$verbKey opens '$command', not $exe with a quoted argument"
-        }
-        # "New > WinHTTrack Project" in the Explorer menu is this value and nothing else.
-        if ($null -eq (Get-ItemProperty -LiteralPath "HKLM:\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue)) {
-          throw "HKLM\$extKey\ShellNew has no NullFile, so the New menu entry is gone"
-        }
+        Assert-FileTypeValues LocalMachine $exe 'the elevated run'
         # What the shell resolves, which the key reads above cannot answer.
         if ("$so" -notmatch [regex]::Escape("file type opens $exe")) { throw "the shell does not open .whtt with $exe" }
         # A per-user copy beside it would answer for a user no uninstaller can reach, so an
@@ -385,24 +410,9 @@ runs:
           if (Test-Path -LiteralPath $q) { throw "the elevated run wrote $q as well" }
         }
 
-        # The other half: the state a machine-wide install leaves, with the keys there and empty.
-        # Only an elevated run can fill them, and until #182 a standard user's attempt was
-        # refused in silence, so .whtt opened nothing for anybody.
-        foreach ($view in @('Registry64', 'Registry32')) {
-          $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', $view)
-          try {
-            $base.DeleteSubKeyTree($extKey, $false)
-            $base.DeleteSubKeyTree($progKey, $false)
-            $base.CreateSubKey("$extKey\ShellNew").Close()
-            $base.CreateSubKey($verbKey).Close()
-          } finally { $base.Close() }
-        }
-        if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the reset kept a value, so the refusal below could not happen' }
-        # The keys have to be BACK, because that is the state an install leaves. What refuses the
-        # write below is the HKLM ACL, not their absence.
-        foreach ($q in @("HKLM:\$extKey", "HKLM:\$verbKey")) {
-          if (-not (Test-Path -LiteralPath $q)) { throw "the reset removed $q, which an install leaves behind" }
-        }
+        # The other half is a standard user, refused HKLM in silence until #182, so .whtt opened
+        # nothing for them.
+        Clear-FileTypeValues
         . "$env:GITHUB_ACTION_PATH\unelevated-token.ps1"
         if (-not [Unelevated]::IsElevated()) { throw 'the runner is not elevated, so this leg tests nothing new' }
         # Demonstrate the refusal on the value the writer is stopped at, which is the ProgID name
@@ -431,17 +441,7 @@ runs:
         if ("$uo" -notmatch 'file type ok on 2 checks \(user\)') {
           throw 'a standard user did not fall back to its own classes, so .whtt opens nothing'
         }
-        $named = Get-ClassDefault CurrentUser $extKey
-        if ($named -ne 'WinHTTrackProject') { throw "HKCU\$extKey names '$named', not the file type" }
-        $named = Get-ClassDefault CurrentUser $progKey
-        if ($named -ne 'WinHTTrack Project') { throw "the file type is called '$named' in Explorer" }
-        $command = Get-ClassDefault CurrentUser $verbKey
-        if ("$command" -notlike "*$exe*" -or "$command" -notlike '*"%1"*') {
-          throw "HKCU\$verbKey opens '$command', not $exe with a quoted argument"
-        }
-        # "New > WinHTTrack Project" in the Explorer menu is this value and nothing else.
-        $shellNew = Get-ItemProperty -LiteralPath "HKCU:\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue
-        if ($null -eq $shellNew) { throw "HKCU\$extKey\ShellNew has no NullFile, so the New menu entry is gone" }
+        Assert-FileTypeValues CurrentUser $exe 'the standard-user run'
         # The control: that run had to be refused HKLM. A value there means the token could
         # administer after all, and the fallback was never reached.
         if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the standard-user run wrote HKLM after all' }
@@ -478,6 +478,9 @@ runs:
           '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\reinstall.log"
         if ($p.ExitCode -ne 0) { throw "installing over the existing copy exited $($p.ExitCode)" }
         if (-not (Test-Path $exe)) { throw "installing over the existing copy removed WinHTTrack.exe" }
+        # Clear-FileTypeValues ran before this install and nothing since could write HKLM, so
+        # these four can only be the installer's own rows.
+        Assert-FileTypeValues LocalMachine $exe 'installing over'
         $vo = "$PWD\overversion.txt"
         $p = Start-Process $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $vo
         if ($p.ExitCode -ne 0) { throw "WinHTTrack.exe exited $($p.ExitCode) after installing over" }
@@ -495,6 +498,27 @@ runs:
         }
         if ($entries[0] -notlike 'HKLM:*') { throw "the default install went per-user: $($entries[0])" }
         Write-Host "::notice::installing $env:APPVER over itself upgrades in place, one uninstall entry"
+
+        # Another program owns the extension here, so the Check has to skip the two .whtt rows
+        # while the installer still writes its own ProgID. The values go first, or the NullFile
+        # and the friendly name the install above wrote would answer for this one.
+        $foreign = 'SmokeTest.OtherEditor'
+        Clear-FileTypeValues
+        Set-Item -LiteralPath "HKLM:\$extKey" -Value $foreign
+        $p = Start-Process $setup.FullName -Wait -PassThru -ArgumentList `
+          '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir","/LOG=$PWD\foreign.log"
+        if ($p.ExitCode -ne 0) { throw "installing beside another program's .whtt exited $($p.ExitCode)" }
+        $named = Get-ClassDefault LocalMachine $extKey
+        if ($named -ne $foreign) { throw "the installer took .whtt from '$foreign' and gave it to '$named'" }
+        if ($null -ne (Get-ItemProperty -LiteralPath "HKLM:\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue)) {
+          throw "the installer put its New menu entry under another program's .whtt"
+        }
+        # The control is that the ungated rows still land, so the skip was narrow.
+        if ((Get-ClassDefault LocalMachine $progKey) -ne 'WinHTTrack Project') {
+          throw 'the Check stopped the WinHTTrackProject rows as well'
+        }
+        # What is left here goes with the key at the uninstall below, which is asserted there.
+        Write-Host "::notice::the installer leaves .whtt to the program that already answers for it"
 
         # The machine-wide copy is still here, so a Store /CURRENTUSER install must decline
         # rather than lay a second one beside it. The per-user leg below is the control.
@@ -580,6 +604,8 @@ runs:
         foreach ($q in (@($userExtKey, $userVerb) + $shared)) {
           if (-not (Test-Path -LiteralPath $q)) { throw "a per-user install registered no $q" }
         }
+        # A Store install has no elevated first run behind it, so the rows carry the values.
+        Assert-FileTypeValues CurrentUser $userExe 'a per-user install'
         $entries = @(Get-UninstallEntries)
         foreach ($e in $entries) { Write-Host "  per-user uninstall entry: $e" }
         if ($entries.Count -ne 1) { throw "expected 1 per-user uninstall entry, found $($entries.Count)" }
