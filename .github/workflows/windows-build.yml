@@ -911,6 +911,9 @@ jobs:
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the staged tree tried to register .whtt, which a portable copy must not do'
           }
+          if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
+            throw 'a portable run registered .whtt under HKCU, from this block or another'
+          }
           if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
           $trace = Get-Content $report -Raw
           Write-Host "--- crash report ---`n$trace"

@@ -342,8 +342,8 @@ static BOOL WhttShouldAssociate() {
 #define WHTT_TYPENAME "WinHTTrack Project"
 #define WHTT_CLASSES "Software\\Classes\\"
 
-/* This program's own path. GetModuleFileName reports truncation by filling the buffer, not
-   by failing, and a truncated path in the registry would open nothing. */
+/* Where is this copy of the program? GetModuleFileName reports truncation by filling the
+   buffer rather than by failing, and a truncated path would open nothing. */
 static BOOL WhttModulePath(CString &path) {
   char buff[MAX_PATH + 1];
   const DWORD len = GetModuleFileName(NULL, buff, sizeof(buff) / sizeof(buff[0]));
@@ -386,9 +386,9 @@ static BOOL WhttSetClassValue(HKEY root, const CString &subkey, const char *cons
 }
 
 /* Writes the file type into one hive, HKEY_LOCAL_MACHINE for every account or HKEY_CURRENT_USER
-   for this one, and stops at the first refusal. Never HKEY_CLASSES_ROOT, because that picks a
-   hive per key, so the extension could land in HKLM naming a verb written to HKCU, which reads
-   as registered and opens nothing for everybody else. */
+   for this one, and stops at the first refusal. Never HKEY_CLASSES_ROOT, because that picks a hive
+   per key. The extension could then land in HKLM naming a verb written to HKCU, which reads as
+   registered and opens nothing for anybody else. */
 static BOOL WhttWriteFileType(HKEY root) {
   CString module, command;
   if (!WhttModulePath(module))
@@ -406,6 +406,18 @@ static BOOL WhttWriteFileType(HKEY root) {
   return WhttSetClassValue(root, WHTT_CLASSES WHTT_EXT, NULL, WHTT_PROGID)
     /* What puts "New > WinHTTrack Project" in the Explorer menu. */
     && WhttSetClassValue(root, WHTT_CLASSES WHTT_EXT "\\ShellNew", "NullFile", "");
+}
+
+/* The hive this copy belongs in, which is the one the installer's own class keys are in: the
+   /CURRENTUSER rows land in HKCU, the machine-wide rows in HKLM. Writing the other one would
+   publish a command inside one profile that no other account can read. */
+static HKEY WhttFileTypeRoot() {
+  HKEY hKey;
+  if (RegOpenKeyEx(HKEY_CURRENT_USER, WHTT_CLASSES WHTT_PROGID, 0, KEY_QUERY_VALUE, &hKey)
+      != ERROR_SUCCESS)
+    return HKEY_LOCAL_MACHINE;
+  RegCloseKey(hKey);
+  return HKEY_CURRENT_USER;
 }
 
 /* Which hive answers for .whtt once the shell has merged them: "user", "machine", or NULL when
@@ -426,27 +438,30 @@ static const char *WhttFileTypeHive() {
   module.MakeLower();
   shortModule.MakeLower();
   command.MakeLower();
-  if (command.Find(module) < 0 && (shortModule.IsEmpty() || command.Find(shortModule) < 0))
+  if (command[0] == '"')
+    command = command.Mid(1);
+  /* The command has to START with this module, or a wrapper that merely mentions it counts. */
+  if (command.Find(module) != 0 && (shortModule.IsEmpty() || command.Find(shortModule) != 0))
     return NULL;
   /* The extension is what the shell looks up, so the hive holding it names the answer. */
   return WhttReadClassDefault(HKEY_CURRENT_USER, WHTT_CLASSES WHTT_EXT, progid)
     && progid == WHTT_PROGID ? "user" : "machine";
 }
 
-/* Registers .whtt and says which hive took it. Machine-wide first, so one administrator still
-   serves every account. A standard user cannot write HKLM, and MFC's RegisterShellFileTypes()
-   dropped that refusal without a word, so nobody on the machine could open a project (#182).
-   Each step is judged by reading the result back, not by the write's own verdict. */
+/* Registers .whtt and says which hive took it. A standard user cannot write HKLM, and MFC's
+   RegisterShellFileTypes() dropped that refusal without a word, so nobody on the machine could
+   open a project (#182). */
 static const char *WhttAssociateFileType() {
   /* A working registration is left alone. A second user then gets no copy of it in a hive no
      uninstaller reaches. */
   const char *hive = WhttFileTypeHive();
-  if (hive != NULL)
-    return hive;
-  if (WhttWriteFileType(HKEY_LOCAL_MACHINE) && (hive = WhttFileTypeHive()) != NULL)
-    return hive;
-  WhttWriteFileType(HKEY_CURRENT_USER);
-  return WhttFileTypeHive();
+  /* The installer's hive, then this user's own, which cannot be refused. Both attempts are
+     judged the same way. */
+  if (hive == NULL && WhttWriteFileType(WhttFileTypeRoot()))
+    hive = WhttFileTypeHive();
+  if (hive == NULL && WhttWriteFileType(HKEY_CURRENT_USER))
+    hive = WhttFileTypeHive();
+  return hive;
 }
 
 BOOL CWinHTTrackApp::InitInstance()
@@ -1852,7 +1867,7 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       printf("file type ok on %d checks (%s)\n", nchecks, hive);
-      /* What the shell itself would run, which no registry read can answer. Reported rather
+      /* Ask the shell what it would run, which no registry read can answer. Reported rather
          than asserted, because the user's own "Open with" choice wins and is theirs. */
       {
         char opens[MAX_PATH] = "(none)";

@@ -373,6 +373,12 @@ runs:
         if ("$command" -notlike "*$exe*" -or "$command" -notlike '*"%1"*') {
           throw "HKLM\$verbKey opens '$command', not $exe with a quoted argument"
         }
+        # "New > WinHTTrack Project" in the Explorer menu is this value and nothing else.
+        if ($null -eq (Get-ItemProperty -LiteralPath "HKLM:\$extKey\ShellNew" -Name NullFile -ErrorAction SilentlyContinue)) {
+          throw "HKLM\$extKey\ShellNew has no NullFile, so the New menu entry is gone"
+        }
+        # What the shell resolves, which the key reads above cannot answer.
+        if ("$so" -notmatch [regex]::Escape("file type opens $exe")) { throw "the shell does not open .whtt with $exe" }
         # A per-user copy beside it would answer for a user no uninstaller can reach, so an
         # elevated run has to leave both HKCU keys alone.
         foreach ($q in @("HKCU:\$extKey", "HKCU:\$progKey")) {
@@ -392,17 +398,27 @@ runs:
           } finally { $base.Close() }
         }
         if ($null -ne (Get-ClassDefault LocalMachine $extKey)) { throw 'the reset kept a value, so the refusal below could not happen' }
-        # The keys have to be BACK, because their existing under HKLM is what the write below is
-        # refused on. A reset that removed them would prove something else.
+        # The keys have to be BACK, because the write below is refused on keys that HKLM already
+        # holds. A reset that removed them would prove something else.
         foreach ($q in @("HKLM:\$extKey", "HKLM:\$verbKey")) {
           if (-not (Test-Path -LiteralPath $q)) { throw "the reset removed $q, which an install leaves behind" }
         }
         . "$env:GITHUB_ACTION_PATH\unelevated-token.ps1"
         if (-not [Unelevated]::IsElevated()) { throw 'the runner is not elevated, so this leg tests nothing new' }
-        # Demonstrate the refusal on this very key, so the fallback below is seen to be needed
-        # rather than assumed. The elevated run above is the control: it was not refused.
-        $denied = [Unelevated]::Run("cmd.exe /c reg add `"HKLM\$extKey`" /ve /d probe /f", $PWD.Path, 60000)
-        if ($denied -eq 0) { throw 'a standard user could write HKLM, so nothing here is refused' }
+        # Demonstrate the refusal on the value the writer is stopped at, which is the ProgID name
+        # it writes first. HKCU is the control, because without it a mistyped probe reads as
+        # refused, and the value has to be absent afterwards as well as the exit non-zero.
+        $probe = "reg add `"{0}\$progKey`" /ve /d probe /f"
+        $allowed = [Unelevated]::Run("cmd.exe /c $($probe -f 'HKCU')", $PWD.Path, 60000)
+        $denied = [Unelevated]::Run("cmd.exe /c $($probe -f 'HKLM')", $PWD.Path, 60000)
+        Remove-Item -LiteralPath "HKCU:\$progKey" -Recurse -Force -ErrorAction SilentlyContinue
+        if ($allowed -ne 0) { throw "the probe cannot write HKCU either, so it proves nothing: reg exited $allowed" }
+        # The probe key has to go: the program reads it to decide which hive the installer chose,
+        # so leaving it would make the run below write HKCU by choice instead of by refusal.
+        if (Test-Path -LiteralPath "HKCU:\$progKey") { throw 'the probe key stayed behind' }
+        if ($denied -eq 0 -or $null -ne (Get-ClassDefault LocalMachine $progKey)) {
+          throw 'a standard user could name the file type in HKLM, so nothing below is refused'
+        }
         # A .cmd file, because cmd.exe re-splits a quoted command line of its own.
         $uout = Join-Path $PWD 'selftest-unelevated.txt'
         $runner = Join-Path $PWD 'selftest-unelevated.cmd'
