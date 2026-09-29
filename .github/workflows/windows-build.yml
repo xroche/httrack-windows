@@ -740,7 +740,7 @@ jobs:
           # CRT, MFC and UCRT ship beside the exe instead of through the 25 MB
           # redistributable. The UCRT comes too: Windows 10 has it, Windows 7 SP1 only
           # gets it from KB2999226.
-          $rarch = if ('${{ matrix.platform }}' -eq 'x64') { 'x64' } else { 'x86' }
+          $rarch = switch ('${{ matrix.platform }}') { 'x64' { 'x64' } 'ARM64' { 'arm64' } default { 'x86' } }
           # Matched to the toolset that compiled the binaries rather than to whatever is
           # newest on the runner: 14.5x is where Windows 7 support ends.
           $tv = [version]$tools.Name
@@ -1000,7 +1000,7 @@ jobs:
           payload-dir: ${{ github.workspace }}\httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}
           engine-dir: ${{ github.workspace }}\httrack
           gui-dir: ${{ github.workspace }}\httrack-windows
-          arch: ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+          arch: ${{ matrix.platform == 'x64' && 'x64' || matrix.platform == 'ARM64' && 'arm64' || 'x86' }}
           out-dir: ${{ github.workspace }}\installer
 
       - name: Install it, run it, uninstall it
@@ -1144,7 +1144,7 @@ jobs:
           # Nothing downstream would notice this loop running zero times: it would
           # sign nothing and exit 0.
           $dirs = @(Get-ChildItem payload -Directory)
-          if ($dirs.Count -ne 2) { throw "expected both architectures under payload\, found $($dirs.Count)" }
+          if ($dirs.Count -ne 3) { throw "expected all three architectures under payload\, found $($dirs.Count)" }
           foreach ($d in $dirs) {
             # Sign what is there rather than a fixed list: OpenSSL is libssl-3.dll on
             # x86 but libssl-3-x64.dll on x64. Recursive because the installer packs

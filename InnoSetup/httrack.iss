@@ -17,7 +17,7 @@
 ; both referenced files that no longer exist (readme, copying, file_id.diz).
 
 #ifndef Arch
-  #error Arch must be set (x64 or x86)
+  #error Arch must be set (x64, x86 or arm64)
 #endif
 #ifndef AppVersionNumeric
   #error AppVersionNumeric must be set (dotted, e.g. 3.49.99.1)
@@ -53,7 +53,12 @@ SolidCompression=yes
 ; Windows 7 SP1 is the floor on purpose: HTTrack is still used on very old machines.
 ; It is also why the app-local runtime must stay on the 14.4x (VS2022) line: 14.5x
 ; dropped Windows 7.
+#if Arch == "arm64"
+; ARM64 Windows starts at 10, so the Windows 7 floor cannot apply to this build.
+MinVersion=10.0
+#else
 MinVersion=6.1sp1
+#endif
 ; The default install is machine-wide. /CURRENTUSER, which the Microsoft Store passes, puts it under %LocalAppData%\Programs with no elevation.
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline
@@ -68,8 +73,13 @@ WizardSmallImageFile={#GuiDir}\InnoSetup\res\wizard-tile-58.png,{#GuiDir}\InnoSe
 ; Add/Remove Programs reads DisplayIcon, which only this directive writes.
 UninstallDisplayIcon={app}\WinHTTrack.exe
 #if Arch == "x64"
+; x64compatible also matches ARM64, which runs x64 under emulation, so the x64
+; installer stays available there for anyone who wants it.
 ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
+#elif Arch == "arm64"
+ArchitecturesInstallIn64BitMode=arm64
+ArchitecturesAllowed=arm64
 #endif
 #ifdef Sign
 SignedUninstaller=yes
