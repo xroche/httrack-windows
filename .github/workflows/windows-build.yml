@@ -634,12 +634,16 @@ jobs:
               $bad += "is missing /CETCOMPAT"
             }
 
-            # Windows 7 is 6.1, and an image declaring more will not load there at all.
+            # An image declaring more than its oldest Windows will not load there at all.
+            # That floor is per platform: ARM64 Windows starts at 10, and the linker gives
+            # an ARM64 image 6.02 rather than the 6.1 an x86 or x64 one gets.
+            $oldest = if ($platform -eq 'ARM64') { @{ v = '10.0'; n = 'Windows 10' } }
+                      else { @{ v = '6.1'; n = 'Windows 7' } }
             $sub = Field $text '(?m)^\s*([0-9]+\.[0-9]+) subsystem version'
             if (-not $sub) {
               $bad += "has no subsystem version in the dump"
-            } elseif ([version]$sub -gt [version]"6.1") {
-              $bad += "declares subsystem version $sub, so Windows 7 will not load it"
+            } elseif ([version]$sub -gt [version]$oldest.v) {
+              $bad += "declares subsystem version $sub, so $($oldest.n) will not load it"
             }
             $bad
           }
@@ -658,6 +662,17 @@ jobs:
             if (-not ($control -match [regex]::Escape($expected))) {
               throw "control failed: the parse no longer reports '$expected' on the pre-flag dump"
             }
+          }
+
+          # The ARM64 branch needs its own control, because the one above only ever runs
+          # the x64 floor and would not notice ARM64's going vacuous.
+          $armDump = $before -replace '6\.00 subsystem', '11.00 subsystem'
+          $armControl = @(Failures $armDump 'ARM64')
+          if (-not ($armControl -match 'subsystem version')) {
+            throw 'control failed: the ARM64 branch no longer reports an over-floor subsystem version'
+          }
+          if ($armControl -match 'CETCOMPAT') {
+            throw 'control failed: ARM64 is being asked for /CETCOMPAT, which is x86 and x64 only'
           }
 
           if ($fail) {
