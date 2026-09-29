@@ -12,6 +12,7 @@
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
     <VcpkgTriplet Condition="'$(Platform)'=='Win32'">x86-windows</VcpkgTriplet>
     <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(Platform)'=='ARM64'">arm64-windows</VcpkgTriplet>
   </PropertyGroup>
 
   <!-- Windows 7 SP1 floor plus CRT deprecation quieting, applied to every compile. -->

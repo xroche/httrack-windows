@@ -54,13 +54,13 @@ runs:
         THUMBPRINT: ${{ inputs.thumbprint }}
       run: |
         $arch = $env:ARCH
-        if ($arch -notin 'x64', 'x86') { throw "arch must be x64 or x86, not '$arch'" }
+        if ($arch -notin 'x64', 'x86', 'arm64') { throw "arch must be x64, x86 or arm64, not '$arch'" }
 
         # The payload directory and the architecture it is packaged as are paired by
         # hand on the signing run, and a swap would build, install and run happily.
         $pe = [IO.File]::ReadAllBytes((Join-Path $env:PAYLOAD_DIR 'WinHTTrack.exe'))
         $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
-        $want = if ($arch -eq 'x64') { 0x8664 } else { 0x14c }
+        $want = switch ($arch) { 'x64' { 0x8664 } 'arm64' { 0xAA64 } default { 0x14c } }
         if ($machine -ne $want) {
           throw ('the payload WinHTTrack.exe is machine 0x{0:x}, not the 0x{1:x} an {2} installer needs' -f $machine, $want, $arch)
         }

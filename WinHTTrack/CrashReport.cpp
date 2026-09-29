@@ -57,6 +57,8 @@ extern int WhttSelfTest;
 #define WHTT_ARCH "x64"
 #elif defined(_M_IX86)
 #define WHTT_ARCH "x86"
+#elif defined(_M_ARM64)
+#define WHTT_ARCH "arm64"
 #else
 #define WHTT_ARCH "unknown"
 #endif
@@ -194,6 +196,14 @@ static BOOL PrintStack_(char *const print_buffer,
   StackFrame.AddrFrame.Offset = Context.Rsp;
   StackFrame.AddrFrame.Mode   = AddrModeFlat;
   StackFrame.AddrStack.Offset = Context.Rsp;
+  StackFrame.AddrStack.Mode   = AddrModeFlat;
+#elif _M_ARM64
+  MachineType                 = IMAGE_FILE_MACHINE_ARM64;
+  StackFrame.AddrPC.Offset    = Context.Pc;
+  StackFrame.AddrPC.Mode      = AddrModeFlat;
+  StackFrame.AddrFrame.Offset = Context.Fp;
+  StackFrame.AddrFrame.Mode   = AddrModeFlat;
+  StackFrame.AddrStack.Offset = Context.Sp;
   StackFrame.AddrStack.Mode   = AddrModeFlat;
 #elif _M_IA64
   MachineType                 = IMAGE_FILE_MACHINE_IA64;

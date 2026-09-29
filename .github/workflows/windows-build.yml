@@ -308,10 +308,12 @@ jobs:
     outputs:
       # Both legs record the same value, so the matrix overwriting it is harmless.
       engine-sha: ${{ steps.provenance.outputs.sha }}
+      version: ${{ steps.installer.outputs.version }}
+      engine-version: ${{ steps.installer.outputs.engine-version }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [x64, Win32]
+        platform: [x64, Win32, ARM64]
         configuration: [Release]
     # Windows runs from other branches starve this one's runner (xroche/httrack#1213),
     # so cap them at one per platform. queue: max, as the default cancels a waiter.
@@ -632,12 +634,16 @@ jobs:
               $bad += "is missing /CETCOMPAT"
             }
 
-            # Windows 7 is 6.1, and an image declaring more will not load there at all.
+            # An image declaring more than its oldest Windows will not load there at all,
+            # and that floor is per platform, because ARM64 Windows starts at 10 while the
+            # linker stamps an ARM64 image 6.02 against the 6.1 an x86 or x64 one gets.
+            $oldest = if ($platform -eq 'ARM64') { @{ v = '10.0'; n = 'Windows 10' } }
+                      else { @{ v = '6.1'; n = 'Windows 7' } }
             $sub = Field $text '(?m)^\s*([0-9]+\.[0-9]+) subsystem version'
             if (-not $sub) {
               $bad += "has no subsystem version in the dump"
-            } elseif ([version]$sub -gt [version]"6.1") {
-              $bad += "declares subsystem version $sub, so Windows 7 will not load it"
+            } elseif ([version]$sub -gt [version]$oldest.v) {
+              $bad += "declares subsystem version $sub, so $($oldest.n) will not load it"
             }
             $bad
           }
@@ -656,6 +662,23 @@ jobs:
             if (-not ($control -match [regex]::Escape($expected))) {
               throw "control failed: the parse no longer reports '$expected' on the pre-flag dump"
             }
+          }
+
+          # One dump, both floors, because a control that only exercises the ARM64 branch
+          # would still pass if that branch took the x64 number. 8.00 sits between the two,
+          # so it must fail Windows 7 and pass Windows 10, and collapsing the two floors
+          # into one reds whichever half it broke.
+          $mid = $before -replace '6\.00 subsystem', '8.00 subsystem'
+          $midX64 = @(Failures $mid 'x64')
+          $midArm = @(Failures $mid 'ARM64')
+          if (-not ($midX64 -match 'subsystem version')) {
+            throw 'control failed: 8.00 no longer reports over-floor against the Windows 7 floor'
+          }
+          if ($midArm -match 'subsystem version') {
+            throw 'control failed: 8.00 reports over-floor against the Windows 10 floor, so ARM64 took the x64 number'
+          }
+          if ($midArm -match 'CETCOMPAT') {
+            throw 'control failed: ARM64 is being asked for /CETCOMPAT, which is not an ARM64 feature'
           }
 
           if ($fail) {
@@ -737,10 +760,12 @@ jobs:
               Select-String -Pattern '^\s{4}(\S+\.dll)$' |
               ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
           }
-          # CRT, MFC and UCRT ship beside the exe instead of through the 25 MB
-          # redistributable. The UCRT comes too: Windows 10 has it, Windows 7 SP1 only
-          # gets it from KB2999226.
-          $rarch = if ('${{ matrix.platform }}' -eq 'x64') { 'x64' } else { 'x86' }
+          # CRT and MFC ship beside the exe instead of through the 25 MB redistributable.
+          $rarch = switch ('${{ matrix.platform }}') { 'x64' { 'x64' } 'ARM64' { 'arm64' } default { 'x86' } }
+          # The UCRT ships beside the exe only where the floor needs it. Windows 7 SP1 has
+          # it only from KB2999226, but ARM64 Windows is 10 or newer and always carries it.
+          # The SDK has no downlevel ARM64 forwarders to ship anyway, only ucrtbase.
+          $vendorUcrt = '${{ matrix.platform }}' -ne 'ARM64'
           # Matched to the toolset that compiled the binaries rather than to whatever is
           # newest on the runner: 14.5x is where Windows 7 support ends.
           $tv = [version]$tools.Name
@@ -755,11 +780,14 @@ jobs:
           # Both SDK layouts: Redist\ucrt\DLLs\<arch> and Redist\<sdkver>\ucrt\DLLs\<arch>.
           # Newest wins -- merging every installed SDK would ship whichever enumerated last,
           # and the unversioned legacy path sorts first.
-          $ucrt = @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Redist" -Directory -Recurse -Filter $rarch -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match '\\ucrt\\DLLs\\' } |
-            Sort-Object { if ($_.FullName -match '\\Redist\\(\d+(\.\d+){3})\\') { [version]$Matches[1] } else { [version]'0.0.0.0' } }) |
-            Select-Object -Last 1
-          if (-not $ucrt) { throw 'no UCRT redist in the Windows SDK' }
+          $ucrt = @()
+          if ($vendorUcrt) {
+            $ucrt = @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Redist" -Directory -Recurse -Filter $rarch -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match '\\ucrt\\DLLs\\' } |
+              Sort-Object { if ($_.FullName -match '\\Redist\\(\d+(\.\d+){3})\\') { [version]$Matches[1] } else { [version]'0.0.0.0' } }) |
+              Select-Object -Last 1
+            if (-not $ucrt) { throw 'no UCRT redist in the Windows SDK' }
+          }
           $pool = @{}
           foreach ($d in @($vcr) + @($ucrt)) {
             Get-ChildItem $d.FullName -Filter *.dll | ForEach-Object { $pool[$_.Name] = $_.FullName }
@@ -771,8 +799,10 @@ jobs:
             ForEach-Object { $todo.Enqueue($_.Name) }
           # The api-ms-win-crt stubs forward to ucrtbase instead of importing it, so no
           # dependency walk ever names it.
-          if (-not $pool.ContainsKey('ucrtbase.dll')) { throw 'the SDK UCRT redist has no ucrtbase.dll' }
-          $todo.Enqueue('ucrtbase.dll')
+          if ($vendorUcrt) {
+            if (-not $pool.ContainsKey('ucrtbase.dll')) { throw 'the SDK UCRT redist has no ucrtbase.dll' }
+            $todo.Enqueue('ucrtbase.dll')
+          }
           $seen = @{}
           $staged = @{}
           while ($todo.Count) {
@@ -789,7 +819,7 @@ jobs:
             Deps $here | ForEach-Object { $todo.Enqueue($_) }
           }
           if (-not $staged.Count) { throw 'no runtime DLL was staged: the redist layout moved' }
-          if (-not (Test-Path (Join-Path $bin 'ucrtbase.dll'))) { throw 'ucrtbase.dll was not staged' }
+          if ($vendorUcrt -and -not (Test-Path (Join-Path $bin 'ucrtbase.dll'))) { throw 'ucrtbase.dll was not staged' }
           Write-Host "--- app-local runtime: $($staged.Count) DLLs from $($vcver.Name) ---"
           # What the sign job must leave alone. It cannot infer this from signature status:
           # a Microsoft DLL that fails to verify on the runner would land in our bucket.
@@ -797,7 +827,9 @@ jobs:
 
           # Supplied by Windows itself. The CRT names are gone from this list on purpose:
           # they are ours to ship now, so the check below catches a staging regression.
-          $provided = '^(api-ms-win-(?!crt-)|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|shlwapi|crypt32|wintrust)'
+          # Where the UCRT is not vendored, its forwarders are Windows' to supply too.
+          $crt = if ($vendorUcrt) { '(?!crt-)' } else { '' }
+          $provided = '^(api-ms-win-' + $crt + '|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|shlwapi|crypt32|wintrust)'
           $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\httrack.exe") + @(Deps "$bin\libhttrack.dll") |
             Where-Object { $_ -notmatch $provided } | Sort-Object -Unique
           Write-Host "--- must ship: $($needed -join ', ') ---"
@@ -882,6 +914,8 @@ jobs:
       # Against the staged tree, where the PDBs live: the installed build can no longer
       # resolve a line, so this is what still proves the whole crash-report chain works.
       - name: Crash report resolves to function, file and line
+        # Runs the binary, so ARM64 does this in the arm64-runtime job instead.
+        if: matrix.platform != 'ARM64'
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
@@ -1000,10 +1034,11 @@ jobs:
           payload-dir: ${{ github.workspace }}\httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}
           engine-dir: ${{ github.workspace }}\httrack
           gui-dir: ${{ github.workspace }}\httrack-windows
-          arch: ${{ matrix.platform == 'x64' && 'x64' || 'x86' }}
+          arch: ${{ matrix.platform == 'x64' && 'x64' || matrix.platform == 'ARM64' && 'arm64' || 'x86' }}
           out-dir: ${{ github.workspace }}\installer
 
       - name: Install it, run it, uninstall it
+        if: matrix.platform != 'ARM64'
         uses: ./httrack-windows/.github/actions/smoke-test
         with:
           setup: ${{ steps.installer.outputs.setup }}
@@ -1040,12 +1075,89 @@ jobs:
   # stop dead waiting for a click. One job for both architectures rather than a
   # matrix, because a SimplySign session belongs to one machine and two runners would
   # mint the same single-use TOTP code in the same window.
+  # ARM64 is built on windows-2022 like the other two, because the v143 toolset there
+  # carries the ARM64 MFC libraries and the one on windows-11-arm does not. Nothing on
+  # an x64 runner can start an ARM64 image, so the steps that run one happen here.
+  arm64-runtime:
+    name: ARM64 runtime (native runner)
+    needs: build
+    runs-on: windows-11-arm
+    steps:
+      - name: Checkout httrack-windows
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: httrack-windows
+
+      - name: Download the ARM64 build and installer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: '{WinHTTrack-ARM64-Release,httrack-setup-ARM64}'
+          path: artifacts
+
+      - name: It is really ARM64
+        shell: pwsh
+        # The whole point of this job is that these binaries run natively, so a build
+        # that quietly produced x64 would make every check below pass for the wrong reason.
+        run: |
+          $bin = 'artifacts\WinHTTrack-ARM64-Release'
+          foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
+            $pe = [IO.File]::ReadAllBytes((Join-Path $bin $f))
+            $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
+            if ($machine -ne 0xAA64) { throw ('{0} is machine 0x{1:x}, not ARM64' -f $f, $machine) }
+          }
+          if ($env:PROCESSOR_ARCHITECTURE -ne 'ARM64') { throw "this runner is $env:PROCESSOR_ARCHITECTURE, so it proves nothing" }
+          Write-Host 'three ARM64 binaries, on an ARM64 runner'
+
+      - name: Selftest from the staged tree
+        shell: pwsh
+        # The portable half. The smoke test below asserts the opposite answers from an
+        # installed copy, so a constant mode would red one of the two.
+        run: |
+          $bin = 'artifacts\WinHTTrack-ARM64-Release'
+          $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
+                 -RedirectStandardOutput "$PWD\st.txt" -RedirectStandardError "$PWD\st.err"
+          $so = Get-Content "$PWD\st.txt" -Raw -ErrorAction SilentlyContinue
+          Write-Host "--- selftest stdout ---`n$so"
+          if ($p.ExitCode -ne 0) {
+            Write-Host "--- selftest stderr ---`n$(Get-Content "$PWD\st.err" -Raw -ErrorAction SilentlyContinue)"
+            throw "--selftest exited $($p.ExitCode) on ARM64"
+          }
+          if ("$so" -notmatch 'settings store ok on 4 checks \(portable ini, no association\)') {
+            throw 'the staged tree did not run portable: it would write settings to HKCU'
+          }
+          # The same pair the other two legs assert, so ARM64 is not held to a looser bar.
+          if ("$so" -notmatch 'file type ok on 1 checks \(not asked\)') {
+            throw 'the staged tree tried to register .whtt, which a portable copy must not do'
+          }
+          if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
+            throw 'a portable run registered .whtt under HKCU, from this block or another'
+          }
+
+      - name: Find the downloaded installer
+        id: setup
+        shell: pwsh
+        run: |
+          $exe = @(Get-ChildItem 'artifacts\httrack-setup-ARM64' -Filter '*.exe')
+          if ($exe.Count -ne 1) { throw "expected one installer, found $($exe.Count)" }
+          "path=$($exe[0].FullName)" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Install it, run it, uninstall it
+        uses: ./httrack-windows/.github/actions/smoke-test
+        with:
+          setup: ${{ steps.setup.outputs.path }}
+          version: ${{ needs.build.outputs.version }}
+          engine-version: ${{ needs.build.outputs.engine-version }}
+          vendored-list: ${{ github.workspace }}\artifacts\WinHTTrack-ARM64-Release\runtime-vendored.txt
+
+
   sign:
     # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
     if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
     # encoding too, not build alone: its guards run on a tag as well, and the version
-    # macros it checks are what the signed installer is named after.
-    needs: [build, encoding]
+    # macros it checks are what the signed installer is named after. arm64-runtime as
+    # well, or it and this job race off build and a red one still ships a signed ARM64
+    # installer: it is the only place an ARM64 binary is ever run.
+    needs: [build, encoding, arm64-runtime]
     runs-on: windows-2022
     environment: signing
     # Two tags pushed at once would fight over the signing session; queue: max holds
@@ -1144,7 +1256,7 @@ jobs:
           # Nothing downstream would notice this loop running zero times: it would
           # sign nothing and exit 0.
           $dirs = @(Get-ChildItem payload -Directory)
-          if ($dirs.Count -ne 2) { throw "expected both architectures under payload\, found $($dirs.Count)" }
+          if ($dirs.Count -ne 3) { throw "expected all three architectures under payload\, found $($dirs.Count)" }
           foreach ($d in $dirs) {
             # Sign what is there rather than a fixed list: OpenSSL is libssl-3.dll on
             # x86 but libssl-3-x64.dll on x64. Recursive because the installer packs
@@ -1205,6 +1317,18 @@ jobs:
           sign: 'true'
           thumbprint: ${{ env.THUMBPRINT }}
 
+      - name: Build the signed installer (arm64)
+        id: arm64
+        uses: ./httrack-windows/.github/actions/build-installer
+        with:
+          payload-dir: ${{ github.workspace }}\payload\WinHTTrack-ARM64-Release
+          engine-dir: ${{ github.workspace }}\httrack
+          gui-dir: ${{ github.workspace }}\httrack-windows
+          arch: arm64
+          out-dir: ${{ github.workspace }}\installer
+          sign: 'true'
+          thumbprint: ${{ env.THUMBPRINT }}
+
       # Win32 is the platform the build job names; x86 is what the installer calls it.
       - name: Build the signed installer (x86)
         id: x86
@@ -1261,6 +1385,8 @@ jobs:
       # Same test the build job runs, over the file that will actually be published,
       # plus the signatures: on the installer before it runs, and on everything it
       # lays down afterwards.
+      # No ARM64 equivalent below: this runner cannot start an ARM64 installer. The
+      # unsigned one is exercised by the arm64-runtime job; the signed one is not.
       - name: Install it, run it, uninstall it (x64)
         uses: ./httrack-windows/.github/actions/smoke-test
         with:
