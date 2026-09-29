@@ -1474,9 +1474,24 @@ BOOL CWinHTTrackApp::InitInstance()
     {
       static const char lead[] = "WinHTTrack " WINHTTRACK_VERSION " (";
       const char *const header = CrashReportHeader();
-      /* From sizeof(void*), not from the macro the header is built from: a compiler ladder
-         that mis-fires prints "unknown" on both builds, and only an outside oracle sees it. */
-      const char *const arch = (sizeof(void*) == 8) ? "x64" : "x86";
+      /* From the machine type the linker stamped on us, not from the macro the header is
+         built from: a compiler ladder that mis-fires prints "unknown" on every build, and
+         only an oracle outside that ladder sees it. sizeof(void*) was that oracle until
+         ARM64, which it cannot tell from x64. */
+      const IMAGE_DOS_HEADER *const dos = (const IMAGE_DOS_HEADER *) GetModuleHandle(NULL);
+      const IMAGE_NT_HEADERS *const nt =
+        (const IMAGE_NT_HEADERS *) ((const char *) dos + dos->e_lfanew);
+      const char *arch;
+      switch (nt->FileHeader.Machine) {
+      case IMAGE_FILE_MACHINE_AMD64: arch = "x64"; break;
+      case IMAGE_FILE_MACHINE_ARM64: arch = "arm64"; break;
+      case IMAGE_FILE_MACHINE_I386: arch = "x86"; break;
+      default:
+        fprintf(stderr, "FATAL: running image reports machine 0x%x, which the selftest cannot name\n",
+                (unsigned) nt->FileHeader.Machine);
+        fflush(stderr);
+        ExitProcess(3);
+      }
       const size_t archlen = strlen(arch);
       int nchecks = 0;
 
