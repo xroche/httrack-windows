@@ -634,9 +634,9 @@ jobs:
               $bad += "is missing /CETCOMPAT"
             }
 
-            # An image declaring more than its oldest Windows will not load there at all.
-            # That floor is per platform: ARM64 Windows starts at 10, and the linker gives
-            # an ARM64 image 6.02 rather than the 6.1 an x86 or x64 one gets.
+            # An image declaring more than its oldest Windows will not load there at all,
+            # and that floor is per platform, because ARM64 Windows starts at 10 while the
+            # linker stamps an ARM64 image 6.02 against the 6.1 an x86 or x64 one gets.
             $oldest = if ($platform -eq 'ARM64') { @{ v = '10.0'; n = 'Windows 10' } }
                       else { @{ v = '6.1'; n = 'Windows 7' } }
             $sub = Field $text '(?m)^\s*([0-9]+\.[0-9]+) subsystem version'
@@ -664,15 +664,21 @@ jobs:
             }
           }
 
-          # The ARM64 branch needs its own control, because the one above only ever runs
-          # the x64 floor and would not notice ARM64's going vacuous.
-          $armDump = $before -replace '6\.00 subsystem', '11.00 subsystem'
-          $armControl = @(Failures $armDump 'ARM64')
-          if (-not ($armControl -match 'subsystem version')) {
-            throw 'control failed: the ARM64 branch no longer reports an over-floor subsystem version'
+          # One dump, both floors, because a control that only exercises the ARM64 branch
+          # would still pass if that branch took the x64 number. 8.00 sits between the two,
+          # so it must fail Windows 7 and pass Windows 10, and collapsing the two floors
+          # into one reds whichever half it broke.
+          $mid = $before -replace '6\.00 subsystem', '8.00 subsystem'
+          $midX64 = @(Failures $mid 'x64')
+          $midArm = @(Failures $mid 'ARM64')
+          if (-not ($midX64 -match 'subsystem version')) {
+            throw 'control failed: 8.00 no longer reports over-floor against the Windows 7 floor'
           }
-          if ($armControl -match 'CETCOMPAT') {
-            throw 'control failed: ARM64 is being asked for /CETCOMPAT, which is x86 and x64 only'
+          if ($midArm -match 'subsystem version') {
+            throw 'control failed: 8.00 reports over-floor against the Windows 10 floor, so ARM64 took the x64 number'
+          }
+          if ($midArm -match 'CETCOMPAT') {
+            throw 'control failed: ARM64 is being asked for /CETCOMPAT, which is not an ARM64 feature'
           }
 
           if ($fail) {
@@ -754,9 +760,7 @@ jobs:
               Select-String -Pattern '^\s{4}(\S+\.dll)$' |
               ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
           }
-          # CRT, MFC and UCRT ship beside the exe instead of through the 25 MB
-          # redistributable. The UCRT comes too: Windows 10 has it, Windows 7 SP1 only
-          # gets it from KB2999226.
+          # CRT and MFC ship beside the exe instead of through the 25 MB redistributable.
           $rarch = switch ('${{ matrix.platform }}') { 'x64' { 'x64' } 'ARM64' { 'arm64' } default { 'x86' } }
           # The UCRT ships beside the exe only where the floor needs it. Windows 7 SP1 has
           # it only from KB2999226, but ARM64 Windows is 10 or newer and always carries it.
@@ -1121,6 +1125,13 @@ jobs:
           if ("$so" -notmatch 'settings store ok on 4 checks \(portable ini, no association\)') {
             throw 'the staged tree did not run portable: it would write settings to HKCU'
           }
+          # The same pair the other two legs assert, so ARM64 is not held to a looser bar.
+          if ("$so" -notmatch 'file type ok on 1 checks \(not asked\)') {
+            throw 'the staged tree tried to register .whtt, which a portable copy must not do'
+          }
+          if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
+            throw 'a portable run registered .whtt under HKCU, from this block or another'
+          }
 
       - name: Find the downloaded installer
         id: setup
@@ -1143,8 +1154,10 @@ jobs:
     # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
     if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
     # encoding too, not build alone: its guards run on a tag as well, and the version
-    # macros it checks are what the signed installer is named after.
-    needs: [build, encoding]
+    # macros it checks are what the signed installer is named after. arm64-runtime as
+    # well, or it and this job race off build and a red one still ships a signed ARM64
+    # installer: it is the only place an ARM64 binary is ever run.
+    needs: [build, encoding, arm64-runtime]
     runs-on: windows-2022
     environment: signing
     # Two tags pushed at once would fight over the signing session; queue: max holds

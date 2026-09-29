@@ -1475,9 +1475,9 @@ BOOL CWinHTTrackApp::InitInstance()
       static const char lead[] = "WinHTTrack " WINHTTRACK_VERSION " (";
       const char *const header = CrashReportHeader();
       /* From the machine type the linker stamped on us, not from the macro the header is
-         built from: a compiler ladder that mis-fires prints "unknown" on every build, and
-         only an oracle outside that ladder sees it. sizeof(void*) was that oracle until
-         ARM64, which it cannot tell from x64. */
+         built from, because a compiler ladder that mis-fires prints "unknown" on every
+         build and only an oracle outside that ladder sees it. sizeof(void*) was that
+         oracle until ARM64, which it cannot tell from x64. */
       const IMAGE_DOS_HEADER *const dos = (const IMAGE_DOS_HEADER *) GetModuleHandle(NULL);
       const IMAGE_NT_HEADERS *const nt =
         (const IMAGE_NT_HEADERS *) ((const char *) dos + dos->e_lfanew);
