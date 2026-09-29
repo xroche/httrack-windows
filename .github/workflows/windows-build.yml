@@ -758,6 +758,10 @@ jobs:
           # redistributable. The UCRT comes too: Windows 10 has it, Windows 7 SP1 only
           # gets it from KB2999226.
           $rarch = switch ('${{ matrix.platform }}') { 'x64' { 'x64' } 'ARM64' { 'arm64' } default { 'x86' } }
+          # The UCRT ships beside the exe only where the floor needs it. Windows 7 SP1 has
+          # it only from KB2999226, but ARM64 Windows is 10 or newer and always carries it.
+          # The SDK has no downlevel ARM64 forwarders to ship anyway, only ucrtbase.
+          $vendorUcrt = '${{ matrix.platform }}' -ne 'ARM64'
           # Matched to the toolset that compiled the binaries rather than to whatever is
           # newest on the runner: 14.5x is where Windows 7 support ends.
           $tv = [version]$tools.Name
@@ -772,11 +776,14 @@ jobs:
           # Both SDK layouts: Redist\ucrt\DLLs\<arch> and Redist\<sdkver>\ucrt\DLLs\<arch>.
           # Newest wins -- merging every installed SDK would ship whichever enumerated last,
           # and the unversioned legacy path sorts first.
-          $ucrt = @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Redist" -Directory -Recurse -Filter $rarch -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match '\\ucrt\\DLLs\\' } |
-            Sort-Object { if ($_.FullName -match '\\Redist\\(\d+(\.\d+){3})\\') { [version]$Matches[1] } else { [version]'0.0.0.0' } }) |
-            Select-Object -Last 1
-          if (-not $ucrt) { throw 'no UCRT redist in the Windows SDK' }
+          $ucrt = @()
+          if ($vendorUcrt) {
+            $ucrt = @(Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Redist" -Directory -Recurse -Filter $rarch -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match '\\ucrt\\DLLs\\' } |
+              Sort-Object { if ($_.FullName -match '\\Redist\\(\d+(\.\d+){3})\\') { [version]$Matches[1] } else { [version]'0.0.0.0' } }) |
+              Select-Object -Last 1
+            if (-not $ucrt) { throw 'no UCRT redist in the Windows SDK' }
+          }
           $pool = @{}
           foreach ($d in @($vcr) + @($ucrt)) {
             Get-ChildItem $d.FullName -Filter *.dll | ForEach-Object { $pool[$_.Name] = $_.FullName }
@@ -788,8 +795,10 @@ jobs:
             ForEach-Object { $todo.Enqueue($_.Name) }
           # The api-ms-win-crt stubs forward to ucrtbase instead of importing it, so no
           # dependency walk ever names it.
-          if (-not $pool.ContainsKey('ucrtbase.dll')) { throw 'the SDK UCRT redist has no ucrtbase.dll' }
-          $todo.Enqueue('ucrtbase.dll')
+          if ($vendorUcrt) {
+            if (-not $pool.ContainsKey('ucrtbase.dll')) { throw 'the SDK UCRT redist has no ucrtbase.dll' }
+            $todo.Enqueue('ucrtbase.dll')
+          }
           $seen = @{}
           $staged = @{}
           while ($todo.Count) {
@@ -806,7 +815,7 @@ jobs:
             Deps $here | ForEach-Object { $todo.Enqueue($_) }
           }
           if (-not $staged.Count) { throw 'no runtime DLL was staged: the redist layout moved' }
-          if (-not (Test-Path (Join-Path $bin 'ucrtbase.dll'))) { throw 'ucrtbase.dll was not staged' }
+          if ($vendorUcrt -and -not (Test-Path (Join-Path $bin 'ucrtbase.dll'))) { throw 'ucrtbase.dll was not staged' }
           Write-Host "--- app-local runtime: $($staged.Count) DLLs from $($vcver.Name) ---"
           # What the sign job must leave alone. It cannot infer this from signature status:
           # a Microsoft DLL that fails to verify on the runner would land in our bucket.
@@ -814,7 +823,9 @@ jobs:
 
           # Supplied by Windows itself. The CRT names are gone from this list on purpose:
           # they are ours to ship now, so the check below catches a staging regression.
-          $provided = '^(api-ms-win-(?!crt-)|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|shlwapi|crypt32|wintrust)'
+          # Where the UCRT is not vendored, its forwarders are Windows' to supply too.
+          $crt = if ($vendorUcrt) { '(?!crt-)' } else { '' }
+          $provided = '^(api-ms-win-' + $crt + '|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|shlwapi|crypt32|wintrust)'
           $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\httrack.exe") + @(Deps "$bin\libhttrack.dll") |
             Where-Object { $_ -notmatch $provided } | Sort-Object -Unique
           Write-Host "--- must ship: $($needed -join ', ') ---"
