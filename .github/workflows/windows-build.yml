@@ -308,10 +308,12 @@ jobs:
     outputs:
       # Both legs record the same value, so the matrix overwriting it is harmless.
       engine-sha: ${{ steps.provenance.outputs.sha }}
+      version: ${{ steps.installer.outputs.version }}
+      engine-version: ${{ steps.installer.outputs.engine-version }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [x64, Win32]
+        platform: [x64, Win32, ARM64]
         configuration: [Release]
     # Windows runs from other branches starve this one's runner (xroche/httrack#1213),
     # so cap them at one per platform. queue: max, as the default cancels a waiter.
@@ -882,6 +884,8 @@ jobs:
       # Against the staged tree, where the PDBs live: the installed build can no longer
       # resolve a line, so this is what still proves the whole crash-report chain works.
       - name: Crash report resolves to function, file and line
+        # Runs the binary, so ARM64 does this in the arm64-runtime job instead.
+        if: matrix.platform != 'ARM64'
         shell: pwsh
         run: |
           $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
@@ -1004,6 +1008,7 @@ jobs:
           out-dir: ${{ github.workspace }}\installer
 
       - name: Install it, run it, uninstall it
+        if: matrix.platform != 'ARM64'
         uses: ./httrack-windows/.github/actions/smoke-test
         with:
           setup: ${{ steps.installer.outputs.setup }}
@@ -1040,6 +1045,74 @@ jobs:
   # stop dead waiting for a click. One job for both architectures rather than a
   # matrix, because a SimplySign session belongs to one machine and two runners would
   # mint the same single-use TOTP code in the same window.
+  # ARM64 is built on windows-2022 like the other two, because the v143 toolset there
+  # carries the ARM64 MFC libraries and the one on windows-11-arm does not. Nothing on
+  # an x64 runner can start an ARM64 image, so the steps that run one happen here.
+  arm64-runtime:
+    name: ARM64 runtime (native runner)
+    needs: build
+    runs-on: windows-11-arm
+    steps:
+      - name: Checkout httrack-windows
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: httrack-windows
+
+      - name: Download the ARM64 build and installer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: '{WinHTTrack-ARM64-Release,httrack-setup-ARM64}'
+          path: artifacts
+
+      - name: It is really ARM64
+        shell: pwsh
+        # The whole point of this job is that these binaries run natively, so a build
+        # that quietly produced x64 would make every check below pass for the wrong reason.
+        run: |
+          $bin = 'artifacts\WinHTTrack-ARM64-Release'
+          foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
+            $pe = [IO.File]::ReadAllBytes((Join-Path $bin $f))
+            $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
+            if ($machine -ne 0xAA64) { throw ('{0} is machine 0x{1:x}, not ARM64' -f $f, $machine) }
+          }
+          if ($env:PROCESSOR_ARCHITECTURE -ne 'ARM64') { throw "this runner is $env:PROCESSOR_ARCHITECTURE, so it proves nothing" }
+          Write-Host 'three ARM64 binaries, on an ARM64 runner'
+
+      - name: Selftest from the staged tree
+        shell: pwsh
+        # The portable half. The smoke test below asserts the opposite answers from an
+        # installed copy, so a constant mode would red one of the two.
+        run: |
+          $bin = 'artifacts\WinHTTrack-ARM64-Release'
+          $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
+                 -RedirectStandardOutput "$PWD\st.txt" -RedirectStandardError "$PWD\st.err"
+          $so = Get-Content "$PWD\st.txt" -Raw -ErrorAction SilentlyContinue
+          Write-Host "--- selftest stdout ---`n$so"
+          if ($p.ExitCode -ne 0) {
+            Write-Host "--- selftest stderr ---`n$(Get-Content "$PWD\st.err" -Raw -ErrorAction SilentlyContinue)"
+            throw "--selftest exited $($p.ExitCode) on ARM64"
+          }
+          if ("$so" -notmatch 'settings store ok on 4 checks \(portable ini, no association\)') {
+            throw 'the staged tree did not run portable: it would write settings to HKCU'
+          }
+
+      - name: Find the downloaded installer
+        id: setup
+        shell: pwsh
+        run: |
+          $exe = @(Get-ChildItem 'artifacts\httrack-setup-ARM64' -Filter '*.exe')
+          if ($exe.Count -ne 1) { throw "expected one installer, found $($exe.Count)" }
+          "path=$($exe[0].FullName)" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Install it, run it, uninstall it
+        uses: ./httrack-windows/.github/actions/smoke-test
+        with:
+          setup: ${{ steps.setup.outputs.path }}
+          version: ${{ needs.build.outputs.version }}
+          engine-version: ${{ needs.build.outputs.engine-version }}
+          vendored-list: ${{ github.workspace }}\artifacts\WinHTTrack-ARM64-Release\runtime-vendored.txt
+
+
   sign:
     # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
     if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
@@ -1205,6 +1278,18 @@ jobs:
           sign: 'true'
           thumbprint: ${{ env.THUMBPRINT }}
 
+      - name: Build the signed installer (arm64)
+        id: arm64
+        uses: ./httrack-windows/.github/actions/build-installer
+        with:
+          payload-dir: ${{ github.workspace }}\payload\WinHTTrack-ARM64-Release
+          engine-dir: ${{ github.workspace }}\httrack
+          gui-dir: ${{ github.workspace }}\httrack-windows
+          arch: arm64
+          out-dir: ${{ github.workspace }}\installer
+          sign: 'true'
+          thumbprint: ${{ env.THUMBPRINT }}
+
       # Win32 is the platform the build job names; x86 is what the installer calls it.
       - name: Build the signed installer (x86)
         id: x86
@@ -1261,6 +1346,8 @@ jobs:
       # Same test the build job runs, over the file that will actually be published,
       # plus the signatures: on the installer before it runs, and on everything it
       # lays down afterwards.
+      # No ARM64 equivalent below: this runner cannot start an ARM64 installer. The
+      # unsigned one is exercised by the arm64-runtime job; the signed one is not.
       - name: Install it, run it, uninstall it (x64)
         uses: ./httrack-windows/.github/actions/smoke-test
         with:
