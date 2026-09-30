@@ -18,34 +18,42 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Compare pinned baseline against vcpkg master
+      # Both pins, not just ours. The installer ships DLLs built from the ENGINE's
+      # baseline, so watching only WinHTTrack/vcpkg.json covers the engine's OpenSSL
+      # by the accident of the two being equal. The run that matters is the one where
+      # they are not.
+      - name: Compare both pinned baselines against vcpkg master
         id: drift
         run: |
           set -euo pipefail
-          BASE=$(python3 -c 'import json;print(json.load(open("WinHTTrack/vcpkg.json"))["builtin-baseline"])')
-          for ref in "$BASE" master; do
-            curl -sSf "https://raw.githubusercontent.com/microsoft/vcpkg/$ref/versions/baseline.json" -o "bl-$ref.json"
+          GUI=$(python3 -c 'import json;print(json.load(open("WinHTTrack/vcpkg.json"))["builtin-baseline"])')
+          # Fail loudly rather than watching one pin and calling it a clean week.
+          curl -sSf "https://raw.githubusercontent.com/xroche/httrack/master/src/vcpkg.json" -o engine-vcpkg.json
+          ENGINE=$(python3 -c 'import json;print(json.load(open("engine-vcpkg.json"))["builtin-baseline"])')
+          for ref in "$GUI" "$ENGINE" master; do
+            [ -f "bl-$ref.json" ] || curl -sSf "https://raw.githubusercontent.com/microsoft/vcpkg/$ref/versions/baseline.json" -o "bl-$ref.json"
           done
-          python3 - "$BASE" <<'EOF' | tee drift.txt
-          import json, sys
-          pin = json.load(open(f"bl-{sys.argv[1]}.json"))["default"]
-          head = json.load(open("bl-master.json"))["default"]
-          for p in ("openssl", "zlib", "brotli", "zstd"):
-              a = pin.get(p, {}).get("baseline")
-              b = head.get(p, {}).get("baseline")
-              print(f"{p}: pinned {a}, upstream {b}" + ("" if a == b else "   <-- DRIFT"))
-          EOF
-          echo "OPENSSL=$(python3 -c 'import json;print(json.load(open("bl-'"$BASE"'.json"))["default"]["openssl"]["baseline"])')" >> "$GITHUB_ENV"
+          python3 tools/check-pin-drift.py --upstream bl-master.json \
+            --pin "GUI=$GUI:bl-$GUI.json" --pin "engine=$ENGINE:bl-$ENGINE.json" \
+            --versions-out openssl-versions.txt | tee drift.txt
           grep -q DRIFT drift.txt && echo "drift=yes" >> "$GITHUB_OUTPUT" || true
 
-      - name: Check the pinned OpenSSL against the advisory feed
+      - name: Check every pinned OpenSSL against the advisory feed
         id: cve
         continue-on-error: true
         env:
           ACCEPTED: ${{ vars.SECURITY_ACCEPTED_CVES }}
         run: |
-          python3 tools/check-native-deps.py --openssl-version "$OPENSSL" \
-            --min-severity moderate --accept "$ACCEPTED"
+          set -uo pipefail
+          # Every version, not the first: a clean GUI pin must not vouch for the engine's.
+          # No `set -e`, so one bad version still lets the other be reported.
+          rc=0
+          while read -r version who; do
+            echo "--- $version ($who) ---"
+            python3 tools/check-native-deps.py --openssl-version "$version" \
+              --min-severity moderate --accept "$ACCEPTED" || rc=1
+          done < openssl-versions.txt
+          exit $rc
 
       - name: Open or update the tracking issue
         if: steps.drift.outputs.drift == 'yes' || steps.cve.outcome == 'failure'

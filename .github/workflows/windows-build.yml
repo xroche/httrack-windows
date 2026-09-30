@@ -56,6 +56,10 @@ jobs:
       # Same reason: a spent acceptance only blocks a tagged build, so nothing else runs it.
       - name: Advisory accept/stale cases
         run: python3 tools/test-check-native-deps.py
+      # The weekly watch is the only thing reading the engine's pin, and nothing else
+      # runs its drift logic.
+      - name: Baseline drift cases
+        run: python3 tools/test-check-pin-drift.py
       # Both guards are config, so nothing else runs them. The arm gate needs a
       # dependabot event, and the CVE gate needs a push.
       - name: Auto-merge and CVE gate cases
