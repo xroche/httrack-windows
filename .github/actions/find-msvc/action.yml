@@ -1,0 +1,42 @@
+# One lookup for the MSVC and SDK tools several steps need. Written three times before
+# this, each hardcoding the x64 host directory, which is wrong the moment a job runs
+# anywhere else. Exports through GITHUB_ENV, so later steps in the same job use $env:.
+name: Find the MSVC tools
+description: Locate vswhere's Visual Studio, its newest toolset, and a host-appropriate dumpbin and mt.
+
+outputs:
+  tools:
+    description: The MSVC toolset directory, for a step that needs its version or its libraries.
+    value: ${{ steps.find.outputs.tools }}
+
+runs:
+  using: composite
+  steps:
+    - id: find
+      shell: pwsh
+      run: |
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (-not (Test-Path $vswhere)) { throw "vswhere is not at $vswhere" }
+        $vs = & $vswhere -latest -products * -property installationPath
+        if (-not $vs) { throw 'vswhere found no Visual Studio installation' }
+
+        # Newest toolset: these are host tools, and dumpbin reads any target. A step that
+        # needs the toolset the BUILD selected must read $(PlatformToolset), not this.
+        $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory |
+                   Sort-Object { [version]$_.Name } | Select-Object -Last 1
+        if (-not $tools) { throw "no MSVC toolset under $vs\VC\Tools\MSVC" }
+
+        # Host-agnostic: Hostx64 on an x64 runner, Hostarm64 on an ARM64 one.
+        $dumpbin = Get-ChildItem "$($tools.FullName)\bin\Host*\*\dumpbin.exe" -ErrorAction SilentlyContinue |
+                     Select-Object -First 1
+        if (-not $dumpbin) { throw "no dumpbin under $($tools.FullName)\bin" }
+        $mt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\*\mt.exe" -ErrorAction SilentlyContinue |
+                Sort-Object FullName -Descending | Select-Object -First 1
+        if (-not $mt) { throw 'no mt.exe in the Windows SDK' }
+
+        "VSINSTALL=$vs"                 | Out-File -Append $env:GITHUB_ENV
+        "MSVC_TOOLS=$($tools.FullName)" | Out-File -Append $env:GITHUB_ENV
+        "DUMPBIN=$($dumpbin.FullName)"  | Out-File -Append $env:GITHUB_ENV
+        "MT=$($mt.FullName)"            | Out-File -Append $env:GITHUB_ENV
+        "tools=$($tools.FullName)"      | Out-File -Append $env:GITHUB_OUTPUT
+        Write-Host "toolset $($tools.Name); dumpbin $($dumpbin.FullName); mt $($mt.FullName)"
