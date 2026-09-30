@@ -426,6 +426,10 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $dir
           Write-Host "MSBuild: $dir"
 
+      # Exports DUMPBIN, MT, MSVC_TOOLS and VSINSTALL for the steps below.
+      - name: Locate the MSVC and SDK tools
+        uses: ./httrack-windows/.github/actions/find-msvc
+
       - name: Enable vcpkg MSBuild integration
         shell: pwsh
         run: |
@@ -505,9 +509,6 @@ jobs:
       - name: Check the exe and libhttrack.dll agree on the CRT
         shell: pwsh
         run: |
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
-          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
 
           $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
           $dll = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\libhttrack.dll"
@@ -518,7 +519,7 @@ jobs:
           }
 
           function Deps($path) {
-            (& $dumpbin /dependents $path) |
+            (& $env:DUMPBIN /dependents $path) |
               Select-String -Pattern '^\s{4}(\S+\.dll)$' |
               ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
           }
@@ -590,15 +591,11 @@ jobs:
       - name: Check the hardening flags reached WinHTTrack.exe
         shell: pwsh
         run: |
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
-          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
-          if (-not (Test-Path $dumpbin)) { throw "dumpbin not found at $dumpbin" }
 
           # This checks our exe only, because the engine asserts its own flags.
           $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
           if (-not (Test-Path $exe)) { throw "missing $exe" }
-          $dump = (& $dumpbin /headers /loadconfig $exe) -join "`n"
+          $dump = (& $env:DUMPBIN /headers /loadconfig $exe) -join "`n"
           if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $exe" }
 
           # $Matches goes stale after a failed match, so capture inside the if.
@@ -696,7 +693,7 @@ jobs:
         shell: pwsh
         run: |
           $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
-          $mt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\mt.exe" |
+          $mt = Get-ChildItem $env:MT |
                 Sort-Object FullName -Descending | Select-Object -First 1
           if (-not $mt) { throw "mt.exe not found" }
           & $mt.FullName -nologo -inputresource:"$exe;#1" -out:embedded.manifest
@@ -752,11 +749,9 @@ jobs:
           # Ask the binaries what they need rather than hardcoding a list. OpenSSL
           # is libssl-3.dll on x86 but libssl-3-x64.dll on x64, so a fixed list is
           # wrong on one leg and rots on both.
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
-          $tools = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          $dumpbin = Join-Path $tools.FullName 'bin\Hostx64\x64\dumpbin.exe'
+          $tname = Split-Path $env:MSVC_TOOLS -Leaf
           function Deps($path) {
-            (& $dumpbin /dependents $path) |
+            (& $env:DUMPBIN /dependents $path) |
               Select-String -Pattern '^\s{4}(\S+\.dll)$' |
               ForEach-Object { $_.Matches[0].Groups[1].Value.ToLower() }
           }
@@ -768,12 +763,12 @@ jobs:
           $vendorUcrt = '${{ matrix.platform }}' -ne 'ARM64'
           # Matched to the toolset that compiled the binaries rather than to whatever is
           # newest on the runner: 14.5x is where Windows 7 support ends.
-          $tv = [version]$tools.Name
-          if ($tv -ge [version]'14.50') { throw "toolset $($tools.Name) is past the 14.4x line, which still supports Windows 7" }
+          $tv = [version]$tname
+          if ($tv -ge [version]'14.50') { throw "toolset $tname is past the 14.4x line, which still supports Windows 7" }
           $vcline = '{0}.{1}.' -f $tv.Major, $tv.Minor
-          $vcver = @(Get-ChildItem "$vs\VC\Redist\MSVC" -Directory |
+          $vcver = @(Get-ChildItem "$env:VSINSTALL\VC\Redist\MSVC" -Directory |
             Where-Object { $_.Name.StartsWith($vcline) } | Sort-Object { [version]$_.Name }) | Select-Object -Last 1
-          if (-not $vcver) { throw "no VC++ redist on the $vcline line to match toolset $($tools.Name)" }
+          if (-not $vcver) { throw "no VC++ redist on the $vcline line to match toolset $tname" }
           $vcr = @(Get-ChildItem "$($vcver.FullName)\$rarch" -Directory |
             Where-Object { $_.Name -match '^Microsoft\.VC\d+\.(CRT|MFC)$' })
           if ($vcr.Count -lt 2) { throw "no VC++ CRT/MFC redist under $($vcver.FullName)\$rarch" }
@@ -910,56 +905,6 @@ jobs:
           )
           Write-Host "--- package contents ---"
           Get-ChildItem $bin | ForEach-Object { Write-Host "  $($_.Name)" }
-
-      # Against the staged tree, where the PDBs live: the installed build can no longer
-      # resolve a line, so this is what still proves the whole crash-report chain works.
-      - name: Crash report resolves to function, file and line
-        # Runs the binary, so ARM64 does this in the arm64-runtime job instead.
-        if: matrix.platform != 'ARM64'
-        shell: pwsh
-        run: |
-          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
-          $report = Join-Path $env:TEMP 'WinHTTrack-exception.txt'
-          # -Force, then prove it: the report is opened for APPEND, so a leftover (or a
-          # read-only file planted at that path) would be asserted against instead.
-          Remove-Item $report -Force -ErrorAction SilentlyContinue
-          if (Test-Path $report) { throw "$report survived deletion: the check would read someone else's content" }
-          # --selftest throws one exception on purpose.
-          $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
-                 -RedirectStandardOutput "$PWD\crash-st.txt" -RedirectStandardError "$PWD\crash-st.err"
-          if ($p.ExitCode -ne 0) {
-            # The selftest names the failing check on stderr, and the exit code alone does not.
-            Write-Host "--- selftest stdout ---`n$(Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue)"
-            Write-Host "--- selftest stderr ---`n$(Get-Content "$PWD\crash-st.err" -Raw -ErrorAction SilentlyContinue)"
-            throw "--selftest exited $($p.ExitCode) from the staged tree"
-          }
-          $so = Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue
-          # This tree ships WinHTTrack.ini and the installed one does not; the smoke test
-          # asserts the opposite answer, so a constant mode reds one leg.
-          if ("$so" -notmatch 'settings store ok on 4 checks \(portable ini, no association\)') {
-            Write-Host "--- selftest stdout ---`n$so"
-            throw 'the staged tree did not run portable: it would write settings to HKCU'
-          }
-          # Same control for the file type: the smoke test asserts the registered answers.
-          if ("$so" -notmatch 'file type ok on 1 checks \(not asked\)') {
-            Write-Host "--- selftest stdout ---`n$so"
-            throw 'the staged tree tried to register .whtt, which a portable copy must not do'
-          }
-          if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
-            throw 'a portable run registered .whtt under HKCU, from this block or another'
-          }
-          if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
-          $trace = Get-Content $report -Raw
-          Write-Host "--- crash report ---`n$trace"
-          if ($trace -notmatch 'throw site') { throw 'report holds the handler stack, not the throw stack' }
-          # Tempered so the match cannot run past the throw-site record into a later one:
-          # CrashReportLogException is itself called from WinHTTrack.cpp, so the handler
-          # record would satisfy an unbounded match with the hook dead.
-          if ($trace -notmatch 'throw site\):(?:(?!Stack trace)[\s\S])*?WinHTTrack\.cpp:\d+') {
-            throw 'no file:line on the throw stack: the PDB carries no line info'
-          }
-          Write-Host '::notice::crash report resolves function, file and line'
-
       # Self-imposed now that no CA enforces it: every shipped binary must carry the
       # product name and the version of the tree that stamped it. The GUI has its own
       # now, so it is held to version.h and the engine's two binaries to htsglobal.h.
@@ -1037,14 +982,6 @@ jobs:
           arch: ${{ matrix.platform == 'x64' && 'x64' || matrix.platform == 'ARM64' && 'arm64' || 'x86' }}
           out-dir: ${{ github.workspace }}\installer
 
-      - name: Install it, run it, uninstall it
-        if: matrix.platform != 'ARM64'
-        uses: ./httrack-windows/.github/actions/smoke-test
-        with:
-          setup: ${{ steps.installer.outputs.setup }}
-          version: ${{ steps.installer.outputs.version }}
-          engine-version: ${{ steps.installer.outputs.engine-version }}
-
       - name: Upload the installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -1078,66 +1015,114 @@ jobs:
   # ARM64 is built on windows-2022 like the other two, because the v143 toolset there
   # carries the ARM64 MFC libraries and the one on windows-11-arm does not. Nothing on
   # an x64 runner can start an ARM64 image, so the steps that run one happen here.
-  arm64-runtime:
-    name: ARM64 runtime (native runner)
+  # Everything that runs a binary, for every platform. ARM64 has to be a native runner
+  # and the other two need not be, but one recipe for three platforms beats two recipes
+  # and a guard. It works from the uploaded artifact, so it tests what ships.
+  runtime:
+    name: runtime (${{ matrix.platform }})
     needs: build
-    runs-on: windows-11-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # machine is the PE header value the payload must carry, hex without 0x.
+          - { platform: x64, runner: windows-2022, machine: '8664', host: AMD64 }
+          - { platform: Win32, runner: windows-2022, machine: '14c', host: AMD64 }
+          - { platform: ARM64, runner: windows-11-arm, machine: 'AA64', host: ARM64 }
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout httrack-windows
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: httrack-windows
 
-      - name: Download the ARM64 build and installer
+      - name: Download the build and installer
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: '{WinHTTrack-ARM64-Release,httrack-setup-ARM64}'
+          pattern: '{WinHTTrack-${{ matrix.platform }}-Release,httrack-setup-${{ matrix.platform }}}'
           path: artifacts
 
-      - name: It is really ARM64
+      # A leg that silently carried another platform's payload would make every check
+      # below pass for the wrong reason, and the runner has to be able to start it.
+      - name: The payload is ${{ matrix.platform }}
         shell: pwsh
-        # The whole point of this job is that these binaries run natively, so a build
-        # that quietly produced x64 would make every check below pass for the wrong reason.
         run: |
-          $bin = 'artifacts\WinHTTrack-ARM64-Release'
+          if ($env:PROCESSOR_ARCHITECTURE -ne '${{ matrix.host }}') {
+            throw "runner is $env:PROCESSOR_ARCHITECTURE, not the ${{ matrix.host }} this leg needs"
+          }
+          $want = [Convert]::ToUInt16('${{ matrix.machine }}', 16)
+          $bin = 'artifacts\WinHTTrack-${{ matrix.platform }}-Release'
           foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
             $pe = [IO.File]::ReadAllBytes((Join-Path $bin $f))
             $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
-            if ($machine -ne 0xAA64) { throw ('{0} is machine 0x{1:x}, not ARM64' -f $f, $machine) }
+            if ($machine -ne $want) {
+              throw ('{0} is machine 0x{1:x}, not the 0x{2:x} this leg needs' -f $f, $machine, $want)
+            }
           }
-          if ($env:PROCESSOR_ARCHITECTURE -ne 'ARM64') { throw "this runner is $env:PROCESSOR_ARCHITECTURE, so it proves nothing" }
-          Write-Host 'three ARM64 binaries, on an ARM64 runner'
+          foreach ($f in 'WinHTTrack.pdb', 'libhttrack.pdb') {
+            if (-not (Test-Path (Join-Path $bin $f))) {
+              throw "$f is not in the artifact, so no stack can resolve to a line"
+            }
+          }
+          Write-Host 'three ${{ matrix.platform }} binaries and their PDBs, on a ${{ matrix.host }} runner'
 
-      - name: Selftest from the staged tree
+
+      # Against the staged tree, where the PDBs live, because the installed build can no
+      # longer resolve a line and this is what proves the whole crash-report chain works.
+      - name: Crash report resolves to function, file and line
         shell: pwsh
-        # The portable half. The smoke test below asserts the opposite answers from an
-        # installed copy, so a constant mode would red one of the two.
         run: |
-          $bin = 'artifacts\WinHTTrack-ARM64-Release'
+          $bin = 'artifacts\WinHTTrack-${{ matrix.platform }}-Release'
+          # The exe records the PDB path from the machine that built it, which does not
+          # exist here. SymInitialize gets a NULL search path, so _NT_SYMBOL_PATH is what
+          # points dbghelp at the PDBs sitting beside the binaries.
+          $env:_NT_SYMBOL_PATH = (Resolve-Path $bin).Path
+          $report = Join-Path $env:TEMP 'WinHTTrack-exception.txt'
+          # -Force, then prove it: the report is opened for APPEND, so a leftover (or a
+          # read-only file planted at that path) would be asserted against instead.
+          Remove-Item $report -Force -ErrorAction SilentlyContinue
+          if (Test-Path $report) { throw "$report survived deletion: the check would read someone else's content" }
+          # --selftest throws one exception on purpose.
           $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
-                 -RedirectStandardOutput "$PWD\st.txt" -RedirectStandardError "$PWD\st.err"
-          $so = Get-Content "$PWD\st.txt" -Raw -ErrorAction SilentlyContinue
-          Write-Host "--- selftest stdout ---`n$so"
+                 -RedirectStandardOutput "$PWD\crash-st.txt" -RedirectStandardError "$PWD\crash-st.err"
           if ($p.ExitCode -ne 0) {
-            Write-Host "--- selftest stderr ---`n$(Get-Content "$PWD\st.err" -Raw -ErrorAction SilentlyContinue)"
-            throw "--selftest exited $($p.ExitCode) on ARM64"
+            # The selftest names the failing check on stderr, and the exit code alone does not.
+            Write-Host "--- selftest stdout ---`n$(Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue)"
+            Write-Host "--- selftest stderr ---`n$(Get-Content "$PWD\crash-st.err" -Raw -ErrorAction SilentlyContinue)"
+            throw "--selftest exited $($p.ExitCode) from the staged tree"
           }
+          $so = Get-Content "$PWD\crash-st.txt" -Raw -ErrorAction SilentlyContinue
+          # This tree ships WinHTTrack.ini and the installed one does not; the smoke test
+          # asserts the opposite answer, so a constant mode reds one leg.
           if ("$so" -notmatch 'settings store ok on 4 checks \(portable ini, no association\)') {
+            Write-Host "--- selftest stdout ---`n$so"
             throw 'the staged tree did not run portable: it would write settings to HKCU'
           }
-          # The same pair the other two legs assert, so ARM64 is not held to a looser bar.
+          # Same control for the file type: the smoke test asserts the registered answers.
           if ("$so" -notmatch 'file type ok on 1 checks \(not asked\)') {
+            Write-Host "--- selftest stdout ---`n$so"
             throw 'the staged tree tried to register .whtt, which a portable copy must not do'
           }
           if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
             throw 'a portable run registered .whtt under HKCU, from this block or another'
           }
+          if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
+          $trace = Get-Content $report -Raw
+          Write-Host "--- crash report ---`n$trace"
+          if ($trace -notmatch 'throw site') { throw 'report holds the handler stack, not the throw stack' }
+          # Tempered so the match cannot run past the throw-site record into a later one:
+          # CrashReportLogException is itself called from WinHTTrack.cpp, so the handler
+          # record would satisfy an unbounded match with the hook dead.
+          if ($trace -notmatch 'throw site\):(?:(?!Stack trace)[\s\S])*?WinHTTrack\.cpp:\d+') {
+            throw 'no file:line on the throw stack: the PDB carries no line info'
+          }
+          Write-Host '::notice::crash report resolves function, file and line'
 
       - name: Find the downloaded installer
         id: setup
         shell: pwsh
         run: |
-          $exe = @(Get-ChildItem 'artifacts\httrack-setup-ARM64' -Filter '*.exe')
+          $exe = @(Get-ChildItem 'artifacts\httrack-setup-${{ matrix.platform }}' -Filter '*.exe')
           if ($exe.Count -ne 1) { throw "expected one installer, found $($exe.Count)" }
           "path=$($exe[0].FullName)" | Out-File -Append $env:GITHUB_OUTPUT
 
@@ -1147,17 +1132,18 @@ jobs:
           setup: ${{ steps.setup.outputs.path }}
           version: ${{ needs.build.outputs.version }}
           engine-version: ${{ needs.build.outputs.engine-version }}
-          vendored-list: ${{ github.workspace }}\artifacts\WinHTTrack-ARM64-Release\runtime-vendored.txt
-
 
   sign:
     # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
     if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.sign) }}
     # encoding too, not build alone: its guards run on a tag as well, and the version
-    # macros it checks are what the signed installer is named after. arm64-runtime as
-    # well, or it and this job race off build and a red one still ships a signed ARM64
-    # installer: it is the only place an ARM64 binary is ever run.
-    needs: [build, encoding, arm64-runtime]
+    # macros it checks are what the signed installer is named after. runtime as well, or
+    # it and this job race off build, and a red one would still ship a signed installer.
+    needs: [build, encoding, runtime]
+    outputs:
+      version: ${{ steps.arm64.outputs.version }}
+      engine-version: ${{ steps.arm64.outputs.engine-version }}
+      thumbprint: ${{ env.THUMBPRINT }}
     runs-on: windows-2022
     environment: signing
     # Two tags pushed at once would fight over the signing session; queue: max holds
@@ -1343,7 +1329,9 @@ jobs:
           thumbprint: ${{ env.THUMBPRINT }}
 
       # Published before they are tested, not after: the previous run signed
-      # everything and then lost it all when a later check failed.
+      # everything and then lost it all when a later check failed. arm64 widens that
+      # window to a whole extra job, so a green run, not a present artifact, is what
+      # says an installer is fit to release.
       - name: Upload the signed installers
         id: installers
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1386,7 +1374,8 @@ jobs:
       # plus the signatures: on the installer before it runs, and on everything it
       # lays down afterwards.
       # No ARM64 equivalent below: this runner cannot start an ARM64 installer. The
-      # unsigned one is exercised by the arm64-runtime job; the signed one is not.
+      # arm64 has none here: this runner cannot start it. The signed-runtime-arm64 job
+      # below does it on a native runner, from the artifact this job published.
       - name: Install it, run it, uninstall it (x64)
         uses: ./httrack-windows/.github/actions/smoke-test
         with:
@@ -1409,3 +1398,41 @@ jobs:
           check-crash-report: 'false'
           vendored-list: ${{ github.workspace }}\payload\WinHTTrack-Win32-Release\runtime-vendored.txt
 
+  # The signed ARM64 installer. The sign job smoke-tests the other two inline, but its
+  # runner is x64 and cannot start this one, so it runs here against what sign published.
+  # Signing itself stays in that job: a SimplySign session belongs to one machine.
+  signed-runtime-arm64:
+    name: signed runtime (arm64)
+    needs: sign
+    runs-on: windows-11-arm
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout httrack-windows
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: httrack-windows
+
+      - name: Download the signed installers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: httrack-setup-signed
+          path: installer
+
+      - name: Find the signed ARM64 installer
+        id: setup
+        shell: pwsh
+        run: |
+          $exe = @(Get-ChildItem 'installer' -Filter 'httrack_arm64_*.exe')
+          if ($exe.Count -ne 1) { throw "expected one arm64 installer, found $($exe.Count)" }
+          "path=$($exe[0].FullName)" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Install it, run it, uninstall it (arm64)
+        uses: ./httrack-windows/.github/actions/smoke-test
+        with:
+          setup: ${{ steps.setup.outputs.path }}
+          version: ${{ needs.sign.outputs.version }}
+          engine-version: ${{ needs.sign.outputs.engine-version }}
+          thumbprint: ${{ needs.sign.outputs.thumbprint }}
+          require-signature: 'true'
