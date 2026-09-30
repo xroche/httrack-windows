@@ -1059,7 +1059,12 @@ jobs:
               throw ('{0} is machine 0x{1:x}, not the 0x{2:x} this leg needs' -f $f, $machine, $want)
             }
           }
-          Write-Host 'three ${{ matrix.platform }} binaries on a ${{ matrix.host }} runner'
+          foreach ($f in 'WinHTTrack.pdb', 'libhttrack.pdb') {
+            if (-not (Test-Path (Join-Path $bin $f))) {
+              throw "$f is not in the artifact, so no stack can resolve to a line"
+            }
+          }
+          Write-Host 'three ${{ matrix.platform }} binaries and their PDBs, on a ${{ matrix.host }} runner'
 
 
       # Against the staged tree, where the PDBs live, because the installed build can no
@@ -1068,6 +1073,10 @@ jobs:
         shell: pwsh
         run: |
           $bin = 'artifacts\WinHTTrack-${{ matrix.platform }}-Release'
+          # The exe records the PDB path from the machine that built it, which does not
+          # exist here. SymInitialize gets a NULL search path, so _NT_SYMBOL_PATH is what
+          # points dbghelp at the PDBs sitting beside the binaries.
+          $env:_NT_SYMBOL_PATH = (Resolve-Path $bin).Path
           $report = Join-Path $env:TEMP 'WinHTTrack-exception.txt'
           # -Force, then prove it: the report is opened for APPEND, so a leftover (or a
           # read-only file planted at that path) would be asserted against instead.
