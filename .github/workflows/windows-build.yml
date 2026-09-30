@@ -1377,9 +1377,8 @@ jobs:
       # Same test the build job runs, over the file that will actually be published,
       # plus the signatures: on the installer before it runs, and on everything it
       # lays down afterwards.
-      # No ARM64 equivalent below: this runner cannot start an ARM64 installer. The
-      # arm64 has none here: this runner cannot start it. The signed-runtime-arm64 job
-      # below does it on a native runner, from the artifact this job published.
+      # arm64 has none here, because this runner cannot start it. The
+      # signed-runtime-arm64 job does it on a native runner instead.
       - name: Install it, run it, uninstall it (x64)
         uses: ./httrack-windows/.github/actions/smoke-test
         with:
@@ -1424,6 +1423,13 @@ jobs:
           name: httrack-setup-signed
           path: installer
 
+      # This job does not inherit the sign job's payload, so it fetches its own copy.
+      - name: Download the ARM64 payload manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: WinHTTrack-ARM64-Release
+          path: payload
+
       - name: Find the signed ARM64 installer
         id: setup
         shell: pwsh
@@ -1440,3 +1446,6 @@ jobs:
           engine-version: ${{ needs.sign.outputs.engine-version }}
           thumbprint: ${{ needs.sign.outputs.thumbprint }}
           require-signature: 'true'
+          # The installed tree ships no PDBs, so the other two legs skip this too.
+          check-crash-report: 'false'
+          vendored-list: ${{ github.workspace }}\payload\runtime-vendored.txt
