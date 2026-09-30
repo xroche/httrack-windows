@@ -33,27 +33,9 @@ jobs:
           for ref in "$GUI" "$ENGINE" master; do
             [ -f "bl-$ref.json" ] || curl -sSf "https://raw.githubusercontent.com/microsoft/vcpkg/$ref/versions/baseline.json" -o "bl-$ref.json"
           done
-          python3 - "$GUI" "$ENGINE" <<'EOF' | tee drift.txt
-          import json, sys
-
-          gui, engine = sys.argv[1], sys.argv[2]
-          head = json.load(open("bl-master.json"))["default"]
-          if gui != engine:
-              print(f"the two pins differ: GUI {gui[:12]}, engine {engine[:12]}   <-- DRIFT")
-          versions = {}
-          for name, ref in (("GUI", gui), ("engine", engine)):
-              pin = json.load(open(f"bl-{ref}.json"))["default"]
-              print(f"--- {name} pin {ref[:12]} ---")
-              for p in ("openssl", "zlib", "brotli", "zstd"):
-                  a = pin.get(p, {}).get("baseline")
-                  b = head.get(p, {}).get("baseline")
-                  print(f"{p}: pinned {a}, upstream {b}" + ("" if a == b else "   <-- DRIFT"))
-              versions.setdefault(pin["openssl"]["baseline"], []).append(name)
-          # One line per distinct OpenSSL, so the advisory step below scans each once.
-          with open("openssl-versions.txt", "w") as fh:
-              for v, who in sorted(versions.items()):
-                  fh.write(f"{v} {'+'.join(who)}\n")
-          EOF
+          python3 tools/check-pin-drift.py --upstream bl-master.json \
+            --pin "GUI=$GUI:bl-$GUI.json" --pin "engine=$ENGINE:bl-$ENGINE.json" \
+            --versions-out openssl-versions.txt | tee drift.txt
           grep -q DRIFT drift.txt && echo "drift=yes" >> "$GITHUB_OUTPUT" || true
 
       - name: Check every pinned OpenSSL against the advisory feed
