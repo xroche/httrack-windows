@@ -55,6 +55,7 @@ def resolved_versions(installed_dirs):
         # otherwise scan only the other tree and pass, checking the wrong binaries.
         if not Path(root).is_dir():
             sys.exit(f"FATAL: --installed path '{root}' is missing -- partial scan is not clean")
+        here = {}
         n = 0
         for sbom in Path(root).rglob("vcpkg.spdx.json"):
             # Build intermediates, not the installed tree that ships.
@@ -66,8 +67,16 @@ def resolved_versions(installed_dirs):
                 if pkg.get("SPDXID") == "SPDXRef-port":
                     ver = (pkg.get("versionInfo") or "").split("#")[0].strip()
                     if ver:
-                        found.setdefault(port, ver)
+                        here.setdefault(port, set()).add(ver)
                         n += 1
+        # Across roots the engine wins, which is why found is a setdefault below. Within
+        # one root two triplets at different versions have no defensible winner, and
+        # picking by directory order would let --expect-openssl agree with the wrong one.
+        for port, vers in here.items():
+            if len(vers) > 1:
+                sys.exit(f"FATAL: '{root}' carries {port} at "
+                         f"{', '.join(sorted(vers))} -- which one ships is undefined")
+            found.setdefault(port, next(iter(vers)))
         if n == 0:
             sys.exit(f"FATAL: no SBOMs under '{root}' -- extraction is broken, not clean")
     return found
@@ -195,9 +204,10 @@ def main():
         if cve.upper() in accepted:
             matched.add(cve.upper())
             print(f"::warning::{cve} ({sev}) accepted by policy")
-        # sev is None only when a matched record lacks severity where OpenSSL always
-        # puts it -- an unexpected shape, so block rather than silently downgrade.
-        elif sev is None or RANK.get(sev, 0) >= floor:
+        # A severity this table cannot rank is not a low one. Missing, misspelt and
+        # merely new all block, because scoring an unknown string as 0 puts it below
+        # every floor: 83 of the feed's 297 records say "unknown" today.
+        elif sev is None or sev not in RANK or RANK[sev] >= floor:
             blocking.append((cve, sev or "unrated"))
         else:
             noted.append((cve, sev))
