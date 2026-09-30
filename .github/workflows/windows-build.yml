@@ -1132,7 +1132,6 @@ jobs:
           setup: ${{ steps.setup.outputs.path }}
           version: ${{ needs.build.outputs.version }}
           engine-version: ${{ needs.build.outputs.engine-version }}
-          vendored-list: ${{ github.workspace }}\artifacts\WinHTTrack-${{ matrix.platform }}-Release\runtime-vendored.txt
 
   sign:
     # A workflow_dispatch from a tag ref used to reach this whatever `sign` said.
@@ -1144,6 +1143,7 @@ jobs:
     outputs:
       version: ${{ steps.arm64.outputs.version }}
       engine-version: ${{ steps.arm64.outputs.engine-version }}
+      thumbprint: ${{ env.THUMBPRINT }}
     runs-on: windows-2022
     environment: signing
     # Two tags pushed at once would fight over the signing session; queue: max holds
@@ -1329,7 +1329,9 @@ jobs:
           thumbprint: ${{ env.THUMBPRINT }}
 
       # Published before they are tested, not after: the previous run signed
-      # everything and then lost it all when a later check failed.
+      # everything and then lost it all when a later check failed. arm64 widens that
+      # window to a whole extra job, so a green run, not a present artifact, is what
+      # says an installer is fit to release.
       - name: Upload the signed installers
         id: installers
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1406,9 +1408,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-    env:
-      # The same certificate the sign job names, and public material like it is there.
-      THUMBPRINT: AEEE0C1672811FEBB33099FB433FC0D70E5B89C2
     steps:
       - name: Checkout httrack-windows
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1435,5 +1434,5 @@ jobs:
           setup: ${{ steps.setup.outputs.path }}
           version: ${{ needs.sign.outputs.version }}
           engine-version: ${{ needs.sign.outputs.engine-version }}
-          thumbprint: ${{ env.THUMBPRINT }}
+          thumbprint: ${{ needs.sign.outputs.thumbprint }}
           require-signature: 'true'

@@ -26,17 +26,34 @@ runs:
                    Sort-Object { [version]$_.Name } | Select-Object -Last 1
         if (-not $tools) { throw "no MSVC toolset under $vs\VC\Tools\MSVC" }
 
-        # Host-agnostic: Hostx64 on an x64 runner, Hostarm64 on an ARM64 one.
-        $dumpbin = Get-ChildItem "$($tools.FullName)\bin\Host*\*\dumpbin.exe" -ErrorAction SilentlyContinue |
-                     Select-Object -First 1
-        if (-not $dumpbin) { throw "no dumpbin under $($tools.FullName)\bin" }
-        $mt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\*\mt.exe" -ErrorAction SilentlyContinue |
-                Sort-Object FullName -Descending | Select-Object -First 1
-        if (-not $mt) { throw 'no mt.exe in the Windows SDK' }
+        # State the host preference rather than sorting: descending on the path ranks
+        # "x86" above "x64", so a plain sort silently picks the 32-bit host tool.
+        $prefer = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64', 'x64', 'x86' }
+                  else { 'x64', 'x86' }
+
+        $dumpbin = $null
+        foreach ($h in $prefer) {
+          $try = Join-Path $tools.FullName "bin\Host$h\$h\dumpbin.exe"
+          if (Test-Path $try) { $dumpbin = $try; break }
+        }
+        if (-not $dumpbin) { throw "no dumpbin for host $($prefer -join '/') under $($tools.FullName)\bin" }
+
+        # The SDK lays these out as bin\<version>\<host>\mt.exe, newest version first.
+        $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory -ErrorAction SilentlyContinue |
+                 Where-Object Name -match '^10\.' | Sort-Object { [version]$_.Name } -Descending
+        $mt = $null
+        foreach ($v in $sdk) {
+          foreach ($h in $prefer) {
+            $try = Join-Path $v.FullName "$h\mt.exe"
+            if (Test-Path $try) { $mt = $try; break }
+          }
+          if ($mt) { break }
+        }
+        if (-not $mt) { throw "no mt.exe for host $($prefer -join '/') in the Windows SDK" }
 
         "VSINSTALL=$vs"                 | Out-File -Append $env:GITHUB_ENV
         "MSVC_TOOLS=$($tools.FullName)" | Out-File -Append $env:GITHUB_ENV
-        "DUMPBIN=$($dumpbin.FullName)"  | Out-File -Append $env:GITHUB_ENV
-        "MT=$($mt.FullName)"            | Out-File -Append $env:GITHUB_ENV
+        "DUMPBIN=$dumpbin"              | Out-File -Append $env:GITHUB_ENV
+        "MT=$mt"                        | Out-File -Append $env:GITHUB_ENV
         "tools=$($tools.FullName)"      | Out-File -Append $env:GITHUB_OUTPUT
-        Write-Host "toolset $($tools.Name); dumpbin $($dumpbin.FullName); mt $($mt.FullName)"
+        Write-Host "toolset $($tools.Name); dumpbin $dumpbin; mt $mt"
