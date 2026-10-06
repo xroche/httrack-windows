@@ -266,6 +266,12 @@ CString profile_decode(const char* from);
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
 
+/* Returns BOX with PRESET's rules taken out, plus PRESET on its own line when CHECKED.
+   A preset rule goes only when it stands as a whole rule in BOX, never when it sits
+   inside one. The returned lines are CRLF-separated, and a line holding no rule goes.
+   Exposed for --selftest. */
+CString applyRulePreset(const CString &box, const CString &preset, BOOL checked);
+
 /* What to tell the user about EDITED before the options page closes, or an empty string
    when the page may close. OPENED is the box as the panel opened, and an unchanged box
    is never judged. LIVEEDIT is FALSE before a mirror starts, where the engine never

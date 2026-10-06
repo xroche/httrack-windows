@@ -325,6 +325,10 @@ runs:
         if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
+        # A preset checkbox rewrites the rules box, and only a click can reach that code.
+        if ("$so" -notmatch 'rule presets ok on 19 checks') {
+          throw "selftest did not check the preset checkboxes"
+        }
         # A key the engine's catalog drops shows the wrong label, not a failure.
         if ("$so" -notmatch 'catalog keys ok on 2 checks') {
           throw "selftest did not check the catalog keys"

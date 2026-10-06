@@ -83,7 +83,7 @@ protected:
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
 	DECLARE_MESSAGE_MAP()
 
-  void EnsureIncluded(BOOL state, CString filter);
+  void EnsureIncluded(BOOL checked, CString preset);
 
 };
 
