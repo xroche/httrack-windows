@@ -321,6 +321,10 @@ runs:
         if ("$so" -notmatch 'footer presets ok on 16 checks and [1-9]\d* fields') {
           throw "selftest did not check the footer presets"
         }
+        # A click reaching an option set the engine thread frees is a use-after-free.
+        if ("$so" -notmatch 'live opt guard ok on 4 checks') {
+          throw "selftest did not check the live option guard"
+        }
         # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.
         if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
@@ -392,7 +396,7 @@ runs:
         }
 
         # No CI can log off, so this count is the only proof the session-end stop ran.
-        if ("$so" -notmatch 'session end ok on 8 checks') {
+        if ("$so" -notmatch 'session end ok on 9 checks') {
           throw "selftest did not check the session-end stop"
         }
         # No mirror runs under --selftest, so this count is the only proof the verdict maps right.

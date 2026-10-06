@@ -292,12 +292,19 @@ void Cinprogress::OnClose()
 }
 
 void Cinprogress::Onsk0()  {
-  if (hts_is_parsing(global_opt, -1)) {  // parsing
-    if (hts_is_testing(global_opt))
-      hts_cancel_test(global_opt);     // cancel test
-    /*else*/
-    hts_cancel_parsing(global_opt);  // cancel parsing
-  } else
+  int parsing;
+  {
+    WhttOptGuard guard;
+    httrackp *const opt = guard.live();
+    parsing = (opt != NULL) ? hts_is_parsing(opt, -1) : 0;
+    if (parsing) {
+      if (hts_is_testing(opt))
+        hts_cancel_test(opt);     // cancel test
+      /*else*/
+      hts_cancel_parsing(opt);  // cancel parsing
+    }
+  }
+  if (!parsing)
     StatsBuffer_cancel(0);
 }
 void Cinprogress::Onsk1()  {
@@ -384,7 +391,8 @@ void Cinprogress::OnStopall()
     LANG(LANG_H1 /*"Stop WinHTTrack?",
            "Stopper WinHTTrack?"*/)
     ,MB_OKCANCEL+MB_ICONQUESTION)==IDOK) {
-    RequestMirrorStop();
+    /* Nothing to stop before the engine claims the mirror, and the user already answered. */
+    (void) RequestMirrorStop();
   }
 }
 
@@ -718,10 +726,17 @@ void Cinprogress::OnPause()
   //else
   //  m=IDOK;
   //if (m==IDOK) {
-	hts_setpause(global_opt, !hts_setpause(global_opt, -1));
+	int paused;
+	{
+		WhttOptGuard guard;
+		httrackp *const opt = guard.live();
+		if (opt == NULL)
+			return;
+		paused = hts_setpause(opt, !hts_setpause(opt, -1));
+	}
 	CMenu* m;
 	if (m = AfxGetApp()->GetMainWnd()->GetMenu()) {
-		if (hts_setpause(global_opt, -1))
+		if (paused)
 			m->CheckMenuItem(ID_FILE_PAUSE,MF_CHECKED);
 		else
 			m->CheckMenuItem(ID_FILE_PAUSE,MF_UNCHECKED);
@@ -900,14 +915,18 @@ void Cinprogress::OnModifyOpt()
       StringCopy(opt->user_agent, maintab->m_option6.m_user);
     }
 
-		if (global_opt != NULL) {
-			copy_htsopt(opt, global_opt);
-			// replaces the whole box, so send only when it changed. A box the engine
-			// refuses goes back, or it would promise rules the mirror does not have and
-			// the next OK would see nothing to resend.
-			if (maintab->m_option7.m_url2 != savedRules
-			    && !setLiveScanRules(global_opt, maintab->m_option7.m_url2))
-				maintab->m_option7.m_url2 = savedRules;
+		{
+			WhttOptGuard guard;
+			httrackp *const live = guard.live();
+			if (live != NULL) {
+				copy_htsopt(opt, live);
+				// replaces the whole box, so send only when it changed. A box the engine
+				// refuses goes back, or it would promise rules the mirror does not have and
+				// the next OK would see nothing to resend.
+				if (maintab->m_option7.m_url2 != savedRules
+				    && !setLiveScanRules(live, maintab->m_option7.m_url2))
+					maintab->m_option7.m_url2 = savedRules;
+			}
 		}
 
     hts_free_opt(opt);
@@ -927,7 +946,10 @@ void Cinprogress::OnModifyOpt()
 
 // canceller un lien manuellement
 void Cinprogress::StatsBuffer_cancel(int id) {
-  hts_cancel_file_push(global_opt, StatsBuffer[id].url_sav);
+  WhttOptGuard guard;
+  httrackp *const opt = guard.live();
+  if (opt != NULL)
+    hts_cancel_file_push(opt, StatsBuffer[id].url_sav);
 }
 void Cinprogress::StatsBuffer_info(int id) {
   WHTT_LOCK();
@@ -1073,21 +1095,48 @@ LRESULT Cinprogress::DragDropText(WPARAM wParam,LPARAM lParam) {
       CString aff=LANG(LANG_DIAL12);
       if (AfxMessageBox(aff+st,MB_SYSTEMMODAL|MB_YESNO|MB_ICONQUESTION)==IDYES) {
         int pause=0;
+        BOOL added=FALSE;
         char** tab=CEasyDropTarget::StringToArray(st);
-        hts_addurl(global_opt, tab);
-        if (pause=hts_setpause(global_opt, -1))
-          hts_setpause(global_opt, 0);      // enlever pause
         {
+          WhttOptGuard guard;
+          httrackp *const opt = guard.live();
+          if (opt != NULL) {
+            hts_addurl(opt, tab);
+            added=TRUE;
+            if (pause=hts_setpause(opt, -1))
+              hts_setpause(opt, 0);      // enlever pause
+          }
+        }
+        if (added) {
           int i=0;
-          while((hts_addurl(global_opt, NULL)) && (i<100)) {
+          /* It polls without the guard, or the Sleep below stalls the mirror's end. */
+          for(;;) {
+            int pending;
+            {
+              WhttOptGuard guard;
+              httrackp *const opt = guard.live();
+              pending = (opt != NULL) ? hts_addurl(opt, NULL) : 0;
+            }
+            if (!pending || !(i<100))
+              break;
             Sleep(100);
             i++;
           }
           if (!(i<100)) {
-            hts_resetaddurl(global_opt);
+            {
+              WhttOptGuard guard;
+              httrackp *const opt = guard.live();
+              if (opt != NULL)
+                hts_resetaddurl(opt);
+            }
             AfxMessageBox(LANG(LANG_DIAL13));
           }
-          hts_setpause(global_opt, pause);      // remettre pause éventuelle
+          {
+            WhttOptGuard guard;
+            httrackp *const opt = guard.live();
+            if (opt != NULL)
+              hts_setpause(opt, pause);      // remettre pause éventuelle
+          }
         }
         CEasyDropTarget::ReleaseStringToArray(tab);
         tab=NULL;
@@ -1103,7 +1152,12 @@ void Cinprogress::OnTimer(UINT_PTR nIDEvent)
   WHTT_LOCK();
   if (!termine) {
     if (SInfo.refresh) {
-      hts_is_parsing(global_opt, 0);        // refresh demandé si en mode parsing
+      {
+        WhttOptGuard guard;
+        httrackp *const opt = guard.live();
+        if (opt != NULL)
+          hts_is_parsing(opt, 0);        // refresh demandé si en mode parsing
+      }
       // while(INFILLMEM_LOCKED) Sleep(10);    // attendre au cas où
       if (!termine)
         inprogress_refresh();        // on refresh!
@@ -1162,7 +1216,12 @@ LRESULT Cinprogress::OnEndMirror(WPARAM /* wP*/, LPARAM /*lP*/) {
     SetDlgItemTextCP(this_Cinfoend, IDC_infoend,end_mirror_msg);
 
   /* The engine reconciles the cache generations at abort since #1636; deleting new.* here broke resume. */
-  if (hts_is_exiting(global_opt) == 2) {     /* No connection! */
+  BOOL noConnection;
+  {
+    WhttOptGuard guard;
+    noConnection = (guard.optIfAny() != NULL && hts_is_exiting(guard.optIfAny()) == 2);
+  }
+  if (noConnection) {     /* No connection! */
     AfxMessageBox(LANG_F22c );
   }
   return S_OK;
