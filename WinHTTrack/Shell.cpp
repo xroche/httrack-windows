@@ -1976,9 +1976,15 @@ BOOL setLiveScanRules(httrackp *opt, const CString &edited) {
   splitStringInArray(rules, edited, instSpaceSeparatorComparator);
   if ((list = (char **) calloct(rules.GetSize() + 1, sizeof(*list))) == NULL)
     return FALSE;
-  for(i = 0 ; i < rules.GetSize() ; i++)
-    list[i] = strdupt_utf8(rules[i]);   // the bytes the command line would have carried
-  taken = hts_setfilters(opt, list) ? TRUE : FALSE;
+  taken = TRUE;
+  for(i = 0 ; i < rules.GetSize() ; i++) {
+    // the engine reads to the first NULL, so a short list would replace the rules with
+    // its own prefix and report success
+    if ((list[i] = strdupt_utf8(rules[i])) == NULL)   // the bytes argv would have carried
+      taken = FALSE;
+  }
+  if (taken)
+    taken = hts_setfilters(opt, list) ? TRUE : FALSE;
   for(i = 0 ; i < rules.GetSize() ; i++)
     freet(list[i]);
   freet(list);

@@ -49,7 +49,7 @@ public:
 	~COptionTab7();
   const char* GetTip(int id);
   int modify;
-  CString m_rulesAtOpen;      /* the box as the panel opened; an unchanged box is never sent */
+  CString m_rulesAtOpen;      /* the opening value, so an unchanged box is never sent */
 
 // Dialog Data
 	//{{AFX_DATA(COptionTab7)
