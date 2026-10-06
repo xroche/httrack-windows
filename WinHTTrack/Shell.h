@@ -204,6 +204,46 @@ void  __cdecl httrackengine_filesave2(t_hts_callbackarg *carg, httrackp *opt, co
 
 extern httrackp *global_opt;
 
+/* What a window may do with global_opt, which the engine thread frees and recreates
+   once per mirror. */
+typedef enum {
+  WHTT_OPT_NONE = 0,  /* no option set: neither a call nor a read is possible */
+  WHTT_OPT_IDLE,      /* no mirror is running it: its final state is readable, nothing writable */
+  WHTT_OPT_LIVE       /* the engine is running it, so a live call may proceed */
+} WhttOptState;
+
+/* A pointer the engine thread already cleared is never live, whatever the flag says. */
+WhttOptState whttOptStateOf(const httrackp *opt, BOOL engineRunning);
+
+/* Pins global_opt for one engine call, so the engine thread cannot free it underneath.
+   Lock order: WhttMutex may be held while taking this one, never the reverse, and no
+   window call, SendMessage or modal box may run while it is held. */
+class WhttOptGuard {
+public:
+  WhttOptGuard();
+  ~WhttOptGuard();
+  WhttOptGuard(const WhttOptGuard &) = delete;
+  WhttOptGuard &operator=(const WhttOptGuard &) = delete;
+  /* The option set the engine is running, NULL when no mirror is running one. */
+  httrackp *live() const;
+  /* Also one no mirror is running, for a read of the verdict it left behind. */
+  httrackp *opt() const;
+private:
+  WhttOptState m_state;
+  httrackp *m_opt;
+};
+
+/* Open or close the engine's claim, from its own init and uninit callbacks. */
+void whttOptSetEngineRunning(BOOL running);
+
+/* Free global_opt and create its replacement, both under the guard's lock. */
+void whttOptRecreate();
+
+void whttOptDestroy();
+
+/* Initialize the guard's lock, before any window exists. */
+void whttOptInit();
+
 /* What a stop request did, or found already done. */
 typedef enum {
   WHTT_STOP_NO_MIRROR = 0,  /* nothing is running */

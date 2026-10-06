@@ -143,6 +143,70 @@ char WIZ_reponse[WIZ_QUESTION_SIZE];
 
 httrackp *global_opt = NULL;
 
+/* global_opt's lifetime and the engine's claim on it. */
+static CRITICAL_SECTION WhttOptLock;
+static BOOL WhttOptEngineRunning = FALSE;
+
+// see Shell.h
+void whttOptInit() {
+  InitializeCriticalSection(&WhttOptLock);
+}
+
+// see Shell.h
+WhttOptState whttOptStateOf(const httrackp *opt, BOOL engineRunning) {
+  if (opt == NULL)
+    return WHTT_OPT_NONE;
+  return engineRunning ? WHTT_OPT_LIVE : WHTT_OPT_IDLE;
+}
+
+WhttOptGuard::WhttOptGuard() {
+  EnterCriticalSection(&WhttOptLock);
+  m_opt = global_opt;
+  m_state = whttOptStateOf(m_opt, WhttOptEngineRunning);
+}
+
+WhttOptGuard::~WhttOptGuard() {
+  LeaveCriticalSection(&WhttOptLock);
+}
+
+httrackp *WhttOptGuard::live() const {
+  return (m_state == WHTT_OPT_LIVE) ? m_opt : NULL;
+}
+
+httrackp *WhttOptGuard::opt() const {
+  return (m_state != WHTT_OPT_NONE) ? m_opt : NULL;
+}
+
+// see Shell.h
+void whttOptSetEngineRunning(BOOL running) {
+  EnterCriticalSection(&WhttOptLock);
+  WhttOptEngineRunning = running;
+  LeaveCriticalSection(&WhttOptLock);
+}
+
+// see Shell.h
+void whttOptRecreate() {
+  EnterCriticalSection(&WhttOptLock);
+  WhttOptEngineRunning = FALSE;
+  if (global_opt != NULL) {
+    hts_free_opt(global_opt);
+    global_opt = NULL;
+  }
+  global_opt = hts_create_opt();
+  LeaveCriticalSection(&WhttOptLock);
+}
+
+// see Shell.h
+void whttOptDestroy() {
+  EnterCriticalSection(&WhttOptLock);
+  WhttOptEngineRunning = FALSE;
+  if (global_opt != NULL) {
+    hts_free_opt(global_opt);
+    global_opt = NULL;
+  }
+  LeaveCriticalSection(&WhttOptLock);
+}
+
 // Fonctionnement des THREADS:
 //
 // principal ---> robot & refresh data (thread 1)
@@ -280,7 +344,11 @@ BOOL LaunchMirror() {
 
 /* The Cancel button's stop, minus its confirmation. */
 WhttMirrorStop RequestMirrorStop() {
-  hts_setpause(global_opt, 0);
+  WhttOptGuard guard;
+  httrackp *const opt = guard.live();
+  if (opt == NULL)
+    return WHTT_STOP_NO_MIRROR;
+  hts_setpause(opt, 0);
   if (soft_term_requested) {
     termine_requested=1;
     return WHTT_STOP_ABORTED;
@@ -288,7 +356,7 @@ WhttMirrorStop RequestMirrorStop() {
   soft_term_requested=1;
   /* keep_resume: a mirror the user stopped is meant to be continued, unlike one
      that ran out of links. */
-  hts_request_stop(global_opt, 1);
+  hts_request_stop(opt, 1);
   return WHTT_STOP_ASKED;
 }
 
@@ -297,8 +365,6 @@ WhttMirrorStop RequestMirrorStop() {
 WhttMirrorStop SessionEndStop(BOOL bEnding) {
   if (!bEnding)
     return WHTT_STOP_NOT_ENDING;
-  if (global_opt == NULL)
-    return WHTT_STOP_NO_MIRROR;
   if (termine)
     return WHTT_STOP_ENDED;
   if (soft_term_requested)
@@ -915,6 +981,8 @@ int __cdecl httrackengine_check_mime(t_hts_callbackarg *carg, httrackp *opt, con
 EXECUTION_STATE (WINAPI * SetThreadExecutionState_)(IN EXECUTION_STATE) = NULL;
 void __cdecl httrackengine_init(t_hts_callbackarg *carg) {    // appelé lors de l'init de HTTRACK, avant le début d'un miroir
   ATLTRACE(__FUNCTION__ " : init\r\n");
+  /* The option set is the engine's from here until uninit below. */
+  whttOptSetEngineRunning(TRUE);
   // Finished
   PlaySound("MirrorStarted", NULL, SND_ASYNC | SND_NOWAIT | SND_APPLICATION);
 
@@ -935,6 +1003,8 @@ void __cdecl httrackengine_init(t_hts_callbackarg *carg) {    // appelé lors de
 }
 void __cdecl httrackengine_uninit(t_hts_callbackarg *carg) {  // appelé en fin de miroir (peut être utile!!!)
   ATLTRACE(__FUNCTION__ " : uninit\r\n");
+  /* Before hts_main2() closes opt->log, which a live call would still write to. */
+  whttOptSetEngineRunning(FALSE);
   // Finished
   PlaySound("MirrorFinished", NULL, SND_ASYNC | SND_NOWAIT | SND_APPLICATION);
 
@@ -1439,11 +1509,24 @@ int inprogress_refresh() {
       if (!icn) {
         int parsing=0;
         if (!soft_term_requested) {
-          if (!hts_setpause(global_opt, -1)) {
-            if (!(parsing=hts_is_parsing(global_opt, -1)))
+          int paused=0, testing=0;
+          {
+            WhttOptGuard guard;
+            httrackp *const opt = guard.live();
+            if (opt != NULL) {
+              paused=hts_setpause(opt, -1);
+              if (!paused) {
+                parsing=hts_is_parsing(opt, -1);
+                if (parsing)
+                  testing=hts_is_testing(opt);
+              }
+            }
+          }
+          if (!paused) {
+            if (!parsing)
               SetDlgItemTextCP(inprogress, IDC_inforun,LANG(LANG_F10 /*"Receiving files.","Réception des fichiers"*/)); 
             else {
-              switch(hts_is_testing(global_opt)) {
+              switch(testing) {
               case 0:
                 SetDlgItemTextCP(inprogress, IDC_inforun,LANG(LANG_F11 /*"Parsing HTML file..","Parcours du fichier HTML"*/)); 
                 break;
@@ -1793,12 +1876,8 @@ void __cdecl RunBackRobot(void* al_p) {
     __try
 #endif
 		{
-			if (global_opt != NULL)
-			{
-				hts_free_opt(global_opt);
-				global_opt = NULL;
-			}
-      global_opt = hts_create_opt();
+      /* The new window already takes clicks, so free, clear and create must be one step. */
+      whttOptRecreate();
       assert(global_opt->size_httrackp == sizeof(httrackp));
 
       CHAIN_FUNCTION(global_opt, init, httrackengine_init, NULL);

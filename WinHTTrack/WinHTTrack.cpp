@@ -198,6 +198,7 @@ CWinHTTrackApp::CWinHTTrackApp()
 {
   // HTTrack inits
   CreateMutex(NULL, FALSE, "WinHTTrack_RUN");
+  whttOptInit();
   HtsHelper = new LaunchHelp();
 }
 
@@ -206,11 +207,7 @@ CWinHTTrackApp::~CWinHTTrackApp()
   DeleteTabs();
   delete HtsHelper;
   HtsHelper=NULL;
-	if (global_opt != NULL)
-	{
-		hts_free_opt(global_opt);
-		global_opt = NULL;
-	}
+  whttOptDestroy();
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -620,6 +617,37 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       printf("help URLs ok on %d checks\n", nchecks);
+    }
+    /* A click can reach global_opt while the engine thread frees it, which no --selftest
+       run can stage, so pin what the guard decides from the pointer and the flag. */
+    {
+      httrackp *const opt = hts_create_opt();
+      static const struct { int hasOpt; BOOL running; WhttOptState want; } states[] = {
+        { 0, FALSE, WHTT_OPT_NONE },
+        /* the clear can outrun the uninit callback that closes the flag */
+        { 0, TRUE,  WHTT_OPT_NONE },
+        { 1, FALSE, WHTT_OPT_IDLE },
+        { 1, TRUE,  WHTT_OPT_LIVE }
+      };
+      int nchecks = 0;
+      for(int k=0 ; k < (int) (sizeof(states)/sizeof(states[0])) ; k++) {
+        const WhttOptState got = whttOptStateOf(states[k].hasOpt ? opt : NULL, states[k].running);
+        if (got != states[k].want) {
+          fprintf(stderr, "FATAL: a %s pointer with the flag %s reads as state %d, expected %d\n",
+                  states[k].hasOpt ? "live" : "cleared",
+                  states[k].running ? "open" : "closed", got, states[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      hts_free_opt(opt);
+      if (nchecks != 4) {
+        fprintf(stderr, "FATAL: live opt guard ran %d checks, expected 4\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("live opt guard ok on %d checks\n", nchecks);
     }
     /* Only reachable by typing into the Experts page, so pin the rule splitter here:
        a rule the engine cannot parse aborts the whole mirror. */
@@ -1667,7 +1695,8 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
-      global_opt = hts_create_opt();
+      whttOptRecreate();
+      whttOptSetEngineRunning(TRUE);    /* what the engine thread's init callback does */
       termine = 1;                 /* a mirror that already ended is not one to stop */
       if (SessionEndStop(TRUE) != WHTT_STOP_ENDED || soft_term_requested) {
         fprintf(stderr, "FATAL: session end acted on a finished mirror\n");
@@ -1715,8 +1744,8 @@ BOOL CWinHTTrackApp::InitInstance()
 
       /* A cancelled shutdown must not eat the next mirror's one ask, so redo what
          init_lance() does per mirror and ask again. */
-      hts_free_opt(global_opt);
-      global_opt = hts_create_opt();
+      whttOptRecreate();
+      whttOptSetEngineRunning(TRUE);
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED || !global_opt->state.stop) {
         fprintf(stderr, "FATAL: a cancelled shutdown consumed the next mirror's stop\n");
@@ -1727,8 +1756,8 @@ BOOL CWinHTTrackApp::InitInstance()
 
       /* The order Windows really sends: the query phase asks, the cancellation follows,
          and nothing un-asks it. On its own mirror, so no ordering can carry this case. */
-      hts_free_opt(global_opt);
-      global_opt = hts_create_opt();
+      whttOptRecreate();
+      whttOptSetEngineRunning(TRUE);
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED) {
         fprintf(stderr, "FATAL: the post-ask case could not arm its own ask\n");
@@ -1743,12 +1772,22 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
-      hts_free_opt(global_opt);
-      global_opt = NULL;
+      /* An option set no mirror is running must not be asked to stop. */
+      whttOptRecreate();
+      termine = termine_requested = shell_terminated = soft_term_requested = 0;
+      if (SessionEndStop(TRUE) != WHTT_STOP_NO_MIRROR || soft_term_requested
+          || global_opt->state.stop) {
+        fprintf(stderr, "FATAL: session end asked an option set no engine is running\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      whttOptDestroy();
       termine = soft_term_requested = 0;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 8) {
-        fprintf(stderr, "FATAL: session end ran %d checks, expected 8\n", nchecks);
+      if (nchecks != 9) {
+        fprintf(stderr, "FATAL: session end ran %d checks, expected 9\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
