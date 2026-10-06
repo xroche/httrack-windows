@@ -148,12 +148,12 @@ static CRITICAL_SECTION WhttOptLock;
 static BOOL WhttOptEngineRunning = FALSE;
 
 // see Shell.h
-void whttOptInit() {
+void WhttOptInit() {
   InitializeCriticalSection(&WhttOptLock);
 }
 
 // see Shell.h
-WhttOptState whttOptStateOf(const httrackp *opt, BOOL engineRunning) {
+WhttOptState WhttOptStateOf(const httrackp *opt, BOOL engineRunning) {
   if (opt == NULL)
     return WHTT_OPT_NONE;
   return engineRunning ? WHTT_OPT_LIVE : WHTT_OPT_IDLE;
@@ -162,7 +162,7 @@ WhttOptState whttOptStateOf(const httrackp *opt, BOOL engineRunning) {
 WhttOptGuard::WhttOptGuard() {
   EnterCriticalSection(&WhttOptLock);
   m_opt = global_opt;
-  m_state = whttOptStateOf(m_opt, WhttOptEngineRunning);
+  m_state = WhttOptStateOf(m_opt, WhttOptEngineRunning);
 }
 
 WhttOptGuard::~WhttOptGuard() {
@@ -173,19 +173,19 @@ httrackp *WhttOptGuard::live() const {
   return (m_state == WHTT_OPT_LIVE) ? m_opt : NULL;
 }
 
-httrackp *WhttOptGuard::opt() const {
+httrackp *WhttOptGuard::optIfAny() const {
   return (m_state != WHTT_OPT_NONE) ? m_opt : NULL;
 }
 
 // see Shell.h
-void whttOptSetEngineRunning(BOOL running) {
+void WhttOptSetEngineRunning(BOOL running) {
   EnterCriticalSection(&WhttOptLock);
   WhttOptEngineRunning = running;
   LeaveCriticalSection(&WhttOptLock);
 }
 
 // see Shell.h
-void whttOptRecreate() {
+void WhttOptRecreate() {
   EnterCriticalSection(&WhttOptLock);
   WhttOptEngineRunning = FALSE;
   if (global_opt != NULL) {
@@ -197,7 +197,7 @@ void whttOptRecreate() {
 }
 
 // see Shell.h
-void whttOptDestroy() {
+void WhttOptDestroy() {
   EnterCriticalSection(&WhttOptLock);
   WhttOptEngineRunning = FALSE;
   if (global_opt != NULL) {
@@ -982,7 +982,7 @@ EXECUTION_STATE (WINAPI * SetThreadExecutionState_)(IN EXECUTION_STATE) = NULL;
 void __cdecl httrackengine_init(t_hts_callbackarg *carg) {    // appelé lors de l'init de HTTRACK, avant le début d'un miroir
   ATLTRACE(__FUNCTION__ " : init\r\n");
   /* The option set is the engine's from here until uninit below. */
-  whttOptSetEngineRunning(TRUE);
+  WhttOptSetEngineRunning(TRUE);
   // Finished
   PlaySound("MirrorStarted", NULL, SND_ASYNC | SND_NOWAIT | SND_APPLICATION);
 
@@ -1003,8 +1003,8 @@ void __cdecl httrackengine_init(t_hts_callbackarg *carg) {    // appelé lors de
 }
 void __cdecl httrackengine_uninit(t_hts_callbackarg *carg) {  // appelé en fin de miroir (peut être utile!!!)
   ATLTRACE(__FUNCTION__ " : uninit\r\n");
-  /* Before hts_main2() closes opt->log, which a live call would still write to. */
-  whttOptSetEngineRunning(FALSE);
+  /* This runs before hts_main2() closes opt->log, which a live call still writes to. */
+  WhttOptSetEngineRunning(FALSE);
   // Finished
   PlaySound("MirrorFinished", NULL, SND_ASYNC | SND_NOWAIT | SND_APPLICATION);
 
@@ -1876,8 +1876,9 @@ void __cdecl RunBackRobot(void* al_p) {
     __try
 #endif
 		{
-      /* The new window already takes clicks, so free, clear and create must be one step. */
-      whttOptRecreate();
+      /* The new window already takes clicks, so free, clear and create must be one step.
+         This thread is the only writer, so the reads below need no guard. */
+      WhttOptRecreate();
       assert(global_opt->size_httrackp == sizeof(httrackp));
 
       CHAIN_FUNCTION(global_opt, init, httrackengine_init, NULL);

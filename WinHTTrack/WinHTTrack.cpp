@@ -198,7 +198,7 @@ CWinHTTrackApp::CWinHTTrackApp()
 {
   // HTTrack inits
   CreateMutex(NULL, FALSE, "WinHTTrack_RUN");
-  whttOptInit();
+  WhttOptInit();
   HtsHelper = new LaunchHelp();
 }
 
@@ -207,7 +207,7 @@ CWinHTTrackApp::~CWinHTTrackApp()
   DeleteTabs();
   delete HtsHelper;
   HtsHelper=NULL;
-  whttOptDestroy();
+  WhttOptDestroy();
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -631,7 +631,7 @@ BOOL CWinHTTrackApp::InitInstance()
       };
       int nchecks = 0;
       for(int k=0 ; k < (int) (sizeof(states)/sizeof(states[0])) ; k++) {
-        const WhttOptState got = whttOptStateOf(states[k].hasOpt ? opt : NULL, states[k].running);
+        const WhttOptState got = WhttOptStateOf(states[k].hasOpt ? opt : NULL, states[k].running);
         if (got != states[k].want) {
           fprintf(stderr, "FATAL: a %s pointer with the flag %s reads as state %d, expected %d\n",
                   states[k].hasOpt ? "live" : "cleared",
@@ -1695,8 +1695,8 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
-      whttOptRecreate();
-      whttOptSetEngineRunning(TRUE);    /* what the engine thread's init callback does */
+      WhttOptRecreate();
+      WhttOptSetEngineRunning(TRUE);    /* what the engine thread's init callback does */
       termine = 1;                 /* a mirror that already ended is not one to stop */
       if (SessionEndStop(TRUE) != WHTT_STOP_ENDED || soft_term_requested) {
         fprintf(stderr, "FATAL: session end acted on a finished mirror\n");
@@ -1744,8 +1744,8 @@ BOOL CWinHTTrackApp::InitInstance()
 
       /* A cancelled shutdown must not eat the next mirror's one ask, so redo what
          init_lance() does per mirror and ask again. */
-      whttOptRecreate();
-      whttOptSetEngineRunning(TRUE);
+      WhttOptRecreate();
+      WhttOptSetEngineRunning(TRUE);
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED || !global_opt->state.stop) {
         fprintf(stderr, "FATAL: a cancelled shutdown consumed the next mirror's stop\n");
@@ -1756,8 +1756,8 @@ BOOL CWinHTTrackApp::InitInstance()
 
       /* The order Windows really sends: the query phase asks, the cancellation follows,
          and nothing un-asks it. On its own mirror, so no ordering can carry this case. */
-      whttOptRecreate();
-      whttOptSetEngineRunning(TRUE);
+      WhttOptRecreate();
+      WhttOptSetEngineRunning(TRUE);
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED) {
         fprintf(stderr, "FATAL: the post-ask case could not arm its own ask\n");
@@ -1773,7 +1773,7 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
 
       /* An option set no mirror is running must not be asked to stop. */
-      whttOptRecreate();
+      WhttOptRecreate();
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_NO_MIRROR || soft_term_requested
           || global_opt->state.stop) {
@@ -1783,7 +1783,7 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
-      whttOptDestroy();
+      WhttOptDestroy();
       termine = soft_term_requested = 0;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
       if (nchecks != 9) {

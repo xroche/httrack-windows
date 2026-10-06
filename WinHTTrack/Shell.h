@@ -204,20 +204,21 @@ void  __cdecl httrackengine_filesave2(t_hts_callbackarg *carg, httrackp *opt, co
 
 extern httrackp *global_opt;
 
-/* What a window may do with global_opt, which the engine thread frees and recreates
+/* What may a window do with global_opt? The engine thread frees and recreates it
    once per mirror. */
 typedef enum {
-  WHTT_OPT_NONE = 0,  /* no option set: neither a call nor a read is possible */
-  WHTT_OPT_IDLE,      /* no mirror is running it: its final state is readable, nothing writable */
+  WHTT_OPT_NONE = 0,  /* no option set, so neither a call nor a read is possible */
+  WHTT_OPT_IDLE,      /* no mirror is running it, so its state is readable but not writable */
   WHTT_OPT_LIVE       /* the engine is running it, so a live call may proceed */
 } WhttOptState;
 
 /* A pointer the engine thread already cleared is never live, whatever the flag says. */
-WhttOptState whttOptStateOf(const httrackp *opt, BOOL engineRunning);
+WhttOptState WhttOptStateOf(const httrackp *opt, BOOL engineRunning);
 
 /* Pins global_opt for one engine call, so the engine thread cannot free it underneath.
-   Lock order: WhttMutex may be held while taking this one, never the reverse, and no
-   window call, SendMessage or modal box may run while it is held. */
+   Take WhttMutex first where both are needed, never the other way round. Nothing may
+   block, sleep, wait, or run a window call, SendMessage or modal box while this is held,
+   and the pointer it hands back must not outlive it. */
 class WhttOptGuard {
 public:
   WhttOptGuard();
@@ -226,23 +227,26 @@ public:
   WhttOptGuard &operator=(const WhttOptGuard &) = delete;
   /* The option set the engine is running, NULL when no mirror is running one. */
   httrackp *live() const;
-  /* Also one no mirror is running, for a read of the verdict it left behind. */
-  httrackp *opt() const;
+  /* The option set if one exists, running or not, which is how a finished mirror's
+     verdict is read. */
+  httrackp *optIfAny() const;
 private:
   WhttOptState m_state;
   httrackp *m_opt;
 };
 
 /* Open or close the engine's claim, from its own init and uninit callbacks. */
-void whttOptSetEngineRunning(BOOL running);
+void WhttOptSetEngineRunning(BOOL running);
 
-/* Free global_opt and create its replacement, both under the guard's lock. */
-void whttOptRecreate();
+/* Free global_opt, create its replacement and drop the engine's claim, all under the
+   guard's lock. */
+void WhttOptRecreate();
 
-void whttOptDestroy();
+/* Free global_opt for the last time, when the application goes away. */
+void WhttOptDestroy();
 
 /* Initialize the guard's lock, before any window exists. */
-void whttOptInit();
+void WhttOptInit();
 
 /* What a stop request did, or found already done. */
 typedef enum {
@@ -255,7 +259,8 @@ typedef enum {
 } WhttMirrorStop;
 
 /* Ask a running mirror to stop, the way the Cancel button does once confirmed.
-   @return WHTT_STOP_ASKED, or WHTT_STOP_ABORTED when this ask escalated. */
+   @return WHTT_STOP_NO_MIRROR when no mirror is running, WHTT_STOP_ASKED, or
+   WHTT_STOP_ABORTED when this ask escalated. */
 WhttMirrorStop RequestMirrorStop();
 
 /* The decision both session-end handlers share: ask at most once per mirror, and never

@@ -391,7 +391,8 @@ void Cinprogress::OnStopall()
     LANG(LANG_H1 /*"Stop WinHTTrack?",
            "Stopper WinHTTrack?"*/)
     ,MB_OKCANCEL+MB_ICONQUESTION)==IDOK) {
-    RequestMirrorStop();
+    /* Nothing to stop before the engine claims the mirror, and the user already answered. */
+    (void) RequestMirrorStop();
   }
 }
 
@@ -1108,7 +1109,7 @@ LRESULT Cinprogress::DragDropText(WPARAM wParam,LPARAM lParam) {
         }
         if (added) {
           int i=0;
-          /* Polled without the guard held, or the Sleep below would stall the mirror's end. */
+          /* It polls without the guard, or the Sleep below stalls the mirror's end. */
           for(;;) {
             int pending;
             {
@@ -1217,9 +1218,8 @@ LRESULT Cinprogress::OnEndMirror(WPARAM /* wP*/, LPARAM /*lP*/) {
   /* The engine reconciles the cache generations at abort since #1636; deleting new.* here broke resume. */
   BOOL noConnection;
   {
-    /* The verdict the finished mirror left, so opt() rather than live(). */
     WhttOptGuard guard;
-    noConnection = (guard.opt() != NULL && hts_is_exiting(guard.opt()) == 2);
+    noConnection = (guard.optIfAny() != NULL && hts_is_exiting(guard.optIfAny()) == 2);
   }
   if (noConnection) {     /* No connection! */
     AfxMessageBox(LANG_F22c );
