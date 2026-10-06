@@ -1967,8 +1967,8 @@ void findAddedScanRules(const CString &known, const CString &edited,
   }
 }
 
-// see Shell.h
-CString firstBadScanRule(const CString &edited) {
+// The first rule EDITED holds that the engine would refuse, or an empty string.
+static CString firstBadScanRule(const CString &edited) {
   CSimpleArray<CString> rules;
 
   splitStringInArray(rules, edited, instSpaceSeparatorComparator);
@@ -1982,6 +1982,15 @@ CString firstBadScanRule(const CString &edited) {
       return rules[i];
   }
   return CString();
+}
+
+// see Shell.h
+CString liveScanRuleRefusal(const CString &edited, BOOL liveEdit) {
+  const CString bad = liveEdit ? firstBadScanRule(edited) : CString();
+
+  if (bad.IsEmpty())
+    return CString();
+  return CString(LANG(LANG_LIVERULESBAD)) + "\r\n" + bad;
 }
 
 // see Shell.h

@@ -741,6 +741,10 @@ void Cinprogress::OnModifyOpt()
     maintab->m_option9.modify=
     maintab->m_option11.modify=
     maintab->m_option10.modify=1;    // mode modification
+  /* Cancel does not restore the pages here, as CShellApp::OptPannel does, so a rule
+     typed and then cancelled would reach the engine on a later OK. */
+  const CString savedRules = maintab->m_option7.m_url2;
+
   if (maintab->DoModal() == IDOK) {
     int n;
     LLint ln;
@@ -900,7 +904,8 @@ void Cinprogress::OnModifyOpt()
 		}
 
     hts_free_opt(opt);
-  }
+  } else
+    maintab->m_option7.m_url2 = savedRules;
   maintab->m_option1.modify=
     maintab->m_option2.modify=
     maintab->m_option3.modify=

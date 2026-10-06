@@ -680,24 +680,32 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("catalog keys ok on %d checks\n", nchecks);
     }
-    /* What the options page refuses before it will close. */
+    /* A bad rule must not reach a running mirror. */
     {
-      static const struct { const char* box; const char* want; } bad[] = {
-        { "+*.gif -*.zip", "" },
-        { "", "" },
-        { "+*.gif *.zip", "*.zip" },      /* no sign */
-        { "+", "+" },                     /* a sign and no pattern */
+      static const struct { const char* box; int live; const char* names; } bad[] = {
+        { "+*.gif -*.zip", 1, NULL },
+        /* an empty box must not veto the close, which is the one refusal a user
+           could not escape */
+        { "", 1, NULL },
+        { "+*.gif *.zip", 1, "*.zip" },   /* no sign */
+        { "+", 1, "+" },                  /* a sign and no pattern */
         /* a lone CR does not split a rule, so the control character stays inside it */
-        { "+a\rb", "+a\rb" },
-        { NULL, NULL }
+        { "+a\rb", 1, "+a\rb" },
+        { "*.a +", 1, "*.a" },            /* the first bad rule is the one named */
+        { "+*.gif *.zip", 0, NULL },      /* before a mirror runs, the page does not judge */
+        { NULL, 0, NULL }
       };
       int nchecks = 0;
       for(int k=0 ; bad[k].box != NULL ; k++) {
-        const CString got = firstBadScanRule(bad[k].box);
+        const CString got = liveScanRuleRefusal(bad[k].box, bad[k].live ? TRUE : FALSE);
+        const int right = bad[k].names == NULL
+          ? got.IsEmpty()
+          : got.Right((int) strlen(bad[k].names)) == bad[k].names && !got.IsEmpty();
 
-        if (got != bad[k].want) {
-          fprintf(stderr, "FATAL: box '%s' named bad rule '%s', expected '%s'\n",
-                  bad[k].box, (LPCSTR) got, bad[k].want);
+        if (!right) {
+          fprintf(stderr, "FATAL: box '%s' (live=%d) refused with '%s', expected '%s'\n",
+                  bad[k].box, bad[k].live, (LPCSTR) got,
+                  bad[k].names != NULL ? bad[k].names : "");
           fflush(stderr);
           ExitProcess(3);
         } else
@@ -720,7 +728,8 @@ BOOL CWinHTTrackApp::InitInstance()
         /* a rule holding another one is a different rule, both ways round */
         { "+*.gif", "+*.gif +*.gifx", "+*.gifx" },
         { "+*.gifx", "+*.gif", "+*.gif" },
-        /* an unsigned rule still goes, so the refusal can be logged */
+        /* an unsigned rule is reported here too, because this function does not
+           judge a rule: the options page refuses it before the panel closes */
         { "", "*.zip", "*.zip" },
         { NULL, NULL, NULL }
       };
