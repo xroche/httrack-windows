@@ -274,8 +274,13 @@ void recordLaunchedScanRules(const CString &launched);
    keeping the box order. Exposed for --selftest. */
 void findAddedScanRules(const CString &known, const CString &edited, CStringArray &added);
 
+/* What to tell the user about EDITED before the options page closes, or an empty string
+   when the page may close. LIVEEDIT is FALSE before a mirror starts, where the engine
+   never sees these rules directly. Exposed for --selftest. */
+CString liveScanRuleRefusal(const CString &edited, BOOL liveEdit);
+
 /* Send OPT's running mirror the scan rules the user added since it started, and return
-   how many it took. A refused rule is logged, and offered again on the next edit. */
+   how many it took. A refused rule is skipped, and offered again on the next edit. */
 int sendLiveScanRules(httrackp *opt, const CString &edited);
 
 /* TRUE if RULE may be handed to --host-alias: well-formed per the engine's

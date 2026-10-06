@@ -325,9 +325,13 @@ runs:
         if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
-        # A key the engine's catalog drops shows the generic tip, not a failure.
-        if ("$so" -notmatch 'catalog key ok on 1 checks') {
-          throw "selftest did not check the catalog key"
+        # A key the engine's catalog drops shows the wrong label, not a failure.
+        if ("$so" -notmatch 'catalog keys ok on 2 checks') {
+          throw "selftest did not check the catalog keys"
+        }
+        # A malformed rule must not reach a running mirror, and the page is what stops it.
+        if ("$so" -notmatch 'bad scan rules ok on 8 checks') {
+          throw "selftest did not check the rules the options page refuses"
         }
         if ("$so" -notmatch 'live scan rules ok on 10 checks') {
           throw "selftest did not check the live scan rules diff"

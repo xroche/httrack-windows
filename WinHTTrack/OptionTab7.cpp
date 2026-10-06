@@ -254,6 +254,27 @@ void COptionTab7::OnAdd2()
   }
 }
 
+// The engine would refuse a malformed rule too, but only once this page has closed.
+BOOL COptionTab7::OnKillActive()
+{
+  if (!CPropertyPage::OnKillActive())      // DDX runs here, so m_url2 is current
+    return FALSE;
+
+  const CString refusal = liveScanRuleRefusal(m_url2, modify==1 ? TRUE : FALSE);
+
+  if (!refusal.IsEmpty()) {
+    // the tip rather than a message box, whose modal loop would run the
+    // end-of-mirror teardown under this page
+    SetDlgItemTextCP(this, IDC_STATIC_tip, refusal);
+    GetDlgItem(IDC_URL2)->SetFocus();
+    MessageBeep(MB_ICONEXCLAMATION);
+    return FALSE;
+  }
+  if (modify==1)
+    SetDlgItemTextLang(this, IDC_STATIC_tip, LANG(LANG_LIVERULES));   // drop a stale refusal
+  return TRUE;
+}
+
 BOOL COptionTab7::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();

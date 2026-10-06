@@ -1967,6 +1967,37 @@ void findAddedScanRules(const CString &known, const CString &edited,
   }
 }
 
+// TRUE if the engine would take RULE, asked about the bytes hts_addfilter() will
+// measure rather than the ANSI ones MFC holds.
+static BOOL scanRuleOk(const CString &rule) {
+  char *utf8 = strdupt_utf8(rule);   // freet() nulls it, so not const
+  const BOOL ok = hts_filter_rule_ok(utf8) ? TRUE : FALSE;
+
+  freet(utf8);
+  return ok;
+}
+
+// see Shell.h
+CString liveScanRuleRefusal(const CString &edited, BOOL liveEdit) {
+  CStringArray added;
+  CString bad;
+
+  if (!liveEdit)
+    return CString();
+  // only what this edit would send, so a malformed rule the mirror started with
+  // cannot trap the page
+  findAddedScanRules(liveScanRules, edited, added);
+  for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
+    if (!scanRuleOk(added[i])) {
+      bad = added[i];
+      break;
+    }
+  }
+  if (bad.IsEmpty())
+    return CString();
+  return CString(LANG(LANG_LIVERULESBAD)) + "\r\n" + bad;
+}
+
 // see Shell.h
 int sendLiveScanRules(httrackp *opt, const CString &edited) {
   CStringArray added;
@@ -1976,15 +2007,13 @@ int sendLiveScanRules(httrackp *opt, const CString &edited) {
   for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
     char *rule = strdupt_utf8(added[i]);   // freet() nulls it, so not const
 
-    // the engine takes the bytes argv would have carried
+    // the engine takes the bytes argv would have carried. The page refuses a
+    // malformed rule first, so a refusal here means the engine ran out of memory.
     if (hts_addfilter(opt, rule)) {
       liveScanRules += " ";
       liveScanRules += added[i];
       sent++;
-    } else
-      hts_log_print(opt, LOG_WARNING,
-                    "Scan rule refused: %s (a rule is + or - then a pattern, on one short line)",
-                    rule);
+    }
     freet(rule);
   }
   return sent;

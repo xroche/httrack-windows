@@ -664,15 +664,60 @@ BOOL CWinHTTrackApp::InitInstance()
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
     {
+      const struct { const char* name; const char* text; } keys[] = {
+        { "LANG_LIVERULES", LANG(LANG_LIVERULES) },
+        { "LANG_LIVERULESBAD", LANG(LANG_LIVERULESBAD) },
+        { NULL, NULL }
+      };
       int nchecks = 0;
+      for(int k=0 ; keys[k].name != NULL ; k++) {
+        if (*keys[k].text == '\0') {
+          fprintf(stderr, "FATAL: %s is missing from the language catalog\n", keys[k].name);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("catalog keys ok on %d checks\n", nchecks);
+    }
+    /* A bad rule must not reach a running mirror. */
+    {
+      static const struct { const char* known; const char* box; int live; const char* names; } bad[] = {
+        { "", "+*.gif -*.zip", 1, NULL },
+        /* an empty box must not veto the close, which is the one refusal a user
+           could not escape */
+        { "", "", 1, NULL },
+        { "", "+*.gif *.zip", 1, "*.zip" },   /* no sign */
+        { "", "+", 1, "+" },                  /* a sign and no pattern */
+        /* a lone CR does not split a rule, so the control character stays inside it */
+        { "", "+a\rb", 1, "+a\rb" },
+        { "", "*.a +", 1, "*.a" },            /* the first bad rule is the one named */
+        /* a malformed rule the mirror started with is not this edit's to judge */
+        { "*.zip", "*.zip +*.gif", 1, NULL },
+        { "", "+*.gif *.zip", 0, NULL },      /* before a mirror runs, the page does not judge */
+        { NULL, NULL, 0, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; bad[k].box != NULL ; k++) {
+        CString got;
 
-      if (*LANG(LANG_LIVERULES) == '\0') {
-        fprintf(stderr, "FATAL: LANG_LIVERULES is missing from the language catalog\n");
-        fflush(stderr);
-        ExitProcess(3);
-      } else
-        nchecks++;
-      printf("catalog key ok on %d checks\n", nchecks);
+        recordLaunchedScanRules(bad[k].known);
+        got = liveScanRuleRefusal(bad[k].box, bad[k].live ? TRUE : FALSE);
+        const int right = bad[k].names == NULL
+          ? got.IsEmpty()
+          : got.Right((int) strlen(bad[k].names)) == bad[k].names;
+
+        if (!right) {
+          fprintf(stderr, "FATAL: box '%s' over '%s' (live=%d) refused with '%s', expected '%s'\n",
+                  bad[k].box, bad[k].known, bad[k].live, (LPCSTR) got,
+                  bad[k].names != NULL ? bad[k].names : "");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      recordLaunchedScanRules("");          /* leave no rule behind for the first mirror */
+      printf("bad scan rules ok on %d checks\n", nchecks);
     }
     /* A live rule cannot be taken back, so only what the user added may be sent. */
     {
@@ -689,7 +734,8 @@ BOOL CWinHTTrackApp::InitInstance()
         /* a rule holding another one is a different rule, both ways round */
         { "+*.gif", "+*.gif +*.gifx", "+*.gifx" },
         { "+*.gifx", "+*.gif", "+*.gif" },
-        /* an unsigned rule still goes, so the refusal can be logged */
+        /* an unsigned rule is reported here too, because this function does not
+           judge a rule: the options page refuses it before the panel closes */
         { "", "*.zip", "*.zip" },
         { NULL, NULL, NULL }
       };
