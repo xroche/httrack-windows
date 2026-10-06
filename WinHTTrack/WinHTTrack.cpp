@@ -682,7 +682,7 @@ BOOL CWinHTTrackApp::InitInstance()
     }
     /* A bad rule must not reach a running mirror. */
     {
-      static const struct { const char* known; const char* box; int live; const char* names; } bad[] = {
+      static const struct { const char* opened; const char* box; int live; const char* names; } bad[] = {
         { "", "+*.gif -*.zip", 1, NULL },
         /* an empty box must not veto the close, which is the one refusal a user
            could not escape */
@@ -692,101 +692,58 @@ BOOL CWinHTTrackApp::InitInstance()
         /* a lone CR does not split a rule, so the control character stays inside it */
         { "", "+a\rb", 1, "+a\rb" },
         { "", "*.a +", 1, "*.a" },            /* the first bad rule is the one named */
-        /* a malformed rule the mirror started with is not this edit's to judge */
-        { "*.zip", "*.zip +*.gif", 1, NULL },
+        /* an untouched box is never sent, so the mirror's own bad rule is not judged */
+        { "*.zip", "*.zip", 1, NULL },
+        /* once the box changes, every rule in it must pass, because the engine
+           refuses the whole list over one */
+        { "*.zip", "*.zip +*.gif", 1, "*.zip" },
         { "", "+*.gif *.zip", 0, NULL },      /* before a mirror runs, the page does not judge */
         { NULL, NULL, 0, NULL }
       };
       int nchecks = 0;
       for(int k=0 ; bad[k].box != NULL ; k++) {
-        CString got;
-
-        recordLaunchedScanRules(bad[k].known);
-        got = liveScanRuleRefusal(bad[k].box, bad[k].live ? TRUE : FALSE);
+        const CString got =
+          liveScanRuleRefusal(bad[k].opened, bad[k].box, bad[k].live ? TRUE : FALSE);
         const int right = bad[k].names == NULL
           ? got.IsEmpty()
           : got.Right((int) strlen(bad[k].names)) == bad[k].names;
 
         if (!right) {
           fprintf(stderr, "FATAL: box '%s' over '%s' (live=%d) refused with '%s', expected '%s'\n",
-                  bad[k].box, bad[k].known, bad[k].live, (LPCSTR) got,
+                  bad[k].box, bad[k].opened, bad[k].live, (LPCSTR) got,
                   bad[k].names != NULL ? bad[k].names : "");
           fflush(stderr);
           ExitProcess(3);
         } else
           nchecks++;
       }
-      recordLaunchedScanRules("");          /* leave no rule behind for the first mirror */
       printf("bad scan rules ok on %d checks\n", nchecks);
     }
-    /* A live rule cannot be taken back, so only what the user added may be sent. */
+    /* What the engine is actually told: the whole box, or nothing at all. */
     {
-      static const struct { const char* known; const char* edited; const char* want; } rules[] = {
-        { "+*.gif", "+*.gif", "" },
-        { "+*.gif", "+*.gif -*.zip", "-*.zip" },
-        { "", "+*.gif\r\n-*.zip\t+*.png", "+*.gif|-*.zip|+*.png" },
-        { "", "-*.zip -*.zip", "-*.zip" },
-        /* a removal reaches the engine as nothing at all */
-        { "+*.gif -*.zip", "+*.gif", "" },
-        /* reordering the box is not an edit */
-        { "+*.gif -*.zip", "-*.zip +*.gif", "" },
-        { "", " \r\n\t ", "" },
-        /* a rule holding another one is a different rule, both ways round */
-        { "+*.gif", "+*.gif +*.gifx", "+*.gifx" },
-        { "+*.gifx", "+*.gif", "+*.gif" },
-        /* an unsigned rule is reported here too, because this function does not
-           judge a rule: the options page refuses it before the panel closes */
-        { "", "*.zip", "*.zip" },
-        { NULL, NULL, NULL }
-      };
-      int nchecks = 0;
-      for(int k=0 ; rules[k].known != NULL ; k++) {
-        CStringArray got;
-        CString joined;
-        findAddedScanRules(rules[k].known, rules[k].edited, got);
-        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
-          if (j != 0)
-            joined += "|";
-          joined += got[j];
-        }
-        if (joined != rules[k].want) {
-          fprintf(stderr, "FATAL: rules '%s' over '%s' added '%s', expected '%s'\n",
-                  rules[k].edited, rules[k].known, (LPCSTR) joined, rules[k].want);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      printf("live scan rules ok on %d checks\n", nchecks);
-    }
-    /* What the engine is actually told. The rows run in order, because each call
-       changes what the next one sees. */
-    {
-      static const struct { const char* edited; int want; } sends[] = {
+      static const struct { const char* box; int want; } sends[] = {
         { "+*.gif -*.zip", 1 },
-        { "+*.gif -*.zip", 0 },           /* the engine is not told the same rule twice */
-        { "+*.gif -*.zip *.bad", 0 },     /* and it refuses an unsigned one */
+        { "+*.gif *.zip", 0 },            /* one bad rule refuses the whole list */
+        { "", 1 },                        /* an empty list is valid and clears the rules */
         { NULL, 0 }
       };
       httrackp *const opt = hts_create_opt();
       int nchecks = 0;
 
       opt->log = opt->errlog = NULL;
-      recordLaunchedScanRules("+*.gif");
-      for(int k=0 ; sends[k].edited != NULL ; k++) {
-        const int got = sendLiveScanRules(opt, sends[k].edited);
+      for(int k=0 ; sends[k].box != NULL ; k++) {
+        const int got = setLiveScanRules(opt, sends[k].box) ? 1 : 0;
 
         if (got != sends[k].want) {
-          fprintf(stderr, "FATAL: box '%s' sent %d rule(s), expected %d\n",
-                  sends[k].edited, got, sends[k].want);
+          fprintf(stderr, "FATAL: box '%s' was %s, expected %s\n", sends[k].box,
+                  got ? "taken" : "refused", sends[k].want ? "taken" : "refused");
           fflush(stderr);
           ExitProcess(3);
         } else
           nchecks++;
       }
       hts_free_opt(opt);
-      recordLaunchedScanRules("");        /* leave no rule behind for the first mirror */
-      printf("live rules sent ok on %d checks\n", nchecks);
+      printf("live rules set ok on %d checks\n", nchecks);
     }
     /* The grey cue the Flow Control and Limits pages draw in an empty field. */
     {

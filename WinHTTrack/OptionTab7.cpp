@@ -260,7 +260,7 @@ BOOL COptionTab7::OnKillActive()
   if (!CPropertyPage::OnKillActive())      // DDX runs here, so m_url2 is current
     return FALSE;
 
-  const CString refusal = liveScanRuleRefusal(m_url2, modify==1 ? TRUE : FALSE);
+  const CString refusal = liveScanRuleRefusal(m_rulesAtOpen, m_url2, modify==1 ? TRUE : FALSE);
 
   if (!refusal.IsEmpty()) {
     // the tip rather than a message box, whose modal loop would run the

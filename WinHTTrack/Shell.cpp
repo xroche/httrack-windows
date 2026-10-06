@@ -769,7 +769,6 @@ void compute_options() {
   if(strcmp(maintab->m_option7.m_url2,"")!=0){
     ShellOptions->buff_filtres = maintab->m_option7.m_url2;
   } else ShellOptions->buff_filtres = "";
-  recordLaunchedScanRules(ShellOptions->buff_filtres);   // what lance() will hand the engine
   
   
   // MIME
@@ -1939,35 +1938,7 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
   }
 }
 
-// The scan rules the running mirror already has. Written from the UI thread only.
-static CString liveScanRules;
-
-// see Shell.h
-void recordLaunchedScanRules(const CString &launched) {
-  liveScanRules = launched;
-}
-
-// see Shell.h
-void findAddedScanRules(const CString &known, const CString &edited,
-                        CStringArray &added) {
-  CSimpleArray<CString> before, now;
-
-  splitStringInArray(before, known, instSpaceSeparatorComparator);
-  splitStringInArray(now, edited, instSpaceSeparatorComparator);
-  for(int i = 0 ; i < now.GetSize() ; i++) {
-    BOOL seen = FALSE;
-
-    for(int j = 0 ; !seen && j < before.GetSize() ; j++)
-      seen = now[i] == before[j];
-    // a rule typed twice is one rule
-    for(INT_PTR j = 0 ; !seen && j < added.GetSize() ; j++)
-      seen = now[i] == added[j];
-    if (!seen)
-      added.Add(now[i]);
-  }
-}
-
-// TRUE if the engine would take RULE, asked about the bytes hts_addfilter() will
+// TRUE if the engine would take RULE, asked about the bytes hts_setfilters() will
 // measure rather than the ANSI ones MFC holds.
 static BOOL scanRuleOk(const CString &rule) {
   char *utf8 = strdupt_utf8(rule);   // freet() nulls it, so not const
@@ -1978,45 +1949,40 @@ static BOOL scanRuleOk(const CString &rule) {
 }
 
 // see Shell.h
-CString liveScanRuleRefusal(const CString &edited, BOOL liveEdit) {
-  CStringArray added;
-  CString bad;
+CString liveScanRuleRefusal(const CString &opened, const CString &edited,
+                            BOOL liveEdit) {
+  CSimpleArray<CString> rules;
 
-  if (!liveEdit)
+  // an untouched box is never sent, so a rule the mirror started with is not
+  // this edit's to judge
+  if (!liveEdit || edited == opened)
     return CString();
-  // only what this edit would send, so a malformed rule the mirror started with
-  // cannot trap the page
-  findAddedScanRules(liveScanRules, edited, added);
-  for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
-    if (!scanRuleOk(added[i])) {
-      bad = added[i];
-      break;
-    }
+  // the engine refuses the whole list over one bad rule, so every rule must pass
+  splitStringInArray(rules, edited, instSpaceSeparatorComparator);
+  for(int i = 0 ; i < rules.GetSize() ; i++) {
+    if (!scanRuleOk(rules[i]))
+      return CString(LANG(LANG_LIVERULESBAD)) + "\r\n" + rules[i];
   }
-  if (bad.IsEmpty())
-    return CString();
-  return CString(LANG(LANG_LIVERULESBAD)) + "\r\n" + bad;
+  return CString();
 }
 
 // see Shell.h
-int sendLiveScanRules(httrackp *opt, const CString &edited) {
-  CStringArray added;
-  int sent = 0;
+BOOL setLiveScanRules(httrackp *opt, const CString &edited) {
+  CSimpleArray<CString> rules;
+  char **list;                          // freet() nulls what it frees, so not const
+  BOOL taken;
+  int i;
 
-  findAddedScanRules(liveScanRules, edited, added);
-  for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
-    char *rule = strdupt_utf8(added[i]);   // freet() nulls it, so not const
-
-    // the engine takes the bytes argv would have carried. The page refuses a
-    // malformed rule first, so a refusal here means the engine ran out of memory.
-    if (hts_addfilter(opt, rule)) {
-      liveScanRules += " ";
-      liveScanRules += added[i];
-      sent++;
-    }
-    freet(rule);
-  }
-  return sent;
+  splitStringInArray(rules, edited, instSpaceSeparatorComparator);
+  if ((list = (char **) calloct(rules.GetSize() + 1, sizeof(*list))) == NULL)
+    return FALSE;
+  for(i = 0 ; i < rules.GetSize() ; i++)
+    list[i] = strdupt_utf8(rules[i]);   // the bytes the command line would have carried
+  taken = hts_setfilters(opt, list) ? TRUE : FALSE;
+  for(i = 0 ; i < rules.GetSize() ; i++)
+    freet(list[i]);
+  freet(list);
+  return taken;
 }
 
 // A value restored from a profile never met the dialog, so it is checked here instead,

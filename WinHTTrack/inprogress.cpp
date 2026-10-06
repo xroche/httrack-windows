@@ -745,6 +745,8 @@ void Cinprogress::OnModifyOpt()
      typed and then cancelled would reach the engine on a later OK. */
   const CString savedRules = maintab->m_option7.m_url2;
 
+  maintab->m_option7.m_rulesAtOpen = savedRules;
+
   if (maintab->DoModal() == IDOK) {
     int n;
     LLint ln;
@@ -900,7 +902,10 @@ void Cinprogress::OnModifyOpt()
 
 		if (global_opt != NULL) {
 			copy_htsopt(opt, global_opt);
-			sendLiveScanRules(global_opt, maintab->m_option7.m_url2);   // the Scan Rules box
+			// the whole Scan Rules box replaces the mirror's rules, so send it only when
+			// the user changed it
+			if (maintab->m_option7.m_url2 != savedRules)
+				setLiveScanRules(global_opt, maintab->m_option7.m_url2);
 		}
 
     hts_free_opt(opt);

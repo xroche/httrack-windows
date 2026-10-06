@@ -266,22 +266,15 @@ CString profile_decode(const char* from);
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
 
-/* Record the scan rules a starting mirror is given, so a later live edit only sends
-   what the user added to them. */
-void recordLaunchedScanRules(const CString &launched);
-
-/* Append to ADDED every rule in EDITED that neither KNOWN nor ADDED already holds,
-   keeping the box order. Exposed for --selftest. */
-void findAddedScanRules(const CString &known, const CString &edited, CStringArray &added);
-
 /* What to tell the user about EDITED before the options page closes, or an empty string
-   when the page may close. LIVEEDIT is FALSE before a mirror starts, where the engine
-   never sees these rules directly. Exposed for --selftest. */
-CString liveScanRuleRefusal(const CString &edited, BOOL liveEdit);
+   when the page may close. OPENED is the box as the panel opened, and an unchanged box
+   is never judged. LIVEEDIT is FALSE before a mirror starts, where the engine never
+   sees these rules directly. Exposed for --selftest. */
+CString liveScanRuleRefusal(const CString &opened, const CString &edited, BOOL liveEdit);
 
-/* Send OPT's running mirror the scan rules the user added since it started, and return
-   how many it took. A refused rule is skipped, and offered again on the next edit. */
-int sendLiveScanRules(httrackp *opt, const CString &edited);
+/* Give OPT's running mirror the whole rules box, which replaces the rules it had.
+   FALSE if the engine refused the list, which it does over any one bad rule. */
+BOOL setLiveScanRules(httrackp *opt, const CString &edited);
 
 /* TRUE if RULE may be handed to --host-alias: well-formed per the engine's
    hts_host_alias_rule_ok(), and short enough for argv. A rule it refuses aborts the mirror. */
