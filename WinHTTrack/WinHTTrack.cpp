@@ -661,6 +661,43 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok on %d checks\n", nchecks);
     }
+    /* A live rule cannot be taken back, so only what the user added may be sent. */
+    {
+      static const struct { const char* known; const char* edited; const char* want; } rules[] = {
+        { "+*.gif", "+*.gif", "" },
+        { "+*.gif", "+*.gif -*.zip", "-*.zip" },
+        { "", "+*.gif\r\n-*.zip\t+*.png", "+*.gif|-*.zip|+*.png" },
+        { "", "-*.zip -*.zip", "-*.zip" },
+        /* a removal reaches the engine as nothing at all */
+        { "+*.gif -*.zip", "+*.gif", "" },
+        /* reordering the box is not an edit */
+        { "+*.gif -*.zip", "-*.zip +*.gif", "" },
+        { "", " \r\n\t ", "" },
+        { "", "", "" },
+        /* the engine refuses an unsigned rule; it must still reach it, to be logged */
+        { "", "*.zip", "*.zip" },
+        { NULL, NULL, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; rules[k].known != NULL ; k++) {
+        CStringArray got;
+        CString joined;
+        liveScanRulesAdded(rules[k].known, rules[k].edited, got);
+        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
+          if (j != 0)
+            joined += "|";
+          joined += got[j];
+        }
+        if (joined != rules[k].want) {
+          fprintf(stderr, "FATAL: rules '%s' over '%s' added '%s', expected '%s'\n",
+                  rules[k].edited, rules[k].known, (LPCSTR) joined, rules[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("live scan rules ok on %d checks\n", nchecks);
+    }
     /* The grey cue the Flow Control and Limits pages draw in an empty field. */
     {
       static const struct { double value; const WCHAR *want; } cues[] = {

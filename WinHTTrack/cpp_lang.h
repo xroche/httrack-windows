@@ -531,6 +531,7 @@ Please visit our Website: http://www.httrack.com
 #define LANG_WACZ LANGSEL("LANG_WACZ")
 #define LANG_WACZTIP LANGSEL("LANG_WACZTIP")
 #define LANG_URLLIST LANGSEL("LANG_URLLIST")
+#define LANG_LIVERULES LANGSEL("LANG_LIVERULES")
 
 #endif
 

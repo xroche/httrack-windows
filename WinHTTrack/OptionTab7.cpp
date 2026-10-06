@@ -260,19 +260,14 @@ BOOL COptionTab7::OnInitDialog()
   BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 
-  // mode modif à la volée
+  // mode modif à la volée: le moteur accepte une règle en cours de miroir
   if (modify==1) {
-    GetDlgItem(IDC_ADD1) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_ADD2) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_URL2) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_STATIC_finfo) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_STATIC_tip) ->ModifyStyle(0,WS_DISABLED);
-  } else {
-    GetDlgItem(IDC_ADD1) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_ADD2) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_URL2) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_STATIC_finfo) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_STATIC_tip) ->ModifyStyle(WS_DISABLED,0);
+    const char *note = LANG(LANG_LIVERULES);
+
+    if (note == NULL || *note == '\0')
+      note = "A rule you add here applies to the mirror now running. "
+             "A rule you remove applies to the next one.";
+    SetDlgItemTextCP(this, IDC_STATIC_tip, note);
   }
 
   // Patcher l'interface pour les Français ;-)

@@ -769,6 +769,7 @@ void compute_options() {
   if(strcmp(maintab->m_option7.m_url2,"")!=0){
     ShellOptions->buff_filtres = maintab->m_option7.m_url2;
   } else ShellOptions->buff_filtres = "";
+  liveScanRulesLaunched(ShellOptions->buff_filtres);   // what lance() will hand the engine
   
   
   // MIME
@@ -1936,6 +1937,66 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
     }
     rules.Add(rule);
   }
+}
+
+/* The scan rules the running mirror already has. Written from the UI thread only,
+   as the mirror starts and whenever the options panel adds to them. */
+static CString liveScanRules;
+
+// see Shell.h
+void liveScanRulesLaunched(const CString &launched) {
+  liveScanRules = launched;
+}
+
+// see Shell.h
+int liveScanRulesAdded(const CString &known, const CString &edited,
+                       CStringArray &added) {
+  CSimpleArray<CString> before, now;
+  int count = 0;
+
+  splitStringInArray(before, known, instSpaceSeparatorComparator);
+  splitStringInArray(now, edited, instSpaceSeparatorComparator);
+  for(int i = 0 ; i < now.GetSize() ; i++) {
+    BOOL seen = FALSE;
+
+    for(int j = 0 ; !seen && j < before.GetSize() ; j++)
+      seen = now[i] == before[j];
+    // a rule typed twice is one rule
+    for(INT_PTR j = 0 ; !seen && j < added.GetSize() ; j++)
+      seen = now[i] == added[j];
+    if (!seen) {
+      added.Add(now[i]);
+      count++;
+    }
+  }
+  return count;
+}
+
+// see Shell.h
+int sendLiveScanRules(const CString &edited) {
+  CStringArray added;
+  int sent = 0;
+
+  if (global_opt == NULL)
+    return 0;
+  liveScanRulesAdded(liveScanRules, edited, added);
+  for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
+    char *rule = strdupt_utf8(added[i]);   // freet() nulls it, so not const
+
+    if (rule == NULL)
+      continue;
+    // the engine takes the bytes argv would have carried, and logs each rule it applies
+    if (hts_addfilter(global_opt, rule)) {
+      liveScanRules += " ";
+      liveScanRules += added[i];
+      sent++;
+    } else
+      hts_log_print(global_opt, LOG_WARNING,
+                    "Scan rule refused: %s (a rule starts with + or -, and holds one line)",
+                    rule);
+    freet(rule);
+  }
+  return sent;
 }
 
 // A value restored from a profile never met the dialog, so it is checked here instead,

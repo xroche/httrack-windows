@@ -266,6 +266,18 @@ CString profile_decode(const char* from);
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
 
+/* Record the scan rules a starting mirror is given, so a later live edit only sends
+   what the user added to them. */
+void liveScanRulesLaunched(const CString &launched);
+
+/* Append to ADDED the scan rules EDITED holds and KNOWN does not, comparing whole
+   rules and keeping the box order. Exposed for --selftest. */
+int liveScanRulesAdded(const CString &known, const CString &edited, CStringArray &added);
+
+/* Send to the running mirror the scan rules the user added since it started, and
+   return how many it took. A rule the engine refuses is logged, not retried. */
+int sendLiveScanRules(const CString &edited);
+
 /* TRUE if RULE may be handed to --host-alias: well-formed per the engine's
    hts_host_alias_rule_ok(), and short enough for argv. A rule it refuses aborts the mirror. */
 BOOL isHostAliasArgument(const CString &rule);
