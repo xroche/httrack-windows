@@ -664,15 +664,46 @@ BOOL CWinHTTrackApp::InitInstance()
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
     {
+      const struct { const char* name; const char* text; } keys[] = {
+        { "LANG_LIVERULES", LANG(LANG_LIVERULES) },
+        { "LANG_LIVERULESBAD", LANG(LANG_LIVERULESBAD) },
+        { NULL, NULL }
+      };
       int nchecks = 0;
+      for(int k=0 ; keys[k].name != NULL ; k++) {
+        if (*keys[k].text == '\0') {
+          fprintf(stderr, "FATAL: %s is missing from the language catalog\n", keys[k].name);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("catalog keys ok on %d checks\n", nchecks);
+    }
+    /* What the options page refuses before it will close. */
+    {
+      static const struct { const char* box; const char* want; } bad[] = {
+        { "+*.gif -*.zip", "" },
+        { "", "" },
+        { "+*.gif *.zip", "*.zip" },      /* no sign */
+        { "+", "+" },                     /* a sign and no pattern */
+        /* a lone CR does not split a rule, so the control character stays inside it */
+        { "+a\rb", "+a\rb" },
+        { NULL, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; bad[k].box != NULL ; k++) {
+        const CString got = firstBadScanRule(bad[k].box);
 
-      if (*LANG(LANG_LIVERULES) == '\0') {
-        fprintf(stderr, "FATAL: LANG_LIVERULES is missing from the language catalog\n");
-        fflush(stderr);
-        ExitProcess(3);
-      } else
-        nchecks++;
-      printf("catalog key ok on %d checks\n", nchecks);
+        if (got != bad[k].want) {
+          fprintf(stderr, "FATAL: box '%s' named bad rule '%s', expected '%s'\n",
+                  bad[k].box, (LPCSTR) got, bad[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("bad scan rules ok on %d checks\n", nchecks);
     }
     /* A live rule cannot be taken back, so only what the user added may be sent. */
     {

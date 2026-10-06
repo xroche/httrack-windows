@@ -1968,6 +1968,23 @@ void findAddedScanRules(const CString &known, const CString &edited,
 }
 
 // see Shell.h
+CString firstBadScanRule(const CString &edited) {
+  CSimpleArray<CString> rules;
+
+  splitStringInArray(rules, edited, instSpaceSeparatorComparator);
+  for(int i = 0 ; i < rules.GetSize() ; i++) {
+    char *rule = strdupt_utf8(rules[i]);   // freet() nulls it, so not const
+    // ask about the bytes hts_addfilter() will measure, not the ANSI ones
+    const BOOL ok = hts_filter_rule_ok(rule) ? TRUE : FALSE;
+
+    freet(rule);
+    if (!ok)
+      return rules[i];
+  }
+  return CString();
+}
+
+// see Shell.h
 int sendLiveScanRules(httrackp *opt, const CString &edited) {
   CStringArray added;
   int sent = 0;
@@ -1976,15 +1993,13 @@ int sendLiveScanRules(httrackp *opt, const CString &edited) {
   for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
     char *rule = strdupt_utf8(added[i]);   // freet() nulls it, so not const
 
-    // the engine takes the bytes argv would have carried
+    // the engine takes the bytes argv would have carried. The page refuses a
+    // malformed rule, so one refused here was never shown to the user.
     if (hts_addfilter(opt, rule)) {
       liveScanRules += " ";
       liveScanRules += added[i];
       sent++;
-    } else
-      hts_log_print(opt, LOG_WARNING,
-                    "Scan rule refused: %s (a rule is + or - then a pattern, on one short line)",
-                    rule);
+    }
     freet(rule);
   }
   return sent;

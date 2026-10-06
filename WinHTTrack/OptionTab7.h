@@ -62,6 +62,7 @@ public:
 	//{{AFX_VIRTUAL(COptionTab7)
 	protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+	virtual BOOL OnKillActive();
 	//}}AFX_VIRTUAL
 
 // Implementation

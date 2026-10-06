@@ -254,6 +254,26 @@ void COptionTab7::OnAdd2()
   }
 }
 
+// The engine would refuse a malformed rule too, but only once this page has closed.
+BOOL COptionTab7::OnKillActive()
+{
+  if (!CPropertyPage::OnKillActive())      // DDX runs here, so m_url2 is current
+    return FALSE;
+  if (modify==1) {
+    const CString bad = firstBadScanRule(m_url2);
+
+    if (!bad.IsEmpty()) {
+      CString msg(LANG(LANG_LIVERULESBAD));
+
+      msg += "\r\n";
+      msg += bad;
+      AfxMessageBox(msg, MB_OK|MB_ICONEXCLAMATION);
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
 BOOL COptionTab7::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();

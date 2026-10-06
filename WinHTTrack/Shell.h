@@ -274,8 +274,12 @@ void recordLaunchedScanRules(const CString &launched);
    keeping the box order. Exposed for --selftest. */
 void findAddedScanRules(const CString &known, const CString &edited, CStringArray &added);
 
+/* The first rule in EDITED the engine would refuse, or an empty string when it would
+   take them all. A rule is never empty itself. Exposed for --selftest. */
+CString firstBadScanRule(const CString &edited);
+
 /* Send OPT's running mirror the scan rules the user added since it started, and return
-   how many it took. A refused rule is logged, and offered again on the next edit. */
+   how many it took. A rule it refuses is skipped, and offered again on the next edit. */
 int sendLiveScanRules(httrackp *opt, const CString &edited);
 
 /* TRUE if RULE may be handed to --host-alias: well-formed per the engine's
