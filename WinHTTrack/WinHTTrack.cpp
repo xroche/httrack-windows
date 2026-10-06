@@ -661,6 +661,19 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok on %d checks\n", nchecks);
     }
+    /* A key the engine's catalog stops carrying shows the wrong label rather than
+       failing, so CI reads it here. */
+    {
+      int nchecks = 0;
+
+      if (*LANG(LANG_LIVERULES) == '\0') {
+        fprintf(stderr, "FATAL: LANG_LIVERULES is missing from the language catalog\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      printf("catalog key ok on %d checks\n", nchecks);
+    }
     /* A live rule cannot be taken back, so only what the user added may be sent. */
     {
       static const struct { const char* known; const char* edited; const char* want; } rules[] = {

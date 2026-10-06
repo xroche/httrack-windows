@@ -270,14 +270,8 @@ BOOL COptionTab7::OnInitDialog()
   }
 
   // mode modif à la volée, après le patch de langue qui réécrit le même libellé
-  if (modify==1) {
-    const char *note = LANG(LANG_LIVERULES);
-
-    if (*note == '\0')
-      note = "A rule you add here applies to the mirror now running, and wins over the rules "
-             "above it. A rule you remove applies to the next one.";
-    SetDlgItemTextCP(this, IDC_STATIC_tip, note);
-  }
+  if (modify==1)
+    SetDlgItemTextLang(this, IDC_STATIC_tip, LANG(LANG_LIVERULES));
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
