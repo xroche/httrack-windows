@@ -35,6 +35,7 @@ Please visit our Website: http://www.httrack.com
 #include "NewProj.h"
 
 #include <limits.h>   /* after the PCH, which is where the compiler starts reading */
+#include <ctype.h>
 
 #include <WS2tcpip.h>  // Note: weird C2894 error if not included here
 extern "C" {
@@ -1864,10 +1865,19 @@ CString change(char* chaine,char c) {
   return chaine1;
 }
 
-// isspace()'s C-locale set: what the engine's hts_scan_token() splits a rules or URL
-// field on, and what WebHTTrack and the Android app split the host-alias field on.
+// The engine's hts_scan_token() ends a rule on any isspace() byte, so --selftest pins
+// this set against isspace() itself.
 static inline BOOL isRuleSpace(const char c) {
   return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
+}
+
+// see Shell.h
+int ruleSeparatorMismatch(void) {
+  for(int c = 0 ; c < 256 ; c++) {
+    if ((isRuleSpace((char) c) != FALSE) != (isspace(c) != 0))
+      return c;
+  }
+  return -1;
 }
 
 class SeparatorComparator {
@@ -1951,7 +1961,7 @@ static BOOL presetHoldsRule(const CString &preset, const CString &rule) {
 }
 
 // Returns LINE with PRESET's rules gone, spacing kept around what stays. Both loops below
-// must read the same separator set, or a byte that neither skips nor ends a rule hangs them.
+// must read the same set, or a byte that neither skips nor ends a rule hangs them.
 static CString keepRulesInLine(const CString &line, const CString &preset) {
   const int size = line.GetLength();
   CString kept;
@@ -1990,8 +2000,7 @@ CString applyRulePreset(const CString &box, const CString &preset, BOOL checked)
 
     while (eol < size && box[eol] != '\n')
       eol++;
-    CString line = box.Mid(pos, eol - pos);
-    line.TrimRight("\r");                  // the control's CRLF
+    const CString line = box.Mid(pos, eol - pos);
     const CString kept = keepRulesInLine(line, preset);
     if (!kept.IsEmpty()) {
       if (!out.IsEmpty())

@@ -683,7 +683,6 @@ BOOL CWinHTTrackApp::InitInstance()
         /* a rule removed from the middle keeps the indent and both neighbours */
         { "  +*.zip +*.gif +*.htm", 0, "  +*.zip +*.htm" },
         /* the engine splits on any isspace() byte, so none of these glue two rules */
-        { "+*.gif\r +*.zip", 0, "+*.zip" },
         { "+*.gif\r+*.zip", 0, "+*.zip" },
         { "+*.gif\v+*.zip", 0, "+*.zip" },
         { "+*.gif\f+*.zip", 0, "+*.zip" },
@@ -709,6 +708,17 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       printf("rule presets ok on %d checks\n", nchecks);
+    }
+    /* The engine ends a rule on any isspace() byte and exports no splitter of its own. */
+    {
+      const int bad = ruleSeparatorMismatch();
+
+      if (bad >= 0) {
+        fprintf(stderr, "FATAL: byte %d ends a rule here and not for isspace()\n", bad);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("rule separators ok on 256 bytes\n");
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
@@ -742,6 +752,8 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "*.a\r+*.gif", 1, "*.a" },
         { "", "*.a\v+*.gif", 1, "*.a" },
         { "", "+*.gif\f-*.zip", 1, NULL },
+        /* nothing splits on this one, so it is what still reaches the engine's check */
+        { "", "+a\001b", 1, "+a\001b" },
         { "", "*.a +", 1, "*.a" },            /* the first bad rule is the one named */
         /* an untouched box is never sent, so the mirror's own bad rule is not judged */
         { "*.zip", "*.zip", 1, NULL },
