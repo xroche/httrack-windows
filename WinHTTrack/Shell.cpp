@@ -1864,6 +1864,12 @@ CString change(char* chaine,char c) {
   return chaine1;
 }
 
+// isspace()'s C-locale set: what the engine's hts_scan_token() splits a rules or URL
+// field on, and what WebHTTrack and the Android app split the host-alias field on.
+static inline BOOL isRuleSpace(const char c) {
+  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
+}
+
 class SeparatorComparator {
 public:
   inline virtual bool isSeparator(const char c) const = 0;
@@ -1872,7 +1878,7 @@ public:
 class SpaceSeparatorComparator: public SeparatorComparator {
 public:
   inline bool isSeparator(const char c) const {
-    return c == ' ' || c == '\t' || c == '\n';
+    return isRuleSpace(c) != FALSE;
   }
 };
 
@@ -1907,12 +1913,6 @@ static void splitStringInArray(CSimpleArray<CString> &args,
       last = i + 1;
     }
   }
-}
-
-// isspace()'s C-locale set, so a rules box splits the same here, in WebHTTrack and in
-// the Android app, whose Java \s covers \v and \f too.
-static inline BOOL isRuleSpace(const char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
 }
 
 // Split a rule field the way WebHTTrack does; both read the same winprofile.ini.
@@ -1950,13 +1950,8 @@ static BOOL presetHoldsRule(const CString &preset, const CString &rule) {
   return FALSE;
 }
 
-// Separates two rules inside one line, so narrower than isRuleSpace() above. Both loops
-// below must read the same set, or a character that neither skips nor ends a rule hangs them.
-static inline BOOL isRuleGap(const char c) {
-  return c == ' ' || c == '\t';
-}
-
-// Returns LINE with PRESET's rules gone, spacing kept around what stays.
+// Returns LINE with PRESET's rules gone, spacing kept around what stays. Both loops below
+// must read the same separator set, or a byte that neither skips nor ends a rule hangs them.
 static CString keepRulesInLine(const CString &line, const CString &preset) {
   const int size = line.GetLength();
   CString kept;
@@ -1967,13 +1962,12 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
     int end;
     CString rule;
 
-    while (p < size && isRuleGap(line[p]))
+    while (p < size && isRuleSpace(line[p]))
       p++;
     end = p;
-    while (end < size && !isRuleGap(line[end]))
+    while (end < size && !isRuleSpace(line[end]))
       end++;
     rule = line.Mid(p, end - p);
-    rule.Trim(" \t\r\n");                  // the rule as the engine would receive it
     if (!rule.IsEmpty() && !presetHoldsRule(preset, rule)) {
       // the spacing the user typed, the line's indent only before the first rule
       if (!kept.IsEmpty() || sep == 0)

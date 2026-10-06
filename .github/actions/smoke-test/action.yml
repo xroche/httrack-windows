@@ -326,7 +326,7 @@ runs:
           throw "selftest did not check the Experts rule splitter"
         }
         # A preset checkbox rewrites the rules box, and only a click can reach that code.
-        if ("$so" -notmatch 'rule presets ok on 19 checks') {
+        if ("$so" -notmatch 'rule presets ok on 22 checks') {
           throw "selftest did not check the preset checkboxes"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure.
@@ -334,10 +334,10 @@ runs:
           throw "selftest did not check the catalog keys"
         }
         # A malformed rule must not reach a running mirror, and the page is what stops it.
-        if ("$so" -notmatch 'bad scan rules ok on 9 checks') {
+        if ("$so" -notmatch 'bad scan rules ok on 11 checks') {
           throw "selftest did not check the rules the options page refuses"
         }
-        if ("$so" -notmatch 'live rules set ok on 3 checks') {
+        if ("$so" -notmatch 'live rules set ok on 4 checks') {
           throw "selftest did not check what a live edit sends to the engine"
         }
         # The engine owns these numbers, so a bump there must not leave a cue stating a

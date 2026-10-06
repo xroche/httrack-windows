@@ -682,8 +682,11 @@ BOOL CWinHTTrackApp::InitInstance()
         { "+*.zip  +*.htm", 0, "+*.zip  +*.htm" },
         /* a rule removed from the middle keeps the indent and both neighbours */
         { "  +*.zip +*.gif +*.htm", 0, "  +*.zip +*.htm" },
-        /* a CR the profile carried ends the rule the engine would read */
+        /* the engine splits on any isspace() byte, so none of these glue two rules */
         { "+*.gif\r +*.zip", 0, "+*.zip" },
+        { "+*.gif\r+*.zip", 0, "+*.zip" },
+        { "+*.gif\v+*.zip", 0, "+*.zip" },
+        { "+*.gif\f+*.zip", 0, "+*.zip" },
         { "+*.htm\r\n+*.gif\r\n+*.zip", 0, "+*.htm\r\n+*.zip" },
         { "", 0, "" },
         { " \r\n\t ", 0, "" },
@@ -735,8 +738,10 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "", 1, NULL },
         { "", "+*.gif *.zip", 1, "*.zip" },   /* no sign */
         { "", "+", 1, "+" },                  /* a sign and no pattern */
-        /* a lone CR does not split a rule, so the control character stays inside it */
-        { "", "+a\rb", 1, "+a\rb" },
+        /* the engine ends a rule on any isspace() byte, so each half is judged alone */
+        { "", "*.a\r+*.gif", 1, "*.a" },
+        { "", "*.a\v+*.gif", 1, "*.a" },
+        { "", "+*.gif\f-*.zip", 1, NULL },
         { "", "*.a +", 1, "*.a" },            /* the first bad rule is the one named */
         /* an untouched box is never sent, so the mirror's own bad rule is not judged */
         { "*.zip", "*.zip", 1, NULL },
@@ -770,6 +775,7 @@ BOOL CWinHTTrackApp::InitInstance()
       static const struct { const char* box; int want; } sends[] = {
         { "+*.gif -*.zip", 1 },
         { "+*.gif *.zip", 0 },            /* one bad rule refuses the whole list */
+        { "+*.gif\v-*.zip", 1 },          /* two rules, not one rule holding a control byte */
         { "", 1 },                        /* an empty list is valid and clears the rules */
         { NULL, 0 }
       };
