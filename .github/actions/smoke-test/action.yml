@@ -325,6 +325,9 @@ runs:
         if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
+        if ("$so" -notmatch 'catalog keys ok on 1 checks') {
+          throw "selftest did not check the catalog keys the engine owes us"
+        }
         if ("$so" -notmatch 'live scan rules ok on 10 checks') {
           throw "selftest did not check the live scan rules diff"
         }
