@@ -896,7 +896,7 @@ void Cinprogress::OnModifyOpt()
 
 		if (global_opt != NULL) {
 			copy_htsopt(opt, global_opt);
-			sendLiveScanRules(maintab->m_option7.m_url2);
+			sendLiveScanRules(global_opt, maintab->m_option7.m_url2);   // the Scan Rules box
 		}
 
     hts_free_opt(opt);

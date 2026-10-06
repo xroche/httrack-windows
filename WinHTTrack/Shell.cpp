@@ -769,7 +769,7 @@ void compute_options() {
   if(strcmp(maintab->m_option7.m_url2,"")!=0){
     ShellOptions->buff_filtres = maintab->m_option7.m_url2;
   } else ShellOptions->buff_filtres = "";
-  liveScanRulesLaunched(ShellOptions->buff_filtres);   // what lance() will hand the engine
+  recordLaunchedScanRules(ShellOptions->buff_filtres);   // what lance() will hand the engine
   
   
   // MIME
@@ -1939,20 +1939,18 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
   }
 }
 
-/* The scan rules the running mirror already has. Written from the UI thread only,
-   as the mirror starts and whenever the options panel adds to them. */
+// The scan rules the running mirror already has. Written from the UI thread only.
 static CString liveScanRules;
 
 // see Shell.h
-void liveScanRulesLaunched(const CString &launched) {
+void recordLaunchedScanRules(const CString &launched) {
   liveScanRules = launched;
 }
 
 // see Shell.h
-int liveScanRulesAdded(const CString &known, const CString &edited,
-                       CStringArray &added) {
+void findAddedScanRules(const CString &known, const CString &edited,
+                        CStringArray &added) {
   CSimpleArray<CString> before, now;
-  int count = 0;
 
   splitStringInArray(before, known, instSpaceSeparatorComparator);
   splitStringInArray(now, edited, instSpaceSeparatorComparator);
@@ -1964,35 +1962,28 @@ int liveScanRulesAdded(const CString &known, const CString &edited,
     // a rule typed twice is one rule
     for(INT_PTR j = 0 ; !seen && j < added.GetSize() ; j++)
       seen = now[i] == added[j];
-    if (!seen) {
+    if (!seen)
       added.Add(now[i]);
-      count++;
-    }
   }
-  return count;
 }
 
 // see Shell.h
-int sendLiveScanRules(const CString &edited) {
+int sendLiveScanRules(httrackp *opt, const CString &edited) {
   CStringArray added;
   int sent = 0;
 
-  if (global_opt == NULL)
-    return 0;
-  liveScanRulesAdded(liveScanRules, edited, added);
+  findAddedScanRules(liveScanRules, edited, added);
   for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
     char *rule = strdupt_utf8(added[i]);   // freet() nulls it, so not const
 
-    if (rule == NULL)
-      continue;
-    // the engine takes the bytes argv would have carried, and logs each rule it applies
-    if (hts_addfilter(global_opt, rule)) {
+    // the engine takes the bytes argv would have carried
+    if (hts_addfilter(opt, rule)) {
       liveScanRules += " ";
       liveScanRules += added[i];
       sent++;
     } else
-      hts_log_print(global_opt, LOG_WARNING,
-                    "Scan rule refused: %s (a rule starts with + or -, and holds one line)",
+      hts_log_print(opt, LOG_WARNING,
+                    "Scan rule refused: %s (a rule is + or - then a pattern, on one short line)",
                     rule);
     freet(rule);
   }

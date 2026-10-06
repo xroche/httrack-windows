@@ -325,8 +325,11 @@ runs:
         if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
-        if ("$so" -notmatch 'live scan rules ok on 9 checks') {
+        if ("$so" -notmatch 'live scan rules ok on 10 checks') {
           throw "selftest did not check the live scan rules diff"
+        }
+        if ("$so" -notmatch 'live rules sent ok on 3 checks') {
+          throw "selftest did not check what a live edit sends to the engine"
         }
         # The engine owns these numbers, so a bump there must not leave a cue stating a
         # value the mirror no longer uses.

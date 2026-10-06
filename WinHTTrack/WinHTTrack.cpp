@@ -673,8 +673,10 @@ BOOL CWinHTTrackApp::InitInstance()
         /* reordering the box is not an edit */
         { "+*.gif -*.zip", "-*.zip +*.gif", "" },
         { "", " \r\n\t ", "" },
-        { "", "", "" },
-        /* the engine refuses an unsigned rule; it must still reach it, to be logged */
+        /* a rule holding another one is a different rule, both ways round */
+        { "+*.gif", "+*.gif +*.gifx", "+*.gifx" },
+        { "+*.gifx", "+*.gif", "+*.gif" },
+        /* an unsigned rule still goes, so the refusal can be logged */
         { "", "*.zip", "*.zip" },
         { NULL, NULL, NULL }
       };
@@ -682,7 +684,7 @@ BOOL CWinHTTrackApp::InitInstance()
       for(int k=0 ; rules[k].known != NULL ; k++) {
         CStringArray got;
         CString joined;
-        liveScanRulesAdded(rules[k].known, rules[k].edited, got);
+        findAddedScanRules(rules[k].known, rules[k].edited, got);
         for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
           if (j != 0)
             joined += "|";
@@ -697,6 +699,35 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       printf("live scan rules ok on %d checks\n", nchecks);
+    }
+    /* What the engine is actually told. The rows run in order, because each call
+       changes what the next one sees. */
+    {
+      static const struct { const char* edited; int want; } sends[] = {
+        { "+*.gif -*.zip", 1 },
+        { "+*.gif -*.zip", 0 },           /* the engine is not told the same rule twice */
+        { "+*.gif -*.zip *.bad", 0 },     /* and it refuses an unsigned one */
+        { NULL, 0 }
+      };
+      httrackp *const opt = hts_create_opt();
+      int nchecks = 0;
+
+      opt->log = opt->errlog = NULL;
+      recordLaunchedScanRules("+*.gif");
+      for(int k=0 ; sends[k].edited != NULL ; k++) {
+        const int got = sendLiveScanRules(opt, sends[k].edited);
+
+        if (got != sends[k].want) {
+          fprintf(stderr, "FATAL: box '%s' sent %d rule(s), expected %d\n",
+                  sends[k].edited, got, sends[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      hts_free_opt(opt);
+      recordLaunchedScanRules("");        /* leave no rule behind for the first mirror */
+      printf("live rules sent ok on %d checks\n", nchecks);
     }
     /* The grey cue the Flow Control and Limits pages draw in an empty field. */
     {
