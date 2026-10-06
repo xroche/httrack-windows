@@ -769,6 +769,7 @@ void compute_options() {
   if(strcmp(maintab->m_option7.m_url2,"")!=0){
     ShellOptions->buff_filtres = maintab->m_option7.m_url2;
   } else ShellOptions->buff_filtres = "";
+  recordLaunchedScanRules(ShellOptions->buff_filtres);   // what lance() will hand the engine
   
   
   // MIME
@@ -1936,6 +1937,57 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
     }
     rules.Add(rule);
   }
+}
+
+// The scan rules the running mirror already has. Written from the UI thread only.
+static CString liveScanRules;
+
+// see Shell.h
+void recordLaunchedScanRules(const CString &launched) {
+  liveScanRules = launched;
+}
+
+// see Shell.h
+void findAddedScanRules(const CString &known, const CString &edited,
+                        CStringArray &added) {
+  CSimpleArray<CString> before, now;
+
+  splitStringInArray(before, known, instSpaceSeparatorComparator);
+  splitStringInArray(now, edited, instSpaceSeparatorComparator);
+  for(int i = 0 ; i < now.GetSize() ; i++) {
+    BOOL seen = FALSE;
+
+    for(int j = 0 ; !seen && j < before.GetSize() ; j++)
+      seen = now[i] == before[j];
+    // a rule typed twice is one rule
+    for(INT_PTR j = 0 ; !seen && j < added.GetSize() ; j++)
+      seen = now[i] == added[j];
+    if (!seen)
+      added.Add(now[i]);
+  }
+}
+
+// see Shell.h
+int sendLiveScanRules(httrackp *opt, const CString &edited) {
+  CStringArray added;
+  int sent = 0;
+
+  findAddedScanRules(liveScanRules, edited, added);
+  for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
+    char *rule = strdupt_utf8(added[i]);   // freet() nulls it, so not const
+
+    // the engine takes the bytes argv would have carried
+    if (hts_addfilter(opt, rule)) {
+      liveScanRules += " ";
+      liveScanRules += added[i];
+      sent++;
+    } else
+      hts_log_print(opt, LOG_WARNING,
+                    "Scan rule refused: %s (a rule is + or - then a pattern, on one short line)",
+                    rule);
+    freet(rule);
+  }
+  return sent;
 }
 
 // A value restored from a profile never met the dialog, so it is checked here instead,

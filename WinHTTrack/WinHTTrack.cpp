@@ -661,6 +661,74 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok on %d checks\n", nchecks);
     }
+    /* A live rule cannot be taken back, so only what the user added may be sent. */
+    {
+      static const struct { const char* known; const char* edited; const char* want; } rules[] = {
+        { "+*.gif", "+*.gif", "" },
+        { "+*.gif", "+*.gif -*.zip", "-*.zip" },
+        { "", "+*.gif\r\n-*.zip\t+*.png", "+*.gif|-*.zip|+*.png" },
+        { "", "-*.zip -*.zip", "-*.zip" },
+        /* a removal reaches the engine as nothing at all */
+        { "+*.gif -*.zip", "+*.gif", "" },
+        /* reordering the box is not an edit */
+        { "+*.gif -*.zip", "-*.zip +*.gif", "" },
+        { "", " \r\n\t ", "" },
+        /* a rule holding another one is a different rule, both ways round */
+        { "+*.gif", "+*.gif +*.gifx", "+*.gifx" },
+        { "+*.gifx", "+*.gif", "+*.gif" },
+        /* an unsigned rule still goes, so the refusal can be logged */
+        { "", "*.zip", "*.zip" },
+        { NULL, NULL, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; rules[k].known != NULL ; k++) {
+        CStringArray got;
+        CString joined;
+        findAddedScanRules(rules[k].known, rules[k].edited, got);
+        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
+          if (j != 0)
+            joined += "|";
+          joined += got[j];
+        }
+        if (joined != rules[k].want) {
+          fprintf(stderr, "FATAL: rules '%s' over '%s' added '%s', expected '%s'\n",
+                  rules[k].edited, rules[k].known, (LPCSTR) joined, rules[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("live scan rules ok on %d checks\n", nchecks);
+    }
+    /* What the engine is actually told. The rows run in order, because each call
+       changes what the next one sees. */
+    {
+      static const struct { const char* edited; int want; } sends[] = {
+        { "+*.gif -*.zip", 1 },
+        { "+*.gif -*.zip", 0 },           /* the engine is not told the same rule twice */
+        { "+*.gif -*.zip *.bad", 0 },     /* and it refuses an unsigned one */
+        { NULL, 0 }
+      };
+      httrackp *const opt = hts_create_opt();
+      int nchecks = 0;
+
+      opt->log = opt->errlog = NULL;
+      recordLaunchedScanRules("+*.gif");
+      for(int k=0 ; sends[k].edited != NULL ; k++) {
+        const int got = sendLiveScanRules(opt, sends[k].edited);
+
+        if (got != sends[k].want) {
+          fprintf(stderr, "FATAL: box '%s' sent %d rule(s), expected %d\n",
+                  sends[k].edited, got, sends[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      hts_free_opt(opt);
+      recordLaunchedScanRules("");        /* leave no rule behind for the first mirror */
+      printf("live rules sent ok on %d checks\n", nchecks);
+    }
     /* The grey cue the Flow Control and Limits pages draw in an empty field. */
     {
       static const struct { double value; const WCHAR *want; } cues[] = {

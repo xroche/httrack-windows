@@ -260,21 +260,6 @@ BOOL COptionTab7::OnInitDialog()
   BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 
-  // mode modif à la volée
-  if (modify==1) {
-    GetDlgItem(IDC_ADD1) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_ADD2) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_URL2) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_STATIC_finfo) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_STATIC_tip) ->ModifyStyle(0,WS_DISABLED);
-  } else {
-    GetDlgItem(IDC_ADD1) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_ADD2) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_URL2) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_STATIC_finfo) ->ModifyStyle(WS_DISABLED,0);
-    GetDlgItem(IDC_STATIC_tip) ->ModifyStyle(WS_DISABLED,0);
-  }
-
   // Patcher l'interface pour les Français ;-)
   if (LANG_T(-1)) {    // Patcher en français
     SetWindowTextCP(this, LANG(LANG_B9)); // "Filtres");
@@ -282,6 +267,16 @@ BOOL COptionTab7::OnInitDialog()
     SetDlgItemTextCP(this, IDC_ADD1,LANG(LANG_B11)); // "Exclure lien(s)..");
     SetDlgItemTextCP(this, IDC_ADD2,LANG(LANG_B12)); // "Accepter lien(s)..");
     SetDlgItemTextCP(this, IDC_STATIC_tip,LANG(LANG_B13)); // "Conseil: Si vous voulez accepter tous les fichiers gif d'un site, utilisez quelque chose comme +www.monweb.com/*.gif\n(+*.gif autorisera TOUS les fichiers gif sur TOUS les sites)");
+  }
+
+  // mode modif à la volée, après le patch de langue qui réécrit le même libellé
+  if (modify==1) {
+    const char *note = LANG(LANG_LIVERULES);
+
+    if (*note == '\0')
+      note = "A rule you add here applies to the mirror now running, and wins over the rules "
+             "above it. A rule you remove applies to the next one.";
+    SetDlgItemTextCP(this, IDC_STATIC_tip, note);
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control
