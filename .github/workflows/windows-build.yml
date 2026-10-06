@@ -64,6 +64,24 @@ jobs:
       # dependabot event, and the CVE gate needs a push.
       - name: Auto-merge and CVE gate cases
         run: python3 tools/test-automerge-gate.py
+      # Nothing else runs these cases, because the guard below only answers on a pull request.
+      - name: Baseline-forward cases
+        run: python3 tools/test-check-baseline-forward.py
+      # tools/check-baseline-forward.py says why dependabot bumps a hand-picked baseline DOWN.
+      - name: The vcpkg baseline only moves forward
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A master push or a tag has no merge target holding the older pin.
+          if [ -z "${GITHUB_BASE_REF:-}" ]; then
+            echo "not a pull request: nothing to compare against"
+            exit 0
+          fi
+          git fetch --depth 1 origin "$GITHUB_BASE_REF"
+          git show "FETCH_HEAD:WinHTTrack/vcpkg.json" > "$RUNNER_TEMP/base-vcpkg.json"
+          python3 tools/check-baseline-forward.py \
+            --old "$RUNNER_TEMP/base-vcpkg.json" --new WinHTTrack/vcpkg.json
       # Cheap companion to the walk's runtime check: started after that dialog, the check can
       # never give it a verdict (#152), and nothing in the build can see that.
       - name: The signature check starts before the first-run About
@@ -950,8 +968,8 @@ jobs:
       # vcpkg is invisible to Dependabot alerts, CodeQL and the dependency graph, so
       # this is the only thing between a stale OpenSSL and a signed installer. Advisory
       # on a pull request, fatal on master and on tags. The engine tree is what ships
-      # (the GUI imports neither library). The GUI tree is scanned too and cross-checked
-      # against its pin.
+      # (the GUI imports neither library). The GUI tree is scanned too, but the engine's
+      # version wins where both carry a port, so only the weekly watch sees the GUI pin.
       - name: Check shipped native dependencies for advisories
         shell: pwsh
         # An author cannot fix an advisory published while their PR is open, but a red
