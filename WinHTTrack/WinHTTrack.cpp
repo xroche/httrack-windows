@@ -672,7 +672,7 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       } else
         nchecks++;
-      printf("catalog keys ok on %d checks\n", nchecks);
+      printf("catalog key ok on %d checks\n", nchecks);
     }
     /* A live rule cannot be taken back, so only what the user added may be sent. */
     {
