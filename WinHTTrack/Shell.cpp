@@ -1938,6 +1938,74 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
   }
 }
 
+// TRUE if PRESET carries RULE as a whole rule of its own.
+static BOOL presetHoldsRule(const CString &preset, const CString &rule) {
+  CSimpleArray<CString> rules;
+
+  splitStringInArray(rules, preset, instSpaceSeparatorComparator);
+  for(int i = 0 ; i < rules.GetSize() ; i++) {
+    if (rules[i] == rule)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+// LINE with PRESET's rules removed, keeping the whitespace around the rules that stay.
+// Only ' ' and '\t' separate rules in a line, as splitStringInArray() splits what we send.
+static CString keepRulesInLine(const CString &line, const CString &preset) {
+  const int size = line.GetLength();
+  CString kept;
+  int p = 0;
+
+  while (p < size) {
+    const int sep = p;
+    int end;
+    CString rule;
+
+    while (p < size && (line[p] == ' ' || line[p] == '\t'))
+      p++;
+    for(end = p ; end < size && line[end] != ' ' && line[end] != '\t' ; end++) ;
+    rule = line.Mid(p, end - p);
+    rule.Trim(" \t\r\n");                  // the rule as the engine would receive it
+    if (!rule.IsEmpty() && !presetHoldsRule(preset, rule)) {
+      // the spacing the user typed, the line's indent only before the first rule
+      if (!kept.IsEmpty() || sep == 0)
+        kept += line.Mid(sep, p - sep);
+      kept += line.Mid(p, end - p);
+    }
+    p = end;
+  }
+  return kept;
+}
+
+// see Shell.h
+CString applyRulePreset(const CString &box, const CString &preset, BOOL state) {
+  const int size = box.GetLength();
+  CString out;
+  int line = 0;
+
+  while (line <= size) {
+    int eol;
+
+    for(eol = line ; eol < size && box[eol] != '\n' ; eol++) ;
+    CString text = box.Mid(line, eol - line);
+    text.TrimRight("\r");                  // the control's CRLF
+    const CString kept = keepRulesInLine(text, preset);
+    if (!kept.IsEmpty()) {
+      if (!out.IsEmpty())
+        out += "\r\n";
+      out += kept;
+    }
+    line = eol + 1;
+  }
+  if (state) {
+    if (!out.IsEmpty())
+      out += "\r\n";
+    out += preset;
+  }
+  return out;
+}
+
 // TRUE if the engine would take RULE, asked about the bytes hts_setfilters() will
 // measure rather than the ANSI ones MFC holds.
 static BOOL scanRuleOk(const CString &rule) {

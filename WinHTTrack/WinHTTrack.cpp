@@ -661,6 +661,46 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("rule splitting ok on %d checks\n", nchecks);
     }
+    /* A preset checkbox rewrites the whole box, and a mangled rule stops the page from closing. */
+    {
+      static const char preset[] = "+*.gif +*.jpg";
+      static const struct { const char* box; int state; const char* want; } boxes[] = {
+        { "+*.gif", 0, "" },
+        { "+*.gif +*.jpg +*.zip", 0, "+*.zip" },
+        /* a rule holding a preset rule is not that rule */
+        { "+*.gifx", 0, "+*.gifx" },
+        /* a ',' separates nothing in what we send, so this is one rule, not ours to split */
+        { "+*.gif,+*.jpg", 0, "+*.gif,+*.jpg" },
+        { "-*.gif", 0, "-*.gif" },
+        { "+*.gif\t+*.zip", 0, "+*.zip" },
+        { "+*.gif   +*.zip", 0, "+*.zip" },
+        { "+*.zip   +*.gif", 0, "+*.zip" },
+        /* an untouched line keeps the spacing the user typed */
+        { "+*.zip  +*.htm", 0, "+*.zip  +*.htm" },
+        { "+*.htm\r\n+*.gif\r\n+*.zip", 0, "+*.htm\r\n+*.zip" },
+        { "+*.gif\r\n+*.zip", 0, "+*.zip" },
+        { "", 0, "" },
+        { " \r\n\t ", 0, "" },
+        { "", 1, "+*.gif +*.jpg" },
+        { "+*.zip", 1, "+*.zip\r\n+*.gif +*.jpg" },
+        /* the preset is removed before it is added back, so nothing doubles */
+        { "+*.gif +*.zip", 1, "+*.zip\r\n+*.gif +*.jpg" },
+        { "+*.gifx", 1, "+*.gifx\r\n+*.gif +*.jpg" },
+        { NULL, 0, NULL }
+      };
+      int nchecks = 0;
+      for(int k=0 ; boxes[k].box != NULL ; k++) {
+        const CString got = applyRulePreset(boxes[k].box, preset, boxes[k].state);
+        if (got != boxes[k].want) {
+          fprintf(stderr, "FATAL: rules box '%s' with the preset %s gave '%s', expected '%s'\n",
+                  boxes[k].box, boxes[k].state ? "on" : "off", (LPCSTR) got, boxes[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      printf("rule presets ok on %d checks\n", nchecks);
+    }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
     {

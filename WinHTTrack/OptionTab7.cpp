@@ -347,32 +347,10 @@ const char* COptionTab7::GetTip(int ID)
 // ------------------------------------------------------------
 
 void COptionTab7::EnsureIncluded(BOOL state, CString filter)  {
-  /* wipe all selected filters */
   CString st;
-  CString ftok=filter;
+
   GetDlgItemText(IDC_URL2,st);
-  ftok+=" ";
-  while(ftok.Find(' ')>=0) {
-    CString token=ftok.Mid(0,ftok.Find(' '));
-    ftok=ftok.Mid(ftok.Find(' ')+1);
-    ftok.TrimLeft();
-    st.Replace(token,"");
-    st.Replace("\r"," ");
-    st.Replace("\t"," ");
-    st.Replace("  "," ");
-    st.Replace(" \n","\n");
-    st.Replace("\n ","\n");
-    st.Replace("\n\n","\n");
-  }
-  st.TrimLeft();
-  st.TrimRight();
-  /* add ? */
-  if (state) {
-    st+="\n";
-    st+=filter;
-  }
-  st.Replace("\n","\r\n");      // W32 compatible
-  SetDlgItemTextCP(this, IDC_URL2,st);
+  SetDlgItemTextCP(this, IDC_URL2, applyRulePreset(st, filter, state));
 }
 
 
