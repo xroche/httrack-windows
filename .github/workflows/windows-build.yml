@@ -64,18 +64,15 @@ jobs:
       # dependabot event, and the CVE gate needs a push.
       - name: Auto-merge and CVE gate cases
         run: python3 tools/test-automerge-gate.py
-      # The guard below only reaches a verdict on a pull request, so nothing else runs them.
+      # Nothing else runs these cases, because the guard below only answers on a pull request.
       - name: Baseline-forward cases
         run: python3 tools/test-check-baseline-forward.py
-      # Dependabot's vcpkg ecosystem tracks release TAGS, so it reads a hand-picked
-      # baseline as behind and bumps it DOWN. #202 auto-merged OpenSSL 3.6.4 back to
-      # 3.6.3 that way, and the CVE gate reads the engine's pin, so nothing went red.
+      # tools/check-baseline-forward.py says why dependabot bumps a hand-picked baseline DOWN.
       - name: The vcpkg baseline only moves forward
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 tools/check-baseline-forward.py --selftest
           # A master push or a tag has no merge target holding the older pin.
           if [ -z "${GITHUB_BASE_REF:-}" ]; then
             echo "not a pull request: nothing to compare against"
