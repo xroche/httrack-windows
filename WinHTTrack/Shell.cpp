@@ -1938,11 +1938,11 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
   }
 }
 
-// TRUE if PRESET carries RULE as a whole rule of its own.
-static BOOL presetHoldsRule(const CString &preset, const CString &rule) {
+// see Shell.h
+BOOL ruleListHoldsRule(const CString &list, const CString &rule) {
   CSimpleArray<CString> rules;
 
-  splitStringInArray(rules, preset, instSpaceSeparatorComparator);
+  splitStringInArray(rules, list, instSpaceSeparatorComparator);
   for(int i = 0 ; i < rules.GetSize() ; i++) {
     if (rules[i] == rule)
       return TRUE;
@@ -1974,7 +1974,7 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
       end++;
     rule = line.Mid(p, end - p);
     rule.Trim(" \t\r\n");                  // the rule as the engine would receive it
-    if (!rule.IsEmpty() && !presetHoldsRule(preset, rule)) {
+    if (!rule.IsEmpty() && !ruleListHoldsRule(preset, rule)) {
       // the spacing the user typed, the line's indent only before the first rule
       if (!kept.IsEmpty() || sep == 0)
         kept += line.Mid(sep, p - sep);
@@ -1983,6 +1983,26 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
     p = end;
   }
   return kept;
+}
+
+// see Shell.h
+const char rulePresetImages[] = "+*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp";
+const char rulePresetArchives[] = "+*.zip +*.tar +*.tgz +*.gz +*.rar +*.z +*.exe";
+const char rulePresetMovies[] = "+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.mp3 +*.mp2 "
+  "+*.rm +*.wav +*.vob +*.qt +*.vid +*.ac3 +*.wma +*.wmv";
+
+// see Shell.h
+BOOL rulePresetApplied(const CString &box, const CString &preset) {
+  CSimpleArray<CString> rules;
+
+  splitStringInArray(rules, preset, instSpaceSeparatorComparator);
+  if (rules.GetSize() == 0)
+    return FALSE;
+  for(int i = 0 ; i < rules.GetSize() ; i++) {
+    if (!ruleListHoldsRule(box, rules[i]))
+      return FALSE;
+  }
+  return TRUE;
 }
 
 // see Shell.h

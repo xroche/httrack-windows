@@ -73,6 +73,7 @@ COptionTab7::COptionTab7() : CPropertyPage(COptionTab7::IDD)
 	//}}AFX_DATA_INIT
   // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
   modify = 0;
+  m_writingRules = 0;
 }
 
 COptionTab7::~COptionTab7()
@@ -95,6 +96,7 @@ BEGIN_MESSAGE_MAP(COptionTab7, CPropertyPage)
 	ON_BN_CLICKED(IDC_CHECK1, OnCheck1)
 	ON_BN_CLICKED(IDC_CHECK2, OnCheck2)
 	ON_BN_CLICKED(IDC_CHECK3, OnCheck3)
+	ON_EN_CHANGE(IDC_URL2, OnChangeUrl2)
 	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
@@ -294,6 +296,8 @@ BOOL COptionTab7::OnInitDialog()
   if (modify==1)
     SetDlgItemTextLang(this, IDC_STATIC_tip, LANG(LANG_LIVERULES));
 
+  RefreshPresetChecks();      // after the language patch, like every runtime change here
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -350,23 +354,41 @@ void COptionTab7::EnsureIncluded(BOOL checked, CString preset)  {
   CString st;
 
   GetDlgItemText(IDC_URL2,st);
+  /* The click already says what the box shows, so its own EN_CHANGE must not re-read it. */
+  m_writingRules++;
   SetDlgItemTextCP(this, IDC_URL2, applyRulePreset(st, preset, checked));
+  m_writingRules--;
 }
 
+void COptionTab7::RefreshPresetChecks()
+{
+  CString st;
+
+  GetDlgItemText(IDC_URL2,st);
+  CheckDlgButton(IDC_CHECK1, rulePresetApplied(st, rulePresetImages) ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(IDC_CHECK2, rulePresetApplied(st, rulePresetArchives) ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(IDC_CHECK3, rulePresetApplied(st, rulePresetMovies) ? BST_CHECKED : BST_UNCHECKED);
+}
+
+void COptionTab7::OnChangeUrl2()
+{
+  if (m_writingRules == 0)
+    RefreshPresetChecks();
+}
 
 void COptionTab7::OnCheck1() 
 {
-  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK1),"+*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp");
+  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK1),rulePresetImages);
 }
 
 void COptionTab7::OnCheck2() 
 {
-  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK2),"+*.zip +*.tar +*.tgz +*.gz +*.rar +*.z +*.exe");
+  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK2),rulePresetArchives);
 }
 
 void COptionTab7::OnCheck3() 
 {
-  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK3),"+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.mp3 +*.mp2 +*.rm +*.wav +*.vob +*.qt +*.vid +*.ac3 +*.wma +*.wmv");
+  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK3),rulePresetMovies);
 }
 
 void COptionTab7::BuildLayout()
