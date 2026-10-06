@@ -1950,8 +1950,13 @@ static BOOL presetHoldsRule(const CString &preset, const CString &rule) {
   return FALSE;
 }
 
-// LINE with PRESET's rules removed, keeping the whitespace around the rules that stay.
-// Only ' ' and '\t' separate rules in a line, as splitStringInArray() splits what we send.
+// Separates two rules inside one line, so narrower than isRuleSpace() above. Both loops
+// below must read the same set, or a character that neither skips nor ends a rule hangs them.
+static inline BOOL isRuleGap(const char c) {
+  return c == ' ' || c == '\t';
+}
+
+// Returns LINE with PRESET's rules gone, spacing kept around what stays.
 static CString keepRulesInLine(const CString &line, const CString &preset) {
   const int size = line.GetLength();
   CString kept;
@@ -1962,9 +1967,11 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
     int end;
     CString rule;
 
-    while (p < size && (line[p] == ' ' || line[p] == '\t'))
+    while (p < size && isRuleGap(line[p]))
       p++;
-    for(end = p ; end < size && line[end] != ' ' && line[end] != '\t' ; end++) ;
+    end = p;
+    while (end < size && !isRuleGap(line[end]))
+      end++;
     rule = line.Mid(p, end - p);
     rule.Trim(" \t\r\n");                  // the rule as the engine would receive it
     if (!rule.IsEmpty() && !presetHoldsRule(preset, rule)) {
@@ -1979,26 +1986,27 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
 }
 
 // see Shell.h
-CString applyRulePreset(const CString &box, const CString &preset, BOOL state) {
+CString applyRulePreset(const CString &box, const CString &preset, BOOL checked) {
   const int size = box.GetLength();
   CString out;
-  int line = 0;
+  int pos = 0;
 
-  while (line <= size) {
-    int eol;
+  while (pos < size) {
+    int eol = pos;
 
-    for(eol = line ; eol < size && box[eol] != '\n' ; eol++) ;
-    CString text = box.Mid(line, eol - line);
-    text.TrimRight("\r");                  // the control's CRLF
-    const CString kept = keepRulesInLine(text, preset);
+    while (eol < size && box[eol] != '\n')
+      eol++;
+    CString line = box.Mid(pos, eol - pos);
+    line.TrimRight("\r");                  // the control's CRLF
+    const CString kept = keepRulesInLine(line, preset);
     if (!kept.IsEmpty()) {
       if (!out.IsEmpty())
         out += "\r\n";
       out += kept;
     }
-    line = eol + 1;
+    pos = eol + 1;
   }
-  if (state) {
+  if (checked) {
     if (!out.IsEmpty())
       out += "\r\n";
     out += preset;

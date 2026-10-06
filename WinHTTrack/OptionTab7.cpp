@@ -346,11 +346,11 @@ const char* COptionTab7::GetTip(int ID)
 // TOOL TIPS
 // ------------------------------------------------------------
 
-void COptionTab7::EnsureIncluded(BOOL state, CString filter)  {
+void COptionTab7::EnsureIncluded(BOOL checked, CString preset)  {
   CString st;
 
   GetDlgItemText(IDC_URL2,st);
-  SetDlgItemTextCP(this, IDC_URL2, applyRulePreset(st, filter, state));
+  SetDlgItemTextCP(this, IDC_URL2, applyRulePreset(st, preset, checked));
 }
 
 
