@@ -62,11 +62,13 @@ def main():
     status = compare_status(old, new)
     # An answer we cannot read must not pass for a descendant.
     if status is None:
-        sys.exit(f"FATAL: cannot tell whether {new[:12]} descends from {old[:12]}")
+        print(f"::error::cannot tell whether {new[:12]} descends from {old[:12]}")
+        sys.exit(1)
     if status != "ahead":
-        sys.exit(f"FATAL: the vcpkg baseline goes backwards: {new[:12]} reads {status} "
-                 f"relative to {old[:12]}, so every port version the old baseline "
-                 f"carried is given up, OpenSSL's included")
+        print(f"::error::the vcpkg baseline goes backwards: {new[:12]} reads {status} "
+              f"relative to {old[:12]}, so every port version the old baseline "
+              f"carried is given up, OpenSSL's included")
+        sys.exit(1)
     print(f"vcpkg baseline moves {old[:12]} -> {new[:12]} (ahead)")
 
 
