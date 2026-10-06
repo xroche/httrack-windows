@@ -1967,27 +1967,32 @@ void findAddedScanRules(const CString &known, const CString &edited,
   }
 }
 
-// The first rule EDITED holds that the engine would refuse, or an empty string.
-static CString firstBadScanRule(const CString &edited) {
-  CSimpleArray<CString> rules;
+// TRUE if the engine would take RULE, asked about the bytes hts_addfilter() will
+// measure rather than the ANSI ones MFC holds.
+static BOOL scanRuleOk(const CString &rule) {
+  char *utf8 = strdupt_utf8(rule);   // freet() nulls it, so not const
+  const BOOL ok = hts_filter_rule_ok(utf8) ? TRUE : FALSE;
 
-  splitStringInArray(rules, edited, instSpaceSeparatorComparator);
-  for(int i = 0 ; i < rules.GetSize() ; i++) {
-    char *rule = strdupt_utf8(rules[i]);   // freet() nulls it, so not const
-    // ask about the bytes hts_addfilter() will measure, not the ANSI ones
-    const BOOL ok = hts_filter_rule_ok(rule) ? TRUE : FALSE;
-
-    freet(rule);
-    if (!ok)
-      return rules[i];
-  }
-  return CString();
+  freet(utf8);
+  return ok;
 }
 
 // see Shell.h
 CString liveScanRuleRefusal(const CString &edited, BOOL liveEdit) {
-  const CString bad = liveEdit ? firstBadScanRule(edited) : CString();
+  CStringArray added;
+  CString bad;
 
+  if (!liveEdit)
+    return CString();
+  // only what this edit would send, so a malformed rule the mirror started with
+  // cannot trap the page
+  findAddedScanRules(liveScanRules, edited, added);
+  for(INT_PTR i = 0 ; i < added.GetSize() ; i++) {
+    if (!scanRuleOk(added[i])) {
+      bad = added[i];
+      break;
+    }
+  }
   if (bad.IsEmpty())
     return CString();
   return CString(LANG(LANG_LIVERULESBAD)) + "\r\n" + bad;
@@ -2003,7 +2008,7 @@ int sendLiveScanRules(httrackp *opt, const CString &edited) {
     char *rule = strdupt_utf8(added[i]);   // freet() nulls it, so not const
 
     // the engine takes the bytes argv would have carried. The page refuses a
-    // malformed rule, so one refused here was never shown to the user.
+    // malformed rule first, so a refusal here means the engine ran out of memory.
     if (hts_addfilter(opt, rule)) {
       liveScanRules += " ";
       liveScanRules += added[i];

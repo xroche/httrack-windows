@@ -330,7 +330,7 @@ runs:
           throw "selftest did not check the catalog keys"
         }
         # A malformed rule must not reach a running mirror, and the page is what stops it.
-        if ("$so" -notmatch 'bad scan rules ok on 7 checks') {
+        if ("$so" -notmatch 'bad scan rules ok on 8 checks') {
           throw "selftest did not check the rules the options page refuses"
         }
         if ("$so" -notmatch 'live scan rules ok on 10 checks') {
