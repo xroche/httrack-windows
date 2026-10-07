@@ -65,7 +65,6 @@ jobs:
       # dependabot event, and the CVE gate needs a push.
       - name: Auto-merge and CVE gate cases
         run: python3 tools/test-automerge-gate.py
-      # A hung job otherwise runs until GitHub's 360-minute default.
       - name: Every CI job declares a timeout
         run: python3 tools/check-job-timeouts.py
       - name: Job-timeout cases
