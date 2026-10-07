@@ -31,6 +31,7 @@ jobs:
       && github.event.pull_request.head.repo.full_name == github.repository
       && startsWith(github.event.pull_request.head.ref, 'dependabot/vcpkg/')
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       # The branch name says which ecosystem, this says which files. A PR that reaches
       # outside the manifest waits for a human, and gives back any arm it already had.

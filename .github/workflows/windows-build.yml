@@ -34,6 +34,7 @@ jobs:
   # Cheap guard for the rules .gitattributes cannot enforce on its own.
   encoding:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The guard itself only fires on a tag, so this table is what actually proves it.
@@ -64,6 +65,10 @@ jobs:
       # dependabot event, and the CVE gate needs a push.
       - name: Auto-merge and CVE gate cases
         run: python3 tools/test-automerge-gate.py
+      - name: Every CI job declares a timeout
+        run: python3 tools/check-job-timeouts.py
+      - name: Job-timeout cases
+        run: python3 tools/test-check-job-timeouts.py
       # Nothing else runs these cases, because the guard below only answers on a pull request.
       - name: Baseline-forward cases
         run: python3 tools/test-check-baseline-forward.py
@@ -327,6 +332,7 @@ jobs:
 
   build:
     runs-on: windows-2022
+    timeout-minutes: 60
     outputs:
       # Both legs record the same value, so the matrix overwriting it is harmless.
       engine-sha: ${{ steps.provenance.outputs.sha }}
@@ -1052,6 +1058,7 @@ jobs:
           - { platform: Win32, runner: windows-2022, machine: '14c', host: AMD64 }
           - { platform: ARM64, runner: windows-11-arm, machine: 'AA64', host: ARM64 }
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
     steps:
       - name: Checkout httrack-windows
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1167,6 +1174,7 @@ jobs:
       engine-version: ${{ steps.arm64.outputs.engine-version }}
       thumbprint: ${{ env.THUMBPRINT }}
     runs-on: windows-2022
+    timeout-minutes: 45
     environment: signing
     # Two tags pushed at once would fight over the signing session; queue: max holds
     # the waiter the shorthand would have cancelled.
@@ -1426,6 +1434,7 @@ jobs:
     name: signed runtime (arm64)
     needs: sign
     runs-on: windows-11-arm
+    timeout-minutes: 20
     permissions:
       contents: read
       actions: read
