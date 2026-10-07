@@ -311,11 +311,6 @@ CString profile_decode(const char* from);
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
 
-/* The first byte isRuleSpace() and isspace() disagree on, or -1 when they agree. The
-   engine ends a rule on any isspace() byte and exports no splitter, so this is what
-   holds our copy of its set honest. Exposed for --selftest. */
-int ruleSeparatorMismatch(void);
-
 /* Returns BOX with PRESET's rules taken out, plus PRESET on its own line when CHECKED.
    A preset rule goes only when it stands as a whole rule in BOX, never when it sits
    inside one. The returned lines are CRLF-separated, and a line holding no rule goes.

@@ -326,16 +326,12 @@ runs:
           throw "selftest did not check the live option guard"
         }
         # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.
-        if ("$so" -notmatch 'rule splitting ok on 12 checks') {
+        if ("$so" -notmatch 'rule splitting ok on 13 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
         # A preset checkbox rewrites the rules box, and only a click can reach that code.
         if ("$so" -notmatch 'rule presets ok on 21 checks') {
           throw "selftest did not check the preset checkboxes"
-        }
-        # We copy the engine's separator set, because it exports no splitter of its own.
-        if ("$so" -notmatch 'rule separators ok on 256 bytes') {
-          throw "selftest did not check our separator set against isspace()"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure.
         if ("$so" -notmatch 'catalog keys ok on 2 checks') {

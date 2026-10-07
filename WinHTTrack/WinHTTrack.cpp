@@ -687,6 +687,22 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
+      /* The splitter gives the engine room for the whole field, so a rule longer than
+         any engine cap comes back whole instead of truncated. */
+      {
+        const CString longRule('x', 2000);
+        CStringArray got;
+
+        splitRulesInArray(got, longRule + " " + longRule);
+        if (got.GetSize() != 2 || got[0] != longRule || got[1] != longRule) {
+          fprintf(stderr, "FATAL: two %d-byte rules split into %d rules, the first %d bytes\n",
+                  longRule.GetLength(), (int) got.GetSize(),
+                  got.GetSize() != 0 ? got[0].GetLength() : 0);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
       printf("rule splitting ok on %d checks\n", nchecks);
     }
     /* Only reachable by clicking a preset checkbox, and a rule it mangles blocks the page. */
@@ -736,17 +752,6 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       printf("rule presets ok on %d checks\n", nchecks);
-    }
-    /* The engine ends a rule on any isspace() byte and exports no splitter of its own. */
-    {
-      const int bad = ruleSeparatorMismatch();
-
-      if (bad >= 0) {
-        fprintf(stderr, "FATAL: byte %d ends a rule here and not for isspace()\n", bad);
-        fflush(stderr);
-        ExitProcess(3);
-      }
-      printf("rule separators ok on 256 bytes\n");
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */

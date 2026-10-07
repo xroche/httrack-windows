@@ -1945,51 +1945,41 @@ CString change(char* chaine,char c) {
   return chaine1;
 }
 
-// The engine's hts_scan_token() ends a rule on any isspace() byte, so --selftest pins
-// this set against isspace() itself.
-static inline BOOL isRuleSpace(const char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
+// The token at *PTR, advanced past the token and the whitespace after it. ROOM is the
+// whole string it came from, so the engine cannot truncate the token and its refusal has
+// nothing to report.
+static CString scanRuleToken(char **ptr, int room) {
+  CString token;
+  char *const dest = token.GetBufferSetLength(room);
+
+  (void) hts_scan_token(ptr, dest, (size_t) room + 1);
+  token.ReleaseBuffer();
+  return token;
 }
 
-// see Shell.h
-int ruleSeparatorMismatch(void) {
-  for(int c = 0 ; c < 256 ; c++) {
-    if ((isRuleSpace((char) c) != FALSE) != (isspace(c) != 0))
-      return c;
+// Split STR with the engine's own splitter, so a rule ends here on the bytes it ends on
+// there.
+static void splitTokensInArray(CSimpleArray<CString> &args, const CString &str) {
+  CString source(str);                       // hts_scan_token() walks a pointer into it
+  char *cur = source.GetBuffer();
+
+  while (*cur != '\0') {
+    const CString token = scanRuleToken(&cur, str.GetLength());
+
+    if (!token.IsEmpty())                    // leading whitespace yields an empty token
+      args.Add(token);
   }
-  return -1;
 }
 
-class SeparatorComparator {
-public:
-  inline virtual bool isSeparator(const char c) const = 0;
-};
-
-class SpaceSeparatorComparator: public SeparatorComparator {
-public:
-  inline bool isSeparator(const char c) const {
-    return isRuleSpace(c) != FALSE;
-  }
-};
-
-class EOLSeparatorComparator: public SeparatorComparator {
-public:
-  inline bool isSeparator(const char c) const {
-    return c == '\n';
-  }
-};
-
-static const SpaceSeparatorComparator instSpaceSeparatorComparator;
-static const EOLSeparatorComparator instEOLSeparatorComparator;
-
-static void splitStringInArray(CSimpleArray<CString> &args, 
-                               const CString &str, 
-                               const SeparatorComparator &comp=instEOLSeparatorComparator,
-                               const CString &separator=CString()) {
+// Split STR on its line breaks, trimming each line. SEPARATOR, when given, is added
+// before every line, for the options carrying one flag per value.
+static void splitLinesInArray(CSimpleArray<CString> &args,
+                              const CString &str,
+                              const CString &separator=CString()) {
   const int size = str.GetLength();
   int i, last;
   for(i = 0, last = 0 ; i <= size; i++) {
-    if (i == size || comp.isSeparator(str[i])) {
+    if (i == size || str[i] == '\n') {
       if (last != i) {
         CString sub = str.Mid(last, i - last);
         sub.Trim(_T(" \t\r\n"));
@@ -2008,23 +1998,25 @@ static void splitStringInArray(CSimpleArray<CString> &args,
 // Split a rule field the way WebHTTrack does; both read the same winprofile.ini.
 // Whitespace splits rules, except beside a ',' or '=': "a , b = c" is one "a,b=c".
 void splitRulesInArray(CStringArray &rules, const CString &str) {
-  const int size = str.GetLength();
-  int p = 0;
-  while (p < size && isRuleSpace(str[p])) p++;
-  while (p < size) {
+  const int room = str.GetLength();
+  CString source(str);
+  char *cur = source.GetBuffer();
+
+  while (*cur != '\0') {
     CString rule;
     BOOL more = TRUE;
-    while (more) {                         // p is always on a non-space here
-      int end = p;
-      while (end < size && !isRuleSpace(str[end])) end++;
-      int next = end;
-      while (next < size && isRuleSpace(str[next])) next++;
-      rule += str.Mid(p, end - p);
-      more = next < size && (str[next] == ',' || str[next] == '=' ||
-                             str[end - 1] == ',' || str[end - 1] == '=');
-      p = next;
+
+    while (more) {
+      const CString token = scanRuleToken(&cur, room);
+
+      rule += token;
+      more = *cur != '\0' &&
+        (*cur == ',' || *cur == '=' ||
+         (!token.IsEmpty() && (token[token.GetLength() - 1] == ',' ||
+                               token[token.GetLength() - 1] == '=')));
     }
-    rules.Add(rule);
+    if (!rule.IsEmpty())                     // a field of whitespace carries no rule
+      rules.Add(rule);
   }
 }
 
@@ -2032,7 +2024,7 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
 BOOL ruleListHoldsRule(const CString &list, const CString &rule) {
   CSimpleArray<CString> rules;
 
-  splitStringInArray(rules, list, instSpaceSeparatorComparator);
+  splitTokensInArray(rules, list);
   for(int i = 0 ; i < rules.GetSize() ; i++) {
     if (rules[i] == rule)
       return TRUE;
@@ -2040,31 +2032,31 @@ BOOL ruleListHoldsRule(const CString &list, const CString &rule) {
   return FALSE;
 }
 
-// Returns LINE with PRESET's rules gone, spacing kept around what stays. Both loops below
-// must read the same set, or a byte that neither skips nor ends a rule hangs them.
+// Returns LINE with PRESET's rules gone, spacing kept around what stays.
 static CString keepRulesInLine(const CString &line, const CString &preset) {
-  const int size = line.GetLength();
-  CString kept;
-  int p = 0;
+  const int room = line.GetLength();
+  CString source(line);
+  char *const base = source.GetBuffer();
+  char *cur = base;
+  CString kept, gap;
+  BOOL first = TRUE;
 
-  while (p < size) {
-    const int sep = p;
-    int end;
-    CString rule;
+  while (*cur != '\0') {
+    const int start = (int) (cur - base);
+    const CString rule = scanRuleToken(&cur, room);
+    const int end = start + rule.GetLength();
+    const CString skipped = line.Mid(end, (int) (cur - base) - end);
 
-    while (p < size && isRuleSpace(line[p]))
-      p++;
-    end = p;
-    while (end < size && !isRuleSpace(line[end]))
-      end++;
-    rule = line.Mid(p, end - p);
-    if (!rule.IsEmpty() && !ruleListHoldsRule(preset, rule)) {
-      // the spacing the user typed, the line's indent only before the first rule
-      if (!kept.IsEmpty() || sep == 0)
-        kept += line.Mid(sep, p - sep);
-      kept += line.Mid(p, end - p);
+    if (!rule.IsEmpty()) {
+      if (!ruleListHoldsRule(preset, rule)) {
+        // the spacing the user typed, the line's indent only before the first rule
+        if (first || !kept.IsEmpty())
+          kept += gap;
+        kept += rule;
+      }
+      first = FALSE;
     }
-    p = end;
+    gap = skipped;
   }
   return kept;
 }
@@ -2079,7 +2071,7 @@ extern const char rulePresetMovies[] = "+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.m
 BOOL ruleListHoldsPreset(const CString &box, const CString &preset) {
   CSimpleArray<CString> rules;
 
-  splitStringInArray(rules, preset, instSpaceSeparatorComparator);
+  splitTokensInArray(rules, preset);
   if (rules.GetSize() == 0)
     return FALSE;
   for(int i = 0 ; i < rules.GetSize() ; i++) {
@@ -2137,7 +2129,7 @@ CString liveScanRuleRefusal(const CString &opened, const CString &edited,
   if (!liveEdit || edited == opened)
     return CString();
   // the engine refuses the whole list over one bad rule, so every rule must pass
-  splitStringInArray(rules, edited, instSpaceSeparatorComparator);
+  splitTokensInArray(rules, edited);
   for(int i = 0 ; i < rules.GetSize() ; i++) {
     if (!scanRuleOk(rules[i]))
       return CString(LANG(LANG_LIVERULESBAD)) + "\r\n" + rules[i];
@@ -2152,7 +2144,7 @@ BOOL setLiveScanRules(httrackp *opt, const CString &edited) {
   BOOL taken;
   int i;
 
-  splitStringInArray(rules, edited, instSpaceSeparatorComparator);
+  splitTokensInArray(rules, edited);
   if ((list = (char **) calloct(rules.GetSize() + 1, sizeof(*list))) == NULL)
     return FALSE;
   taken = TRUE;
@@ -2531,7 +2523,7 @@ void lance(void) {
 
   // Explode \n in other_headers
   if (ShellOptions->other_headers.GetLength() != 0) {
-    splitStringInArray(args, ShellOptions->other_headers, instEOLSeparatorComparator, "-%X");
+    splitLinesInArray(args, ShellOptions->other_headers, "-%X");
   }
 
   if ((int)ShellOptions->proxy.GetLength()>0) {
@@ -2594,7 +2586,7 @@ void lance(void) {
   
   // URLs!!
   if (ShellOptions->url.GetLength() != 0) {
-    splitStringInArray(args, ShellOptions->url, instSpaceSeparatorComparator);
+    splitTokensInArray(args, ShellOptions->url);
   }
   
   // file list
@@ -2611,12 +2603,12 @@ void lance(void) {
   
   // buffer -> les + et -
   if(ShellOptions->buff_filtres.GetLength() != 0) {
-    splitStringInArray(args, ShellOptions->buff_filtres, instSpaceSeparatorComparator);
+    splitTokensInArray(args, ShellOptions->buff_filtres);
   }
   
   // --assume
   if (ShellOptions->buff_MIME.GetLength() != 0) {
-    splitStringInArray(args, ShellOptions->buff_MIME, instEOLSeparatorComparator);
+    splitLinesInArray(args, ShellOptions->buff_MIME);
   }
 
   // initial flags
