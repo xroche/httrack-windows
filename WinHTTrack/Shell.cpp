@@ -35,7 +35,6 @@ Please visit our Website: http://www.httrack.com
 #include "NewProj.h"
 
 #include <limits.h>   /* after the PCH, which is where the compiler starts reading */
-#include <ctype.h>
 
 #include <WS2tcpip.h>  // Note: weird C2894 error if not included here
 extern "C" {
@@ -1945,26 +1944,24 @@ CString change(char* chaine,char c) {
   return chaine1;
 }
 
-// The token at *PTR, advanced past the token and the whitespace after it. The buffer
-// takes the rest of the string, so the token always fits and hts_scan_token cannot refuse.
-static CString scanRuleToken(char **ptr) {
-  const int room = (int) strlen(*ptr);
-  CString token;
-  char *const dest = token.GetBufferSetLength(room);
+// Returns the token at *PTR and advances *PTR past it and the whitespace after it.
+// SCRATCH holds the whole string being split, so hts_scan_token() never truncates a
+// token and one buffer serves them all.
+static CString scanRuleToken(char **ptr, CString &scratch) {
+  char *const dest = scratch.GetBuffer();
 
-  (void) hts_scan_token(ptr, dest, (size_t) room + 1);
-  token.ReleaseBuffer();
-  return token;
+  (void) hts_scan_token(ptr, dest, (size_t) scratch.GetLength() + 1);
+  return CString(dest);
 }
 
-// Split STR with the engine's own splitter, so a rule ends here on the bytes it ends on
-// there.
+// Split STR with hts_scan_token(), so a rule ends where the engine itself ends it.
 static void splitTokensInArray(CSimpleArray<CString> &args, const CString &str) {
-  CString source(str);                       // hts_scan_token() walks a pointer into it
+  CString source(str), scratch;              // hts_scan_token() walks a pointer into source
   char *cur = source.GetBuffer();
 
+  scratch.GetBufferSetLength(str.GetLength());
   while (*cur != '\0') {
-    const CString token = scanRuleToken(&cur);
+    const CString token = scanRuleToken(&cur, scratch);
 
     if (!token.IsEmpty())                    // leading whitespace yields an empty token
       args.Add(token);
@@ -1998,17 +1995,19 @@ static void splitLinesInArray(CSimpleArray<CString> &args,
 // Split a rule field the way WebHTTrack does; both read the same winprofile.ini.
 // Whitespace splits rules, except beside a ',' or '=': "a , b = c" is one "a,b=c".
 void splitRulesInArray(CStringArray &rules, const CString &str) {
-  CString source(str);
+  CString source(str), scratch;
   char *cur = source.GetBuffer();
 
+  scratch.GetBufferSetLength(str.GetLength());
   while (*cur != '\0') {
     CString rule;
     BOOL more = TRUE;
 
     while (more) {
-      const CString token = scanRuleToken(&cur);
+      const CString token = scanRuleToken(&cur, scratch);
 
       rule += token;
+      // nothing follows the last token, so nothing glues to it and the loop ends
       more = *cur != '\0' &&
         (*cur == ',' || *cur == '=' ||
          (!token.IsEmpty() && (token[token.GetLength() - 1] == ',' ||
@@ -2033,15 +2032,16 @@ BOOL ruleListHoldsRule(const CString &list, const CString &rule) {
 
 // Returns LINE with PRESET's rules gone, spacing kept around what stays.
 static CString keepRulesInLine(const CString &line, const CString &preset) {
-  CString source(line);
+  CString source(line), scratch;
   char *const base = source.GetBuffer();
   char *cur = base;
   CString kept, gap;
   BOOL first = TRUE;
 
+  scratch.GetBufferSetLength(line.GetLength());
   while (*cur != '\0') {
     const int start = (int) (cur - base);
-    const CString rule = scanRuleToken(&cur);
+    const CString rule = scanRuleToken(&cur, scratch);
     const int end = start + rule.GetLength();
 
     if (!rule.IsEmpty()) {
@@ -2053,7 +2053,7 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
       }
       first = FALSE;
     }
-    gap = line.Mid(end, (int) (cur - base) - end);   // what the next rule reads as its gap
+    gap = line.Mid(end, (int) (cur - base) - end);   // this is the next rule's gap
   }
   return kept;
 }
