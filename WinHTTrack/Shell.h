@@ -204,6 +204,50 @@ void  __cdecl httrackengine_filesave2(t_hts_callbackarg *carg, httrackp *opt, co
 
 extern httrackp *global_opt;
 
+/* What may a window do with global_opt? The engine thread frees and recreates it
+   once per mirror. */
+typedef enum {
+  WHTT_OPT_NONE = 0,  /* no option set, so neither a call nor a read is possible */
+  WHTT_OPT_IDLE,      /* no mirror is running it, so its state is readable but not writable */
+  WHTT_OPT_LIVE       /* the engine is running it, so a live call may proceed */
+} WhttOptState;
+
+/* A pointer the engine thread already cleared is never live, whatever the flag says. */
+WhttOptState WhttOptStateOf(const httrackp *opt, BOOL engineRunning);
+
+/* Pins global_opt for one engine call, so the engine thread cannot free it underneath.
+   Take WhttMutex first where both are needed, never the other way round. Nothing may
+   block, sleep, wait, or run a window call, SendMessage or modal box while this is held,
+   and the pointer it hands back must not outlive it. */
+class WhttOptGuard {
+public:
+  WhttOptGuard();
+  ~WhttOptGuard();
+  WhttOptGuard(const WhttOptGuard &) = delete;
+  WhttOptGuard &operator=(const WhttOptGuard &) = delete;
+  /* The option set the engine is running, NULL when no mirror is running one. */
+  httrackp *live() const;
+  /* The option set if one exists, running or not, which is how a finished mirror's
+     verdict is read. */
+  httrackp *optIfAny() const;
+private:
+  WhttOptState m_state;
+  httrackp *m_opt;
+};
+
+/* Open or close the engine's claim, from its own init and uninit callbacks. */
+void WhttOptSetEngineRunning(BOOL running);
+
+/* Free global_opt, create its replacement and drop the engine's claim, all under the
+   guard's lock. */
+void WhttOptRecreate();
+
+/* Free global_opt for the last time, when the application goes away. */
+void WhttOptDestroy();
+
+/* Initialize the guard's lock, before any window exists. */
+void WhttOptInit();
+
 /* What a stop request did, or found already done. */
 typedef enum {
   WHTT_STOP_NO_MIRROR = 0,  /* nothing is running */
@@ -215,7 +259,8 @@ typedef enum {
 } WhttMirrorStop;
 
 /* Ask a running mirror to stop, the way the Cancel button does once confirmed.
-   @return WHTT_STOP_ASKED, or WHTT_STOP_ABORTED when this ask escalated. */
+   @return WHTT_STOP_NO_MIRROR when no mirror is running, WHTT_STOP_ASKED, or
+   WHTT_STOP_ABORTED when this ask escalated. */
 WhttMirrorStop RequestMirrorStop();
 
 /* The decision both session-end handlers share: ask at most once per mirror, and never
@@ -265,6 +310,11 @@ CString profile_decode(const char* from);
 /* Split a rule field into the rules a repeatable option carries, one per flag.
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
+
+/* The first byte isRuleSpace() and isspace() disagree on, or -1 when they agree. The
+   engine ends a rule on any isspace() byte and exports no splitter, so this is what
+   holds our copy of its set honest. Exposed for --selftest. */
+int ruleSeparatorMismatch(void);
 
 /* Returns BOX with PRESET's rules taken out, plus PRESET on its own line when CHECKED.
    A preset rule goes only when it stands as a whole rule in BOX, never when it sits

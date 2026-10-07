@@ -321,20 +321,28 @@ runs:
         if ("$so" -notmatch 'footer presets ok on 16 checks and [1-9]\d* fields') {
           throw "selftest did not check the footer presets"
         }
+        # A click reaching an option set the engine thread frees is a use-after-free.
+        if ("$so" -notmatch 'live opt guard ok on 4 checks') {
+          throw "selftest did not check the live option guard"
+        }
         # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.
         if ("$so" -notmatch 'rule splitting ok on 12 checks') {
           throw "selftest did not check the Experts rule splitter"
         }
         # A preset checkbox rewrites the rules box, and only a click can reach that code.
-        if ("$so" -notmatch 'rule presets ok on 19 checks') {
+        if ("$so" -notmatch 'rule presets ok on 21 checks') {
           throw "selftest did not check the preset checkboxes"
+        }
+        # We copy the engine's separator set, because it exports no splitter of its own.
+        if ("$so" -notmatch 'rule separators ok on 256 bytes') {
+          throw "selftest did not check our separator set against isspace()"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure.
         if ("$so" -notmatch 'catalog keys ok on 2 checks') {
           throw "selftest did not check the catalog keys"
         }
         # A malformed rule must not reach a running mirror, and the page is what stops it.
-        if ("$so" -notmatch 'bad scan rules ok on 9 checks') {
+        if ("$so" -notmatch 'bad scan rules ok on 12 checks') {
           throw "selftest did not check the rules the options page refuses"
         }
         # A preset's rules are written nowhere else, and a malformed one traps the user on the page.
@@ -345,7 +353,7 @@ runs:
         if ("$so" -notmatch 'preset checkmarks ok on 12 checks') {
           throw "selftest did not check what a preset checkbox shows"
         }
-        if ("$so" -notmatch 'live rules set ok on 3 checks') {
+        if ("$so" -notmatch 'live rules set ok on 4 checks') {
           throw "selftest did not check what a live edit sends to the engine"
         }
         # The engine owns these numbers, so a bump there must not leave a cue stating a
@@ -396,7 +404,7 @@ runs:
         }
 
         # No CI can log off, so this count is the only proof the session-end stop ran.
-        if ("$so" -notmatch 'session end ok on 8 checks') {
+        if ("$so" -notmatch 'session end ok on 9 checks') {
           throw "selftest did not check the session-end stop"
         }
         # No mirror runs under --selftest, so this count is the only proof the verdict maps right.

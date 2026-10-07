@@ -198,6 +198,7 @@ CWinHTTrackApp::CWinHTTrackApp()
 {
   // HTTrack inits
   CreateMutex(NULL, FALSE, "WinHTTrack_RUN");
+  WhttOptInit();
   HtsHelper = new LaunchHelp();
 }
 
@@ -206,11 +207,7 @@ CWinHTTrackApp::~CWinHTTrackApp()
   DeleteTabs();
   delete HtsHelper;
   HtsHelper=NULL;
-	if (global_opt != NULL)
-	{
-		hts_free_opt(global_opt);
-		global_opt = NULL;
-	}
+  WhttOptDestroy();
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -621,6 +618,37 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("help URLs ok on %d checks\n", nchecks);
     }
+    /* A click can reach global_opt while the engine thread frees it, which no --selftest
+       run can stage, so pin what the guard decides from the pointer and the flag. */
+    {
+      httrackp *const opt = hts_create_opt();
+      static const struct { int hasOpt; BOOL running; WhttOptState want; } states[] = {
+        { 0, FALSE, WHTT_OPT_NONE },
+        /* the clear can outrun the uninit callback that closes the flag */
+        { 0, TRUE,  WHTT_OPT_NONE },
+        { 1, FALSE, WHTT_OPT_IDLE },
+        { 1, TRUE,  WHTT_OPT_LIVE }
+      };
+      int nchecks = 0;
+      for(int k=0 ; k < (int) (sizeof(states)/sizeof(states[0])) ; k++) {
+        const WhttOptState got = WhttOptStateOf(states[k].hasOpt ? opt : NULL, states[k].running);
+        if (got != states[k].want) {
+          fprintf(stderr, "FATAL: a %s pointer with the flag %s reads as state %d, expected %d\n",
+                  states[k].hasOpt ? "live" : "cleared",
+                  states[k].running ? "open" : "closed", got, states[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      hts_free_opt(opt);
+      if (nchecks != 4) {
+        fprintf(stderr, "FATAL: live opt guard ran %d checks, expected 4\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("live opt guard ok on %d checks\n", nchecks);
+    }
     /* Only reachable by typing into the Experts page, so pin the rule splitter here:
        a rule the engine cannot parse aborts the whole mirror. */
     {
@@ -682,8 +710,10 @@ BOOL CWinHTTrackApp::InitInstance()
         { "+*.zip  +*.htm", 0, "+*.zip  +*.htm" },
         /* a rule removed from the middle keeps the indent and both neighbours */
         { "  +*.zip +*.gif +*.htm", 0, "  +*.zip +*.htm" },
-        /* a CR the profile carried ends the rule the engine would read */
-        { "+*.gif\r +*.zip", 0, "+*.zip" },
+        /* the engine splits on any isspace() byte, so none of these glue two rules */
+        { "+*.gif\r+*.zip", 0, "+*.zip" },
+        { "+*.gif\v+*.zip", 0, "+*.zip" },
+        { "+*.gif\f+*.zip", 0, "+*.zip" },
         { "+*.htm\r\n+*.gif\r\n+*.zip", 0, "+*.htm\r\n+*.zip" },
         { "", 0, "" },
         { " \r\n\t ", 0, "" },
@@ -706,6 +736,17 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       printf("rule presets ok on %d checks\n", nchecks);
+    }
+    /* The engine ends a rule on any isspace() byte and exports no splitter of its own. */
+    {
+      const int bad = ruleSeparatorMismatch();
+
+      if (bad >= 0) {
+        fprintf(stderr, "FATAL: byte %d ends a rule here and not for isspace()\n", bad);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("rule separators ok on 256 bytes\n");
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
@@ -735,8 +776,12 @@ BOOL CWinHTTrackApp::InitInstance()
         { "", "", 1, NULL },
         { "", "+*.gif *.zip", 1, "*.zip" },   /* no sign */
         { "", "+", 1, "+" },                  /* a sign and no pattern */
-        /* a lone CR does not split a rule, so the control character stays inside it */
-        { "", "+a\rb", 1, "+a\rb" },
+        /* the engine ends a rule on any isspace() byte, so each half is judged alone */
+        { "", "*.a\r+*.gif", 1, "*.a" },
+        { "", "*.a\v+*.gif", 1, "*.a" },
+        { "", "+*.gif\f-*.zip", 1, NULL },
+        /* nothing splits on this one, so it is what still reaches the engine's check */
+        { "", "+a\001b", 1, "+a\001b" },
         { "", "*.a +", 1, "*.a" },            /* the first bad rule is the one named */
         /* an untouched box is never sent, so the mirror's own bad rule is not judged */
         { "*.zip", "*.zip", 1, NULL },
@@ -860,6 +905,7 @@ BOOL CWinHTTrackApp::InitInstance()
       static const struct { const char* box; int want; } sends[] = {
         { "+*.gif -*.zip", 1 },
         { "+*.gif *.zip", 0 },            /* one bad rule refuses the whole list */
+        { "+*.gif\v-*.zip", 1 },          /* two rules, not one rule holding a control byte */
         { "", 1 },                        /* an empty list is valid and clears the rules */
         { NULL, 0 }
       };
@@ -1757,7 +1803,8 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
-      global_opt = hts_create_opt();
+      WhttOptRecreate();
+      WhttOptSetEngineRunning(TRUE);    /* what the engine thread's init callback does */
       termine = 1;                 /* a mirror that already ended is not one to stop */
       if (SessionEndStop(TRUE) != WHTT_STOP_ENDED || soft_term_requested) {
         fprintf(stderr, "FATAL: session end acted on a finished mirror\n");
@@ -1805,8 +1852,8 @@ BOOL CWinHTTrackApp::InitInstance()
 
       /* A cancelled shutdown must not eat the next mirror's one ask, so redo what
          init_lance() does per mirror and ask again. */
-      hts_free_opt(global_opt);
-      global_opt = hts_create_opt();
+      WhttOptRecreate();
+      WhttOptSetEngineRunning(TRUE);
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED || !global_opt->state.stop) {
         fprintf(stderr, "FATAL: a cancelled shutdown consumed the next mirror's stop\n");
@@ -1817,8 +1864,8 @@ BOOL CWinHTTrackApp::InitInstance()
 
       /* The order Windows really sends: the query phase asks, the cancellation follows,
          and nothing un-asks it. On its own mirror, so no ordering can carry this case. */
-      hts_free_opt(global_opt);
-      global_opt = hts_create_opt();
+      WhttOptRecreate();
+      WhttOptSetEngineRunning(TRUE);
       termine = termine_requested = shell_terminated = soft_term_requested = 0;
       if (SessionEndStop(TRUE) != WHTT_STOP_ASKED) {
         fprintf(stderr, "FATAL: the post-ask case could not arm its own ask\n");
@@ -1833,12 +1880,22 @@ BOOL CWinHTTrackApp::InitInstance()
       } else
         nchecks++;
 
-      hts_free_opt(global_opt);
-      global_opt = NULL;
+      /* An option set no mirror is running must not be asked to stop. */
+      WhttOptRecreate();
+      termine = termine_requested = shell_terminated = soft_term_requested = 0;
+      if (SessionEndStop(TRUE) != WHTT_STOP_NO_MIRROR || soft_term_requested
+          || global_opt->state.stop) {
+        fprintf(stderr, "FATAL: session end asked an option set no engine is running\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+
+      WhttOptDestroy();
       termine = soft_term_requested = 0;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 8) {
-        fprintf(stderr, "FATAL: session end ran %d checks, expected 8\n", nchecks);
+      if (nchecks != 9) {
+        fprintf(stderr, "FATAL: session end ran %d checks, expected 9\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

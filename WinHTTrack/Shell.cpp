@@ -35,6 +35,7 @@ Please visit our Website: http://www.httrack.com
 #include "NewProj.h"
 
 #include <limits.h>   /* after the PCH, which is where the compiler starts reading */
+#include <ctype.h>
 
 #include <WS2tcpip.h>  // Note: weird C2894 error if not included here
 extern "C" {
@@ -142,6 +143,70 @@ char WIZ_question[WIZ_QUESTION_SIZE];
 char WIZ_reponse[WIZ_QUESTION_SIZE];
 
 httrackp *global_opt = NULL;
+
+/* global_opt's lifetime and the engine's claim on it. */
+static CRITICAL_SECTION WhttOptLock;
+static BOOL WhttOptEngineRunning = FALSE;
+
+// see Shell.h
+void WhttOptInit() {
+  InitializeCriticalSection(&WhttOptLock);
+}
+
+// see Shell.h
+WhttOptState WhttOptStateOf(const httrackp *opt, BOOL engineRunning) {
+  if (opt == NULL)
+    return WHTT_OPT_NONE;
+  return engineRunning ? WHTT_OPT_LIVE : WHTT_OPT_IDLE;
+}
+
+WhttOptGuard::WhttOptGuard() {
+  EnterCriticalSection(&WhttOptLock);
+  m_opt = global_opt;
+  m_state = WhttOptStateOf(m_opt, WhttOptEngineRunning);
+}
+
+WhttOptGuard::~WhttOptGuard() {
+  LeaveCriticalSection(&WhttOptLock);
+}
+
+httrackp *WhttOptGuard::live() const {
+  return (m_state == WHTT_OPT_LIVE) ? m_opt : NULL;
+}
+
+httrackp *WhttOptGuard::optIfAny() const {
+  return (m_state != WHTT_OPT_NONE) ? m_opt : NULL;
+}
+
+// see Shell.h
+void WhttOptSetEngineRunning(BOOL running) {
+  EnterCriticalSection(&WhttOptLock);
+  WhttOptEngineRunning = running;
+  LeaveCriticalSection(&WhttOptLock);
+}
+
+// see Shell.h
+void WhttOptRecreate() {
+  EnterCriticalSection(&WhttOptLock);
+  WhttOptEngineRunning = FALSE;
+  if (global_opt != NULL) {
+    hts_free_opt(global_opt);
+    global_opt = NULL;
+  }
+  global_opt = hts_create_opt();
+  LeaveCriticalSection(&WhttOptLock);
+}
+
+// see Shell.h
+void WhttOptDestroy() {
+  EnterCriticalSection(&WhttOptLock);
+  WhttOptEngineRunning = FALSE;
+  if (global_opt != NULL) {
+    hts_free_opt(global_opt);
+    global_opt = NULL;
+  }
+  LeaveCriticalSection(&WhttOptLock);
+}
 
 // Fonctionnement des THREADS:
 //
@@ -280,7 +345,11 @@ BOOL LaunchMirror() {
 
 /* The Cancel button's stop, minus its confirmation. */
 WhttMirrorStop RequestMirrorStop() {
-  hts_setpause(global_opt, 0);
+  WhttOptGuard guard;
+  httrackp *const opt = guard.live();
+  if (opt == NULL)
+    return WHTT_STOP_NO_MIRROR;
+  hts_setpause(opt, 0);
   if (soft_term_requested) {
     termine_requested=1;
     return WHTT_STOP_ABORTED;
@@ -288,7 +357,7 @@ WhttMirrorStop RequestMirrorStop() {
   soft_term_requested=1;
   /* keep_resume: a mirror the user stopped is meant to be continued, unlike one
      that ran out of links. */
-  hts_request_stop(global_opt, 1);
+  hts_request_stop(opt, 1);
   return WHTT_STOP_ASKED;
 }
 
@@ -297,8 +366,6 @@ WhttMirrorStop RequestMirrorStop() {
 WhttMirrorStop SessionEndStop(BOOL bEnding) {
   if (!bEnding)
     return WHTT_STOP_NOT_ENDING;
-  if (global_opt == NULL)
-    return WHTT_STOP_NO_MIRROR;
   if (termine)
     return WHTT_STOP_ENDED;
   if (soft_term_requested)
@@ -915,6 +982,8 @@ int __cdecl httrackengine_check_mime(t_hts_callbackarg *carg, httrackp *opt, con
 EXECUTION_STATE (WINAPI * SetThreadExecutionState_)(IN EXECUTION_STATE) = NULL;
 void __cdecl httrackengine_init(t_hts_callbackarg *carg) {    // appelé lors de l'init de HTTRACK, avant le début d'un miroir
   ATLTRACE(__FUNCTION__ " : init\r\n");
+  /* The option set is the engine's from here until uninit below. */
+  WhttOptSetEngineRunning(TRUE);
   // Finished
   PlaySound("MirrorStarted", NULL, SND_ASYNC | SND_NOWAIT | SND_APPLICATION);
 
@@ -935,6 +1004,8 @@ void __cdecl httrackengine_init(t_hts_callbackarg *carg) {    // appelé lors de
 }
 void __cdecl httrackengine_uninit(t_hts_callbackarg *carg) {  // appelé en fin de miroir (peut être utile!!!)
   ATLTRACE(__FUNCTION__ " : uninit\r\n");
+  /* This runs before hts_main2() closes opt->log, which a live call still writes to. */
+  WhttOptSetEngineRunning(FALSE);
   // Finished
   PlaySound("MirrorFinished", NULL, SND_ASYNC | SND_NOWAIT | SND_APPLICATION);
 
@@ -1439,11 +1510,24 @@ int inprogress_refresh() {
       if (!icn) {
         int parsing=0;
         if (!soft_term_requested) {
-          if (!hts_setpause(global_opt, -1)) {
-            if (!(parsing=hts_is_parsing(global_opt, -1)))
+          int paused=0, testing=0;
+          {
+            WhttOptGuard guard;
+            httrackp *const opt = guard.live();
+            if (opt != NULL) {
+              paused=hts_setpause(opt, -1);
+              if (!paused) {
+                parsing=hts_is_parsing(opt, -1);
+                if (parsing)
+                  testing=hts_is_testing(opt);
+              }
+            }
+          }
+          if (!paused) {
+            if (!parsing)
               SetDlgItemTextCP(inprogress, IDC_inforun,LANG(LANG_F10 /*"Receiving files.","Réception des fichiers"*/)); 
             else {
-              switch(hts_is_testing(global_opt)) {
+              switch(testing) {
               case 0:
                 SetDlgItemTextCP(inprogress, IDC_inforun,LANG(LANG_F11 /*"Parsing HTML file..","Parcours du fichier HTML"*/)); 
                 break;
@@ -1793,12 +1877,9 @@ void __cdecl RunBackRobot(void* al_p) {
     __try
 #endif
 		{
-			if (global_opt != NULL)
-			{
-				hts_free_opt(global_opt);
-				global_opt = NULL;
-			}
-      global_opt = hts_create_opt();
+      /* The new window already takes clicks, so free, clear and create must be one step.
+         This thread is the only writer, so the reads below need no guard. */
+      WhttOptRecreate();
       assert(global_opt->size_httrackp == sizeof(httrackp));
 
       CHAIN_FUNCTION(global_opt, init, httrackengine_init, NULL);
@@ -1864,6 +1945,21 @@ CString change(char* chaine,char c) {
   return chaine1;
 }
 
+// The engine's hts_scan_token() ends a rule on any isspace() byte, so --selftest pins
+// this set against isspace() itself.
+static inline BOOL isRuleSpace(const char c) {
+  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
+}
+
+// see Shell.h
+int ruleSeparatorMismatch(void) {
+  for(int c = 0 ; c < 256 ; c++) {
+    if ((isRuleSpace((char) c) != FALSE) != (isspace(c) != 0))
+      return c;
+  }
+  return -1;
+}
+
 class SeparatorComparator {
 public:
   inline virtual bool isSeparator(const char c) const = 0;
@@ -1872,7 +1968,7 @@ public:
 class SpaceSeparatorComparator: public SeparatorComparator {
 public:
   inline bool isSeparator(const char c) const {
-    return c == ' ' || c == '\t' || c == '\n';
+    return isRuleSpace(c) != FALSE;
   }
 };
 
@@ -1907,12 +2003,6 @@ static void splitStringInArray(CSimpleArray<CString> &args,
       last = i + 1;
     }
   }
-}
-
-// isspace()'s C-locale set, so a rules box splits the same here, in WebHTTrack and in
-// the Android app, whose Java \s covers \v and \f too.
-static inline BOOL isRuleSpace(const char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\v' || c == '\f';
 }
 
 // Split a rule field the way WebHTTrack does; both read the same winprofile.ini.
@@ -1950,13 +2040,8 @@ BOOL ruleListHoldsRule(const CString &list, const CString &rule) {
   return FALSE;
 }
 
-// Separates two rules inside one line, so narrower than isRuleSpace() above. Both loops
-// below must read the same set, or a character that neither skips nor ends a rule hangs them.
-static inline BOOL isRuleGap(const char c) {
-  return c == ' ' || c == '\t';
-}
-
-// Returns LINE with PRESET's rules gone, spacing kept around what stays.
+// Returns LINE with PRESET's rules gone, spacing kept around what stays. Both loops below
+// must read the same set, or a byte that neither skips nor ends a rule hangs them.
 static CString keepRulesInLine(const CString &line, const CString &preset) {
   const int size = line.GetLength();
   CString kept;
@@ -1967,13 +2052,12 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
     int end;
     CString rule;
 
-    while (p < size && isRuleGap(line[p]))
+    while (p < size && isRuleSpace(line[p]))
       p++;
     end = p;
-    while (end < size && !isRuleGap(line[end]))
+    while (end < size && !isRuleSpace(line[end]))
       end++;
     rule = line.Mid(p, end - p);
-    rule.Trim(" \t\r\n");                  // the rule as the engine would receive it
     if (!rule.IsEmpty() && !ruleListHoldsRule(preset, rule)) {
       // the spacing the user typed, the line's indent only before the first rule
       if (!kept.IsEmpty() || sep == 0)
@@ -2016,8 +2100,7 @@ CString applyRulePreset(const CString &box, const CString &preset, BOOL checked)
 
     while (eol < size && box[eol] != '\n')
       eol++;
-    CString line = box.Mid(pos, eol - pos);
-    line.TrimRight("\r");                  // the control's CRLF
+    const CString line = box.Mid(pos, eol - pos);
     const CString kept = keepRulesInLine(line, preset);
     if (!kept.IsEmpty()) {
       if (!out.IsEmpty())
