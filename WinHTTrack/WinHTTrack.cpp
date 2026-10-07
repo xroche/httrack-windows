@@ -810,6 +810,96 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("bad scan rules ok on %d checks\n", nchecks);
     }
+    /* A malformed preset rule traps the user on the page since #208, and a rule in two
+       lists lets one box take out what another shows. */
+    {
+      static const struct { const char* name; const char* rules; int nrules; } presets[] = {
+        { "images", rulePresetImages, 6 },
+        { "archives", rulePresetArchives, 7 },
+        { "movies", rulePresetMovies, 15 },
+        { NULL, NULL, 0 }
+      };
+      int nchecks = 0;
+
+      for(int k=0 ; presets[k].name != NULL ; k++) {
+        CStringArray rules;
+        const CString refusal = liveScanRuleRefusal("", presets[k].rules, TRUE);
+
+        if (!refusal.IsEmpty()) {
+          fprintf(stderr, "FATAL: the %s preset carries a rule the page refuses: %s\n",
+                  presets[k].name, (LPCSTR) refusal);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+        splitRulesInArray(rules, presets[k].rules);
+        if (rules.GetSize() != presets[k].nrules) {
+          fprintf(stderr, "FATAL: the %s preset holds %d rules, expected %d\n",
+                  presets[k].name, (int) rules.GetSize(), presets[k].nrules);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+        for(INT_PTR i=0 ; i<rules.GetSize() ; i++) {
+          for(int j=0 ; presets[j].name != NULL ; j++) {
+            /* a shared rule lets one box take out what another shows */
+            const BOOL held = ruleListHoldsRule(presets[j].rules, rules[i]);
+            const BOOL own = (j == k) ? TRUE : FALSE;
+
+            if (held != own) {
+              fprintf(stderr, "FATAL: the rule %s of the %s preset is %s the %s preset\n",
+                      (LPCSTR) rules[i], presets[k].name,
+                      held ? "also in" : "missing from", presets[j].name);
+              fflush(stderr);
+              ExitProcess(3);
+            }
+          }
+          nchecks++;
+        }
+      }
+      printf("preset rule lists ok on %d checks\n", nchecks);
+    }
+    /* Only a whole preset checks its box, because the click that unchecks it takes out
+       every rule of the preset. */
+    {
+      static const char preset[] = "+*.gif +*.jpg";
+      static const struct { const char* box; int want; } holds[] = {
+        { "+*.gif +*.jpg", 1 },
+        { "+*.jpg +*.gif", 1 },               /* order is not part of the preset */
+        { "+*.gif\r\n+*.jpg", 1 },            /* the control's own line breaks */
+        { "  +*.gif\t+*.zip +*.jpg  ", 1 },   /* the user's own rules sit among them */
+        { "+*.gif", 0 },                      /* one rule of it is not the preset */
+        { "+*.jpg", 0 },
+        { "", 0 },
+        { "+*.gifx +*.jpgx", 0 },             /* a longer rule is not that rule */
+        { "+*.GIF +*.JPG", 0 },               /* matching is case-sensitive */
+        { "-*.gif -*.jpg", 0 },               /* the sign is part of the rule */
+        { "+*.gif,+*.jpg", 0 },               /* one rule, since ',' separates nothing */
+        { NULL, 0 }
+      };
+      int nchecks = 0;
+
+      for(int k=0 ; holds[k].box != NULL ; k++) {
+        const int got = ruleListHoldsPreset(holds[k].box, preset) ? 1 : 0;
+
+        if (got != holds[k].want) {
+          fprintf(stderr, "FATAL: box '%s' read the preset as %s, expected %s\n",
+                  holds[k].box, got ? "applied" : "not applied",
+                  holds[k].want ? "applied" : "not applied");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* a preset holding no rule is held by nothing */
+      if (ruleListHoldsPreset("+*.gif", "")) {
+        fprintf(stderr, "FATAL: an empty preset read as applied\n");
+        fflush(stderr);
+        ExitProcess(3);
+      } else
+        nchecks++;
+      printf("preset checkmarks ok on %d checks\n", nchecks);
+    }
     /* What the engine is actually told: the whole box, or nothing at all. */
     {
       static const struct { const char* box; int want; } sends[] = {

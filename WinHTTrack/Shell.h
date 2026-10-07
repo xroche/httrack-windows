@@ -322,6 +322,21 @@ int ruleSeparatorMismatch(void);
    Exposed for --selftest. */
 CString applyRulePreset(const CString &box, const CString &preset, BOOL checked);
 
+/* The rules each preset checkbox of the Experts page inserts. No rule may appear in two
+   of them, or one box would take out rules another box is showing. Exposed for --selftest. */
+extern const char rulePresetImages[];
+extern const char rulePresetArchives[];
+extern const char rulePresetMovies[];
+
+/* TRUE if LIST carries RULE as a whole rule of its own, never inside a longer one.
+   Exposed for --selftest. */
+BOOL ruleListHoldsRule(const CString &list, const CString &rule);
+
+/* TRUE if BOX holds every rule of PRESET, which is when its checkbox shows checked. One
+   rule of PRESET is not enough, because the click that unchecks the box takes out all of
+   them. An empty PRESET is held by nothing. Exposed for --selftest. */
+BOOL ruleListHoldsPreset(const CString &box, const CString &preset);
+
 /* What to tell the user about EDITED before the options page closes, or an empty string
    when the page may close. OPENED is the box as the panel opened, and an unchanged box
    is never judged. LIVEEDIT is FALSE before a mirror starts, where the engine never

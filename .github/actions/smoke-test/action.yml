@@ -345,6 +345,14 @@ runs:
         if ("$so" -notmatch 'bad scan rules ok on 12 checks') {
           throw "selftest did not check the rules the options page refuses"
         }
+        # A preset's rules are written nowhere else, and a malformed one traps the user on the page.
+        if ("$so" -notmatch 'preset rule lists ok on 34 checks') {
+          throw "selftest did not check the three preset rule lists"
+        }
+        # A checkmark claiming a preset the box only partly holds would delete the rest on a click.
+        if ("$so" -notmatch 'preset checkmarks ok on 12 checks') {
+          throw "selftest did not check what a preset checkbox shows"
+        }
         if ("$so" -notmatch 'live rules set ok on 4 checks') {
           throw "selftest did not check what a live edit sends to the engine"
         }

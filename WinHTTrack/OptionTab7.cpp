@@ -73,6 +73,7 @@ COptionTab7::COptionTab7() : CPropertyPage(COptionTab7::IDD)
 	//}}AFX_DATA_INIT
   // only the modify-on-the-fly path ever writes it, and OnInitDialog reads it
   modify = 0;
+  m_writingRules = 0;
 }
 
 COptionTab7::~COptionTab7()
@@ -97,6 +98,7 @@ BEGIN_MESSAGE_MAP(COptionTab7, CPropertyPage)
 	ON_BN_CLICKED(IDC_CHECK3, OnCheck3)
 	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
+  ON_EN_CHANGE(IDC_URL2, OnChangeUrl2)
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
 
@@ -294,6 +296,8 @@ BOOL COptionTab7::OnInitDialog()
   if (modify==1)
     SetDlgItemTextLang(this, IDC_STATIC_tip, LANG(LANG_LIVERULES));
 
+  RefreshPresetChecks();      // after the base class filled IDC_URL2, which is what it reads
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -346,27 +350,54 @@ const char* COptionTab7::GetTip(int ID)
 // TOOL TIPS
 // ------------------------------------------------------------
 
-void COptionTab7::EnsureIncluded(BOOL checked, CString preset)  {
+/* Restores the count even when the write throws, which would otherwise leave the page
+   never following the field again. */
+class RulesBoxWrite {
+public:
+  RulesBoxWrite(int &count) : m_count(count) { m_count++; }
+  ~RulesBoxWrite() { m_count--; }
+private:
+  int &m_count;
+};
+
+void COptionTab7::EnsureIncluded(BOOL checked, const CString &preset)  {
   CString st;
 
   GetDlgItemText(IDC_URL2,st);
+  /* The click already set the checkmark, so skip the refresh this write would trigger. */
+  RulesBoxWrite writing(m_writingRules);
   SetDlgItemTextCP(this, IDC_URL2, applyRulePreset(st, preset, checked));
 }
 
+void COptionTab7::RefreshPresetChecks()
+{
+  CString st;
+
+  GetDlgItemText(IDC_URL2,st);
+  CheckDlgButton(IDC_CHECK1, ruleListHoldsPreset(st, rulePresetImages) ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(IDC_CHECK2, ruleListHoldsPreset(st, rulePresetArchives) ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(IDC_CHECK3, ruleListHoldsPreset(st, rulePresetMovies) ? BST_CHECKED : BST_UNCHECKED);
+}
+
+void COptionTab7::OnChangeUrl2()
+{
+  if (m_writingRules == 0)
+    RefreshPresetChecks();
+}
 
 void COptionTab7::OnCheck1() 
 {
-  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK1),"+*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp");
+  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK1),rulePresetImages);
 }
 
 void COptionTab7::OnCheck2() 
 {
-  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK2),"+*.zip +*.tar +*.tgz +*.gz +*.rar +*.z +*.exe");
+  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK2),rulePresetArchives);
 }
 
 void COptionTab7::OnCheck3() 
 {
-  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK3),"+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.mp3 +*.mp2 +*.rm +*.wav +*.vob +*.qt +*.vid +*.ac3 +*.wma +*.wmv");
+  EnsureIncluded(this->IsDlgButtonChecked(IDC_CHECK3),rulePresetMovies);
 }
 
 void COptionTab7::BuildLayout()
