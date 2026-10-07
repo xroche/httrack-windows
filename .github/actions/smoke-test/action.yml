@@ -338,7 +338,7 @@ runs:
           throw "selftest did not check the catalog keys"
         }
         # A malformed rule must not reach a running mirror, and the page is what stops it.
-        if ("$so" -notmatch 'bad scan rules ok on 12 checks') {
+        if ("$so" -notmatch 'bad scan rules ok on 13 checks') {
           throw "selftest did not check the rules the options page refuses"
         }
         # A preset's rules are written nowhere else, and a malformed one traps the user on the page.
@@ -349,7 +349,7 @@ runs:
         if ("$so" -notmatch 'preset checkmarks ok on 12 checks') {
           throw "selftest did not check what a preset checkbox shows"
         }
-        if ("$so" -notmatch 'live rules set ok on 4 checks') {
+        if ("$so" -notmatch 'live rules set ok on 5 checks') {
           throw "selftest did not check what a live edit sends to the engine"
         }
         # The engine owns these numbers, so a bump there must not leave a cue stating a

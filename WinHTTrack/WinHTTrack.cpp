@@ -794,6 +794,8 @@ BOOL CWinHTTrackApp::InitInstance()
            refuses the whole list over one */
         { "*.zip", "*.zip +*.gif", 1, "*.zip" },
         { "", "+*.gif *.zip", 0, NULL },      /* before a mirror runs, the page does not judge */
+        /* the space before the first rule is not a rule of its own */
+        { "", " +*.gif", 1, NULL },
         { NULL, NULL, 0, NULL }
       };
       int nchecks = 0;
@@ -912,6 +914,7 @@ BOOL CWinHTTrackApp::InitInstance()
         { "+*.gif *.zip", 0 },            /* one bad rule refuses the whole list */
         { "+*.gif\v-*.zip", 1 },          /* two rules, not one rule holding a control byte */
         { "", 1 },                        /* an empty list is valid and clears the rules */
+        { " +*.gif", 1 },                 /* the leading space is dropped, never sent as a rule */
         { NULL, 0 }
       };
       httrackp *const opt = hts_create_opt();
