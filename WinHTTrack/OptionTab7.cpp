@@ -96,9 +96,9 @@ BEGIN_MESSAGE_MAP(COptionTab7, CPropertyPage)
 	ON_BN_CLICKED(IDC_CHECK1, OnCheck1)
 	ON_BN_CLICKED(IDC_CHECK2, OnCheck2)
 	ON_BN_CLICKED(IDC_CHECK3, OnCheck3)
-	ON_EN_CHANGE(IDC_URL2, OnChangeUrl2)
 	ON_WM_SIZE()
 	//}}AFX_MSG_MAP
+  ON_EN_CHANGE(IDC_URL2, OnChangeUrl2)
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
 
@@ -296,7 +296,7 @@ BOOL COptionTab7::OnInitDialog()
   if (modify==1)
     SetDlgItemTextLang(this, IDC_STATIC_tip, LANG(LANG_LIVERULES));
 
-  RefreshPresetChecks();      // after the language patch, like every runtime change here
+  RefreshPresetChecks();      // after the base class filled IDC_URL2, which is what it reads
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
@@ -350,14 +350,23 @@ const char* COptionTab7::GetTip(int ID)
 // TOOL TIPS
 // ------------------------------------------------------------
 
-void COptionTab7::EnsureIncluded(BOOL checked, CString preset)  {
+/* Restores the count even when the write throws, which would otherwise leave the page
+   never following the field again. */
+class RulesBoxWrite {
+public:
+  RulesBoxWrite(int &count) : m_count(count) { m_count++; }
+  ~RulesBoxWrite() { m_count--; }
+private:
+  int &m_count;
+};
+
+void COptionTab7::EnsureIncluded(BOOL checked, const CString &preset)  {
   CString st;
 
   GetDlgItemText(IDC_URL2,st);
-  /* The click already says what the box shows, so its own EN_CHANGE must not re-read it. */
-  m_writingRules++;
+  /* The click already set the checkmark, so skip the refresh this write would trigger. */
+  RulesBoxWrite writing(m_writingRules);
   SetDlgItemTextCP(this, IDC_URL2, applyRulePreset(st, preset, checked));
-  m_writingRules--;
 }
 
 void COptionTab7::RefreshPresetChecks()
@@ -365,9 +374,9 @@ void COptionTab7::RefreshPresetChecks()
   CString st;
 
   GetDlgItemText(IDC_URL2,st);
-  CheckDlgButton(IDC_CHECK1, rulePresetApplied(st, rulePresetImages) ? BST_CHECKED : BST_UNCHECKED);
-  CheckDlgButton(IDC_CHECK2, rulePresetApplied(st, rulePresetArchives) ? BST_CHECKED : BST_UNCHECKED);
-  CheckDlgButton(IDC_CHECK3, rulePresetApplied(st, rulePresetMovies) ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(IDC_CHECK1, ruleListHoldsPreset(st, rulePresetImages) ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(IDC_CHECK2, ruleListHoldsPreset(st, rulePresetArchives) ? BST_CHECKED : BST_UNCHECKED);
+  CheckDlgButton(IDC_CHECK3, ruleListHoldsPreset(st, rulePresetMovies) ? BST_CHECKED : BST_UNCHECKED);
 }
 
 void COptionTab7::OnChangeUrl2()

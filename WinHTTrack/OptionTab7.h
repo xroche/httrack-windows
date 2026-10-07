@@ -78,16 +78,16 @@ protected:
 	afx_msg void OnCheck1();
 	afx_msg void OnCheck2();
 	afx_msg void OnCheck3();
-	afx_msg void OnChangeUrl2();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
+  afx_msg void OnChangeUrl2();
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
 	DECLARE_MESSAGE_MAP()
 
-  void EnsureIncluded(BOOL checked, CString preset);
-  /* Sets the three preset boxes from the rules the box holds. */
+  void EnsureIncluded(BOOL checked, const CString &preset);
+  /* Sets the three preset checkboxes from the rules the field holds. */
   void RefreshPresetChecks();
-  /* Non-zero while EnsureIncluded() rewrites the box, so its own EN_CHANGE is ignored. */
+  /* Non-zero while EnsureIncluded() rewrites the field, so its own EN_CHANGE is ignored. */
   int m_writingRules;
 
 };

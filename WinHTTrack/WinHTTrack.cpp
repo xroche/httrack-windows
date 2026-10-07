@@ -810,8 +810,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("bad scan rules ok on %d checks\n", nchecks);
     }
-    /* A misspelled preset rule round-trips through check and uncheck, and since #208 a
-       malformed one traps the user on the page. */
+    /* A malformed preset rule traps the user on the page since #208, and a rule in two
+       lists lets one box take out what another shows. */
     {
       static const struct { const char* name; const char* rules; int nrules; } presets[] = {
         { "images", rulePresetImages, 6 },
@@ -842,11 +842,11 @@ BOOL CWinHTTrackApp::InitInstance()
         nchecks++;
         for(INT_PTR i=0 ; i<rules.GetSize() ; i++) {
           for(int j=0 ; presets[j].name != NULL ; j++) {
-            /* a shared rule lets one box take out what another shows, and a rule its own
-               preset cannot match is one no box ever takes out */
+            /* a shared rule lets one box take out what another shows */
             const BOOL held = ruleListHoldsRule(presets[j].rules, rules[i]);
+            const BOOL own = (j == k) ? TRUE : FALSE;
 
-            if (held != (j == k ? TRUE : FALSE)) {
+            if (held != own) {
               fprintf(stderr, "FATAL: the rule %s of the %s preset is %s the %s preset\n",
                       (LPCSTR) rules[i], presets[k].name,
                       held ? "also in" : "missing from", presets[j].name);
@@ -880,7 +880,7 @@ BOOL CWinHTTrackApp::InitInstance()
       int nchecks = 0;
 
       for(int k=0 ; holds[k].box != NULL ; k++) {
-        const int got = rulePresetApplied(holds[k].box, preset) ? 1 : 0;
+        const int got = ruleListHoldsPreset(holds[k].box, preset) ? 1 : 0;
 
         if (got != holds[k].want) {
           fprintf(stderr, "FATAL: box '%s' read the preset as %s, expected %s\n",
@@ -892,7 +892,7 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       /* a preset holding no rule is held by nothing */
-      if (rulePresetApplied("+*.gif", "")) {
+      if (ruleListHoldsPreset("+*.gif", "")) {
         fprintf(stderr, "FATAL: an empty preset read as applied\n");
         fflush(stderr);
         ExitProcess(3);

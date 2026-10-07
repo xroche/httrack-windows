@@ -2070,13 +2070,13 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
 }
 
 // see Shell.h
-const char rulePresetImages[] = "+*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp";
-const char rulePresetArchives[] = "+*.zip +*.tar +*.tgz +*.gz +*.rar +*.z +*.exe";
-const char rulePresetMovies[] = "+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.mp3 +*.mp2 "
+extern const char rulePresetImages[] = "+*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp";
+extern const char rulePresetArchives[] = "+*.zip +*.tar +*.tgz +*.gz +*.rar +*.z +*.exe";
+extern const char rulePresetMovies[] = "+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.mp3 +*.mp2 "
   "+*.rm +*.wav +*.vob +*.qt +*.vid +*.ac3 +*.wma +*.wmv";
 
 // see Shell.h
-BOOL rulePresetApplied(const CString &box, const CString &preset) {
+BOOL ruleListHoldsPreset(const CString &box, const CString &preset) {
   CSimpleArray<CString> rules;
 
   splitStringInArray(rules, preset, instSpaceSeparatorComparator);

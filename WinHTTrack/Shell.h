@@ -335,7 +335,7 @@ BOOL ruleListHoldsRule(const CString &list, const CString &rule);
 /* TRUE if BOX holds every rule of PRESET, which is when its checkbox shows checked. One
    rule of PRESET is not enough, because the click that unchecks the box takes out all of
    them. An empty PRESET is held by nothing. Exposed for --selftest. */
-BOOL rulePresetApplied(const CString &box, const CString &preset);
+BOOL ruleListHoldsPreset(const CString &box, const CString &preset);
 
 /* What to tell the user about EDITED before the options page closes, or an empty string
    when the page may close. OPENED is the box as the panel opened, and an unchanged box
