@@ -1945,10 +1945,10 @@ CString change(char* chaine,char c) {
   return chaine1;
 }
 
-// The token at *PTR, advanced past the token and the whitespace after it. ROOM is the
-// whole string it came from, so the engine cannot truncate the token and its refusal has
-// nothing to report.
-static CString scanRuleToken(char **ptr, int room) {
+// The token at *PTR, advanced past the token and the whitespace after it. The buffer
+// takes the rest of the string, so the token always fits and hts_scan_token cannot refuse.
+static CString scanRuleToken(char **ptr) {
+  const int room = (int) strlen(*ptr);
   CString token;
   char *const dest = token.GetBufferSetLength(room);
 
@@ -1964,7 +1964,7 @@ static void splitTokensInArray(CSimpleArray<CString> &args, const CString &str) 
   char *cur = source.GetBuffer();
 
   while (*cur != '\0') {
-    const CString token = scanRuleToken(&cur, str.GetLength());
+    const CString token = scanRuleToken(&cur);
 
     if (!token.IsEmpty())                    // leading whitespace yields an empty token
       args.Add(token);
@@ -1998,7 +1998,6 @@ static void splitLinesInArray(CSimpleArray<CString> &args,
 // Split a rule field the way WebHTTrack does; both read the same winprofile.ini.
 // Whitespace splits rules, except beside a ',' or '=': "a , b = c" is one "a,b=c".
 void splitRulesInArray(CStringArray &rules, const CString &str) {
-  const int room = str.GetLength();
   CString source(str);
   char *cur = source.GetBuffer();
 
@@ -2007,7 +2006,7 @@ void splitRulesInArray(CStringArray &rules, const CString &str) {
     BOOL more = TRUE;
 
     while (more) {
-      const CString token = scanRuleToken(&cur, room);
+      const CString token = scanRuleToken(&cur);
 
       rule += token;
       more = *cur != '\0' &&
@@ -2034,7 +2033,6 @@ BOOL ruleListHoldsRule(const CString &list, const CString &rule) {
 
 // Returns LINE with PRESET's rules gone, spacing kept around what stays.
 static CString keepRulesInLine(const CString &line, const CString &preset) {
-  const int room = line.GetLength();
   CString source(line);
   char *const base = source.GetBuffer();
   char *cur = base;
@@ -2043,9 +2041,8 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
 
   while (*cur != '\0') {
     const int start = (int) (cur - base);
-    const CString rule = scanRuleToken(&cur, room);
+    const CString rule = scanRuleToken(&cur);
     const int end = start + rule.GetLength();
-    const CString skipped = line.Mid(end, (int) (cur - base) - end);
 
     if (!rule.IsEmpty()) {
       if (!ruleListHoldsRule(preset, rule)) {
@@ -2056,7 +2053,7 @@ static CString keepRulesInLine(const CString &line, const CString &preset) {
       }
       first = FALSE;
     }
-    gap = skipped;
+    gap = line.Mid(end, (int) (cur - base) - end);   // what the next rule reads as its gap
   }
   return kept;
 }
