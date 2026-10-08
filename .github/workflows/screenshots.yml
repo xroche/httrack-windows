@@ -18,6 +18,11 @@ on:
         type: choice
         options: [walk, probe]
         default: walk
+      platform:
+        description: 'arch to walk: x64, ARM64, or both'
+        type: choice
+        options: [both, x64, ARM64]
+        default: both
       run-id:
         description: 'windows-build run to take the binaries from (default: the build of this commit)'
         required: false
@@ -26,9 +31,9 @@ on:
         required: false
         default: English
       artifact:
-        description: 'artifact to run: the build output, or httrack-signed-binaries to shoot a signed app'
+        description: 'artifact to run: empty for the build output of this arch, or httrack-signed-binaries to shoot a signed app'
         required: false
-        default: WinHTTrack-x64-Release
+        default: ''
 
 permissions:
   contents: read
@@ -93,12 +98,21 @@ jobs:
           exit 1
 
   capture:
+    name: capture (${{ matrix.platform }})
     needs: resolve
-    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      # A named arch runs alone and anything else runs both, the push trigger included
+      # because it sends no input at all.
+      matrix:
+        platform: ${{ fromJSON(inputs.platform == 'x64' && '["x64"]' || inputs.platform == 'ARM64' && '["ARM64"]' || '["x64","ARM64"]') }}
+    # Nothing on an x64 runner can start an ARM64 image, so that leg is native hardware.
+    runs-on: ${{ matrix.platform == 'ARM64' && 'windows-11-arm' || 'windows-2022' }}
     timeout-minutes: 20
     # Shares the Windows runners with the build; queue: max, as the default cancels a waiter.
+    # Per arch, because the two draw from different runner pools.
     concurrency:
-      group: screenshots-capture
+      group: screenshots-capture-${{ matrix.platform }}
       queue: max
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -113,7 +127,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ needs.resolve.outputs.run-id }}
-          ARTIFACT: ${{ inputs.artifact || 'WinHTTrack-x64-Release' }}
+          ARTIFACT: ${{ inputs.artifact || format('WinHTTrack-{0}-Release', matrix.platform) }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
           # gh reads an empty id as "any run in the repo", so never let one through.
           if (-not $env:RUN_ID) { throw 'resolve named no build to walk' }
@@ -122,13 +137,30 @@ jobs:
           # arch, and a wrong-arch shot is pixel-identical to a right one.
           $found = @(Get-ChildItem app -Recurse -Filter WinHTTrack.exe)
           if (-not $found) { throw "artifact $env:ARTIFACT has no WinHTTrack.exe" }
-          # The directory name, not the full path: a workspace holding "x64" matches every arch.
+          # Match the directory name, because the full path can carry its own arch name.
           $exe = if ($found.Count -eq 1) { $found[0] }
-                 else { $found | Where-Object { $_.Directory.Name -like '*x64*' } | Select-Object -First 1 }
-          # An arch pair without x64 stops here rather than shooting an arbitrary one.
-          if (-not $exe) { throw "artifact $env:ARTIFACT holds $($found.Count) WinHTTrack.exe, none in an x64 directory" }
+                 else { $found | Where-Object { $_.Directory.Name -eq "WinHTTrack-$env:PLATFORM-Release" } | Select-Object -First 1 }
+          # An arch set without this one stops here rather than shooting an arbitrary one.
+          if (-not $exe) { throw "artifact $env:ARTIFACT holds $($found.Count) WinHTTrack.exe, none for $env:PLATFORM" }
           Write-Host "walking $($exe.FullName)"
           "exe=$($exe.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
+
+      # Windows on ARM starts an x64 image under emulation, so a payload from the wrong
+      # leg would otherwise shoot a full green set.
+      - name: The app is ${{ matrix.platform }}
+        shell: pwsh
+        env:
+          EXE: ${{ steps.app.outputs.exe }}
+        run: |
+          $want = switch ('${{ matrix.platform }}') {
+            'x64' { 0x8664 } 'ARM64' { 0xAA64 } default { throw "give $_ its PE machine word here before giving it a leg" }
+          }
+          $pe = [IO.File]::ReadAllBytes($env:EXE)
+          $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
+          if ($machine -ne $want) {
+            throw ('{0} is machine 0x{1:x}, not the 0x{2:x} ${{ matrix.platform }} needs' -f $env:EXE, $machine, $want)
+          }
+          Write-Host ('${{ matrix.platform }} app, machine 0x{0:x}' -f $machine)
 
       # The address shows in the wizard panes and in the mirror folder name, so the crawl
       # uses a real host. example.com is reserved for documentation (RFC 2606). The port
@@ -158,6 +190,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: screenshots
+          name: screenshots-${{ matrix.platform }}
           path: shots
           if-no-files-found: error

@@ -30,6 +30,7 @@ from wincapture import (Timeout, capture, checked, click, content_rect, controls
 ID_WIZBACK, ID_WIZNEXT, ID_WIZFINISH = 0x3023, 0x3024, 0x3025
 IDOK, IDCANCEL = 1, 2
 PSM_SETCURSEL = 0x0465
+CWP_SKIPINVISIBLE = 0x0001
 TCM_GETITEMCOUNT = 0x1304
 
 PROJECT = "Demo Project"
@@ -270,14 +271,19 @@ def reopen_options(main, pid, ids):
     if box[0] < desk[0] or box[1] < desk[1] or box[2] > desk[2] or box[3] > desk[3]:
         raise RuntimeError(f"the second Set options put the sheet at {box}, "
                            f"outside the desktop {desk}")
-    # The buttons sit on the bottom edge, where a grown page can cover them.
+    # The buttons sit on the bottom edge, where a grown page can cover them. Hit-test
+    # inside the sheet, because WindowFromPoint answers against every other top-level
+    # window too, and the sheet is not foreground on every runner.
     for button in (IDOK, IDCANCEL):
         hwnd = find(sheet, control_id=button, class_name="Button")
         if hwnd is None:
             raise RuntimeError(f"the second Set options has no button {button}")
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-        if win32gui.WindowFromPoint(((left + right) // 2, (top + bottom) // 2)) != hwnd:
-            raise RuntimeError(f"button {button} is covered on the second Set options")
+        middle = win32gui.ScreenToClient(sheet, ((left + right) // 2, (top + bottom) // 2))
+        hit = win32gui.ChildWindowFromPointEx(sheet, middle, CWP_SKIPINVISIBLE)
+        if hit != hwnd:
+            raise RuntimeError(f"button {button} is covered by {hit:#x} "
+                               f"on the second Set options")
     close_options(sheet, pid, IDOK)
     print("  second Set options: clean")
 

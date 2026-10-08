@@ -22,7 +22,9 @@ a real site.
 ## Replay
 
 Run the **screenshots** workflow (Actions → Run workflow) and download the
-`screenshots` artifact. It takes the binaries from the green `windows-build` of the
+`screenshots-x64` and `screenshots-ARM64` artifacts. Both arches are shot by default,
+each on a runner of its own, because an ARM64 app only starts on ARM64 hardware. Pass
+`platform` to shoot just one. It takes the binaries from the green `windows-build` of the
 commit you dispatch it from, so a new option page is shot from the build that added it.
 A branch with no build of its own stops rather than shooting master's binaries, so pass
 `run-id` for a change that builds nothing. `mode: probe` runs
@@ -67,6 +69,8 @@ in `run()`, anchored on a control ID from that pane's dialog.
 - Shots of the main window include the file tree, so on a runner they show that
   machine's `C:\`. A VM with a tidy drive gives nicer full-window shots; the option
   tabs are separate dialogs and carry none of it.
+- No shot compares byte for byte across arches, because the runners run different
+  Windows versions and theme the controls differently. The layouts do match.
 - Comparing a new set against the previous one byte for byte is what makes the walk
   worth running before a layout change. The animation cannot take part — its counters
   differ on every run — so `16_mirror_progress.png` stays the guarded shot of that
