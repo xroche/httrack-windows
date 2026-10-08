@@ -69,8 +69,8 @@ in `run()`, anchored on a control ID from that pane's dialog.
 - Shots of the main window include the file tree, so on a runner they show that
   machine's `C:\`. A VM with a tidy drive gives nicer full-window shots; the option
   tabs are separate dialogs and carry none of it.
-- Only the option tabs compare across arches, because the other shots carry whatever
-  the runner itself holds.
+- No shot compares byte for byte across arches, because the runners run different
+  Windows versions and theme the controls differently. The layouts do match.
 - Comparing a new set against the previous one byte for byte is what makes the walk
   worth running before a layout change. The animation cannot take part — its counters
   differ on every run — so `16_mirror_progress.png` stays the guarded shot of that
