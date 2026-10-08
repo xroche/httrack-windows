@@ -556,13 +556,7 @@ void compute_options() {
   ShellOptions->url = dialog1->m_urls;
   StripControls(ShellOptions->url.GetBuffer(0));
   // --- formation du path
-  ShellOptions->path = "\"";
-  ShellOptions->path += dialog0->GetPath0();
-  ShellOptions->path += "\"";
-  //ShellOptions->path += ",";
-  //ShellOptions->path += "\"";
-  //ShellOptions->path += dialog0->GetPath0();
-  //ShellOptions->path += "\"";
+  ShellOptions->path = dialog0->GetPath0();
   
   // filelist
   {
@@ -798,34 +792,18 @@ void compute_options() {
     ShellOptions->rate += maintab->m_option4.m_rate;
   } else ShellOptions->rate = "";
   
-  // a value these four cannot carry is left out: passing it would abort the mirror
-  if (isUserAgentArgument(maintab->m_option6.m_user)) {
-    ShellOptions->user = "\"";
-    ShellOptions->user += maintab->m_option6.m_user;
-    ShellOptions->user += "\"";
-  } else ShellOptions->user = "";
-
-  if (isFooterArgument(maintab->m_option6.m_footer)) {
-    ShellOptions->footer = "\"";
-    ShellOptions->footer += maintab->m_option6.m_footer;
-    ShellOptions->footer += "\"";
-  } else ShellOptions->footer = "";
-
-  if (isLangIsoArgument(maintab->m_option6.m_accept_language)) {
-    ShellOptions->accept_language = "\"";
-    ShellOptions->accept_language += maintab->m_option6.m_accept_language;
-    ShellOptions->accept_language += "\"";
-  } else ShellOptions->accept_language = "";
+  // passing a value these four cannot carry would abort the mirror
+  ShellOptions->user = optionValue(maintab->m_option6.m_user, isUserAgentArgument);
+  ShellOptions->footer = optionValue(maintab->m_option6.m_footer, isFooterArgument);
+  ShellOptions->accept_language = optionValue(maintab->m_option6.m_accept_language,
+                                              isLangIsoArgument);
 
   if(strcmp(maintab->m_option6.m_other_headers,"")!=0){
     ShellOptions->other_headers += maintab->m_option6.m_other_headers;
   } else ShellOptions->other_headers = "";
 
-  if (isRefererArgument(maintab->m_option6.m_default_referer)) {
-    ShellOptions->default_referer = "\"";
-    ShellOptions->default_referer += maintab->m_option6.m_default_referer;
-    ShellOptions->default_referer += "\"";
-  } else ShellOptions->default_referer = "";
+  ShellOptions->default_referer = optionValue(maintab->m_option6.m_default_referer,
+                                              isRefererArgument);
 
   if(strcmp(maintab->m_option4.m_retry,"")!=0){
     ShellOptions->retry = "R";
@@ -2166,10 +2144,11 @@ static BOOL fitsEngineArgument(const CString &value, size_t maxBytes) {
     return FALSE;
   // the engine measures the UTF-8 bytes strdupt_utf8() will hand it, not these characters
   char *utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());  // freet() nulls it, so not const
-  const BOOL fits = utf8 == NULL || strlen(utf8) < maxBytes;
+  // strdupt_utf8() falls back to these same ANSI bytes when the conversion fails
+  const size_t bytes = utf8 != NULL ? strlen(utf8) : (size_t) value.GetLength();
   if (utf8 != NULL)
     freet(utf8);
-  return fits;
+  return bytes < maxBytes;
 }
 
 // A leading dash reads as the argument being missing, which aborts the mirror.
@@ -2177,29 +2156,34 @@ static BOOL isEngineArgument(const CString &value, size_t maxBytes) {
   return fitsEngineArgument(value, maxBytes) && value[0] != '-';
 }
 
-// Same, for the options whose argument the shell wraps in quotes of its own.
-static BOOL isQuotedArgument(const CString &value, size_t maxBytes) {
-  const size_t quoted = (size_t) HTS_CDLMAXSIZE - 2;   // those quotes count as argument too
-  const size_t cap = maxBytes < quoted ? maxBytes : quoted;
+// Same, except the engine also refuses any argument that reaches HTS_CDLMAXSIZE bytes.
+static BOOL isCappedArgument(const CString &value, size_t maxBytes) {
+  const size_t ceiling = (size_t) HTS_CDLMAXSIZE;
+  const size_t cap = maxBytes < ceiling ? maxBytes : ceiling;
 
   return isEngineArgument(value, cap);
 }
 
 // see Shell.h
 BOOL isUserAgentArgument(const CString &value) {
-  return isQuotedArgument(value, HTS_CDLMAXSIZE);   // -F has no cap of its own
+  return isCappedArgument(value, HTS_CDLMAXSIZE);   // -F has no cap of its own
 }
 
 BOOL isFooterArgument(const CString &value) {
-  return isQuotedArgument(value, HTS_FOOTER_MAXSIZE);
+  return isCappedArgument(value, HTS_FOOTER_MAXSIZE);
 }
 
 BOOL isLangIsoArgument(const CString &value) {
-  return isQuotedArgument(value, HTS_LANGISO_MAXSIZE);
+  return isCappedArgument(value, HTS_LANGISO_MAXSIZE);
 }
 
 BOOL isRefererArgument(const CString &value) {
-  return isQuotedArgument(value, HTS_REFERER_MAXSIZE);
+  return isCappedArgument(value, HTS_REFERER_MAXSIZE);
+}
+
+// see Shell.h
+CString optionValue(const CString &text, BOOL (*fits)(const CString &)) {
+  return fits(text) ? text : CString();
 }
 
 // TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".
@@ -2622,9 +2606,9 @@ void lance(void) {
   for(int i = 0; i < args.GetSize(); i++) {
     argv[i + 1] = strdupt_utf8((const char*) args[i]);
 
-    // For debugging only
+    // Echoed in the dialog a failed mirror shows, so quote a token holding a space
     ShellOptions->LINE_back += ' ';
-    const bool quote = args[i].Find('"') >= 0;
+    const bool quote = args[i].FindOneOf(" \t") >= 0;
     if (quote) {
       ShellOptions->LINE_back += '"';
     }
