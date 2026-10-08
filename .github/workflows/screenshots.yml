@@ -102,6 +102,8 @@ jobs:
     needs: resolve
     strategy:
       fail-fast: false
+      # A named arch runs alone and anything else runs both, the push trigger included
+      # because it sends no input at all.
       matrix:
         platform: ${{ fromJSON(inputs.platform == 'x64' && '["x64"]' || inputs.platform == 'ARM64' && '["ARM64"]' || '["x64","ARM64"]') }}
     # Nothing on an x64 runner can start an ARM64 image, so that leg is native hardware.
@@ -135,7 +137,7 @@ jobs:
           # arch, and a wrong-arch shot is pixel-identical to a right one.
           $found = @(Get-ChildItem app -Recurse -Filter WinHTTrack.exe)
           if (-not $found) { throw "artifact $env:ARTIFACT has no WinHTTrack.exe" }
-          # The directory name, not the full path, which can carry an arch name of its own.
+          # Match the directory name, because the full path can carry its own arch name.
           $exe = if ($found.Count -eq 1) { $found[0] }
                  else { $found | Where-Object { $_.Directory.Name -eq "WinHTTrack-$env:PLATFORM-Release" } | Select-Object -First 1 }
           # An arch set without this one stops here rather than shooting an arbitrary one.
@@ -144,14 +146,14 @@ jobs:
           "exe=$($exe.FullName)" | Out-File -Append $env:GITHUB_OUTPUT
 
       # Windows on ARM starts an x64 image under emulation, so a payload from the wrong
-      # leg would shoot a full green set. The PE machine word is what rules that out.
+      # leg would otherwise shoot a full green set.
       - name: The app is ${{ matrix.platform }}
         shell: pwsh
         env:
           EXE: ${{ steps.app.outputs.exe }}
         run: |
           $want = switch ('${{ matrix.platform }}') {
-            'x64' { 0x8664 } 'ARM64' { 0xAA64 } default { throw "no PE machine word known for $_" }
+            'x64' { 0x8664 } 'ARM64' { 0xAA64 } default { throw "give $_ its PE machine word here before giving it a leg" }
           }
           $pe = [IO.File]::ReadAllBytes($env:EXE)
           $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
