@@ -407,6 +407,9 @@ BOOL isLangIsoArgument(const CString &value);
 BOOL isRefererArgument(const CString &value);
 /* Same for -N's format; one the engine refuses aborts the mirror. */
 BOOL isBuildStringArgument(const CString &value);
+/* Return TEXT as typed when FITS accepts it, else empty so the option is left out.
+   Nothing here may wrap TEXT in quotes of its own. Exposed for --selftest. */
+CString optionValue(const CString &text, BOOL (*fits)(const CString &));
 
 void Build_TopIndex(BOOL check_empty=TRUE);
 
