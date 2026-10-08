@@ -1347,8 +1347,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("max retry-after ok on %d checks\n", nchecks);
     }
-    /* Pin what the shell agrees to hand the options it quotes, per option: a value the engine
-       refuses costs the whole mirror, and each field carries its own cap. */
+    /* Pin what the shell agrees to hand the options carrying a text value, per option: a
+       value the engine refuses costs the whole mirror, and each field carries its own cap. */
     {
       static const struct { BOOL (*ok)(const CString &); const char* field;
                             const char* value; int repeat; BOOL want; } quoted[] = {
@@ -1356,7 +1356,7 @@ BOOL CWinHTTrackApp::InitInstance()
         { isFooterArgument, "footer", HTS_NOPARAM, 1, TRUE },   /* asks for no footer at all */
         { isFooterArgument, "footer", "", 1, FALSE },
         { isFooterArgument, "footer", "-<!-- x -->", 1, FALSE },  /* reads as the argument being missing */
-        { isFooterArgument, "footer", "\"<!-- x -->\"", 1, TRUE },   /* the quote is the engine's to escape */
+        { isFooterArgument, "footer", "\"<!-- x -->\"", 1, TRUE },   /* a quote the user typed is footer text */
         { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE - 1, TRUE },  /* one under the cap fits */
         { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE, FALSE },
         { isLangIsoArgument, "accept-language", "en, fr", 1, TRUE },
@@ -1364,9 +1364,9 @@ BOOL CWinHTTrackApp::InitInstance()
         { isLangIsoArgument, "accept-language", "x", HTS_LANGISO_MAXSIZE, FALSE },
         { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE - 1, TRUE },
         { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE, FALSE },
-        /* the user-agent has no cap of its own, only the argument one the quotes eat into */
-        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 3, TRUE },
-        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 2, FALSE },
+        /* the user-agent has no cap of its own, only the engine's ceiling on one argument */
+        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 1, TRUE },
+        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE, FALSE },
         { NULL, NULL, NULL, 0, FALSE }
       };
       int nchecks = 0;
