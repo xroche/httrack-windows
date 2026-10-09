@@ -151,58 +151,55 @@ jobs:
               sys.exit('\n'.join(bad))
           print('installer identity is version-free:%s' % m.group(1))
           EOF
-      # Reads the stored blob, never the working tree: .gitattributes converts on
-      # checkout, so a worktree check would pass whatever the repository holds.
+      # Reads each blob from the index, because .gitattributes converts the working tree on checkout.
       - name: Encoding and line endings
         run: |
           python3 - <<'EOF'
-          import subprocess, sys
+          import os, subprocess, sys
 
           def git(*args, stdin=None):
               return subprocess.run(['git', *args], input=stdin,
                                     capture_output=True, check=True).stdout
 
-          def tracked(*globs):
-              return [p for p in git('ls-files', '-z', *globs).decode().split('\0') if p]
-
-          # Everything the toolchain reads is LF; the .txt files we ship stay CRLF for
-          # Notepad on Windows 7. .gitattributes names the same two sets.
-          LF = tracked('*.c', '*.cpp', '*.h', '*.htm', '*.iss', '*.manifest',
-                       '*.props', '*.rc', '*.rc2', '*.sln', '*.vcxproj', '*.xml')
-          CRLF = tracked('*.txt')
-          bad = []
-          # The floor is the control: an empty list would report every file clean.
-          if len(LF) < 20 or len(CRLF) < 5:
-              sys.exit(f'matched {len(LF)} LF and {len(CRLF)} CRLF files: this check would prove nothing')
-
-          # Which ending a file is checked out with is .gitattributes' job, so assert the
-          # mapping. A path that falls out of the attribute set would go unchecked instead.
+          paths = [p for p in git('ls-files', '-z').decode().split('\0') if p]
           fields = git('check-attr', '-z', '--stdin', 'eol',
-                       stdin=b'\0'.join(p.encode() for p in LF + CRLF)).split(b'\0')
-          attr = {fields[i].decode(): fields[i + 2].decode()
-                  for i in range(0, len(fields) - 2, 3)}
-          for p, want in [(p, 'lf') for p in LF] + [(p, 'crlf') for p in CRLF]:
-              if attr.get(p) != want:
-                  bad.append(f'{p}: .gitattributes gives eol={attr.get(p)}, expected {want}')
+                       stdin=b'\0'.join(p.encode() for p in paths)).split(b'\0')
+          eol = {fields[i].decode(): fields[i + 2].decode()
+                 for i in range(0, len(fields) - 2, 3)}
+          # .gitattributes decides what these rules cover, so derive the list from it.
+          text = [p for p in paths if eol.get(p) in ('lf', 'crlf')]
+          bad = []
+          # A floor guards against an empty list reporting every file clean.
+          if len(text) < 50:
+              sys.exit(f'only {len(text)} files carry an eol rule: this check would prove nothing')
 
-          for p in LF + CRLF:
+          # Asserts .gitattributes' eol mapping, so a dropped path fails instead of going unchecked.
+          WANT = dict.fromkeys(['.c', '.cpp', '.h', '.htm', '.iss', '.manifest', '.props',
+                                '.rc', '.rc2', '.sln', '.vcxproj', '.xml'], 'lf')
+          WANT['.txt'] = 'crlf'
+          for p in paths:
+              want = WANT.get(os.path.splitext(p)[1].lower())
+              if want and eol.get(p) != want:
+                  bad.append(f'{p}: .gitattributes gives eol={eol.get(p)}, expected {want}')
+
+          for p in text:
               blob = git('cat-file', 'blob', f':{p}')
-              # Both sets are stored LF-only, because that is what the clean filter writes.
+              # Every eol rule stores LF, because that is the form the clean filter writes.
               if b'\r' in blob:
                   bad.append(f'{p}: stored with a CR, so git added it outside the clean filter')
-              # Every tracked text file is UTF-8: a Latin-1 regression (a raw 0xe9) fails this.
+              # Must decode as UTF-8, so a stray Latin-1 byte (0xe9) fails here.
               try:
                   blob.decode('utf-8')
               except UnicodeDecodeError as e:
                   bad.append(f'{p}: not valid UTF-8 ({e})')
-              # U+FFFD is valid UTF-8 but means a tool mangled the text; fail loudly.
+              # U+FFFD is valid UTF-8 but means a tool mangled the text, so fail loudly.
               if b'\xef\xbf\xbd' in blob:
                   bad.append(f'{p}: contains U+FFFD; a UTF-8 tool mangled the text')
 
           if bad:
               print('\n'.join(bad))
               sys.exit(1)
-          print(f'OK: {len(LF)} files stored LF for the toolchain, {len(CRLF)} .txt checked out CRLF.')
+          print(f'OK: {len(text)} files carry an eol rule, stored LF and UTF-8.')
           EOF
 
       # A control queried on the page that does not carry it reads as empty or

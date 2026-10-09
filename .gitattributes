@@ -1,18 +1,32 @@
-# LF for everything the toolchain reads, because rc.exe, MSBuild and ISCC all read it.
+# LF for everything git stores as text, because rc.exe, MSBuild and ISCC all read it.
 # Visual Studio's resource editor and solution writer put CRLF back, and git drops it again.
-*.c        text eol=lf
-*.cpp      text eol=lf
-*.h        text eol=lf
-*.htm      text eol=lf
-*.iss      text eol=lf
-*.manifest text eol=lf
-*.props    text eol=lf
-*.rc       text eol=lf
-*.rc2      text eol=lf
-*.sln      text eol=lf
-*.vcxproj  text eol=lf
-*.xml      text eol=lf
+*.c          text eol=lf
+*.cpp        text eol=lf
+*.h          text eol=lf
+*.htm        text eol=lf
+*.iss        text eol=lf
+*.json       text eol=lf
+*.manifest   text eol=lf
+*.md         text eol=lf
+*.props      text eol=lf
+*.ps1        text eol=lf
+*.py         text eol=lf
+*.rc         text eol=lf
+*.rc2        text eol=lf
+*.sln        text eol=lf
+*.vcxproj    text eol=lf
+*.xml        text eol=lf
+*.yml        text eol=lf
+.gitattributes text eol=lf
+.gitignore     text eol=lf
+COPYING        text eol=lf
 
 # CRLF for the .txt files we ship, because Notepad could not read a bare LF before
 # Windows 10 1809 and we still support Windows 7.
-*.txt      text eol=crlf
+*.txt        text eol=crlf
+
+# Never convert the resource images.
+*.bmp binary
+*.cur binary
+*.ico binary
+*.png binary
