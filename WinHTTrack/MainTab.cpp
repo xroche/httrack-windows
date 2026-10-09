@@ -37,6 +37,7 @@ Please visit our Website: http://www.httrack.com
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -164,6 +165,7 @@ ON_WM_HELPINFO()
 ON_WM_SIZE()
 ON_WM_GETMINMAXINFO()
 ON_WM_DESTROY()
+ON_WM_CTLCOLOR()
 //}}AFX_MSG_MAP
 ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -207,6 +209,7 @@ BOOL CMainTab::OnInitDialog()
   Apply();
   
   int r = CPropertySheet::OnInitDialog();
+  WhttDarkInitWindow(this);
   //SetActivePage(GetPageCount()-1);
   SetActivePage(0);
 
@@ -442,3 +445,9 @@ BOOL CMainTab::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 // TOOL TIPS
 // ------------------------------------------------------------
 
+HBRUSH CMainTab::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertySheet::OnCtlColor(pDC, pWnd, nCtlColor);
+}

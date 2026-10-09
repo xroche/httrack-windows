@@ -107,6 +107,7 @@ protected:
 	afx_msg void Onbr();
 	afx_msg void OnChangefilelist();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   virtual BOOL OnKillActive( );
   virtual BOOL OnQueryCancel( );

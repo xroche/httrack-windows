@@ -33,6 +33,7 @@ Please visit our Website: http://www.httrack.com
 #include "version.h"
 #include "SignatureCheck.h"
 #include "Unofficial.h"
+#include "DarkMode.h"
 //#include "about_sh.h"
 
 #ifdef _DEBUG
@@ -108,6 +109,7 @@ BOOL Cabout::OnInitDialog()
 {
   //m_lang=LANG_T(-1);    // langue?
   CDialog::OnInitDialog();
+  WhttDarkInitWindow(this);
 
   WINDOWPLACEMENT wp;
   m_splash.GetWindowPlacement(&wp);
@@ -195,8 +197,11 @@ void Cabout::OnTimer(UINT_PTR nIDEvent)
 
 HBRUSH Cabout::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
-  HBRUSH brush = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+  HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
   COLORREF colour;
+
+  if (brush == NULL)
+    brush = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 
   if (nCtlColor == CTLCOLOR_STATIC && pWnd->GetDlgCtrlID() == IDC_SIGSTATUS
       && WhttSigLineColour(&colour)) {

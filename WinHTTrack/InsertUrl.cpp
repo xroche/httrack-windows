@@ -42,6 +42,7 @@ extern "C" {
 
 #include "Shell.h"
 #include "InsertUrl.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -85,6 +86,7 @@ void CInsertUrl::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CInsertUrl, CDialog)
 	//{{AFX_MSG_MAP(CInsertUrl)
 	ON_BN_CLICKED(ID_capt, Oncapt)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
   ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -98,6 +100,7 @@ END_MESSAGE_MAP()
 BOOL CInsertUrl::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
   GetDlgItem(IDC_urladr)->SendMessage(EM_SETLIMITTEXT, 2000, 0);
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);
@@ -265,3 +268,9 @@ void CInsertUrl::Oncapt()
     AfxMessageBox("Error!..",MB_SYSTEMMODAL);
 }
 
+HBRUSH CInsertUrl::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+}

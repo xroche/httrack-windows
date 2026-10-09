@@ -457,6 +457,8 @@ def main():
     ap.add_argument("--base-path", default=r"C:\shots-mirror")
     ap.add_argument("--language", default="English",
                     help="lang/ basename as the combo lists it, so Francais rather than French")
+    ap.add_argument("--dark", action="store_true",
+                    help="pass --dark, which is only dark where the system asks apps for it")
     args = ap.parse_args()
 
     ids = resource_ids(args.resource_h)
@@ -468,7 +470,8 @@ def main():
 
     shots = Shots(args.out)
     exe = os.path.abspath(args.exe)
-    proc = subprocess.Popen([exe], cwd=os.path.dirname(exe))
+    proc = subprocess.Popen([exe] + (["--dark"] if args.dark else []),
+                            cwd=os.path.dirname(exe))
     try:
         run(proc.pid, ids, shots, site_url, args.base_path, args.language)
     except Exception as e:

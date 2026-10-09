@@ -48,6 +48,7 @@ extern CSplitterFrame* this_CSplitterFrame;
 
 /* DirTreeView */
 #include "DirTreeView.h"
+#include "DarkMode.h"
 extern CDirTreeView* this_DirTreeView;
 
 
@@ -81,6 +82,7 @@ BEGIN_MESSAGE_MAP(CFirstInfo, CPropertyPage)
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -109,6 +111,7 @@ BOOL CFirstInfo::OnInitDialog()
 {
 
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
 	EnableToolTips(true);     // TOOL TIPS
 
   /* The banner overflows the icon box the template sizes it from, so the right-edge
@@ -217,4 +220,11 @@ void CFirstInfo::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH CFirstInfo::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

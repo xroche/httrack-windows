@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "BuildOptions.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -66,6 +67,7 @@ void CBuildOptions::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CBuildOptions, CDialog)
 	//{{AFX_MSG_MAP(CBuildOptions)
 	ON_WM_HELPINFO()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
   ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -92,6 +94,7 @@ BOOL CBuildOptions::OnHelpInfo(HELPINFO* dummy)
 BOOL CBuildOptions::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
 	
   // Patcher l'interface pour les Français ;-)
   if (LANG_T(-1)) {    // Patcher en français
@@ -105,4 +108,11 @@ BOOL CBuildOptions::OnInitDialog()
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
+}
+
+HBRUSH CBuildOptions::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 }

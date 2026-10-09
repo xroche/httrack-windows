@@ -75,6 +75,7 @@ extern CWizTab* this_CWizTab;
 /* Main splitter frame */
 #include "DialogContainer.h"
 #include "splitter.h"
+#include "DarkMode.h"
 extern CSplitterFrame* this_CSplitterFrame;
 
 /* Back to FirstInfo */
@@ -146,6 +147,7 @@ BEGIN_MESSAGE_MAP(Wid1, CPropertyPage)
 	ON_WM_SHOWWINDOW()
 	ON_EN_CHANGE(IDC_filelist, OnChangefilelist)
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 	ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 	ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -169,6 +171,7 @@ END_MESSAGE_MAP()
 
 BOOL Wid1::OnInitDialog( ) {
   CPropertyPage::OnInitDialog();
+  WhttDarkInitWindow(this);
   BuildLayout();
   // The URL list has no CEdit member; bound it by handle.
   GetDlgItem(IDC_URL)->SendMessage(EM_SETLIMITTEXT, 32000, 0);
@@ -919,4 +922,11 @@ void Wid1::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH Wid1::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

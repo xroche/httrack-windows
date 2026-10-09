@@ -90,6 +90,7 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(CDialogContainer)
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

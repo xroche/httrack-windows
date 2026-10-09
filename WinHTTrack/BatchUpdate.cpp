@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "winhttrack.h"
 #include "BatchUpdate.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -65,8 +66,16 @@ void CBatchUpdate::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CBatchUpdate, CPropertyPage)
 	//{{AFX_MSG_MAP(CBatchUpdate)
 		// NOTE: the ClassWizard will add message map macros here
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
 // CBatchUpdate message handlers
+
+HBRUSH CBatchUpdate::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
+}

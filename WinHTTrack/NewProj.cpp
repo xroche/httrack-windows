@@ -70,6 +70,7 @@ extern CDirTreeView* this_DirTreeView;
 
 /* reference sur objet Wid1 */
 #include "Wid1.h"
+#include "DarkMode.h"
 extern Wid1* dialog1;
 
 /* shellapp */
@@ -120,6 +121,7 @@ BEGIN_MESSAGE_MAP(CNewProj, CPropertyPage)
 	ON_WM_CREATE()
 	ON_CBN_SELCHANGE(IDC_projname, OnSelchangeprojname)
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
   ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -255,6 +257,7 @@ void CNewProj::Onbr()
 BOOL CNewProj::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
   BuildLayout();
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);
@@ -674,4 +677,11 @@ void CNewProj::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH CNewProj::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

@@ -64,6 +64,7 @@ protected:
 	//{{AFX_MSG(CBuildOptions)
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
 	virtual BOOL OnInitDialog();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

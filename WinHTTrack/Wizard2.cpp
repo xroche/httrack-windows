@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "wizard2.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -65,6 +66,7 @@ BEGIN_MESSAGE_MAP(wizard2, CDialog)
 	//{{AFX_MSG_MAP(wizard2)
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 	ON_COMMAND(ID_HELP, OnHelp)
 END_MESSAGE_MAP()
@@ -74,6 +76,7 @@ END_MESSAGE_MAP()
 BOOL wizard2::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
 	
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);  
@@ -108,4 +111,11 @@ void wizard2::OnDestroy()
     tm=-1; 
   }
 	CDialog::OnDestroy();	
+}
+
+HBRUSH wizard2::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 }

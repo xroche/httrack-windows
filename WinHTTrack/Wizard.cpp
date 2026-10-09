@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "wizard.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -64,6 +65,7 @@ void wizard::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(wizard, CDialog)
 	//{{AFX_MSG_MAP(wizard)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 	ON_COMMAND(ID_HELP, OnHelp)
 END_MESSAGE_MAP()
@@ -74,6 +76,7 @@ END_MESSAGE_MAP()
 BOOL wizard::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
 	
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);  
@@ -89,4 +92,11 @@ BOOL wizard::OnInitDialog()
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
+}
+
+HBRUSH wizard::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 }

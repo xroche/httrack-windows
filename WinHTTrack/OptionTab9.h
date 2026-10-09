@@ -79,6 +79,7 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(COptionTab9)
 	virtual BOOL OnInitDialog();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
   afx_msg void OnGateClicked();

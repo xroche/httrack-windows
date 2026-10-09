@@ -31,6 +31,7 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "OptionTab7.h"
 #include "AddFilter.h"
+#include "DarkMode.h"
 
 /* basic HTTrack defs */
 extern "C" {
@@ -97,6 +98,7 @@ BEGIN_MESSAGE_MAP(COptionTab7, CPropertyPage)
 	ON_BN_CLICKED(IDC_CHECK2, OnCheck2)
 	ON_BN_CLICKED(IDC_CHECK3, OnCheck3)
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_EN_CHANGE(IDC_URL2, OnChangeUrl2)
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
@@ -280,6 +282,7 @@ BOOL COptionTab7::OnKillActive()
 BOOL COptionTab7::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
   BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 
@@ -413,4 +416,11 @@ void COptionTab7::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH COptionTab7::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

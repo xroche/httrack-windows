@@ -35,6 +35,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "winhttrack.h"
 #include "DialogContainer.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -80,6 +81,7 @@ void CDialogContainer::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CDialogContainer, CFormView)
 	//{{AFX_MSG_MAP(CDialogContainer)
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -112,6 +114,7 @@ BOOL CDialogContainer::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWO
 void CDialogContainer::OnInitialUpdate() 
 {
 	CFormView::OnInitialUpdate();
+	WhttDarkInitWindow(this);
 
   tab2->ModifyStyle(WS_VISIBLE,0,0);
   tab2->ModifyStyle(0,WS_DISABLED,0);
@@ -182,3 +185,9 @@ void CDialogContainer::OnSize(UINT nType, int cx, int cy)
     SizeSheets(cx, cy);
 }
 
+HBRUSH CDialogContainer::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CFormView::OnCtlColor(pDC, pWnd, nCtlColor);
+}

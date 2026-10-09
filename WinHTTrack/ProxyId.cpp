@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "ProxyId.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -75,6 +76,7 @@ void CProxyId::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CProxyId, CDialog)
 	//{{AFX_MSG_MAP(CProxyId)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -86,6 +88,7 @@ END_MESSAGE_MAP()
 BOOL CProxyId::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);
   EnableToolTips(true);     // TOOL TIPS
@@ -182,3 +185,9 @@ const char* CProxyId::GetTip(int ID)
 // TOOL TIPS
 // ------------------------------------------------------------
 
+HBRUSH CProxyId::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+}

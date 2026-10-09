@@ -38,6 +38,7 @@ Please visit our Website: http://www.httrack.com
 #include "resource.h"
 #include "SignatureCheck.h"
 #include "Unofficial.h"
+#include "DarkMode.h"
 
 /* Deliberately not in lang.def: a warning about a repackaged build is worth nothing if
    whoever repackaged it can quietly replace the wording through a language file. */
@@ -97,6 +98,7 @@ END_MESSAGE_MAP()
 BOOL CUnofficial::OnInitDialog()
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
 
 	SetDlgItemText(IDC_SIGWARN, WhttUnofficialHeadline);
 	SetDlgItemText(IDC_SIGWHO, WhttSigSummary());
@@ -107,8 +109,11 @@ BOOL CUnofficial::OnInitDialog()
 
 HBRUSH CUnofficial::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
-	HBRUSH brush = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+	HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
 	COLORREF colour;
+
+	if (brush == NULL)
+		brush = CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 
 	/* Colour on top of the wording, never instead of it: the sentence has to carry the
 	   warning on a screen that cannot show the red at all. */

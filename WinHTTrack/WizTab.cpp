@@ -62,6 +62,7 @@ extern CMainTab* maintab;
 /* Main splitter frame */
 #include "DialogContainer.h"
 #include "splitter.h"
+#include "DarkMode.h"
 extern CSplitterFrame* this_CSplitterFrame;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -207,6 +208,7 @@ BEGIN_MESSAGE_MAP(CWizTab, CPropertySheet)
 //{{AFX_MSG_MAP(CWizTab)
 ON_WM_HELPINFO()
 ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
 ON_COMMAND(ID_HELP,OnHelpInfo2)
@@ -251,6 +253,7 @@ BOOL CWizTab::OnInitDialog()
   Apply();
   
   int r = CPropertySheet::OnInitDialog();
+  WhttDarkInitWindow(this);
   //xx RemovePage(m_tabprogress);
   //xx RemovePage(m_tabend);
   SetWizardButtons(PSWIZB_BACK|PSWIZB_NEXT);
@@ -394,3 +397,9 @@ BOOL CWizTab::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
 // TOOL TIPS
 // ------------------------------------------------------------
 
+HBRUSH CWizTab::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertySheet::OnCtlColor(pDC, pWnd, nCtlColor);
+}

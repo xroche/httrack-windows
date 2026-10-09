@@ -98,6 +98,7 @@ protected:
 	afx_msg void OnDropdownrasid();
 	afx_msg void Onrasdisc();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   virtual BOOL OnKillActive( );
   virtual BOOL OnQueryCancel( );

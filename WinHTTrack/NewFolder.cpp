@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "NewFolder.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -62,6 +63,7 @@ void CNewFolder::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CNewFolder, CDialog)
 	//{{AFX_MSG_MAP(CNewFolder)
 		// NOTE: the ClassWizard will add message map macros here
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 	ON_COMMAND(ID_HELP, OnHelp)
 END_MESSAGE_MAP()
@@ -72,7 +74,15 @@ END_MESSAGE_MAP()
 BOOL CNewFolder::OnInitDialog()
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
 	// the caller copies the result into a MAX_PATH buffer
 	GetDlgItem(IDC_Folder)->SendMessage(EM_SETLIMITTEXT, MAX_PATH - 1, 0);
 	return TRUE;
+}
+
+HBRUSH CNewFolder::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 }
