@@ -66,8 +66,9 @@ jobs:
       - name: Auto-merge and CVE gate cases
         run: python3 tools/test-automerge-gate.py
       # The GUI only builds under MSVC, so --selftest cannot be rerun in review. This runs
-      # the same winprofileCheckBindings() against the real writer, on the engine's table.
-      - name: The engine, for its generated winprofile.ini key table
+      # the same winprofileCheckBindings() against the real writer, on the engine's table,
+      # and counts every language's combo lists out of the engine's catalogs.
+      - name: The engine, for its key table and its language catalogs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: xroche/httrack
@@ -87,9 +88,14 @@ jobs:
           for path in sorted(glob.glob('WinHTTrack/*.cpp')):
               src = open(path, encoding='utf-8').read()
               printed.update(re.findall(r'printf\("([^"%]*? ok on )', src))
+          # Both quoting forms, because a matcher interpolating a PowerShell variable has
+          # to be double-quoted, and reading one form alone hides every such matcher.
+          QUOTED = (r"-notmatch '([^']*? ok on )", r'-notmatch "([^"]*? ok on )')
           for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/actions/*/*.yml'):
-              for m in re.findall(r"-notmatch '([^']*? ok on )", open(path, encoding='utf-8').read()):
-                  matched.add(m.replace('\\', ''))
+              text = open(path, encoding='utf-8').read()
+              for pat in QUOTED:
+                  for m in re.findall(pat, text):
+                      matched.add(m.replace('\\', ''))
           # The floor catches a regex that silently matches nothing.
           if len(printed) < 20 or len(matched) < 20:
               sys.exit('found %d printed lines and %d matchers: this check would prove '
@@ -1168,9 +1174,21 @@ jobs:
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the staged tree tried to register .whtt, which a portable copy must not do'
           }
+          # The combo-list walk below has to cover every language. The roster is the
+          # engine's, because CI checks that tree out fresh, so its length is read off the
+          # selftest's own language list rather than pinned here.
+          if ("$so" -match 'language list ends after (\d+) entries') {
+            $nlangs = [int]$Matches[1]
+          } else {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the selftest did not print how many languages it found'
+          }
+          if ($nlangs -lt 2) {
+            throw "the language list ends after $nlangs entries, so the combo-list walk compares nothing"
+          }
           # Nothing else holds the counts the binding check prints, and a loop that
           # stopped running would otherwise still exit 0.
-          if ("$so" -notmatch 'winprofile bindings ok on 468 checks over 88 keys and 9 catalog lists \(11 table rows skipped\)') {
+          if ("$so" -notmatch "winprofile bindings ok on 468 checks over 88 keys and 9 catalog lists in $nlangs languages \(11 table rows skipped\)") {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the winprofile binding check did not run every loop'
           }

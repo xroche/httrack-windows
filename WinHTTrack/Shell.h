@@ -452,9 +452,6 @@ typedef unsigned long (* t_RasHangUp)(HRASCONN);
 /* lang extensions */
 void SetCombo(CWnd* _this,int id,const char* lang_string);
 
-/* How many entries SetCombo() puts in a combo from LANG_STRING. Exposed for --selftest. */
-int countComboEntries(const char* lang_string);
-
 
 // HTTrack params - pour le multithread interface/robot
 class HTTrack_Params {
