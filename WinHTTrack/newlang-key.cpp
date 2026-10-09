@@ -39,6 +39,9 @@ Please visit our Website: http://www.httrack.com
 #include "newlang-key.h"
 
 int LangKeyIsSymbol(const char *key) {
+  /* The underscore keeps the five LANGUAGE_* metadata keys out. Loosen this to a bare
+     LANG prefix and LANGUAGE_NAME turns eligible, so a lookup stores a catalog filename
+     where a translated string belongs. */
   static const char *const prefixes[] = { "LANG_", "LISTDEF_" };
   unsigned int i;
 

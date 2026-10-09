@@ -140,7 +140,7 @@ static inline int linput(FILE *fp, char *s, int max) {
 static inline unsigned int GetACP(void) { return 1252u; }
 
 /* The engine's converter under that codepage, over the Latin-1 range where CP1252 agrees
-   with ISO-8859-1. What the cases read off it is the byte count. */
+   with ISO-8859-1. A case using 0x80 to 0x9F would cost three bytes on Windows, two here. */
 static inline char *hts_convertStringSystemToUTF8(const char *s, size_t size) {
   char *const out = (char *) malloc(size * 2 + 1);
   size_t j = 0;
