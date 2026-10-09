@@ -254,6 +254,8 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
 
   GetClientRect(hwnd, &client);
   FillRect(hdc, &client, darkDlgBrush);
+  caption[0] = L'\0';
+  GetWindowTextW(hwnd, caption, sizeof(caption) / sizeof(caption[0]));
   if (font != NULL)
     oldFont = SelectObject(hdc, font);
   if (darkThemeApi())
@@ -264,8 +266,7 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
       || glyph.cx <= 0 || glyph.cy <= 0)
     glyph.cx = glyph.cy = MulDiv(13, GetDeviceCaps(hdc, LOGPIXELSX), 96);
 
-  box.top = ((style & BS_MULTILINE) != 0) ? client.top
-    : client.top + (client.bottom - client.top - glyph.cy) / 2;
+  box.top = client.top + (client.bottom - client.top - glyph.cy) / 2;
   box.bottom = box.top + glyph.cy;
   text.top = client.top;
   text.bottom = client.bottom;
@@ -282,13 +283,25 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
     text.right = client.right;
   }
 
+  /* DrawText centres one line for us; a wrapped block has to be measured first, and only
+     its height is wanted, since DT_CALCRECT also narrows the rect it is given. */
+  if ((style & BS_MULTILINE) != 0) {
+    RECT measured = text;
+    int height;
+
+    DrawTextW(hdc, caption, -1, &measured, flags | DT_CALCRECT);
+    height = measured.bottom - measured.top;
+    if (height < text.bottom - text.top) {
+      text.top += (text.bottom - text.top - height) / 2;
+      text.bottom = text.top + height;
+    }
+  }
+
   if (theme != NULL)
     darkTheme.draw(theme, hdc, part, glyphState, &box, NULL);
   else
     DrawFrameControl(hdc, &box, DFC_BUTTON, darkFrameState(style, state));
 
-  caption[0] = L'\0';
-  GetWindowTextW(hwnd, caption, sizeof(caption) / sizeof(caption[0]));
   SetBkMode(hdc, TRANSPARENT);
   SetTextColor(hdc, ((style & WS_DISABLED) != 0) ? DARK_TEXT_OFF : DARK_TEXT);
   DrawTextW(hdc, caption, -1, &text, flags);
@@ -303,6 +316,11 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
       focus.top = text.top + (text.bottom - text.top - height) / 2;
       focus.bottom = focus.top + height;
     }
+    /* DT_CALCRECT measures from the left edge whatever the alignment is. */
+    if ((flags & DT_RIGHT) != 0)
+      OffsetRect(&focus, text.right - focus.right, 0);
+    else if ((flags & DT_CENTER) != 0)
+      OffsetRect(&focus, (text.right - focus.right) / 2, 0);
     InflateRect(&focus, 1, 1);
     DrawFocusRect(hdc, &focus);
   }
