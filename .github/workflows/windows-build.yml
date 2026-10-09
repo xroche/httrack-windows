@@ -82,6 +82,9 @@ jobs:
       # Same reason, and the caps these values are held against are the engine's.
       - name: The caps on one option value
         run: python3 tools/test-argv-caps.py --engine engine
+      # Replays the catalog join both ways over all 30 catalogs, which --selftest cannot.
+      - name: The symbol-key fallback leaves every catalog string unchanged
+        run: python3 tools/test-newlang-key.py --engine engine
       # A mismatch here means a selftest line and its CI matcher drifted apart.
       - name: Selftest lines and their matchers name each other
         run: |
