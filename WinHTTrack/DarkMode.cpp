@@ -48,6 +48,10 @@ static char THIS_FILE[] = __FILE__;
 #define DARK_DWMWA_DARK_MODE      20
 #define DARK_DWMWA_DARK_MODE_OLD  19
 
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+
 typedef HRESULT (WINAPI *dark_DwmSetWindowAttribute_t)(HWND, DWORD, LPCVOID, DWORD);
 typedef HRESULT (WINAPI *dark_SetWindowTheme_t)(HWND, LPCWSTR, LPCWSTR);
 
@@ -55,12 +59,16 @@ static BOOL darkOn = FALSE;
 static HBRUSH darkDlgBrush = NULL;
 static HBRUSH darkEditBrush = NULL;
 
-/* Resolved rather than imported, because neither entry point has to exist on the
-   Windows 7 floor and a missing import would stop the application from loading. */
-static FARPROC darkProc(const char *dll, const char *name)
+/* Resolved rather than imported. Neither API has to exist on Windows 7, and a missing
+   import would stop the app loading. */
+static FARPROC darkProc(const wchar_t *dll, const char *name)
 {
-  const HMODULE module = LoadLibraryA(dll);
+  HMODULE module = GetModuleHandleW(dll);
 
+  /* System32 only, never the application directory, where a copy could be planted.
+     A Windows 7 without KB2533623 rejects the flag, and the feature stays off. */
+  if (module == NULL)
+    module = LoadLibraryExW(dll, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
   return module != NULL ? GetProcAddress(module, name) : NULL;
 }
 
@@ -106,7 +114,7 @@ static void darkTitleBar(HWND hwnd)
 
   if (!resolved) {
     setAttribute =
-      (dark_DwmSetWindowAttribute_t) darkProc("dwmapi.dll", "DwmSetWindowAttribute");
+      (dark_DwmSetWindowAttribute_t) darkProc(L"dwmapi.dll", "DwmSetWindowAttribute");
     resolved = TRUE;
   }
   if (setAttribute == NULL)
@@ -124,7 +132,7 @@ static void darkThemeControl(HWND hwnd)
   char name[32];
 
   if (!resolved) {
-    setTheme = (dark_SetWindowTheme_t) darkProc("uxtheme.dll", "SetWindowTheme");
+    setTheme = (dark_SetWindowTheme_t) darkProc(L"uxtheme.dll", "SetWindowTheme");
     resolved = TRUE;
   }
   if (setTheme == NULL || GetClassNameA(hwnd, name, sizeof(name)) == 0)

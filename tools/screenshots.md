@@ -27,8 +27,8 @@ arches are shot by default, each on a runner of its own, because an ARM64 app on
 on ARM64 hardware. Pass `platform` to shoot just one.
 
 Both themes are shot by default as well. The dark leg sets `AppsUseLightTheme` to 0 under
-`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` and runs the
-application with `--dark`, which is how the dark colours are turned on at all. Pass
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`. It then runs the
+application with `--dark`, which is what turns the dark colours on. Pass
 `theme` to shoot one. Buttons, checkboxes and the toolbar bitmap are still light in that
 leg, which is what the shots are for.
 

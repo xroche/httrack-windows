@@ -34,13 +34,13 @@ Please visit our Website: http://www.httrack.com
 #ifndef WINHTTRACK_DARKMODE_H
 #define WINHTTRACK_DARKMODE_H
 
-/* Unfinished, so it ships off and --dark turns it on: buttons and checkboxes keep the
+/* Unfinished. It ships off, and --dark turns it on. Buttons and checkboxes keep the
    light visual style, and res/Toolbar.bmp is a 1998 bitmap drawn for a light background.
 
    A window calls WhttDarkInitWindow from OnInitDialog (or OnInitialUpdate) and forwards
    its OnCtlColor to WhttDarkCtlColor. Both do nothing while dark mode is off. */
 
-/* Reads the switch and the system preference once; call it from InitInstance.
+/* Reads the switch and the system preference once. Call it from InitInstance.
    requested is what the command line asked for. */
 void WhttDarkModeInit(BOOL requested);
 
