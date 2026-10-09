@@ -54,24 +54,24 @@ def main():
             "Check the engine out, or pass --engine." % langdef
         )
 
-    # 1. The fallback must sit behind the miss. Guarded the other way round it would
-    #    preempt a key lang.def does list, and the harness replays the guard rather than
-    #    compiling newlang.cpp, so only a source check sees this.
+    # 1. newlang.cpp has to carry the guarded form the harness replays. Check 5 there
+    #    proves the two directions resolve differently; this is what ties the shipped
+    #    call site to the one it proved, since the harness does not compile newlang.cpp.
     loader = read(os.path.join(ROOT, "WinHTTrack", "newlang.cpp"))
-    wanted = (
-        "intkey=LANGINTKEY(extkey);",
-        "if (!strnotempty(intkey) && LangKeyIsSymbol(extkey))",
-        "intkey=extkey;",
+    guarded = re.compile(
+        r"intkey\s*=\s*LANGINTKEY\(\s*extkey\s*\)\s*;"
+        r".*?"
+        r"if\s*\(\s*!\s*strnotempty\(\s*intkey\s*\)\s*&&"
+        r"\s*LangKeyIsSymbol\(\s*extkey\s*\)\s*\)"
+        r"\s*intkey\s*=\s*extkey\s*;",
+        re.S,
     )
-    at = 0
-    for line in wanted:
-        at = loader.find(line, at)
-        if at < 0:
-            sys.exit(
-                "newlang.cpp does not reach the fallback through a missed text lookup: "
-                "expected %r after the lines before it" % line
-            )
-        at += len(line)
+    if guarded.search(loader) is None:
+        sys.exit(
+            "newlang.cpp does not reach the fallback through a missed text lookup: no "
+            "'if (!strnotempty(intkey) && LangKeyIsSymbol(extkey)) intkey=extkey;' after "
+            "the LANGINTKEY(extkey) assignment"
+        )
     if loader.count("LangKeyIsSymbol") != 1:
         sys.exit("newlang.cpp names LangKeyIsSymbol more than once, so a second call site")
 
@@ -118,6 +118,11 @@ def main():
         probe = os.path.join(tmp, "probe.txt")
         with open(probe, "w", encoding="utf-8") as f:
             f.write("LANG_OK\nprobe value\n")
+        # Keyed by a symbol the harness's synthetic lang.def also lists, which is the only
+        # way to tell the guarded fallback from the inverted one.
+        guard = os.path.join(tmp, "guard.txt")
+        with open(guard, "w", encoding="utf-8") as f:
+            f.write("LANG_PROBE\nvia lang.def\n")
         exe = os.path.join(tmp, "newlang-key-test")
         subprocess.run(
             [
@@ -134,7 +139,7 @@ def main():
             ],
             check=True,
         )
-        env = dict(os.environ, NEWLANG_KEY_PROBE=probe)
+        env = dict(os.environ, NEWLANG_KEY_PROBE=probe, NEWLANG_KEY_GUARD=guard)
         subprocess.run([exe, args.engine], check=True, env=env)
 
 

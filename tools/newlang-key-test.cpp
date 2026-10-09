@@ -121,11 +121,16 @@ static bool loadLangDef(const char *path, Table &keys) {
   return true;
 }
 
+/* Which form of the one added line loadCatalog() applies. GUARDED is what newlang.cpp
+   ships. UNGUARDED drops the missed-lookup test, so check 5 can see the guard's
+   direction, which no shipped key is both listed and symbol-shaped enough to show. */
+enum Fallback { OFF, GUARDED, UNGUARDED };
+
 /* One catalog pass, as newlang.cpp's loop body does it. englishPass is its loops>0: a
-   symbol already filled by the selected language is left alone. fallback switches the
-   one line this change adds, so the two runs differ in nothing else. */
+   symbol already filled by the selected language is left alone. Only the fallback form
+   differs between runs, so nothing else can move the resolved table. */
 static bool loadCatalog(const char *path, const Table &keys, Table &str,
-                        bool englishPass, bool fallback, long *fallbackHits) {
+                        bool englishPass, Fallback mode, long *fallbackHits) {
   FILE *fp = fopen(path, "rb");
   char extkey[8192], value[8192];
 
@@ -137,7 +142,8 @@ static bool loadCatalog(const char *path, const Table &keys, Table &str,
     if (extkey[0] != '\0' && value[0] != '\0') {
       std::string intkey(lookup(keys, extkey));
 
-      if (fallback && intkey.empty() && LangKeyIsSymbol(extkey)) {
+      if (mode != OFF && LangKeyIsSymbol(extkey)
+          && (mode == UNGUARDED || intkey.empty())) {
         intkey = extkey;
         (*fallbackHits)++;
       }
@@ -169,14 +175,14 @@ static bool loadCatalog(const char *path, const Table &keys, Table &str,
    unset. ConvertCatalogValue() is left out, because it maps a value to a value that this
    change cannot reach, so equal raw tables stay equal through it. */
 static Table resolve(const std::string &engine, const Table &keys,
-                     const std::string &language, bool fallback, long *fallbackHits) {
+                     const std::string &language, Fallback mode, long *fallbackHits) {
   const char *const names[2] = { language.c_str(), "English" };
   Table str;
 
   for(int pass = 0 ; pass < 2 ; pass++) {
     const std::string path = engine + "/lang/" + names[pass] + ".txt";
 
-    if (!loadCatalog(path.c_str(), keys, str, pass > 0, fallback, fallbackHits)) {
+    if (!loadCatalog(path.c_str(), keys, str, pass > 0, mode, fallbackHits)) {
       fprintf(stderr, "cannot open %s\n", path.c_str());
       exit(1);
     }
@@ -266,8 +272,8 @@ int main(int argc, char **argv) {
   }
   for(size_t i = 0 ; i < langs.size() ; i++) {
     long before = 0, after = 0;
-    const Table old = resolve(engine, keys, langs[i], false, &before);
-    const Table now = resolve(engine, keys, langs[i], true, &after);
+    const Table old = resolve(engine, keys, langs[i], OFF, &before);
+    const Table now = resolve(engine, keys, langs[i], GUARDED, &after);
 
     if (before != 0) {
       fprintf(stderr, "%s: the fallback ran with it switched off\n", langs[i].c_str());
@@ -304,8 +310,8 @@ int main(int argc, char **argv) {
     Table off, on;
     long ignored = 0, probed = 0;
 
-    loadCatalog(probe, keys, off, false, false, &ignored);
-    loadCatalog(probe, keys, on, false, true, &probed);
+    loadCatalog(probe, keys, off, false, OFF, &ignored);
+    loadCatalog(probe, keys, on, false, GUARDED, &probed);
     if (probed != 1 || !off.empty() || on.size() != 1
         || lookup(on, "LANG_OK") != std::string("probe value")) {
       fprintf(stderr, "the probe catalog resolved the same either way: the comparison "
@@ -314,6 +320,38 @@ int main(int argc, char **argv) {
     }
   } else {
     fprintf(stderr, "NEWLANG_KEY_PROBE unset: the comparison is unproven\n");
+    failures++;
+  }
+
+  /* 5. The guard's direction. newlang.cpp reaches the fallback only where the text
+     lookup missed, and no shipped key is both listed in lang.def and symbol-shaped, so
+     no real catalog can tell the guarded form from the inverted one. This synthetic row
+     is both, and the symbol it resolves to says which form ran. */
+  const char *guard = getenv("NEWLANG_KEY_GUARD");
+
+  if (guard != NULL) {
+    Table synthetic, guarded, inverted;
+    long onHit = 0, offHit = 0;
+
+    synthetic["LANG_PROBE"] = "LANG_REAL";
+    loadCatalog(guard, synthetic, guarded, false, GUARDED, &onHit);
+    loadCatalog(guard, synthetic, inverted, false, UNGUARDED, &offHit);
+    /* Guarded, the listed key wins and the fallback never runs. */
+    if (onHit != 0 || guarded.size() != 1
+        || lookup(guarded, "LANG_REAL") != std::string("via lang.def")) {
+      fprintf(stderr, "the guarded fallback did not resolve LANG_PROBE through lang.def, "
+              "so it is preempting a listed key\n");
+      failures++;
+    }
+    /* Inverted, it overwrites that symbol with the key, which is the whole difference. */
+    if (offHit != 1 || inverted.size() != 1
+        || lookup(inverted, "LANG_PROBE") != std::string("via lang.def")) {
+      fprintf(stderr, "dropping the missed-lookup test changed nothing, so no check here "
+              "can see the guard's direction\n");
+      failures++;
+    }
+  } else {
+    fprintf(stderr, "NEWLANG_KEY_GUARD unset: the guard's direction is unproven\n");
     failures++;
   }
 
