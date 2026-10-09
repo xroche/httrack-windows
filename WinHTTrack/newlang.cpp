@@ -38,6 +38,7 @@ extern "C" {
 #undef HTS_INTERNAL_BYTECODE
 };
 #include "newlang.h"
+#include "newlang-key.h"
 
 // test
 #ifndef _MBCS
@@ -598,6 +599,11 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
             const char* intkey;
             
             intkey=LANGINTKEY(extkey);
+            
+            /* A row may key on its LANG_ symbol instead of the English text, so a reworded
+               string keeps its translations. Reached only where lang.def has no row. */
+            if (!strnotempty(intkey) && LangKeyIsSymbol(extkey))
+              intkey=extkey;
             
             if (strnotempty(intkey)) {
               

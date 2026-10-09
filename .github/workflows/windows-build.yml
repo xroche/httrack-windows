@@ -75,6 +75,9 @@ jobs:
           path: engine
       - name: winprofile.ini bindings agree with the engine's table
         run: python3 tools/test-winprofile-bind.py --engine engine
+      # Replays the catalog join both ways over all 30 catalogs, which --selftest cannot.
+      - name: The symbol-key fallback leaves every catalog string unchanged
+        run: python3 tools/test-newlang-key.py --engine engine
       - name: Every CI job declares a timeout
         run: python3 tools/check-job-timeouts.py
       - name: Job-timeout cases

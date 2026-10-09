@@ -199,6 +199,11 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
 
+    <!-- Compiled by tools/test-newlang-key.py as well, and it needs no MFC. -->
+    <ClCompile Include="newlang-key.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+
     <!-- C sources: no PCH (they cannot include the C++ StdAfx.h). -->
     <ClCompile Include="HTTrackInterface.c">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -237,6 +242,7 @@
     <ClInclude Include="MemRegister.h" />
     <ClInclude Include="NewFolder.h" />
     <ClInclude Include="newlang.h" />
+    <ClInclude Include="newlang-key.h" />
     <ClInclude Include="NewProj.h" />
     <ClInclude Include="OptionTab1.h" />
     <ClInclude Include="OptionTab2.h" />
