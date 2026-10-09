@@ -775,9 +775,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("catalog keys ok on %d checks\n", nchecks);
     }
-    /* Dark mode paints the check and radio glyphs itself, and a wrong state id draws a
-       box that contradicts what the control reports. No screenshot can tell a checked
-       box from an unchecked one, so pin the mapping here. */
+    /* Dark mode paints the check and radio glyphs itself, and the walk shoots one state
+       per control, so pin the rest of the mapping here. */
     {
       static const struct { DWORD style; UINT state; int want; } glyphs[] = {
         { 0,           0,                               CBS_UNCHECKEDNORMAL },

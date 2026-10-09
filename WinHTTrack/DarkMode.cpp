@@ -136,8 +136,8 @@ static void darkTitleBar(HWND hwnd)
     setAttribute(hwnd, DARK_DWMWA_DARK_MODE_OLD, &on, sizeof(on));
 }
 
-/* The theme calls the glyph needs. All four are named exports, unlike the dark-mode
-   ordinals, which have moved between Windows builds. */
+/* The theme calls the glyph needs, all named exports: the dark-mode ordinals have moved
+   between Windows builds. */
 static struct {
   BOOL resolved;
   dark_OpenThemeData_t open;
@@ -160,9 +160,8 @@ static BOOL darkThemeApi(void)
     && darkTheme.size != NULL;
 }
 
-/* The dark glyph where this Windows has one. A class it does not know answers NULL, and
-   the last name is the ordinary light glyph: bright against the dark page, but native,
-   and the label beside it is readable either way. */
+/* The dark glyph where this Windows has one: a class it does not know answers NULL. The
+   last name is the light glyph, bright against the dark page but still native. */
 static HTHEME darkOpenButtonTheme(HWND hwnd)
 {
   static const wchar_t *const classes[] = {
@@ -283,8 +282,7 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
     text.right = client.right;
   }
 
-  /* DrawText centres one line for us; a wrapped block has to be measured first, and only
-     its height is wanted, since DT_CALCRECT also narrows the rect it is given. */
+  /* DrawText centres one line for us, but a wrapped block has to be measured first. */
   if ((style & BS_MULTILINE) != 0) {
     RECT measured = text;
     int height;
@@ -348,10 +346,17 @@ static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
       EndPaint(hwnd, &ps);
     }
     return 0;
+  /* PrintWindow, which is how the screenshot walk captures a window. It reaches a child
+     by either message, depending on the Windows and the flags it was given. */
   case WM_PRINTCLIENT:
-    /* PrintWindow, which is how the screenshot walk captures a window. */
     darkPaintButton(hwnd, (HDC) wParam);
     return 0;
+  case WM_PRINT:
+    if ((lParam & PRF_CLIENT) != 0) {
+      darkPaintButton(hwnd, (HDC) wParam);
+      return 0;
+    }
+    break;
   }
   return DefSubclassProc(hwnd, msg, wParam, lParam, id);
 }
