@@ -17,7 +17,7 @@
 
    Driven by tools/test-winprofile-bind.py. */
 
-#include "winprofile-io-test.h"
+#include "mfc-test-stubs.h"
 
 /* The option pages, with the members WINPROFILE_BINDINGS names. Declared here rather than
    included, because OptionTab*.h is MFC. */

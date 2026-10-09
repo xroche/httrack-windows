@@ -656,109 +656,22 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("live opt guard ok on %d checks\n", nchecks);
     }
-    /* Only reachable by typing into the Experts page, so pin the rule splitter here:
-       a rule the engine cannot parse aborts the whole mirror. */
+    /* Same cases as tools/rules-split-test.cpp, now checked against the real MFC CString. */
     {
-      static const struct { const char* field; const char* want; } rules[] = {
-        { "a=b\r\nc=d", "a=b|c=d" },
-        { "a=b  c=d", "a=b|c=d" },
-        { "a=b\tc=d", "a=b|c=d" },
-        { "a=b\vc=d", "a=b|c=d" },
-        { "a=b\fc=d", "a=b|c=d" },
-        { "a=b \r\n\t c=d", "a=b|c=d" },
-        { "  \r\n a=b \r\n  ", "a=b" },
-        { "a.com  ,  b.com  =  c.com", "a.com,b.com=c.com" },
-        /* the separator ending a line glues it to the next, wherever the rule sits */
-        { "a.com,\r\nb.com=c.com", "a.com,b.com=c.com" },
-        { "x=y\r\na.com , b.com = c.com", "x=y|a.com,b.com=c.com" },
-        /* an empty field must not emit --host-alias "", which the engine refuses */
-        { " \r\n\t\v\f ", "" },
-        { "", "" },
-        { NULL, NULL }
-      };
-      int nchecks = 0;
-      for(int k=0 ; rules[k].field != NULL ; k++) {
-        CStringArray got;
-        CString joined;
-        splitRulesInArray(got, rules[k].field);
-        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
-          if (j != 0)
-            joined += "|";
-          joined += got[j];
-        }
-        if (joined != rules[k].want) {
-          fprintf(stderr, "FATAL: rule field '%s' split into '%s', expected '%s'\n",
-                  rules[k].field, (LPCSTR) joined, rules[k].want);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      /* The splitter gives the engine room for the whole field, so a rule longer than
-         any engine cap comes back whole instead of truncated. */
-      {
-        const CString longRule('x', 2000);
-        CStringArray got;
+      CString err;
+      const int nchecks = rulesSplitCheckCases(&err);
 
-        splitRulesInArray(got, longRule + " " + longRule);
-        if (got.GetSize() != 2 || got[0] != longRule || got[1] != longRule) {
-          fprintf(stderr, "FATAL: two %d-byte rules split into %d rules, the first %d bytes\n",
-                  longRule.GetLength(), (int) got.GetSize(),
-                  got.GetSize() != 0 ? got[0].GetLength() : 0);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
+      if (nchecks == 0) {
+        fprintf(stderr, "FATAL: rule splitting: %s\n", (LPCSTR) err);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      if (nchecks != 49) {
+        fprintf(stderr, "FATAL: rule splitting ran %d checks, expected 49\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
       }
       printf("rule splitting ok on %d checks\n", nchecks);
-    }
-    /* Only reachable by clicking a preset checkbox, and a rule it mangles blocks the page. */
-    {
-      static const char preset[] = "+*.gif +*.jpg";
-      static const struct { const char* box; int checked; const char* want; } boxes[] = {
-        { "+*.gif", 0, "" },
-        { "+*.gif +*.jpg +*.zip", 0, "+*.zip" },
-        /* a rule holding a preset rule is not that rule */
-        { "+*.gifx", 0, "+*.gifx" },
-        /* matching is case-sensitive, so an upper-case rule is the user's own */
-        { "+*.GIF", 0, "+*.GIF" },
-        /* a ',' separates nothing in what we send, so this is one rule, not ours to split */
-        { "+*.gif,+*.jpg", 0, "+*.gif,+*.jpg" },
-        /* the sign is part of the rule */
-        { "-*.gif", 0, "-*.gif" },
-        { "+*.gif\t+*.zip", 0, "+*.zip" },
-        { "+*.gif   +*.zip", 0, "+*.zip" },
-        { "+*.zip   +*.gif", 0, "+*.zip" },
-        /* an untouched line keeps the spacing the user typed */
-        { "+*.zip  +*.htm", 0, "+*.zip  +*.htm" },
-        /* a rule removed from the middle keeps the indent and both neighbours */
-        { "  +*.zip +*.gif +*.htm", 0, "  +*.zip +*.htm" },
-        /* the engine splits on any isspace() byte, so none of these glue two rules */
-        { "+*.gif\r+*.zip", 0, "+*.zip" },
-        { "+*.gif\v+*.zip", 0, "+*.zip" },
-        { "+*.gif\f+*.zip", 0, "+*.zip" },
-        { "+*.htm\r\n+*.gif\r\n+*.zip", 0, "+*.htm\r\n+*.zip" },
-        { "", 0, "" },
-        { " \r\n\t ", 0, "" },
-        { "", 1, "+*.gif +*.jpg" },
-        { "+*.gif +*.zip", 1, "+*.zip\r\n+*.gif +*.jpg" },
-        /* the preset is removed before it is added back, so nothing doubles */
-        { "+*.gif +*.jpg", 1, "+*.gif +*.jpg" },
-        { "+*.gifx", 1, "+*.gifx\r\n+*.gif +*.jpg" },
-        { NULL, 0, NULL }
-      };
-      int nchecks = 0;
-      for(int k=0 ; boxes[k].box != NULL ; k++) {
-        const CString got = applyRulePreset(boxes[k].box, preset, boxes[k].checked);
-        if (got != boxes[k].want) {
-          fprintf(stderr, "FATAL: rules box '%s' with the preset %s gave '%s', expected '%s'\n",
-                  boxes[k].box, boxes[k].checked ? "on" : "off", (LPCSTR) got, boxes[k].want);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      printf("rule presets ok on %d checks\n", nchecks);
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
@@ -872,47 +785,6 @@ BOOL CWinHTTrackApp::InitInstance()
         }
       }
       printf("preset rule lists ok on %d checks\n", nchecks);
-    }
-    /* Only a whole preset checks its box, because the click that unchecks it takes out
-       every rule of the preset. */
-    {
-      static const char preset[] = "+*.gif +*.jpg";
-      static const struct { const char* box; int want; } holds[] = {
-        { "+*.gif +*.jpg", 1 },
-        { "+*.jpg +*.gif", 1 },               /* order is not part of the preset */
-        { "+*.gif\r\n+*.jpg", 1 },            /* the control's own line breaks */
-        { "  +*.gif\t+*.zip +*.jpg  ", 1 },   /* the user's own rules sit among them */
-        { "+*.gif", 0 },                      /* one rule of it is not the preset */
-        { "+*.jpg", 0 },
-        { "", 0 },
-        { "+*.gifx +*.jpgx", 0 },             /* a longer rule is not that rule */
-        { "+*.GIF +*.JPG", 0 },               /* matching is case-sensitive */
-        { "-*.gif -*.jpg", 0 },               /* the sign is part of the rule */
-        { "+*.gif,+*.jpg", 0 },               /* one rule, since ',' separates nothing */
-        { NULL, 0 }
-      };
-      int nchecks = 0;
-
-      for(int k=0 ; holds[k].box != NULL ; k++) {
-        const int got = ruleListHoldsPreset(holds[k].box, preset) ? 1 : 0;
-
-        if (got != holds[k].want) {
-          fprintf(stderr, "FATAL: box '%s' read the preset as %s, expected %s\n",
-                  holds[k].box, got ? "applied" : "not applied",
-                  holds[k].want ? "applied" : "not applied");
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      /* a preset holding no rule is held by nothing */
-      if (ruleListHoldsPreset("+*.gif", "")) {
-        fprintf(stderr, "FATAL: an empty preset read as applied\n");
-        fflush(stderr);
-        ExitProcess(3);
-      } else
-        nchecks++;
-      printf("preset checkmarks ok on %d checks\n", nchecks);
     }
     /* What the engine is actually told: the whole box, or nothing at all. */
     {

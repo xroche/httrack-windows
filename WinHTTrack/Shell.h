@@ -320,6 +320,19 @@ CString profile_decode(const char* from);
    Exposed for --selftest; see the definition for the separator rule. */
 void splitRulesInArray(CStringArray &rules, const CString &str);
 
+/* Split STR into whitespace-separated tokens, dropping the empty ones. */
+void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
+
+/* Split STR on its line breaks, trimming each line and dropping the empty ones.
+   SEPARATOR, when given, is added before every line, for the options carrying one flag
+   per value. */
+void splitLinesInArray(CSimpleArray<CString> &args, const CString &str,
+                       const CString &separator=CString());
+
+/* Runs the rule-splitting and preset cases, returning the number of checks or 0 with *ERR
+   naming the disagreement. tools/rules-split-test.cpp runs it off Windows too. */
+int rulesSplitCheckCases(CString *err);
+
 /* Returns BOX with PRESET's rules taken out, plus PRESET on its own line when CHECKED.
    A preset rule goes only when it stands as a whole rule in BOX, never when it sits
    inside one. The returned lines are CRLF-separated, and a line holding no rule goes.

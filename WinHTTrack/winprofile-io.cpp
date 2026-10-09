@@ -36,7 +36,7 @@ Please visit our Website: http://www.httrack.com
    beyond CString, and linput() is the only engine call. */
 
 #ifdef WINPROFILE_IO_TEST
-#include "winprofile-io-test.h"     /* CString, linput() and strcatbuff() for the harness */
+#include "mfc-test-stubs.h"          /* CString, linput() and strcatbuff() for the harness */
 #else
 #include "stdafx.h"
 #include "Shell.h"

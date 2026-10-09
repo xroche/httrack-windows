@@ -75,6 +75,34 @@ jobs:
           path: engine
       - name: winprofile.ini bindings agree with the engine's table
         run: python3 tools/test-winprofile-bind.py --engine engine
+      # Same reason, and hts_scan_token() is what decides where a rule ends.
+      - name: Scan-rule splitting and the preset checkboxes
+        run: python3 tools/test-rules-split.py --engine engine
+      # A mismatch here means a selftest line and its CI matcher drifted apart.
+      - name: Selftest lines and their matchers name each other
+        run: |
+          python3 - <<'EOF'
+          import glob, re, sys
+          printed, matched = set(), set()
+          for path in sorted(glob.glob('WinHTTrack/*.cpp')):
+              src = open(path, encoding='utf-8').read()
+              printed.update(re.findall(r'printf\("([^"%]*? ok on )', src))
+          for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/actions/*/*.yml'):
+              for m in re.findall(r"-notmatch '([^']*? ok on )", open(path, encoding='utf-8').read()):
+                  matched.add(m.replace('\\', ''))
+          # The floor catches a regex that silently matches nothing.
+          if len(printed) < 20 or len(matched) < 20:
+              sys.exit('found %d printed lines and %d matchers: this check would prove '
+                       'nothing' % (len(printed), len(matched)))
+          bad = ['%s: matched by a workflow, printed nowhere' % m
+                 for m in sorted(matched - printed)]
+          bad += ['%s: printed, matched by no workflow' % p
+                  for p in sorted(printed - matched)]
+          if bad:
+              sys.exit('\n'.join(bad))
+          print('%d selftest lines each have a matcher' % len(printed))
+          EOF
+
       - name: Every CI job declares a timeout
         run: python3 tools/check-job-timeouts.py
       - name: Job-timeout cases
@@ -1145,6 +1173,12 @@ jobs:
           if ("$so" -notmatch 'winprofile bindings ok on 468 checks over 88 keys and 9 catalog lists \(11 table rows skipped\)') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the winprofile binding check did not run every loop'
+          }
+          # The ubuntu run pins the same count, but only this one runs the cases against
+          # the real MFC CString.
+          if ("$so" -notmatch 'rule splitting ok on 49 checks') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the rule-splitting check did not run every case'
           }
           if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
             throw 'a portable run registered .whtt under HKCU, from this block or another'
