@@ -2851,72 +2851,6 @@ int countComboEntries(const char* lang_string) {
 }
 
 
-// Ecriture profiles
-CString profile_code(const char* from) {
-  int i;
-  CString result;
-  for(i = 0 ; from[i] != '\0' ; i++) {
-    switch(from[i]) {
-    case '%': 
-      result += '%';
-      result += '%';
-      break;
-    case '=': 
-      result += '%';
-      result += '3';
-      result += 'd';
-      break;
-    case 13:
-      result += '%';
-      result += '0';
-      result += 'd';
-      break;
-    case 10:
-      result += '%';
-      result += '0';
-      result += 'a';
-      break;
-    case 9:
-      result += '%';
-      result += '0';
-      result += '9';
-      break;
-    default:
-      result += from[i];
-      break;
-    }
-  }
-  return result;
-}
-CString profile_decode(const char* from) {
-  int j;
-  CString result;
-  for(j = 0 ; from[j] != '\0' ; ) {  // oui oui
-    if (from[j]=='%') {
-      if (from[j + 1] == '%') {
-        result += '%';
-        j+=2;
-      } else if (from[j + 1] == '\0' || from[j + 2] == '\0') {
-        result += ' ';    // a truncated escape has no second digit to step over
-        break;
-      } else {
-        if (strncmp(from+j+1,"0d", 2)==0)
-          result += (char) 13;
-        else if (strncmp(from+j+1,"0a", 2)==0)
-          result += (char) 10;
-        else if (strncmp(from+j+1,"09", 2)==0)
-          result += (char) 9;
-        else if (strncmp(from+j+1,"3d", 2)==0)
-          result += '=';
-        else
-          result += ' ';
-        j+=3;
-      }
-    } else
-      result += from[j++];
-  }
-  return result;
-}
 //
 // Ecriture/Lecture profiles
 /* Beside the exe, with a trailing backslash; empty if the path cannot be had. */
@@ -3006,12 +2940,6 @@ int MyWriteProfileInt(CString path,CString dummy,CString name,int value) {
   }
   return 0;
 }
-int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
-  if (fp) {
-    fprintf(fp,"%s=%d\x0d\x0a", (LPCTSTR)name, value);
-  }
-  return 0;
-}
 int MyWriteProfileString(CString path,CString dummy,CString name,CString value) {
   if (path.IsEmpty()) {
     CWinApp* pApp = AfxGetApp();
@@ -3030,12 +2958,6 @@ int MyWriteProfileString(CString path,CString dummy,CString name,CString value) 
       fclose(fp);
       return r;
     }
-  }
-  return 0;
-}
-int MyWriteProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
-  if (fp) {
-    fprintf(fp,"%s=%s\x0d\x0a", (LPCTSTR)name, profile_code(value.GetBuffer(0)).GetBuffer(0));
   }
   return 0;
 }
@@ -3060,27 +2982,6 @@ int MyGetProfileInt(CString path,CString dummy,CString name,int value) {
     } else return value;
   }
 }
-int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
-  if (fp) {
-    char srch[256];
-    fseek(fp,0,SEEK_SET);
-    sprintf(srch,"%s=",(LPCTSTR)name);
-    while(!feof(fp)) {
-      char s[2048]; s[0]='\0';
-      linput(fp,s,2000);
-      if (strlen(s)==0)     // EOF
-        return value;
-      if (strncmp(s,srch,strlen(srch)) == 0) {    // ligne reconnue
-        int val;
-        if (sscanf(s+strlen(srch),"%d",&val) == 1)
-          return val;
-        else
-          return value;
-      }
-    }
-    return value;
-  } else return value;
-}
 CString MyGetProfileString(CString path,CString dummy,CString name,CString value) {
   if (path.IsEmpty()) {
     CWinApp* pApp = AfxGetApp();
@@ -3099,34 +3000,6 @@ CString MyGetProfileString(CString path,CString dummy,CString name,CString value
       return st;
     } else return value;
   }
-}
-CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
-  if (fp) {
-    char srch[256];
-    fseek(fp,0,SEEK_SET);
-    sprintf(srch,"%s",(LPCTSTR)name);
-    strcatbuff(srch,"=");
-    while(!feof(fp)) {
-      char s[32768]; s[0]='\0';
-      linput(fp,s,32000);
-      if (strlen(s)==0)     // EOF
-        return value;
-      if (strncmp(s,srch,strlen(srch)) == 0) {    // ligne reconnue
-        return profile_decode(s+strlen(srch));
-      }
-    }
-    return value;
-  } else return value;
-}
-
-/* VALUE when the shared table offers KEY that entry, DFLT otherwise. Another front end, or
-   a catalog short enough for DDX to store -1, can put an index in the file no combo has. */
-int winprofileListValue(const char *key, int value, int dflt) {
-  int base, count;
-
-  if (!winprofileListRange(key, &base, &count))
-    return value;
-  return (value >= base && value < base + count) ? value : dflt;
 }
 
 //

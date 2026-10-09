@@ -38,15 +38,11 @@ Please visit our Website: http://www.httrack.com
    WebHTTrack and HTTrack for Android read this file under. */
 #include "winprofile-keys.h"
 
-/* Every winprofile.ini key an option page saves, with the member holding it and the value
-   an absent key means. Write_profile, Read_profile and --selftest all expand this list, so
-   each key is named, typed and defaulted once. A row's macro is its kind in the table
-   above, which --selftest holds this list against. NUMBER and TEXT both keep their value
-   as text, because a substituted number cannot be told from a typed one.
-   The keys that cannot take this shape stay hand-written in both functions: ProfileFormat
-   is a constant, Dos packs two checkboxes into one value, Category reads and writes
-   different members, AcceptLanguage and UserID default to a value built at run time, and
-   the three Current* keys belong to the first dialog rather than to a page. */
+/* WINPROFILE_BINDINGS lists every saved key, its member, and the value an absent key
+   means. Write_profile, Read_profile and --selftest all expand it, so each key is named,
+   typed and defaulted once. A row's macro is its kind in the table above, which --selftest
+   holds this list against. NUMBER and TEXT both keep their value as text, because a
+   substituted number cannot be told from a typed one. */
 #define WINPROFILE_BINDINGS(CHECKBOX, LIST, NUMBER, TEXT)                      \
   CHECKBOX("Near", maintab->m_option1.m_link, 0)                               \
   CHECKBOX("Test", maintab->m_option1.m_testall, 0)                            \
@@ -139,8 +135,51 @@ Please visit our Website: http://www.httrack.com
   TEXT("MIMEDefsMime7", maintab->m_option11.m_mime7, "")                       \
   TEXT("MIMEDefsMime8", maintab->m_option11.m_mime8, "")
 
+/* Pinned, never floored, because a count with slack is how a loop stops running and
+   still prints "ok". The engine's table is checked out fresh, so a row it gains for
+   another front end moves WINPROFILE_SKIPPED_ROWS and reds this on purpose. The three key
+   counts add up to WINPROFILE_KEY_COUNT. */
+#define WINPROFILE_BOUND_KEYS 88
+#define WINPROFILE_HANDWRITTEN_KEYS 8
+#define WINPROFILE_SKIPPED_ROWS 11
+#define WINPROFILE_BINDING_CHECKS 468
+#define WINPROFILE_LIST_COMBO_COUNT 9
+
+/* The keys no binding can carry. These stay hand-written: ProfileFormat is a constant,
+   Dos packs two checkboxes into one value, Category reads and writes different members,
+   AcceptLanguage and UserID default to a run-time value, and the three Current* keys
+   belong to the first dialog, not a page. tools/test-winprofile-bind.py holds each one
+   against both profile functions, because nothing here can see whether a key named below
+   is really saved. */
+#define WINPROFILE_HANDWRITTEN(KEY)                                            \
+  KEY("ProfileFormat")                                                         \
+  KEY("Dos")                                                                   \
+  KEY("Category")                                                              \
+  KEY("AcceptLanguage")                                                        \
+  KEY("UserID")                                                                \
+  KEY("CurrentUrl")                                                            \
+  KEY("CurrentAction")                                                         \
+  KEY("CurrentURLList")
+
+/* Each LIST key above and the catalog list SetCombo() fills its combo from. The entry
+   count reaches the table through nothing the compiler sees, so --selftest counts it. */
+#define WINPROFILE_LIST_COMBOS(COMBO)                                          \
+  COMBO("Build", LISTDEF_3)                                                    \
+  COMBO("PrimaryScan", LISTDEF_4)                                              \
+  COMBO("Travel", LISTDEF_5)                                                   \
+  COMBO("GlobalTravel", LISTDEF_6)                                             \
+  COMBO("RewriteLinks", LISTDEF_11)                                            \
+  COMBO("CheckType", LISTDEF_7)                                                \
+  COMBO("FollowRobotsTxt", LISTDEF_8)                                          \
+  COMBO("LogType", LISTDEF_9)                                                  \
+  COMBO("CurrentAction", LISTDEF_10)
+
+/* The one LIST key with no catalog list, because its three entries come from the .rc's
+   DLGINIT. Named here so the completeness check counts it instead of passing over it. */
+#define WINPROFILE_COMBO_FROM_RC "ProxyType"
+
 /* The table's row for KEY, or NULL when it states none. */
-static const winprofile_key_t *winprofileTableKey(const char *key) {
+static inline const winprofile_key_t *winprofileTableKey(const char *key) {
   for(int i=0 ; i<WINPROFILE_KEY_COUNT ; i++) {
     if (strcmp(winprofile_keys[i].key, key) == 0)
       return &winprofile_keys[i];
@@ -148,9 +187,28 @@ static const winprofile_key_t *winprofileTableKey(const char *key) {
   return NULL;
 }
 
+/* TRUE when OWNERS, a comma-separated list, carries WHO as a whole entry. A substring
+   test would also answer yes to a future owner spelled "winrt" or "nowin". */
+static inline BOOL winprofileOwnedBy(const char *owners, const char *who) {
+  const size_t len = strlen(who);
+  const char *p = owners;
+
+  while (*p != '\0') {
+    const char *const comma = strchr(p, ',');
+    const size_t span = (comma != NULL) ? (size_t) (comma - p) : strlen(p);
+
+    if (span == len && strncmp(p, who, len) == 0)
+      return TRUE;
+    if (comma == NULL)
+      break;
+    p = comma + 1;
+  }
+  return FALSE;
+}
+
 /* TRUE when the table types KEY as a list, filling in the index of its first entry and
    how many entries it has. The kind column spells that as "list:<base>:<count>". */
-static BOOL winprofileListRange(const char *key, int *base, int *count) {
+static inline BOOL winprofileListRange(const char *key, int *base, int *count) {
   const winprofile_key_t *const row = winprofileTableKey(key);
   const char *const kind = (row != NULL) ? row->kind : "";
   const char *sep;

@@ -306,6 +306,11 @@ int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
    be one the table types as a list, or VALUE comes back unchanged. Exposed for --selftest. */
 int winprofileListValue(const char *key, int value, int dflt);
 
+/* Holds WINPROFILE_BINDINGS against the engine's generated table, both ways, and fills in
+   *NSKIPPED with the table rows it passed over. Returns the number of checks, or 0 with
+   *ERR naming the disagreement. tools/winprofile-bind-test.cpp runs it off Windows too. */
+int winprofileCheckBindings(CString *err, int *nskipped);
+
 /* winprofile.ini value escaping: '%', '=', TAB, CR and LF only, everything else
    unchanged. Decoding is lossy, so the pair is not a bijection. For --selftest. */
 CString profile_code(const char* from);
