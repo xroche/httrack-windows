@@ -323,10 +323,16 @@ static int selftestWalkCatalogs(void (*check)(int lang, const char *name, void *
   return (i < LANG_SANE_MAX) ? i : 0;
 }
 
-/* Every catalog list, held against the entry count the engine's table states. A
+/* How many languages a walk covered, and what its check counted in each. */
+struct SelftestWalkCount {
+  int nlangs, counted;
+};
+
+/* This holds every catalog list against the entry count the engine's table states. A
    translation one entry short leaves the combo missing rows, DDX then stores -1 for the
    row the user picked, and the setting is lost on reopen (#225). */
 static void selftestCheckComboCounts(int lang, const char *name, void *ctx) {
+  struct SelftestWalkCount *const got = (struct SelftestWalkCount *) ctx;
 #define WP_COMBO_ROW(key, listdef) { key, listdef },
   const struct { const char *key; const char *entries; } combos[] = {
     WINPROFILE_LIST_COMBOS(WP_COMBO_ROW)
@@ -352,18 +358,14 @@ static void selftestCheckComboCounts(int lang, const char *name, void *ctx) {
     fflush(stderr);
     ExitProcess(3);
   }
-  *(int *) ctx += n;
+  got->counted = n;
+  got->nlangs++;
 }
 
-/* What selftestCheckBuildRows() counted, and over how many languages. */
-struct SelftestBuildRows {
-  int nlangs, entries;
-};
-
-/* IDC_build's rows against the structure table in Shell.h, which is ours rather than the
-   engine's, so the count is pinned. */
+/* This holds IDC_build's rows against the structure table in Shell.h. That table is ours
+   rather than the engine's, so the count is pinned. */
 static void selftestCheckBuildRows(int lang, const char *name, void *ctx) {
-  struct SelftestBuildRows *const got = (struct SelftestBuildRows *) ctx;
+  struct SelftestWalkCount *const got = (struct SelftestWalkCount *) ctx;
   const int offered = countComboEntries(LISTDEF_3);
 
   if (offered != BUILD_STRUCTURE_COUNT) {
@@ -372,7 +374,7 @@ static void selftestCheckBuildRows(int lang, const char *name, void *ctx) {
     fflush(stderr);
     ExitProcess(3);
   }
-  got->entries = offered;
+  got->counted = offered;
   got->nlangs++;
 }
 
@@ -1133,7 +1135,8 @@ BOOL CWinHTTrackApp::InitInstance()
        tools/test-winprofile-bind.py runs the same function on ubuntu, where a reviewer can
        rerun it and mutate it. */
     {
-      int nskipped = 0, ncombos = 0;
+      int nskipped = 0;
+      struct SelftestWalkCount combos = { 0, 0 };
       CString err;
       const int nchecks = winprofileCheckBindings(&err, &nskipped);
 
@@ -1145,23 +1148,19 @@ BOOL CWinHTTrackApp::InitInstance()
       /* A list key's entries reach its combo from the catalog through SetCombo(), so the
          count the table states is checkable nowhere else. Every language, because the
          translations carry their own lists and English alone cannot see a short one. */
-      const int nlangs = selftestWalkCatalogs(selftestCheckComboCounts, &ncombos);
-      if (nlangs < 1) {
-        fprintf(stderr, "FATAL: no catalog to count the combo lists in\n");
+      const int nlangs = selftestWalkCatalogs(selftestCheckComboCounts, &combos);
+      if (nlangs < 1 || combos.nlangs != nlangs) {
+        fprintf(stderr, "FATAL: counted the combo lists in %d of %d languages\n",
+                combos.nlangs, nlangs);
         fflush(stderr);
         ExitProcess(3);
       }
-      if (ncombos != nlangs * WINPROFILE_LIST_COMBO_COUNT) {
-        fprintf(stderr, "FATAL: counted %d catalog lists over %d languages, expected %d\n",
-                ncombos, nlangs, nlangs * WINPROFILE_LIST_COMBO_COUNT);
-        fflush(stderr);
-        ExitProcess(3);
-      }
-      /* The language count is the engine's, so CI holds it against the roster the language
-         list prints rather than against a number pinned here. */
+      /* The loop's own count, never the constant it was held against, because a printed
+         constant is true whatever the loop did. The language count is the engine's, so CI
+         holds that one against the roster the language list prints. */
       printf("winprofile bindings ok on %d checks over %d keys and %d catalog lists"
              " in %d languages (%d table rows skipped)\n", nchecks, WINPROFILE_BOUND_KEYS,
-             WINPROFILE_LIST_COMBO_COUNT, nlangs, nskipped);
+             combos.counted, nlangs, nskipped);
     }
     /* lance() is out of reach here, so this is the only pin on the gating
        contract declared in Shell.h. */
@@ -1313,7 +1312,7 @@ BOOL CWinHTTrackApp::InitInstance()
          count reaches the table above through nothing the compiler sees. Count it here, in
          every language, because a translation one row short makes the last structures
          unpickable. */
-      struct SelftestBuildRows rows = { 0, 0 };
+      struct SelftestWalkCount rows = { 0, 0 };
       const int nlangs = selftestWalkCatalogs(selftestCheckBuildRows, &rows);
       if (nlangs < 1 || rows.nlangs != nlangs) {
         fprintf(stderr, "FATAL: counted IDC_build's rows in %d of %d languages\n",
@@ -1321,7 +1320,7 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      nentries = rows.entries;
+      nentries = rows.counted;
       const int want = ansiNotUtf8 ? 26 : 24;
       if (nchecks != want) {
         fprintf(stderr, "FATAL: build structure ran %d checks, expected %d\n", nchecks, want);

@@ -1,14 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright (C) 2026 Xavier Roche and other contributors
 
-   Every language's combo lists, held against the entry count the engine's key table
-   states. --selftest does this on Windows against the loaded catalog, and the GUI only
-   builds under MSVC, so this is the half a reviewer can rerun and mutate. Driven by
-   tools/test-winprofile-bind.py.
-
-   The catalogs go through the engine's own hts_readline_cpp(), the reader LANG_LOAD()
-   reads them with, because a line pattern of our own mis-pairs keys and values at a
-   continuation line and reports mismatches that are not there. */
+   This holds every language's combo lists against the entry count the engine's key
+   table states, which --selftest does on Windows and a reviewer cannot rerun there.
+   tools/test-winprofile-bind.py drives it. */
 
 #include "htslines.h"
 
@@ -20,21 +15,23 @@
 #include <string>
 #include <vector>
 
-/* What LANG_LOAD() passes linput_cpp(). */
+/* How long a line does LANG_LOAD() give linput_cpp()? */
 #define CATALOG_LINE_MAX 8000
 #define CATALOG_FLAGS (HTS_LINE_DROP_TAB | HTS_LINE_DROP_FF | HTS_LINE_DROP_NUL)
 
 typedef std::map<std::string, std::string> Catalog;
 
-/* LANGINTKEY() and LANGSEL(), which answer "" for a key they do not hold. */
+/* LANGINTKEY() and LANGSEL() both answer "" for a key they do not hold. */
 static const char *look(const Catalog &c, const std::string &key) {
   const Catalog::const_iterator i = c.find(key);
 
   return (i == c.end()) ? "" : i->second.c_str();
 }
 
-/* Every line of PATH, as LANG_LOAD()'s feof() loop reads them. FALSE when it cannot be
-   opened, which the caller must report rather than treat as an empty catalog. */
+/* This reads every line of PATH, as LANG_LOAD()'s feof() loop does, and answers FALSE
+   when it cannot open the file, which the caller must report rather than treat as an
+   empty catalog. hts_readline_cpp() is the engine's own reader, because a line pattern of
+   our own mis-pairs keys and values at a continuation line. */
 static bool catalogLines(const std::string &path, std::vector<std::string> &out) {
   FILE *const fp = fopen(path.c_str(), "rb");
   char line[CATALOG_LINE_MAX + 1];
@@ -49,7 +46,7 @@ static bool catalogLines(const std::string &path, std::vector<std::string> &out)
   return true;
 }
 
-/* KEY with the suffix LANG_LOAD() appends to tell repeated definitions apart. */
+/* This appends the suffix LANG_LOAD() gives a repeated definition. */
 static std::string suffixed(const std::string &key, int n) {
   char num[32];
 
@@ -57,8 +54,8 @@ static std::string suffixed(const std::string &key, int n) {
   return key + num;
 }
 
-/* lang.def into NewLangStrKeys: the lookup key is the second line of each pair, and the
-   internal key the first. */
+/* This reads lang.def into NewLangStrKeys. The lookup key is the second line of each
+   pair, and the internal key is the first. */
 static bool loadKeys(const std::string &path, Catalog &keys) {
   std::vector<std::string> lines;
 
@@ -77,8 +74,8 @@ static bool loadKeys(const std::string &path, Catalog &keys) {
   return true;
 }
 
-/* One lang/<name>.txt into NewLangStr. LOOPS is LANG_LOAD()'s pass: 0 for the chosen
-   language, 1 for the English file it backfills every unset key from. */
+/* This reads one lang/<name>.txt into NewLangStr. LOOPS is LANG_LOAD()'s pass, so 0 is
+   the chosen language and 1 the English file it backfills every unset key from. */
 static bool loadStrings(const std::string &path, const Catalog &keys, Catalog &strs,
                         int loops) {
   std::vector<std::string> lines;
@@ -111,9 +108,9 @@ static bool loadStrings(const std::string &path, const Catalog &keys, Catalog &s
   return true;
 }
 
-/* conv_printf()'s escapes, so '\n' becomes the separator countComboEntries() splits on.
-   Its DBCS pairing needs the catalog's codepage and is left out, so an entry whose trail
-   byte is 0x5c could be counted wrong here and only --selftest counts it right. */
+/* This applies conv_printf()'s escapes, so '\n' becomes the separator
+   countComboEntries() splits on. Its DBCS pairing needs the catalog's codepage and is
+   left out, so an entry whose trail byte is 0x5c is counted right only by --selftest. */
 static std::string unescape(const std::string &value) {
   std::string out;
 

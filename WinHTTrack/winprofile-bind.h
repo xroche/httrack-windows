@@ -35,6 +35,7 @@ Please visit our Website: http://www.httrack.com
 #define WINPROFILE_BIND_H
 
 #include <ctype.h>
+#include <string.h>
 
 /* The engine's generated key table, from winprofile-keys.tsv. It states the contract
    WebHTTrack and HTTrack for Android read this file under. */
