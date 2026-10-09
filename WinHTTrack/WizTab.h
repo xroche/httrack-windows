@@ -99,6 +99,7 @@ protected:
   //{{AFX_MSG(CWizTab)
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   virtual LRESULT WindowProc(UINT message, WPARAM wParam, LPARAM lParam);
 	afx_msg void OnHelpInfo2();

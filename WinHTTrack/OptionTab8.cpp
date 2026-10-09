@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "OptionTab8.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -108,6 +109,7 @@ BEGIN_MESSAGE_MAP(COptionTab8, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab8)
 	ON_BN_CLICKED(IDC_cookiesfilebrowse, OnCookiesFileBrowse)
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_BN_CLICKED(IDC_sitemap, OnGateClicked)
@@ -146,6 +148,7 @@ void COptionTab8::UpdateGatedControls()
 BOOL COptionTab8::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
   BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 
@@ -282,4 +285,11 @@ void COptionTab8::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH COptionTab8::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

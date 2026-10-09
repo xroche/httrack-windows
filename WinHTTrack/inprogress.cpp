@@ -28,6 +28,7 @@ Please visit our Website: http://www.httrack.com
 //
 
 #include "stdafx.h"
+#include "DarkMode.h"
 #include "Shell.h"
 #include "inprogress.h"
 #include "about.h"
@@ -266,6 +267,7 @@ BEGIN_MESSAGE_MAP(Cinprogress, CPropertyPage)
 	ON_WM_TIMER()
 	ON_WM_SIZE()
 	ON_BN_CLICKED(IDC_inphide, Oninphide)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_MESSAGE( wm_CEasyDropTargetCallback, DragDropText)
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
@@ -429,6 +431,7 @@ BOOL Cinprogress::OnInitDialog()
   strcpybuff(pathlog,"");
 
 	//CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
   EnableToolTips(true);     // TOOL TIPS
 
   // initialisation des champs pour les redraws en boucle
@@ -1254,4 +1257,11 @@ BOOL Cinprogress::OnSetActive()
 {
   WHTT_LOCATION("inprogress");
 	return CPropertyPage::OnSetActive();
+}
+
+HBRUSH Cinprogress::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

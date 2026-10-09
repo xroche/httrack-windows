@@ -34,6 +34,7 @@ Please visit our Website: http://www.httrack.com
 
 #include <ws2tcpip.h>
 #include <Wspiapi.h>
+#include "DarkMode.h"
 //#include <winsock2.h>
 
 #ifdef _DEBUG
@@ -112,6 +113,7 @@ BEGIN_MESSAGE_MAP(COptionTab10, CPropertyPage)
 	ON_CBN_SELCHANGE(IDC_prox, OnChangeprox)
 	ON_CBN_EDITCHANGE(IDC_prox, OnChangeprox)
 	ON_CBN_EDITUPDATE(IDC_prox, OnChangeprox)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_MESSAGE( wm_ProxySearch, ProxySearch0 )
@@ -133,6 +135,7 @@ END_MESSAGE_MAP()
 BOOL COptionTab10::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
 	
   EnableToolTips(true);     // TOOL TIPS
 
@@ -409,4 +412,11 @@ LRESULT COptionTab10::ProxySearch(int id,WPARAM wParam,LPARAM lParam) {
   }
 
   return 0;
+}
+
+HBRUSH COptionTab10::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

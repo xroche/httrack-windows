@@ -39,6 +39,7 @@ extern "C" {
 #include "Shell.h"
 #include "InfoUrl.h"
 #include "NewLang.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -78,6 +79,7 @@ BEGIN_MESSAGE_MAP(CInfoUrl, CDialog)
 	ON_BN_CLICKED(IDC_Freeze, OnFreeze)
 	ON_WM_CREATE()
 	ON_CBN_SELCHANGE(IDC_backlist, OnSelchangebacklist)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -87,6 +89,7 @@ END_MESSAGE_MAP()
 BOOL CInfoUrl::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
 	
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);  
@@ -306,4 +309,11 @@ void CInfoUrl::OnSelchangebacklist()
       this->OnTimer(0);
     }
   }
+}
+
+HBRUSH CInfoUrl::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 }

@@ -146,6 +146,7 @@
     <ClCompile Include="BuildOptions.cpp" />
     <ClCompile Include="CatchUrl.cpp" />
     <ClCompile Include="CrashReport.cpp" />
+    <ClCompile Include="DarkMode.cpp" />
     <ClCompile Include="DialogContainer.cpp" />
     <ClCompile Include="DirTreeView.cpp" />
     <ClCompile Include="EasyDropTarget.cpp" />
@@ -218,6 +219,7 @@
     <ClInclude Include="CatchUrl.h" />
     <ClInclude Include="cpp_lang.h" />
     <ClInclude Include="CrashReport.h" />
+    <ClInclude Include="DarkMode.h" />
     <ClInclude Include="DialogContainer.h" />
     <ClInclude Include="DirTreeView.h" />
     <ClInclude Include="EasyDropTarget.h" />

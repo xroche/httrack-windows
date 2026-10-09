@@ -81,6 +81,7 @@ protected:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnChangeprox();
 	afx_msg void OnPwdhide();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
   afx_msg LRESULT ProxySearch0(WPARAM wParam,LPARAM lParam);

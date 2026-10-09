@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "CatchUrl.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -61,6 +62,7 @@ void CCatchUrl::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CCatchUrl, CDialog)
 	//{{AFX_MSG_MAP(CCatchUrl)
 	ON_WM_CLOSE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
  ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -125,6 +127,7 @@ const char* CCatchUrl::GetTip(int ID)
 BOOL CCatchUrl::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
   EnableToolTips(true);     // TOOL TIPS
 
   // Patcher l'interface pour les Français ;-)
@@ -136,4 +139,11 @@ BOOL CCatchUrl::OnInitDialog()
   }
   
 	return TRUE;
+}
+
+HBRUSH CCatchUrl::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 }

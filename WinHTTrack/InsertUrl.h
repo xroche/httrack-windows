@@ -89,6 +89,7 @@ protected:
 	//{{AFX_MSG(CInsertUrl)
 	virtual BOOL OnInitDialog();
 	afx_msg void Oncapt();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );

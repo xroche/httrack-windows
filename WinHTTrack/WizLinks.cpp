@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "WizLinks.h"
+#include "DarkMode.h"
 
 extern "C" {
   #include "httrack-library.h"
@@ -106,6 +107,7 @@ BEGIN_MESSAGE_MAP(WizLinks, CDialog)
 	ON_BN_CLICKED(IDskipall, Onskipall)
 	ON_WM_DESTROY()
 	ON_WM_TIMER()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 	ON_COMMAND(ID_HELP, OnHelp)
 END_MESSAGE_MAP()
@@ -122,6 +124,7 @@ void WizLinks::Onskipall()
 BOOL WizLinks::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	WhttDarkInitWindow(this);
 	
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);  
@@ -192,3 +195,9 @@ INT_PTR WizLinks::DoModal()
 	return CDialog::DoModal();
 }
 
+HBRUSH WizLinks::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+}

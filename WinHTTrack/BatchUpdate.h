@@ -65,6 +65,7 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(CBatchUpdate)
 		// NOTE: the ClassWizard will add member functions here
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 

@@ -32,6 +32,7 @@ Please visit our Website: http://www.httrack.com
 #include "mainfrm.h"
 #include "resource.h"
 #include "Shell.h"
+#include "DarkMode.h"
 
 
 IMPLEMENT_DYNCREATE(CMainFrame, CMDIFrameWnd)
@@ -61,6 +62,8 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 {
 	if (CMDIFrameWnd::OnCreate(lpCreateStruct) == -1)
 		return -1;
+
+	WhttDarkInitWindow(this);
 
 /*
 	if (!m_wndToolBar.CreateEx(this, TBSTYLE_FLAT, WS_CHILD | WS_VISIBLE | CBRS_TOP

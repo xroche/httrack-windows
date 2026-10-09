@@ -46,6 +46,7 @@ Please visit our Website: http://www.httrack.com
 #include "inprogress.h"
 
 #include "CrashReport.h"
+#include "DarkMode.h"
 #include "SignatureCheck.h"
 #include "Unofficial.h"
 #include "version.h"
@@ -473,6 +474,8 @@ static const char *WhttAssociateFileType() {
 
 BOOL CWinHTTrackApp::InitInstance()
 {
+  BOOL dark = FALSE;
+
   /* Answer --version without bringing up the UI, so a smoke test can prove the
      binary actually starts. ExitProcess rather than returning FALSE: MFC would
      still run ExitInstance(), which calls hts_uninit() on an engine we never
@@ -480,7 +483,9 @@ BOOL CWinHTTrackApp::InitInstance()
   /* __argv is only populated in an MBCS build, which this is; guard anyway so a
      future Unicode switch cannot turn this into a null dereference. */
   for (int i = 1; __argv != NULL && i < __argc; i++) {
-    if (strcmp(__argv[i], "--version") == 0) {
+    if (strcmp(__argv[i], "--dark") == 0) {
+      dark = TRUE;   /* undocumented while the dark colours are unfinished */
+    } else if (strcmp(__argv[i], "--version") == 0) {
       WhttEnsureConsole();
       printf("WinHTTrack %s (engine %s)\n", WINHTTRACK_VERSION, HTTRACK_VERSION);
       fflush(stdout);
@@ -499,6 +504,7 @@ BOOL CWinHTTrackApp::InitInstance()
       WhttEnsureConsole();
     }
   }
+  WhttDarkModeInit(dark);
 
   /* See <https://msdn.microsoft.com/library/ff919712> */
 #if (defined(_WIN32) && (!defined(_DEBUG)))

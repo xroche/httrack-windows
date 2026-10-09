@@ -71,6 +71,7 @@ protected:
 	//{{AFX_MSG(CProxyId)
 	virtual BOOL OnInitDialog();
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
 	DECLARE_MESSAGE_MAP()

@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "OptionTab5.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -101,6 +102,7 @@ void COptionTab5::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(COptionTab5, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab5)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -111,6 +113,7 @@ END_MESSAGE_MAP()
 BOOL COptionTab5::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
   EnableToolTips(true);     // TOOL TIPS
 	
   depth_status=-1;
@@ -228,3 +231,10 @@ void COptionTab5::OnSelchangedepth()
   }  
 }
 */
+
+HBRUSH COptionTab5::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
+}

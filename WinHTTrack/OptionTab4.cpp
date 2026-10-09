@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "OptionTab4.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -96,6 +97,7 @@ void COptionTab4::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(COptionTab4, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab4)
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -106,6 +108,7 @@ END_MESSAGE_MAP()
 BOOL COptionTab4::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
   EnableToolTips(true);     // TOOL TIPS
 	
   // Patcher l'interface pour les Français ;-)
@@ -190,3 +193,9 @@ const char* COptionTab4::GetTip(int ID)
 // TOOL TIPS
 // ------------------------------------------------------------
 
+HBRUSH COptionTab4::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
+}

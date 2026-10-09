@@ -63,6 +63,7 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(wizard)
 	virtual BOOL OnInitDialog();
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

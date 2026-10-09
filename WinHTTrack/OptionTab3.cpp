@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "Shell.h"
 #include "OptionTab3.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -99,6 +100,7 @@ void COptionTab3::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(COptionTab3, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab3)
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
@@ -109,6 +111,7 @@ END_MESSAGE_MAP()
 BOOL COptionTab3::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
   BuildLayout();
   EnableToolTips(true);     // TOOL TIPS
 	
@@ -230,4 +233,11 @@ void COptionTab3::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH COptionTab3::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

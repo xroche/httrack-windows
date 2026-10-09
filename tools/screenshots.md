@@ -22,9 +22,17 @@ a real site.
 ## Replay
 
 Run the **screenshots** workflow (Actions → Run workflow) and download the
-`screenshots-x64` and `screenshots-ARM64` artifacts. Both arches are shot by default,
-each on a runner of its own, because an ARM64 app only starts on ARM64 hardware. Pass
-`platform` to shoot just one. It takes the binaries from the green `windows-build` of the
+`screenshots-<arch>-<theme>` artifacts, so `screenshots-x64-light` and three more. Both
+arches are shot by default, each on a runner of its own, because an ARM64 app only starts
+on ARM64 hardware. Pass `platform` to shoot just one.
+
+Both themes are shot by default as well. The dark leg sets `AppsUseLightTheme` to 0 under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`. It then runs the
+application with `--dark`, which is what turns the dark colours on. Pass
+`theme` to shoot one. Buttons, checkboxes and the toolbar bitmap are still light in that
+leg, which is what the shots are for.
+
+It takes the binaries from the green `windows-build` of the
 commit you dispatch it from, so a new option page is shot from the build that added it.
 A branch with no build of its own stops rather than shooting master's binaries, so pass
 `run-id` for a change that builds nothing. `mode: probe` runs

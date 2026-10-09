@@ -30,6 +30,7 @@ Please visit our Website: http://www.httrack.com
 #include "stdafx.h"
 #include "winhttrack.h"
 #include "DirTreeView.h"
+#include "DarkMode.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -127,6 +128,9 @@ BOOL CDirTreeView::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD d
 */
 
   int r=CWnd::Create(lpszClassName, lpszWindowName, dwStyle, rect, pParentWnd, nID, pContext);
+
+  /* The view's own window is the tree control, so this is what gets the dark theme. */
+  WhttDarkInitWindow(this);
 
   GetTreeCtrl().SetImageList(&imagelist,TVSIL_NORMAL);
   /*GetTreeCtrl().SetToolTips(&m_TreeViewToolTip);*/

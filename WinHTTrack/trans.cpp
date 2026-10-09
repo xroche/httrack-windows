@@ -76,6 +76,7 @@ extern void compute_options() ;
 
 /* Dialog final */
 #include "inprogress.h"
+#include "DarkMode.h"
 
 /* maintab */
 #include "maintab.h"
@@ -149,6 +150,7 @@ BEGIN_MESSAGE_MAP(Ctrans, CPropertyPage)
 	ON_WM_SHOWWINDOW()
 	ON_BN_CLICKED(IDC_rasdisc, Onrasdisc)
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 	ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -192,6 +194,7 @@ void Ctrans::OnChangehh()
 BOOL Ctrans::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
   BuildLayout();
 
   ((CButton*)GetDlgItem(IDC_select_start))->SetCheck(1);
@@ -511,4 +514,11 @@ void Ctrans::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH Ctrans::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }

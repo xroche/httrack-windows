@@ -28,6 +28,7 @@ Please visit our Website: http://www.httrack.com
 //
 
 #include "stdafx.h"
+#include "DarkMode.h"
 #include "Shell.h"
 #include "infoend.h"
 #include "iplog.h"
@@ -107,6 +108,7 @@ BEGIN_MESSAGE_MAP(Cinfoend, CPropertyPage)
 	ON_WM_TIMER()
 	ON_WM_DESTROY()
 	ON_WM_SIZE()
+	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -123,6 +125,7 @@ BOOL Cinfoend::OnInitDialog()
   UpdateData(false);      // force to call DoDataExchange
 
 	//CPropertyPage::OnInitDialog();
+	WhttDarkInitWindow(this);
 	
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);  
@@ -340,4 +343,11 @@ void Cinfoend::OnSize(UINT nType, int cx, int cy)
 {
   CPropertyPage::OnSize(nType, cx, cy);
   m_layout.Apply(cx, cy);
+}
+
+HBRUSH Cinfoend::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
+
+  return brush != NULL ? brush : CPropertyPage::OnCtlColor(pDC, pWnd, nCtlColor);
 }
