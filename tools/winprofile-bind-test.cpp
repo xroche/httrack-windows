@@ -178,8 +178,10 @@ static int wpMemberId(const char *member) {
   return h;
 }
 
-/* Key to member, written out by hand. It is NOT derived from WINPROFILE_BINDINGS, and
-   that is what lets it disagree. */
+/* Key to member, as its own table. Nothing generates it from WINPROFILE_BINDINGS, which is
+   what lets it disagree with that list and show a swap. Its rows were first taken from the
+   hand-written Write_profile this branch replaced, so they state what the GUI wrote before
+   the conversion; re-ground them the same way if the file ever has to be rebuilt. */
 static const struct { const char *key, *member; } wpWitness[] = {
   { "Near", "maintab->m_option1.m_link" },
   { "Test", "maintab->m_option1.m_testall" },

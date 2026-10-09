@@ -161,57 +161,55 @@ jobs:
               sys.exit('\n'.join(bad))
           print('installer identity is version-free:%s' % m.group(1))
           EOF
-      # Byte-exact on purpose: sources are UTF-8, the .rc/tooling inputs stay
-      # Latin-1, and a shell guard can't tell them apart. Python decodes strictly.
+      # Reads each blob from the index, because .gitattributes converts the working tree on checkout.
       - name: Encoding and line endings
         run: |
           python3 - <<'EOF'
-          import subprocess, sys
+          import os, subprocess, sys
 
-          def tracked(*globs):
-              out = subprocess.run(['git', 'ls-files', *globs],
-                                   capture_output=True, text=True, check=True).stdout
-              return [p for p in out.splitlines() if p]
+          def git(*args, stdin=None):
+              return subprocess.run(['git', *args], input=stdin,
+                                    capture_output=True, check=True).stdout
 
-          SOURCE = tracked('*.cpp', '*.h', '*.c')
-          LF_ONLY = tracked('*.cpp', '*.h')
-          CRLF_ONLY = tracked('*.rc', '*.rc2', '*.def', '*.idl', '*.rgs', '*.sln',
-                              '*.vcproj', '*.vcxproj', '*.props', '*.manifest',
-                              '*.dsp', '*.dsw', '*.iss')
+          paths = [p for p in git('ls-files', '-z').decode().split('\0') if p]
+          fields = git('check-attr', '-z', '--stdin', 'eol',
+                       stdin=b'\0'.join(p.encode() for p in paths)).split(b'\0')
+          eol = {fields[i].decode(): fields[i + 2].decode()
+                 for i in range(0, len(fields) - 2, 3)}
+          # .gitattributes decides what these rules cover, so derive the list from it.
+          text = [p for p in paths if eol.get(p) in ('lf', 'crlf')]
           bad = []
+          # A floor guards against an empty list reporting every file clean.
+          if len(text) < 50:
+              sys.exit(f'only {len(text)} files carry an eol rule: this check would prove nothing')
 
-          # Sources are UTF-8: a Latin-1 regression (a raw 0xe9) fails this decode.
-          for p in SOURCE:
+          # Asserts .gitattributes' eol mapping, so a dropped path fails instead of going unchecked.
+          WANT = dict.fromkeys(['.c', '.cpp', '.h', '.htm', '.iss', '.manifest', '.props',
+                                '.rc', '.rc2', '.sln', '.vcxproj', '.xml'], 'lf')
+          WANT['.txt'] = 'crlf'
+          for p in paths:
+              want = WANT.get(os.path.splitext(p)[1].lower())
+              if want and eol.get(p) != want:
+                  bad.append(f'{p}: .gitattributes gives eol={eol.get(p)}, expected {want}')
+
+          for p in text:
+              blob = git('cat-file', 'blob', f':{p}')
+              # Every eol rule stores LF, because that is the form the clean filter writes.
+              if b'\r' in blob:
+                  bad.append(f'{p}: stored with a CR, so git added it outside the clean filter')
+              # Must decode as UTF-8, so a stray Latin-1 byte (0xe9) fails here.
               try:
-                  open(p, 'rb').read().decode('utf-8')
+                  blob.decode('utf-8')
               except UnicodeDecodeError as e:
                   bad.append(f'{p}: not valid UTF-8 ({e})')
-
-          # U+FFFD is valid UTF-8 but means a tool mangled the text; fail loudly.
-          for p in SOURCE + CRLF_ONLY:
-              if b'\xef\xbf\xbd' in open(p, 'rb').read():
+              # U+FFFD is valid UTF-8 but means a tool mangled the text, so fail loudly.
+              if b'\xef\xbf\xbd' in blob:
                   bad.append(f'{p}: contains U+FFFD; a UTF-8 tool mangled the text')
-
-          for p in LF_ONLY:
-              if b'\r' in open(p, 'rb').read():
-                  bad.append(f'{p}: has CRLF, must be LF')
-
-          for p in CRLF_ONLY:
-              data = open(p, 'rb').read()
-              # Every LF must be part of a CRLF. Checking only "has no CRLF at all"
-              # would wave through a mixed-ending file, which is how a stray sed
-              # insertion slips in.
-              if data.replace(b'\r\n', b'') .count(b'\n'):
-                  bad.append(f'{p}: has a bare LF, must be CRLF throughout (Windows tooling input)')
-              # And a CR with no LF after it, which the check above cannot see: strip the
-              # pairs and any CR still standing is a lone one. A stray perl -pe emits these.
-              if b'\r' in data.replace(b'\r\n', b''):
-                  bad.append(f'{p}: has a lone CR, not part of a CRLF')
 
           if bad:
               print('\n'.join(bad))
               sys.exit(1)
-          print(f'OK: {len(SOURCE)} UTF-8 sources, {len(CRLF_ONLY)} Latin-1 CRLF tooling files.')
+          print(f'OK: {len(text)} files carry an eol rule, stored LF and UTF-8.')
           EOF
 
       # A control queried on the page that does not carry it reads as empty or
