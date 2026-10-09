@@ -256,6 +256,7 @@
     <ClInclude Include="WinHTTrack.h" />
     <ClInclude Include="WinHTTrackDoc.h" />
     <ClInclude Include="WinHTTrackView.h" />
+    <ClInclude Include="winprofile-bind.h" />
     <ClInclude Include="wizard.h" />
     <ClInclude Include="wizard2.h" />
     <ClInclude Include="WizLinks.h" />

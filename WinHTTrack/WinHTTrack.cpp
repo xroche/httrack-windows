@@ -34,6 +34,7 @@ Please visit our Website: http://www.httrack.com
 
 #include "wid1.h"
 #include "maintab.h"
+#include "winprofile-bind.h"
 
 #include "MainFrm.h"
 #include "splitter.h"
@@ -1041,6 +1042,178 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("profile escaping ok on %d decodes, %d round trips and %d terminators\n",
              ndecodes, nroundtrips, nterminators);
     }
+    /* What the option pages save, held against the engine's generated key table: the other
+       front ends read this file under that contract. */
+    {
+      struct Bound { const char *key, *kind, *text; int num; };
+      static const struct Bound bound[] = {
+#define WP_BOUND_CHECKBOX(key, member, dflt) { key, "checkbox", NULL, dflt },
+#define WP_BOUND_LIST(key, member, dflt)     { key, "list",     NULL, dflt },
+#define WP_BOUND_NUMBER(key, member, dflt)   { key, "number",   dflt, 0 },
+#define WP_BOUND_TEXT(key, member, dflt)     { key, "string",   dflt, 0 },
+        WINPROFILE_BINDINGS(WP_BOUND_CHECKBOX, WP_BOUND_LIST, WP_BOUND_NUMBER, WP_BOUND_TEXT)
+#undef WP_BOUND_CHECKBOX
+#undef WP_BOUND_LIST
+#undef WP_BOUND_NUMBER
+#undef WP_BOUND_TEXT
+      };
+      /* Hand-written in both profile functions, so the sweep below has to name them or they
+         read as keys this GUI saves nowhere. */
+      static const char *const byHand[] = {
+        "ProfileFormat", "Dos", "Category", "AcceptLanguage", "UserID",
+        "CurrentUrl", "CurrentAction", "CurrentURLList", NULL
+      };
+      /* The read fallback, with the values that must pass through it untouched: a filter
+         that dropped everything would satisfy the out-of-range rows on its own. */
+      static const struct { const char *key; int value, dflt, want; } fallback[] = {
+        { "CheckType", 0, 1, 0 }, { "CheckType", 2, 1, 2 },
+        { "CheckType", 3, 1, 1 }, { "CheckType", -1, 1, 1 },
+        { "ProxyType", 2, 0, 2 }, { "ProxyType", 3, 0, 0 },
+        { "Build", 14, 0, 14 }, { "Build", 15, 0, 0 },
+        /* a key the table types as anything else is none of that function's business */
+        { "Near", 7, 0, 7 }, { "MaxRate", 7, 0, 7 }, { "Nosuchkey", 7, 0, 7 },
+        { NULL, 0, 0, 0 }
+      };
+      const int nbound = sizeof(bound) / sizeof(bound[0]);
+      int nchecks = 0, nskipped = 0;
+
+      for(int k=0 ; k<nbound ; k++) {
+        const struct Bound *const b = &bound[k];
+        const winprofile_key_t *const row = winprofileTableKey(b->key);
+        int base = 0, count = 0;
+        CString mine;
+
+        if (row == NULL || strstr(row->owners, "win") == NULL) {
+          fprintf(stderr, "FATAL: the engine's table does not give '%s' to this GUI\n", b->key);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        /* The kind is what decides how a 0 reads, so a disagreement loses a setting. */
+        if (strcmp(b->kind, "list") == 0
+            ? (!winprofileListRange(b->key, &base, &count) || base != 0)
+            : strcmp(b->kind, row->kind) != 0) {
+          fprintf(stderr, "FATAL: '%s' is bound as %s, the table types it '%s'\n",
+                  b->key, b->kind, row->kind);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+        if (b->text != NULL)
+          mine = b->text;
+        else
+          mine.Format("%d", b->num);
+        if (strcmp(row->default_state, "agreed") == 0) {
+          /* A default that disagrees reopens the project on a setting nobody chose. */
+          if (mine != row->default_value) {
+            fprintf(stderr, "FATAL: an absent '%s' reads as '%s' here, '%s' in the table\n",
+                    b->key, (LPCSTR) mine, row->default_value);
+            fflush(stderr);
+            ExitProcess(3);
+          }
+        } else if (strcmp(row->default_state, "none") == 0) {
+          /* Nothing to substitute: a filled-in value cannot be told from a typed one. */
+          if (b->text == NULL || b->text[0] != '\0') {
+            fprintf(stderr, "FATAL: '%s' takes no default, this GUI fills in '%s'\n",
+                    b->key, (LPCSTR) mine);
+            fflush(stderr);
+            ExitProcess(3);
+          }
+        } else {
+          /* A run-time default cannot sit in the list, so such a key is written by hand. */
+          fprintf(stderr, "FATAL: '%s' defaults %s, which the binding list cannot state\n",
+                  b->key, row->default_state);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      /* The other direction, counting the skips: a sweep over a list that quietly dropped
+         what it could not bind proves nothing, which is how ProxyType survived one. */
+      for(int i=0 ; i<WINPROFILE_KEY_COUNT ; i++) {
+        const winprofile_key_t *const row = &winprofile_keys[i];
+        BOOL found = FALSE;
+
+        if (strstr(row->owners, "win") == NULL         /* another front end's key */
+            || row->legacy_of[0] != '\0'               /* an old spelling of one of ours */
+            || strcmp(row->scope, "read_only") == 0) {
+          nskipped++;
+          continue;
+        }
+        for(int k=0 ; !found && k<nbound ; k++)
+          found = strcmp(bound[k].key, row->key) == 0;
+        for(int k=0 ; !found && byHand[k] != NULL ; k++)
+          found = strcmp(byHand[k], row->key) == 0;
+        if (!found) {
+          fprintf(stderr, "FATAL: the table gives '%s' to this GUI, which saves it nowhere\n",
+                  row->key);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      for(int k=0 ; fallback[k].key != NULL ; k++) {
+        const int got = winprofileListValue(fallback[k].key, fallback[k].value,
+                                            fallback[k].dflt);
+
+        if (got != fallback[k].want) {
+          fprintf(stderr, "FATAL: %s=%d read as %d, expected %d\n", fallback[k].key,
+                  fallback[k].value, got, fallback[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      /* A list key's entries reach its combo from the catalog through SetCombo(), so the
+         count the table states is checkable only here. ProxyType is out of this walk: its
+         three entries come from the .rc's DLGINIT, not from a catalog list. */
+      {
+        const int saved = QLANG_T(-1);
+        const int en = LANG_INDEX_OF("en");
+
+        if (en < 0) {
+          fprintf(stderr, "FATAL: lang.indexes knows no 'en'\n");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        QLANG_T(en);
+        LANG_LOAD(NULL, 0);
+        {
+          /* Copied out as strings, because restoring the language frees the catalog. */
+          const struct { const char *key; CString entries; } combos[] = {
+            { "Build", LISTDEF_3 }, { "PrimaryScan", LISTDEF_4 },
+            { "Travel", LISTDEF_5 }, { "GlobalTravel", LISTDEF_6 },
+            { "RewriteLinks", LISTDEF_11 }, { "CheckType", LISTDEF_7 },
+            { "FollowRobotsTxt", LISTDEF_8 }, { "LogType", LISTDEF_9 },
+            { "CurrentAction", LISTDEF_10 }
+          };
+
+          QLANG_T(saved);
+          LANG_LOAD(NULL, 0);
+          for(int k=0 ; k<(int)(sizeof(combos)/sizeof(combos[0])) ; k++) {
+            const int offered = countComboEntries(combos[k].entries);
+            int base = 0, count = 0;
+
+            if (!winprofileListRange(combos[k].key, &base, &count) || count != offered) {
+              fprintf(stderr, "FATAL: the %s combo offers %d entries, the table names %d\n",
+                      combos[k].key, offered, count);
+              fflush(stderr);
+              ExitProcess(3);
+            }
+            nchecks++;
+          }
+        }
+      }
+      /* A floor rather than a count: the engine's table is checked out fresh, so a row it
+         gains for another front end must not red this leg. */
+      if (nbound < 80 || nchecks < 280) {
+        fprintf(stderr, "FATAL: winprofile bindings ran %d checks over %d keys\n",
+                nchecks, nbound);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("winprofile bindings ok on %d checks over %d keys (%d table rows skipped)\n",
+             nchecks, nbound, nskipped);
+    }
     /* lance() is out of reach here, so this is the only pin on the gating
        contract declared in Shell.h. */
     {
@@ -1204,17 +1377,7 @@ BOOL CWinHTTrackApp::InitInstance()
         list = LISTDEF_3;
         QLANG_T(saved);
         LANG_LOAD(NULL, 0);
-        /* split as SetCombo() does, so an entry it would drop is not counted here either */
-        list.TrimLeft(); list.TrimRight();
-        while (list.GetLength()) {
-          const int pos = list.Find('\n');
-          CString item = (pos >= 0) ? list.Left(pos) : list;
-
-          list = (pos >= 0) ? list.Mid(pos + 1) : CString("");
-          item.TrimLeft(); item.TrimRight();
-          if (item.GetLength())
-            nentries++;
-        }
+        nentries = countComboEntries(list);
         if (nentries != BUILD_STRUCTURE_COUNT) {
           fprintf(stderr, "FATAL: IDC_build offers %d structures, the table names %d\n",
                   nentries, BUILD_STRUCTURE_COUNT);

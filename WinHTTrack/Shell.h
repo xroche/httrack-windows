@@ -302,6 +302,10 @@ void Read_profile(CString path,int load_path);
 int MyWriteProfileInt(CString path,CString dummy,CString name,int value);
 int MyWriteProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 
+/* VALUE when the engine's shared key table offers KEY that entry, DFLT otherwise. KEY must
+   be one the table types as a list, or VALUE comes back unchanged. Exposed for --selftest. */
+int winprofileListValue(const char *key, int value, int dflt);
+
 /* winprofile.ini value escaping: '%', '=', TAB, CR and LF only, everything else
    unchanged. Decoding is lossy, so the pair is not a bijection. For --selftest. */
 CString profile_code(const char* from);
@@ -429,6 +433,9 @@ typedef unsigned long (* t_RasHangUp)(HRASCONN);
 
 /* lang extensions */
 void SetCombo(CWnd* _this,int id,const char* lang_string);
+
+/* How many entries SetCombo() puts in a combo from LANG_STRING. Exposed for --selftest. */
+int countComboEntries(const char* lang_string);
 
 
 // HTTrack params - pour le multithread interface/robot
