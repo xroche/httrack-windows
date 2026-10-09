@@ -331,13 +331,10 @@ runs:
         if ("$so" -notmatch 'live opt guard ok on 4 checks') {
           throw "selftest did not check the live option guard"
         }
-        # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.
-        if ("$so" -notmatch 'rule splitting ok on 13 checks') {
-          throw "selftest did not check the Experts rule splitter"
-        }
-        # A preset checkbox rewrites the rules box, and only a click can reach that code.
-        if ("$so" -notmatch 'rule presets ok on 21 checks') {
-          throw "selftest did not check the preset checkboxes"
+        # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the
+        # mirror, and a checkmark on a preset the box only partly holds deletes the rest.
+        if ("$so" -notmatch 'rule splitting ok on 49 checks') {
+          throw "selftest did not check the Experts rule splitter and the preset checkboxes"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure.
         if ("$so" -notmatch 'catalog keys ok on 2 checks') {
@@ -350,10 +347,6 @@ runs:
         # A preset's rules are written nowhere else, and a malformed one traps the user on the page.
         if ("$so" -notmatch 'preset rule lists ok on 34 checks') {
           throw "selftest did not check the three preset rule lists"
-        }
-        # A checkmark claiming a preset the box only partly holds would delete the rest on a click.
-        if ("$so" -notmatch 'preset checkmarks ok on 12 checks') {
-          throw "selftest did not check what a preset checkbox shows"
         }
         if ("$so" -notmatch 'live rules set ok on 5 checks') {
           throw "selftest did not check what a live edit sends to the engine"

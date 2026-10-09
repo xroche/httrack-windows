@@ -34,8 +34,9 @@ Please visit our Website: http://www.httrack.com
 #ifndef WINHTTRACK_DARKMODE_H
 #define WINHTTRACK_DARKMODE_H
 
-/* Unfinished. It ships off, and --dark turns it on. Buttons and checkboxes keep the
-   light visual style, and res/Toolbar.bmp is a 1998 bitmap drawn for a light background.
+/* Unfinished. It ships off, and --dark turns it on. Buttons, checkboxes and the tab
+   control keep the light visual style, and res/Toolbar.bmp is a 1998 bitmap drawn for a
+   light background.
 
    A window calls WhttDarkInitWindow from OnInitDialog (or OnInitialUpdate) and forwards
    its OnCtlColor to WhttDarkCtlColor. Both do nothing while dark mode is off. */
@@ -48,8 +49,9 @@ void WhttDarkModeInit(BOOL requested);
    dark theme. Safe to call on a child window, which has neither. */
 void WhttDarkInitWindow(CWnd *wnd);
 
-/* The brush a dark dialog, static text or edit control wants, after setting the text
-   and background colours on pDC. NULL means the caller keeps its base class result. */
+/* The brush a dark dialog, static text, edit control or list wants, after setting the
+   text and background colours on pDC. NULL means the caller keeps its base class
+   result. */
 HBRUSH WhttDarkCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor);
 
 #endif

@@ -8,7 +8,7 @@
 #include "htslines.h"
 
 /* For BOOL, which winprofile-bind.h's helpers are declared with. */
-#include "winprofile-io-test.h"
+#include "mfc-test-stubs.h"
 #include "winprofile-bind.h"
 
 #include <map>

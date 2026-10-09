@@ -139,8 +139,12 @@ static void darkThemeControl(HWND hwnd)
     return;
   /* A theme name the system does not know falls back to the default one, so an older
      Windows just keeps its own look. The theme carries the control's scrollbars. */
-  if (lstrcmpiA(name, "SysTreeView32") == 0 || lstrcmpiA(name, "SysListView32") == 0)
+  if (lstrcmpiA(name, "SysTreeView32") == 0 || lstrcmpiA(name, "SysListView32") == 0
+      || lstrcmpiA(name, "Edit") == 0)
     setTheme(hwnd, L"DarkMode_Explorer", NULL);
+  /* A combo box paints its closed field from the theme and never asks for a brush. */
+  else if (lstrcmpiA(name, "ComboBox") == 0)
+    setTheme(hwnd, L"DarkMode_CFD", NULL);
 }
 
 static BOOL CALLBACK darkThemeChild(HWND hwnd, LPARAM)
@@ -173,6 +177,7 @@ HBRUSH WhttDarkCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor)
     pDC->SetBkColor(DARK_DLG_BG);
     return darkDlgBrush;
   case CTLCOLOR_EDIT:
+  case CTLCOLOR_LISTBOX:   /* the list a combo box drops down */
     pDC->SetTextColor(DARK_TEXT);
     pDC->SetBkColor(DARK_EDIT_BG);
     return darkEditBrush;
