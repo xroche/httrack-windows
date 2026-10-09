@@ -295,8 +295,14 @@ runs:
         # Guards the empty-name terminator (newlang.h); losing it hangs the first-run About
         # box. The only count left loose: it is the size of the engine's lang.def, so pinning
         # it would turn an engine translation into a red build here.
-        if ("$so" -notmatch 'language list ends after [1-9]\d* entries') {
+        if ("$so" -match 'language list ends after ([1-9]\d*) entries') {
+          $nlangs = [int]$Matches[1]
+        } else {
           throw "selftest did not check that the language list terminates"
+        }
+        # One catalog compares against itself, so the walks below would pass over it.
+        if ($nlangs -lt 2) {
+          throw "the language list ends after $nlangs entries, so the catalog walks compare nothing"
         }
         # lang.indexes counts from LANGUAGE_1 and our indices from 0: an unchecked
         # off-by-one would seed the first run in the neighbouring language.
@@ -325,13 +331,10 @@ runs:
         if ("$so" -notmatch 'live opt guard ok on 4 checks') {
           throw "selftest did not check the live option guard"
         }
-        # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the mirror.
-        if ("$so" -notmatch 'rule splitting ok on 13 checks') {
-          throw "selftest did not check the Experts rule splitter"
-        }
-        # A preset checkbox rewrites the rules box, and only a click can reach that code.
-        if ("$so" -notmatch 'rule presets ok on 21 checks') {
-          throw "selftest did not check the preset checkboxes"
+        # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the
+        # mirror, and a checkmark on a preset the box only partly holds deletes the rest.
+        if ("$so" -notmatch 'rule splitting ok on 49 checks') {
+          throw "selftest did not check the Experts rule splitter and the preset checkboxes"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure.
         if ("$so" -notmatch 'catalog keys ok on 2 checks') {
@@ -344,10 +347,6 @@ runs:
         # A preset's rules are written nowhere else, and a malformed one traps the user on the page.
         if ("$so" -notmatch 'preset rule lists ok on 34 checks') {
           throw "selftest did not check the three preset rule lists"
-        }
-        # A checkmark claiming a preset the box only partly holds would delete the rest on a click.
-        if ("$so" -notmatch 'preset checkmarks ok on 12 checks') {
-          throw "selftest did not check what a preset checkbox shows"
         }
         if ("$so" -notmatch 'live rules set ok on 5 checks') {
           throw "selftest did not check what a live edit sends to the engine"
@@ -366,8 +365,10 @@ runs:
           throw "selftest did not check the checkbox gating"
         }
         # The entry count is the .rc's and the catalog's, so it is pinned alongside the rows.
-        if ("$so" -notmatch 'build structure ok on 26 checks and 15 combo entries(?! \(accented)') {
-          throw "selftest did not check the Build tab's naming structure"
+        # Every catalog is counted, and the number of them is the engine's, so that one is
+        # held against the roster the language list printed above.
+        if ("$so" -notmatch "build structure ok on 26 checks and 15 combo entries in $nlangs languages(?! \(accented)") {
+          throw "selftest did not check the Build tab's naming structure in every language"
         }
         # A cap the engine refuses aborts the mirror, so the shell must never build one.
         if ("$so" -notmatch 'single-file caps ok on 7 checks') {

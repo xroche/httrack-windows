@@ -1924,168 +1924,6 @@ CString change(char* chaine,char c) {
   return chaine1;
 }
 
-// Returns the token at *PTR and advances *PTR past it and the whitespace after it.
-// SCRATCH holds the whole string being split, so hts_scan_token() never truncates a
-// token and one buffer serves them all.
-static CString scanRuleToken(char **ptr, CString &scratch) {
-  char *const dest = scratch.GetBuffer();
-
-  (void) hts_scan_token(ptr, dest, (size_t) scratch.GetLength() + 1);
-  return CString(dest);
-}
-
-// Split STR with hts_scan_token(), so a rule ends where the engine itself ends it.
-static void splitTokensInArray(CSimpleArray<CString> &args, const CString &str) {
-  CString source(str), scratch;              // hts_scan_token() walks a pointer into source
-  char *cur = source.GetBuffer();
-
-  scratch.GetBufferSetLength(str.GetLength());
-  while (*cur != '\0') {
-    const CString token = scanRuleToken(&cur, scratch);
-
-    if (!token.IsEmpty())                    // leading whitespace yields an empty token
-      args.Add(token);
-  }
-}
-
-// Split STR on its line breaks, trimming each line. SEPARATOR, when given, is added
-// before every line, for the options carrying one flag per value.
-static void splitLinesInArray(CSimpleArray<CString> &args,
-                              const CString &str,
-                              const CString &separator=CString()) {
-  const int size = str.GetLength();
-  int i, last;
-  for(i = 0, last = 0 ; i <= size; i++) {
-    if (i == size || str[i] == '\n') {
-      if (last != i) {
-        CString sub = str.Mid(last, i - last);
-        sub.Trim(_T(" \t\r\n"));
-        if (sub.GetLength() != 0) {
-          if (separator.GetLength() !=0) {
-            args.Add(separator);
-          }
-          args.Add(sub);
-        }
-      }
-      last = i + 1;
-    }
-  }
-}
-
-// Split a rule field the way WebHTTrack does; both read the same winprofile.ini.
-// Whitespace splits rules, except beside a ',' or '=': "a , b = c" is one "a,b=c".
-void splitRulesInArray(CStringArray &rules, const CString &str) {
-  CString source(str), scratch;
-  char *cur = source.GetBuffer();
-
-  scratch.GetBufferSetLength(str.GetLength());
-  while (*cur != '\0') {
-    CString rule;
-    BOOL more = TRUE;
-
-    while (more) {
-      const CString token = scanRuleToken(&cur, scratch);
-
-      rule += token;
-      // nothing follows the last token, so nothing glues to it and the loop ends
-      more = *cur != '\0' &&
-        (*cur == ',' || *cur == '=' ||
-         (!token.IsEmpty() && (token[token.GetLength() - 1] == ',' ||
-                               token[token.GetLength() - 1] == '=')));
-    }
-    if (!rule.IsEmpty())                     // a field of whitespace carries no rule
-      rules.Add(rule);
-  }
-}
-
-// see Shell.h
-BOOL ruleListHoldsRule(const CString &list, const CString &rule) {
-  CSimpleArray<CString> rules;
-
-  splitTokensInArray(rules, list);
-  for(int i = 0 ; i < rules.GetSize() ; i++) {
-    if (rules[i] == rule)
-      return TRUE;
-  }
-  return FALSE;
-}
-
-// Returns LINE with PRESET's rules gone, spacing kept around what stays.
-static CString keepRulesInLine(const CString &line, const CString &preset) {
-  CString source(line), scratch;
-  char *const base = source.GetBuffer();
-  char *cur = base;
-  CString kept, gap;
-  BOOL first = TRUE;
-
-  scratch.GetBufferSetLength(line.GetLength());
-  while (*cur != '\0') {
-    const int start = (int) (cur - base);
-    const CString rule = scanRuleToken(&cur, scratch);
-    const int end = start + rule.GetLength();
-
-    if (!rule.IsEmpty()) {
-      if (!ruleListHoldsRule(preset, rule)) {
-        // the spacing the user typed, the line's indent only before the first rule
-        if (first || !kept.IsEmpty())
-          kept += gap;
-        kept += rule;
-      }
-      first = FALSE;
-    }
-    gap = line.Mid(end, (int) (cur - base) - end);   // this is the next rule's gap
-  }
-  return kept;
-}
-
-// see Shell.h
-extern const char rulePresetImages[] = "+*.gif +*.jpg +*.jpeg +*.png +*.tif +*.bmp";
-extern const char rulePresetArchives[] = "+*.zip +*.tar +*.tgz +*.gz +*.rar +*.z +*.exe";
-extern const char rulePresetMovies[] = "+*.mov +*.mpg +*.mpeg +*.avi +*.asf +*.mp3 +*.mp2 "
-  "+*.rm +*.wav +*.vob +*.qt +*.vid +*.ac3 +*.wma +*.wmv";
-
-// see Shell.h
-BOOL ruleListHoldsPreset(const CString &box, const CString &preset) {
-  CSimpleArray<CString> rules;
-
-  splitTokensInArray(rules, preset);
-  if (rules.GetSize() == 0)
-    return FALSE;
-  for(int i = 0 ; i < rules.GetSize() ; i++) {
-    if (!ruleListHoldsRule(box, rules[i]))
-      return FALSE;
-  }
-  return TRUE;
-}
-
-// see Shell.h
-CString applyRulePreset(const CString &box, const CString &preset, BOOL checked) {
-  const int size = box.GetLength();
-  CString out;
-  int pos = 0;
-
-  while (pos < size) {
-    int eol = pos;
-
-    while (eol < size && box[eol] != '\n')
-      eol++;
-    const CString line = box.Mid(pos, eol - pos);
-    const CString kept = keepRulesInLine(line, preset);
-    if (!kept.IsEmpty()) {
-      if (!out.IsEmpty())
-        out += "\r\n";
-      out += kept;
-    }
-    pos = eol + 1;
-  }
-  if (checked) {
-    if (!out.IsEmpty())
-      out += "\r\n";
-    out += preset;
-  }
-  return out;
-}
-
 // TRUE if the engine would take RULE, asked about the bytes hts_setfilters() will
 // measure rather than the ANSI ones MFC holds.
 static BOOL scanRuleOk(const CString &rule) {
@@ -2813,7 +2651,9 @@ void lance(void) {
 // char* LANG(char* english,char* francais);
 
 
-/* interface lang - lang_string="stringlang0\nstringlang1\n..laststring" */
+/* interface lang - lang_string="stringlang0\nstringlang1\n..laststring"
+   countComboEntries() in winprofile-bind.h counts what this puts in: keep both splits
+   the same. */
 void SetCombo(CWnd* _this,int id,const char* lang_string) {
   CComboBox* combo = (CComboBox*) _this->GetDlgItem(id);
   CString st=lang_string;
@@ -2830,24 +2670,6 @@ void SetCombo(CWnd* _this,int id,const char* lang_string) {
         combo->AddString(item);
     }
   }
-}
-
-/* How many entries SetCombo() above would put in a combo from LANG_STRING. Keep both
-   splits the same, or this count stops matching what the combo shows. */
-int countComboEntries(const char* lang_string) {
-  CString st=lang_string;
-  int n=0;
-  st.TrimLeft(); st.TrimRight();
-  st+="\n";         /* end */
-  while(st.GetLength()) {
-    int pos=st.Find('\n');
-    CString item=st.Left(pos);
-    st=st.Mid(pos+1);
-    item.TrimLeft(); item.TrimRight();
-    if (item.GetLength())
-      n++;
-  }
-  return n;
 }
 
 

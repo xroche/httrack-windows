@@ -296,6 +296,88 @@ static int checkEngineWait(const char *what, HANDLE ready, const volatile int *e
   return nchecks;
 }
 
+/* Calls CHECK once under every language's loaded catalog, then puts back the language and
+   the catalog that were loaded. Returns how many languages it walked, and 0 when the
+   roster never ended, which a caller must not read as "nothing to check". */
+static int selftestWalkCatalogs(void (*check)(int lang, const char *name, void *ctx),
+                                void *ctx) {
+  const int LANG_SANE_MAX = 512;   /* lang.def ships a few dozen */
+  const int saved = QLANG_T(-1);
+  int i;
+
+  for(i=0 ; i<LANG_SANE_MAX ; i++) {
+    char name[1024];
+
+    QLANG_T(i);
+    name[0] = '\0';
+    LANG_LOAD(name, sizeof(name));
+    /* Past the last language. Never load that index: LANG_LOAD() falls back to English
+       through LANG_T(0), which writes the choice to the registry. */
+    if (name[0] == '\0')
+      break;
+    LANG_LOAD(NULL, 0);
+    check(i, name, ctx);
+  }
+  QLANG_T(saved);
+  LANG_LOAD(NULL, 0);
+  return (i < LANG_SANE_MAX) ? i : 0;
+}
+
+/* How many languages a walk covered, and what its check counted in each. */
+struct SelftestWalkCount {
+  int nlangs, counted;
+};
+
+/* This holds every catalog list against the entry count the engine's table states. A
+   translation one entry short leaves the combo missing rows, DDX then stores -1 for the
+   row the user picked, and the setting is lost on reopen (#225). */
+static void selftestCheckComboCounts(int lang, const char *name, void *ctx) {
+  struct SelftestWalkCount *const got = (struct SelftestWalkCount *) ctx;
+#define WP_COMBO_ROW(key, listdef) { key, listdef },
+  const struct { const char *key; const char *entries; } combos[] = {
+    WINPROFILE_LIST_COMBOS(WP_COMBO_ROW)
+  };
+#undef WP_COMBO_ROW
+  int n = 0;
+
+  for(int k=0 ; k<(int)(sizeof(combos)/sizeof(combos[0])) ; k++) {
+    const int offered = countComboEntries(combos[k].entries);
+    int base = 0, count = 0;
+
+    if (!winprofileListRange(combos[k].key, &base, &count) || count != offered) {
+      fprintf(stderr, "FATAL: the %s combo offers %d entries in %s (language %d),"
+              " the table names %d\n", combos[k].key, offered, name, lang, count);
+      fflush(stderr);
+      ExitProcess(3);
+    }
+    n++;
+  }
+  if (n != WINPROFILE_LIST_COMBO_COUNT) {
+    fprintf(stderr, "FATAL: %s holds %d catalog lists, expected %d\n", name, n,
+            WINPROFILE_LIST_COMBO_COUNT);
+    fflush(stderr);
+    ExitProcess(3);
+  }
+  got->counted = n;
+  got->nlangs++;
+}
+
+/* This holds IDC_build's rows against the structure table in Shell.h. That table is ours
+   rather than the engine's, so the count is pinned. */
+static void selftestCheckBuildRows(int lang, const char *name, void *ctx) {
+  struct SelftestWalkCount *const got = (struct SelftestWalkCount *) ctx;
+  const int offered = countComboEntries(LISTDEF_3);
+
+  if (offered != BUILD_STRUCTURE_COUNT) {
+    fprintf(stderr, "FATAL: IDC_build offers %d structures in %s (language %d),"
+            " the table names %d\n", offered, name, lang, BUILD_STRUCTURE_COUNT);
+    fflush(stderr);
+    ExitProcess(3);
+  }
+  got->counted = offered;
+  got->nlangs++;
+}
+
 /* Set by --selftest. Startup failures must then report on stderr and exit non-zero
    rather than raise a message box: nobody is there to click it, and a modal dialog
    would hang a headless run instead of failing it. */
@@ -656,109 +738,22 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("live opt guard ok on %d checks\n", nchecks);
     }
-    /* Only reachable by typing into the Experts page, so pin the rule splitter here:
-       a rule the engine cannot parse aborts the whole mirror. */
+    /* Same cases as tools/rules-split-test.cpp, now checked against the real MFC CString. */
     {
-      static const struct { const char* field; const char* want; } rules[] = {
-        { "a=b\r\nc=d", "a=b|c=d" },
-        { "a=b  c=d", "a=b|c=d" },
-        { "a=b\tc=d", "a=b|c=d" },
-        { "a=b\vc=d", "a=b|c=d" },
-        { "a=b\fc=d", "a=b|c=d" },
-        { "a=b \r\n\t c=d", "a=b|c=d" },
-        { "  \r\n a=b \r\n  ", "a=b" },
-        { "a.com  ,  b.com  =  c.com", "a.com,b.com=c.com" },
-        /* the separator ending a line glues it to the next, wherever the rule sits */
-        { "a.com,\r\nb.com=c.com", "a.com,b.com=c.com" },
-        { "x=y\r\na.com , b.com = c.com", "x=y|a.com,b.com=c.com" },
-        /* an empty field must not emit --host-alias "", which the engine refuses */
-        { " \r\n\t\v\f ", "" },
-        { "", "" },
-        { NULL, NULL }
-      };
-      int nchecks = 0;
-      for(int k=0 ; rules[k].field != NULL ; k++) {
-        CStringArray got;
-        CString joined;
-        splitRulesInArray(got, rules[k].field);
-        for(INT_PTR j=0 ; j<got.GetSize() ; j++) {
-          if (j != 0)
-            joined += "|";
-          joined += got[j];
-        }
-        if (joined != rules[k].want) {
-          fprintf(stderr, "FATAL: rule field '%s' split into '%s', expected '%s'\n",
-                  rules[k].field, (LPCSTR) joined, rules[k].want);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      /* The splitter gives the engine room for the whole field, so a rule longer than
-         any engine cap comes back whole instead of truncated. */
-      {
-        const CString longRule('x', 2000);
-        CStringArray got;
+      CString err;
+      const int nchecks = rulesSplitCheckCases(&err);
 
-        splitRulesInArray(got, longRule + " " + longRule);
-        if (got.GetSize() != 2 || got[0] != longRule || got[1] != longRule) {
-          fprintf(stderr, "FATAL: two %d-byte rules split into %d rules, the first %d bytes\n",
-                  longRule.GetLength(), (int) got.GetSize(),
-                  got.GetSize() != 0 ? got[0].GetLength() : 0);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
+      if (nchecks == 0) {
+        fprintf(stderr, "FATAL: rule splitting: %s\n", (LPCSTR) err);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      if (nchecks != 49) {
+        fprintf(stderr, "FATAL: rule splitting ran %d checks, expected 49\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
       }
       printf("rule splitting ok on %d checks\n", nchecks);
-    }
-    /* Only reachable by clicking a preset checkbox, and a rule it mangles blocks the page. */
-    {
-      static const char preset[] = "+*.gif +*.jpg";
-      static const struct { const char* box; int checked; const char* want; } boxes[] = {
-        { "+*.gif", 0, "" },
-        { "+*.gif +*.jpg +*.zip", 0, "+*.zip" },
-        /* a rule holding a preset rule is not that rule */
-        { "+*.gifx", 0, "+*.gifx" },
-        /* matching is case-sensitive, so an upper-case rule is the user's own */
-        { "+*.GIF", 0, "+*.GIF" },
-        /* a ',' separates nothing in what we send, so this is one rule, not ours to split */
-        { "+*.gif,+*.jpg", 0, "+*.gif,+*.jpg" },
-        /* the sign is part of the rule */
-        { "-*.gif", 0, "-*.gif" },
-        { "+*.gif\t+*.zip", 0, "+*.zip" },
-        { "+*.gif   +*.zip", 0, "+*.zip" },
-        { "+*.zip   +*.gif", 0, "+*.zip" },
-        /* an untouched line keeps the spacing the user typed */
-        { "+*.zip  +*.htm", 0, "+*.zip  +*.htm" },
-        /* a rule removed from the middle keeps the indent and both neighbours */
-        { "  +*.zip +*.gif +*.htm", 0, "  +*.zip +*.htm" },
-        /* the engine splits on any isspace() byte, so none of these glue two rules */
-        { "+*.gif\r+*.zip", 0, "+*.zip" },
-        { "+*.gif\v+*.zip", 0, "+*.zip" },
-        { "+*.gif\f+*.zip", 0, "+*.zip" },
-        { "+*.htm\r\n+*.gif\r\n+*.zip", 0, "+*.htm\r\n+*.zip" },
-        { "", 0, "" },
-        { " \r\n\t ", 0, "" },
-        { "", 1, "+*.gif +*.jpg" },
-        { "+*.gif +*.zip", 1, "+*.zip\r\n+*.gif +*.jpg" },
-        /* the preset is removed before it is added back, so nothing doubles */
-        { "+*.gif +*.jpg", 1, "+*.gif +*.jpg" },
-        { "+*.gifx", 1, "+*.gifx\r\n+*.gif +*.jpg" },
-        { NULL, 0, NULL }
-      };
-      int nchecks = 0;
-      for(int k=0 ; boxes[k].box != NULL ; k++) {
-        const CString got = applyRulePreset(boxes[k].box, preset, boxes[k].checked);
-        if (got != boxes[k].want) {
-          fprintf(stderr, "FATAL: rules box '%s' with the preset %s gave '%s', expected '%s'\n",
-                  boxes[k].box, boxes[k].checked ? "on" : "off", (LPCSTR) got, boxes[k].want);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      printf("rule presets ok on %d checks\n", nchecks);
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
@@ -872,47 +867,6 @@ BOOL CWinHTTrackApp::InitInstance()
         }
       }
       printf("preset rule lists ok on %d checks\n", nchecks);
-    }
-    /* Only a whole preset checks its box, because the click that unchecks it takes out
-       every rule of the preset. */
-    {
-      static const char preset[] = "+*.gif +*.jpg";
-      static const struct { const char* box; int want; } holds[] = {
-        { "+*.gif +*.jpg", 1 },
-        { "+*.jpg +*.gif", 1 },               /* order is not part of the preset */
-        { "+*.gif\r\n+*.jpg", 1 },            /* the control's own line breaks */
-        { "  +*.gif\t+*.zip +*.jpg  ", 1 },   /* the user's own rules sit among them */
-        { "+*.gif", 0 },                      /* one rule of it is not the preset */
-        { "+*.jpg", 0 },
-        { "", 0 },
-        { "+*.gifx +*.jpgx", 0 },             /* a longer rule is not that rule */
-        { "+*.GIF +*.JPG", 0 },               /* matching is case-sensitive */
-        { "-*.gif -*.jpg", 0 },               /* the sign is part of the rule */
-        { "+*.gif,+*.jpg", 0 },               /* one rule, since ',' separates nothing */
-        { NULL, 0 }
-      };
-      int nchecks = 0;
-
-      for(int k=0 ; holds[k].box != NULL ; k++) {
-        const int got = ruleListHoldsPreset(holds[k].box, preset) ? 1 : 0;
-
-        if (got != holds[k].want) {
-          fprintf(stderr, "FATAL: box '%s' read the preset as %s, expected %s\n",
-                  holds[k].box, got ? "applied" : "not applied",
-                  holds[k].want ? "applied" : "not applied");
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      /* a preset holding no rule is held by nothing */
-      if (ruleListHoldsPreset("+*.gif", "")) {
-        fprintf(stderr, "FATAL: an empty preset read as applied\n");
-        fflush(stderr);
-        ExitProcess(3);
-      } else
-        nchecks++;
-      printf("preset checkmarks ok on %d checks\n", nchecks);
     }
     /* What the engine is actually told: the whole box, or nothing at all. */
     {
@@ -1053,7 +1007,8 @@ BOOL CWinHTTrackApp::InitInstance()
        tools/test-winprofile-bind.py runs the same function on ubuntu, where a reviewer can
        rerun it and mutate it. */
     {
-      int nskipped = 0, ncombos = 0;
+      int nskipped = 0;
+      struct SelftestWalkCount combos = { 0, 0 };
       CString err;
       const int nchecks = winprofileCheckBindings(&err, &nskipped);
 
@@ -1063,51 +1018,21 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       /* A list key's entries reach its combo from the catalog through SetCombo(), so the
-         count the table states is checkable nowhere else. */
-      {
-        const int saved = QLANG_T(-1);
-        const int en = LANG_INDEX_OF("en");
-
-        if (en < 0) {
-          fprintf(stderr, "FATAL: lang.indexes knows no 'en'\n");
-          fflush(stderr);
-          ExitProcess(3);
-        }
-        QLANG_T(en);
-        LANG_LOAD(NULL, 0);
-        {
-          /* Copied out as strings, because restoring the language frees the catalog. */
-#define WP_COMBO_ROW(key, listdef) { key, listdef },
-          const struct { const char *key; CString entries; } combos[] = {
-            WINPROFILE_LIST_COMBOS(WP_COMBO_ROW)
-          };
-#undef WP_COMBO_ROW
-
-          QLANG_T(saved);
-          LANG_LOAD(NULL, 0);
-          for(int k=0 ; k<(int)(sizeof(combos)/sizeof(combos[0])) ; k++) {
-            const int offered = countComboEntries(combos[k].entries);
-            int base = 0, count = 0;
-
-            if (!winprofileListRange(combos[k].key, &base, &count) || count != offered) {
-              fprintf(stderr, "FATAL: the %s combo offers %d entries, the table names %d\n",
-                      combos[k].key, offered, count);
-              fflush(stderr);
-              ExitProcess(3);
-            }
-            ncombos++;
-          }
-        }
-      }
-      if (ncombos != WINPROFILE_LIST_COMBO_COUNT) {
-        fprintf(stderr, "FATAL: counted %d catalog lists, expected %d\n",
-                ncombos, WINPROFILE_LIST_COMBO_COUNT);
+         count the table states is checkable nowhere else. Every language, because the
+         translations carry their own lists and English alone cannot see a short one. */
+      const int nlangs = selftestWalkCatalogs(selftestCheckComboCounts, &combos);
+      if (nlangs < 1 || combos.nlangs != nlangs) {
+        fprintf(stderr, "FATAL: counted the combo lists in %d of %d languages\n",
+                combos.nlangs, nlangs);
         fflush(stderr);
         ExitProcess(3);
       }
-      /* winprofileCheckBindings() pins the counts, and CI matches this line. */
+      /* The loop's own count, never the constant it was held against, because a printed
+         constant is true whatever the loop did. The language count is the engine's, so CI
+         holds that one against the roster the language list prints. */
       printf("winprofile bindings ok on %d checks over %d keys and %d catalog lists"
-             " (%d table rows skipped)\n", nchecks, WINPROFILE_BOUND_KEYS, ncombos, nskipped);
+             " in %d languages (%d table rows skipped)\n", nchecks, WINPROFILE_BOUND_KEYS,
+             combos.counted, nlangs, nskipped);
     }
     /* lance() is out of reach here, so this is the only pin on the gating
        contract declared in Shell.h. */
@@ -1256,30 +1181,18 @@ BOOL CWinHTTrackApp::InitInstance()
         }
       }
       /* The .rc holds a bare COMBOBOX and SetCombo() refills it from LISTDEF_3, so the row
-         count reaches the table above through nothing the compiler sees. Count it here. */
-      {
-        const int saved = QLANG_T(-1);
-        const int en = LANG_INDEX_OF("en");
-        CString list;
-
-        if (en < 0) {
-          fprintf(stderr, "FATAL: lang.indexes knows no 'en'\n");
-          fflush(stderr);
-          ExitProcess(3);
-        }
-        QLANG_T(en);
-        LANG_LOAD(NULL, 0);
-        list = LISTDEF_3;
-        QLANG_T(saved);
-        LANG_LOAD(NULL, 0);
-        nentries = countComboEntries(list);
-        if (nentries != BUILD_STRUCTURE_COUNT) {
-          fprintf(stderr, "FATAL: IDC_build offers %d structures, the table names %d\n",
-                  nentries, BUILD_STRUCTURE_COUNT);
-          fflush(stderr);
-          ExitProcess(3);
-        }
+         count reaches the table above through nothing the compiler sees. Count it here, in
+         every language, because a translation one row short makes the last structures
+         unpickable. */
+      struct SelftestWalkCount rows = { 0, 0 };
+      const int nlangs = selftestWalkCatalogs(selftestCheckBuildRows, &rows);
+      if (nlangs < 1 || rows.nlangs != nlangs) {
+        fprintf(stderr, "FATAL: counted IDC_build's rows in %d of %d languages\n",
+                rows.nlangs, nlangs);
+        fflush(stderr);
+        ExitProcess(3);
       }
+      nentries = rows.counted;
       const int want = ansiNotUtf8 ? 26 : 24;
       if (nchecks != want) {
         fprintf(stderr, "FATAL: build structure ran %d checks, expected %d\n", nchecks, want);
@@ -1287,8 +1200,8 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       /* Count before the suffix, so a skip stays visible to the CI guard. */
-      printf("build structure ok on %d checks and %d combo entries%s\n", nchecks, nentries,
-             ansiNotUtf8 ? "" : " (accented cases skipped)");
+      printf("build structure ok on %d checks and %d combo entries in %d languages%s\n",
+             nchecks, nentries, nlangs, ansiNotUtf8 ? "" : " (accented cases skipped)");
     }
     /* Pins the engine's grammar through the DLL, so a change to it lands here and
        not in a mirror. */

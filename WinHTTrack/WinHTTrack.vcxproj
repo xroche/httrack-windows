@@ -193,9 +193,12 @@
     <ClCompile Include="WizTab.cpp" />
     <ClCompile Include="XSHBrowseForFolder.cpp" />
 
-    <!-- Compiled by tools/test-winprofile-bind.py as well, so it includes StdAfx.h itself
-         under a guard rather than taking it from the PCH. -->
+    <!-- Compiled by a tools/ test as well, so each includes StdAfx.h itself under a guard
+         rather than taking it from the PCH. -->
     <ClCompile Include="winprofile-io.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="rules-split.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
 
