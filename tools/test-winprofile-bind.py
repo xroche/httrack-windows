@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Compile and run tools/winprofile-bind-test.cpp, then check what no C code here can
-check about itself: that every key named hand-written really is written and read, and that
-every catalog list holds the entry count the engine's table states.
+"""Check what no C code here can check about itself: that every key named hand-written
+really is written and read. Then compile and run tools/winprofile-bind-test.cpp, the real
+writer, and tools/catalog-lists-test.cpp, which holds every language's combo lists against
+the entry count the engine's table states.
 
 The GUI only builds under MSVC, so --selftest cannot be rerun in review and cannot be
 mutated in a pull request. This is the half that runs on ubuntu.
 
-The engine has to be checked out. --engine says where, and defaults to the sibling
-directory CI uses.
+The engine has to be checked out, for its generated key table and its catalogs. --engine
+says where, and defaults to the sibling directory CI uses.
 """
 
 import argparse
@@ -26,12 +27,6 @@ HAND_WRITTEN_IN = ("Write_profile", "Read_profile")
 
 def read(path):
     with open(path, encoding="utf-8") as f:
-        return f.read()
-
-
-def read_latin1(path):
-    """lang.def is the engine's, and it is Latin-1."""
-    with open(path, encoding="latin-1") as f:
         return f.read()
 
 
@@ -124,37 +119,18 @@ def main():
                 sys.exit("%s expands WINPROFILE_BINDINGS without calling %s" % (name, call))
             checked += 1
 
-    # 4. Each list key's combo is filled by SetCombo() from a catalog list, and the count
-    #    the table states has to match. --selftest counts the loaded catalog; here the
-    #    same count comes out of lang.def, so a reviewer can rerun this half too.
+    # 4. Every catalog list has to be named here, or tools/catalog-lists-test.cpp never
+    #    counts it. The count itself needs the engine's line reader, so it is checked there.
     combos = re.findall(r'COMBO\("([A-Za-z0-9]+)",\s*(LISTDEF_\d+)\)', bind)
     if len(combos) < 9:
         sys.exit("found %d catalog lists: the pattern no longer matches the list" % len(combos))
-    lang = read_latin1(os.path.join(args.engine, "lang.def")).split("\n")
-    listdef = {}
-    for i, line in enumerate(lang):
-        if re.match(r"^LISTDEF_\d+$", line.strip()):
-            # Split as SetCombo() does: on newlines, trimmed, an empty entry dropped.
-            listdef[line.strip()] = len([e for e in lang[i + 1].split("\\n") if e.strip()])
-    kinds = dict(re.findall(r'\{"([^"]+)", "[^"]*", "[^"]*", "([^"]*)"', read(keys)))
-    for key, name in combos:
-        offered = listdef.get(name)
-        if offered is None:
-            sys.exit("the engine's lang.def has no %s" % name)
-        want = kinds.get(key, "")
-        if want != "list:0:%d" % offered:
-            sys.exit(
-                "the %s combo offers %d entries from %s, the table types it '%s'"
-                % (key, offered, name, want)
-            )
-        checked += 1
 
     print(
         "%d source checks pass over %d bound and %d hand-written keys, and %d catalog lists"
         % (checked, len(bound), len(hand), len(combos))
     )
 
-    # 4. Compile the real writer against the stubs and run it.
+    # 5. Compile the real writer against the stubs and run it, then the catalog lists.
     with tempfile.TemporaryDirectory() as tmp:
         gen = os.path.join(tmp, "winprofile-engine-macros.h")
         with open(gen, "w", encoding="utf-8") as f:
@@ -169,26 +145,55 @@ def main():
                 )
             )
             f.write("\n")
-        exe = os.path.join(tmp, "winprofile-bind-test")
-        cmd = [
+        # htslines.c, the engine's catalog line reader, reaches htsglobal.h through the
+        # internal-build path, which wants the config.h configure generates. A switch the
+        # engine starts reading and this misses breaks the compile, rather than passing wrong.
+        with open(os.path.join(tmp, "config.h"), "w", encoding="utf-8") as f:
+            f.write(
+                "/* Written by tools/test-winprofile-bind.py: just enough of the engine's "
+                "generated config.h to compile src/htslines.c. */\n"
+                "#define HAVE_STRNLEN 1\n"
+                "#define HTS_DO_NOT_REDEFINE_in_addr_t 1\n"
+            )
+        shared = [
             args.cxx,
             "-std=c++14",
             "-Wall",
             "-Wextra",
             "-Werror",
             "-Wno-unused-parameter",
-            "-o",
-            exe,
-            os.path.join(ROOT, "tools", "winprofile-bind-test.cpp"),
-            os.path.join(ROOT, "WinHTTrack", "winprofile-io.cpp"),
-            "-DWINPROFILE_IO_TEST",
             "-I" + tmp,
             "-I" + os.path.join(ROOT, "tools"),
             "-I" + os.path.join(ROOT, "WinHTTrack"),
             "-I" + engine_src,
         ]
-        subprocess.run(cmd, check=True)
+        exe = os.path.join(tmp, "winprofile-bind-test")
+        subprocess.run(
+            shared
+            + [
+                "-o",
+                exe,
+                os.path.join(ROOT, "tools", "winprofile-bind-test.cpp"),
+                os.path.join(ROOT, "WinHTTrack", "winprofile-io.cpp"),
+                "-DWINPROFILE_IO_TEST",
+            ],
+            check=True,
+        )
         subprocess.run([exe, os.path.join(tmp, "profile.ini")], check=True)
+
+        lists = os.path.join(tmp, "catalog-lists-test")
+        subprocess.run(
+            shared
+            + [
+                "-o",
+                lists,
+                os.path.join(ROOT, "tools", "catalog-lists-test.cpp"),
+                os.path.join(engine_src, "htslines.c"),
+                "-DHTS_INTERNAL_BUILD",
+            ],
+            check=True,
+        )
+        subprocess.run([lists, args.engine], check=True)
 
 
 if __name__ == "__main__":

@@ -2813,7 +2813,9 @@ void lance(void) {
 // char* LANG(char* english,char* francais);
 
 
-/* interface lang - lang_string="stringlang0\nstringlang1\n..laststring" */
+/* interface lang - lang_string="stringlang0\nstringlang1\n..laststring"
+   countComboEntries() in winprofile-bind.h counts what this puts in: keep both splits
+   the same. */
 void SetCombo(CWnd* _this,int id,const char* lang_string) {
   CComboBox* combo = (CComboBox*) _this->GetDlgItem(id);
   CString st=lang_string;
@@ -2830,24 +2832,6 @@ void SetCombo(CWnd* _this,int id,const char* lang_string) {
         combo->AddString(item);
     }
   }
-}
-
-/* How many entries SetCombo() above would put in a combo from LANG_STRING. Keep both
-   splits the same, or this count stops matching what the combo shows. */
-int countComboEntries(const char* lang_string) {
-  CString st=lang_string;
-  int n=0;
-  st.TrimLeft(); st.TrimRight();
-  st+="\n";         /* end */
-  while(st.GetLength()) {
-    int pos=st.Find('\n');
-    CString item=st.Left(pos);
-    st=st.Mid(pos+1);
-    item.TrimLeft(); item.TrimRight();
-    if (item.GetLength())
-      n++;
-  }
-  return n;
 }
 
 

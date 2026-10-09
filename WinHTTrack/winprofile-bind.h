@@ -34,6 +34,8 @@ Please visit our Website: http://www.httrack.com
 #ifndef WINPROFILE_BIND_H
 #define WINPROFILE_BIND_H
 
+#include <ctype.h>
+
 /* The engine's generated key table, from winprofile-keys.tsv. It states the contract
    WebHTTrack and HTTrack for Android read this file under. */
 #include "winprofile-keys.h"
@@ -177,6 +179,32 @@ Please visit our Website: http://www.httrack.com
 /* The one LIST key with no catalog list, because its three entries come from the .rc's
    DLGINIT. Named here so the completeness check counts it instead of passing over it. */
 #define WINPROFILE_COMBO_FROM_RC "ProxyType"
+
+/* How many entries SetCombo() would put in a combo from LANG_STRING. SetCombo() in
+   Shell.cpp holds the twin split that fills the combo, so keep the two the same, or this
+   count stops matching what the combo shows. isspace(), because that is what the
+   CString::Trim calls over there drop. Here rather than beside it, because
+   tools/catalog-lists-test.cpp counts the same entries off Windows. */
+static inline int countComboEntries(const char *lang_string) {
+  const char *p = lang_string;
+  int n = 0;
+
+  while (*p != '\0') {
+    const char *const nl = strchr(p, '\n');
+    const char *const stop = (nl != NULL) ? nl : p + strlen(p);
+    const char *start = p;
+    const char *end = stop;
+
+    while (start < end && isspace((unsigned char) *start))
+      start++;
+    while (end > start && isspace((unsigned char) end[-1]))
+      end--;
+    if (end > start)
+      n++;
+    p = (nl != NULL) ? nl + 1 : stop;
+  }
+  return n;
+}
 
 /* The table's row for KEY, or NULL when it states none. */
 static inline const winprofile_key_t *winprofileTableKey(const char *key) {
