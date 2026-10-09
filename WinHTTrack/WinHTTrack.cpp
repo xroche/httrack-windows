@@ -473,12 +473,12 @@ static const char *WhttAssociateFileType() {
 
 BOOL CWinHTTrackApp::InitInstance()
 {
+  BOOL dark = FALSE;
+
   /* Answer --version without bringing up the UI, so a smoke test can prove the
      binary actually starts. ExitProcess rather than returning FALSE: MFC would
      still run ExitInstance(), which calls hts_uninit() on an engine we never
      started. Nothing is initialised yet, so there is nothing to unwind. */
-  BOOL dark = FALSE;
-
   /* __argv is only populated in an MBCS build, which this is; guard anyway so a
      future Unicode switch cannot turn this into a null dereference. */
   for (int i = 1; __argv != NULL && i < __argc; i++) {
