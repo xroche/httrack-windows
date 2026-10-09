@@ -81,7 +81,6 @@ void CDialogContainer::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CDialogContainer, CFormView)
 	//{{AFX_MSG_MAP(CDialogContainer)
 	ON_WM_SIZE()
-	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -183,11 +182,4 @@ void CDialogContainer::OnSize(UINT nType, int cx, int cy)
 
   if (scrollsize_declared)
     SizeSheets(cx, cy);
-}
-
-HBRUSH CDialogContainer::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
-{
-  const HBRUSH brush = WhttDarkCtlColor(pDC, pWnd, nCtlColor);
-
-  return brush != NULL ? brush : CFormView::OnCtlColor(pDC, pWnd, nCtlColor);
 }
