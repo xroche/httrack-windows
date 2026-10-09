@@ -1,4 +1,5 @@
-# LF for everything the toolchain reads, so the CRLF Visual Studio's resource editor and solution writer put back normalizes away instead of churning the diff.
+# LF for everything the toolchain reads, because rc.exe, MSBuild and ISCC all read it.
+# Visual Studio's resource editor and solution writer put CRLF back, and git drops it again.
 *.c        text eol=lf
 *.cpp      text eol=lf
 *.h        text eol=lf
@@ -12,5 +13,6 @@
 *.vcxproj  text eol=lf
 *.xml      text eol=lf
 
-# CRLF for the .txt files we ship, because Notepad could not read a bare LF before Windows 10 1809 and we still support Windows 7.
+# CRLF for the .txt files we ship, because Notepad could not read a bare LF before
+# Windows 10 1809 and we still support Windows 7.
 *.txt      text eol=crlf
