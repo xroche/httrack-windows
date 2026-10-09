@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright (C) 2026 Xavier Roche and other contributors
 
-   Replays the catalog join of WinHTTrack/newlang.cpp over the engine's lang.def and all
-   of its lang catalogs, once with the symbol-key fallback and once without, and holds the
-   two resolved tables against each other. The GUI only builds under MSVC, so --selftest
-   cannot be rerun in review; this is the half that runs on ubuntu.
-   See tools/test-newlang-key.py, which compiles and drives it. */
+   Replays a COPY of the catalog join in WinHTTrack/newlang.cpp, once with the symbol-key
+   fallback and once without, and holds the two resolved tables against each other.
+   LangKeyIsSymbol() is the only shipped code here, because the line reader below is
+   copied out of HTTrackInterface.c and std::map stands in for coucal. So an equal pair
+   of tables supports the no-op rather than proving it. What proves it is that no shipped
+   key has the symbol shape, checked at 2 below and again over every catalog in
+   tools/test-newlang-key.py, which compiles and drives this. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -315,8 +317,8 @@ int main(int argc, char **argv) {
     failures++;
   }
 
-  printf("%ld resolved strings match byte for byte over %d catalogs, %ld of the %d "
-         "lang.def keys have the symbol shape, and the fallback resolved %ld rows\n",
-         compared, (int) langs.size(), shaped, (int) keys.size(), hits);
+  printf("%ld of the %d lang.def keys have the symbol shape and the fallback resolved "
+         "%ld rows, so the %ld resolved strings of %d catalogs match byte for byte\n",
+         shaped, (int) keys.size(), hits, compared, (int) langs.size());
   return (failures == 0 && shaped == 0) ? 0 : 1;
 }

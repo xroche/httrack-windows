@@ -5,7 +5,9 @@ lookup missed, and that no key the engine ships has the symbol shape.
 
 A catalog keys its rows on the English text, so rewording a string orphans its 30
 translations. newlang.cpp accepts a LANG_ or LISTDEF_ symbol as the key instead. Nothing
-ships symbol-keyed yet, which is what makes the change a no-op, and what this holds.
+ships symbol-keyed yet, so the fallback cannot be reached and no string changes. Check 2
+is what carries that, because the replay it drives rebuilds the loader around the one
+shipped function and so cannot speak for the real path.
 
 The engine has to be checked out. --engine says where, and defaults to the sibling
 directory CI uses.
@@ -102,9 +104,12 @@ def main():
     if missed:
         sys.exit("cpp_lang.h names %s, which the fallback would not accept" % missed)
 
+    # Flushed, because the replay below writes to the same stream from a subprocess and
+    # this is the line that carries the no-op.
     print(
         "%d catalogs and %d lang.def keys carry no symbol-shaped key, and the fallback "
-        "accepts all %d call-site symbols" % (len(catalogs), len(lang[1::2]), len(defines))
+        "accepts all %d call-site symbols" % (len(catalogs), len(lang[1::2]), len(defines)),
+        flush=True,
     )
 
     # 4. Replay both joins and diff them, with a symbol-keyed probe proving the diff
