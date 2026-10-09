@@ -34,9 +34,9 @@ Please visit our Website: http://www.httrack.com
 #ifndef WINHTTRACK_DARKMODE_H
 #define WINHTTRACK_DARKMODE_H
 
-/* Unfinished. It ships off, and --dark turns it on. Buttons, checkboxes and the tab
-   control keep the light visual style, and res/Toolbar.bmp is a 1998 bitmap drawn for a
-   light background.
+/* Unfinished. It ships off, and --dark turns it on. Push buttons and the tab control
+   keep the light visual style, and res/Toolbar.bmp is a 1998 bitmap drawn for a light
+   background.
 
    A window calls WhttDarkInitWindow from OnInitDialog (or OnInitialUpdate) and forwards
    its OnCtlColor to WhttDarkCtlColor. Both do nothing while dark mode is off. */
@@ -46,8 +46,13 @@ Please visit our Website: http://www.httrack.com
 void WhttDarkModeInit(BOOL requested);
 
 /* Gives a top-level window a dark title bar, and the common controls under it their
-   dark theme. Safe to call on a child window, which has neither. */
+   dark theme. Check and radio buttons are taken over for painting here, so nothing in
+   this file draws anything while dark mode is off. Safe to call on a child window. */
 void WhttDarkInitWindow(CWnd *wnd);
+
+/* The vsstyle.h state id for the check or radio glyph, from the control's window style
+   and its BM_GETSTATE answer. Reachable with dark mode off, for --selftest. */
+int WhttDarkGlyphState(DWORD style, UINT state);
 
 /* The brush a dark dialog, static text, edit control or list wants, after setting the
    text and background colours on pDC. NULL means the caller keeps its base class

@@ -1198,6 +1198,11 @@ jobs:
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the rule-splitting check did not run every case'
           }
+          # The screenshot walk shoots one state per control, so only this pins the rest.
+          if ("$so" -notmatch 'dark glyph states ok on 12 checks') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the dark glyph-state check did not run every case'
+          }
           if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
             throw 'a portable run registered .whtt under HKCU, from this block or another'
           }

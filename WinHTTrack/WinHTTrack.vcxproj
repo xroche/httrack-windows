@@ -92,7 +92,8 @@
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>Ws2_32.lib;Winmm.lib;Shlwapi.lib;Wintrust.lib;Crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- Comctl32: SetWindowSubclass, which DarkMode.cpp uses to repaint check boxes. -->
+      <AdditionalDependencies>Ws2_32.lib;Winmm.lib;Shlwapi.lib;Wintrust.lib;Crypt32.lib;Comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
