@@ -358,7 +358,7 @@ static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
     }
     break;
   }
-  return DefSubclassProc(hwnd, msg, wParam, lParam, id);
+  return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
 
 /* Takes over the painting of a check or radio button, leaving it a real one: the style
