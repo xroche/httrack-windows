@@ -78,6 +78,34 @@ jobs:
       # Same reason, and hts_scan_token() is what decides where a rule ends.
       - name: Scan-rule splitting and the preset checkboxes
         run: python3 tools/test-rules-split.py --engine engine
+      # Two files match what --selftest prints, and a line moved in one of them leaves the
+      # other matching nothing. The matcher then fails on every run, which is how this
+      # check came to exist. A changed count on a line that still prints is not covered:
+      # only the Windows run knows the count.
+      - name: Selftest lines and their matchers name each other
+        run: |
+          python3 - <<'EOF'
+          import glob, re, sys
+          printed, matched = set(), set()
+          for path in sorted(glob.glob('WinHTTrack/*.cpp')):
+              src = open(path, encoding='utf-8').read()
+              printed.update(re.findall(r'printf\("([^"%]*? ok on )', src))
+          for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/actions/*/*.yml'):
+              for m in re.findall(r"-notmatch '([^']*? ok on )", open(path, encoding='utf-8').read()):
+                  matched.add(m.replace('\\', ''))
+          # The floors are the control: a regex that matched nothing would sweep clean.
+          if len(printed) < 20 or len(matched) < 20:
+              sys.exit('found %d printed lines and %d matchers: this check would prove '
+                       'nothing' % (len(printed), len(matched)))
+          bad = ['%s: matched by a workflow, printed nowhere' % m
+                 for m in sorted(matched - printed)]
+          bad += ['%s: printed, matched by no workflow' % p
+                  for p in sorted(printed - matched)]
+          if bad:
+              sys.exit('\n'.join(bad))
+          print('%d selftest lines each have a matcher' % len(printed))
+          EOF
+
       - name: Every CI job declares a timeout
         run: python3 tools/check-job-timeouts.py
       - name: Job-timeout cases

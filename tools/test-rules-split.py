@@ -36,22 +36,33 @@ def engine_token_function(htscore):
     return m.group(0)
 
 
+def engine_space_set(htssafe):
+    """The byte set that function splits on, copied out for the same reason. A set kept
+    here instead would stop agreeing with the engine the day the engine's moved."""
+    m = re.search(r"^#\s*define\s+HTS_REALSPACES\s+[^\n]*$", htssafe, re.M)
+    if m is None:
+        sys.exit("no HTS_REALSPACES in the engine's htssafe.h")
+    return m.group(0)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--engine",
         default=os.path.join(os.path.dirname(ROOT), "httrack"),
-        help="the engine checkout holding src/htscore.c",
+        help="the engine checkout holding src/htscore.c and src/htssafe.h",
     )
     ap.add_argument("--cxx", default=os.environ.get("CXX", "g++"))
     args = ap.parse_args()
 
     htscore = os.path.join(args.engine, "src", "htscore.c")
-    if not os.path.exists(htscore):
-        sys.exit(
-            "%s: no engine source, so the token scanner cannot be the engine's. "
-            "Check the engine out, or pass --engine." % htscore
-        )
+    htssafe = os.path.join(args.engine, "src", "htssafe.h")
+    for path in (htscore, htssafe):
+        if not os.path.exists(path):
+            sys.exit(
+                "%s: no engine source, so the token scanner cannot be the engine's. "
+                "Check the engine out, or pass --engine." % path
+            )
 
     checked = 0
 
@@ -101,12 +112,18 @@ def main():
         with open(gen, "w", encoding="utf-8") as f:
             f.write(
                 "/* Copied by tools/test-rules-split.py out of the engine's "
-                "src/htscore.c. */\n"
+                "src/htscore.c and src/htssafe.h. */\n"
                 "#include <assert.h>\n#include <ctype.h>\n#include <stddef.h>\n"
+                "#include <string.h>\n"
                 "typedef int hts_boolean;\n"
                 "#define HTS_TRUE 1\n#define HTS_FALSE 0\n"
                 "#define assertf(x) assert(x)\n"
-                'extern "C" {\n%s\n}\n' % engine_token_function(read(htscore))
+                "%s\n"
+                'extern "C" {\n%s\n}\n'
+                % (
+                    engine_space_set(read(htssafe)),
+                    engine_token_function(read(htscore)),
+                )
             )
         exe = os.path.join(tmp, "rules-split-test")
         subprocess.run(
