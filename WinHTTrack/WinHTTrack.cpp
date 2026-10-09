@@ -1246,138 +1246,28 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("host-alias rules ok on %d checks\n", nchecks);
     }
-    /* The cap rides argv as its own token, so its length costs the mirror as surely as its
-       value: the engine refuses an argument of HTS_CDLMAXSIZE bytes before parsing it. */
+    /* The caps on what one option value may carry. The cases sit in argv-caps.cpp, which
+       tools/argv-caps-test.cpp compiles off Windows, and both callers pin the count. */
     {
-      static const struct { const char *lead; int repeat; const char *tail; BOOL want; } caps[] = {
-        { "", 0, "1000", TRUE },
-        { "", 0, "+1000", FALSE },   /* strtoll would take the sign, the engine will not */
-        { "", 0, "3000000000", TRUE },   /* over 2 GB, so a 32-bit parse cannot pass this */
-        { "9", 19, "", FALSE },   /* overflows LLint at a length the rows below still allow */
-        { "0", 4, "", FALSE },   /* zero, however it is written */
-        /* leading zeros keep the value at 1, so only the length decides these two */
-        { "0", HTS_CDLMAXSIZE - 2, "1", TRUE },
-        { "0", HTS_CDLMAXSIZE - 1, "1", FALSE },
-        { NULL, 0, NULL, FALSE }
-      };
-      int nchecks = 0;
-      for(int k=0 ; caps[k].lead != NULL ; k++) {
-        CString value;
+      CString err;
+      int nskipped = 0;
+      const int nchecks = argvCapsCheckCases(&err, &nskipped);
+      const int expected = 37 - nskipped;
 
-        for(int n=0 ; n<caps[k].repeat ; n++)
-          value += caps[k].lead;
-        value += caps[k].tail;
-        if (isSingleFileMaxArgument(value) != caps[k].want) {
-          fprintf(stderr, "FATAL: single-file cap '%s' (%d chars) judged %s\n",
-                  (LPCSTR) value.Left(40), (int) value.GetLength(),
-                  caps[k].want ? "bad, expected good" : "good, expected bad");
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
+      if (nchecks == 0) {
+        fprintf(stderr, "FATAL: argv caps: %s\n", (LPCSTR) err);
+        fflush(stderr);
+        ExitProcess(3);
       }
-      printf("single-file caps ok on %d checks\n", nchecks);
-    }
-    /* The cap is HTS_MAXRETRYAFTER_MAXBYTES, not HTS_CDLMAXSIZE (see Shell.h). */
-    {
-      static const struct { const char *lead; int repeat; const char *tail; BOOL want; } delays[] = {
-        { "", 0, "0", TRUE },   /* 0 is a value, not an empty box */
-        { "", 0, "60", TRUE },
-        { "", 0, "3600", TRUE },   /* HTS_MAX_RETRY_AFTER_LIMIT, which the engine accepts */
-        { "", 0, "3601", FALSE },
-        { "", 0, "", FALSE },   /* no value at all, so no option */
-        { "", 0, "+5", FALSE },   /* the engine's %d would take the sign, we will not */
-        { "", 0, " 5", FALSE },
-        { "", 0, "5s", FALSE },
-        { "", 0, "-1", FALSE },
-        { "0", 4, "60", TRUE },   /* leading zeros keep it in range however it is written */
-        /* zeros and out of range together: reading a prefix of the digits passes every
-           other row here, and accepts this one */
-        { "0", 4, "3601", FALSE },
-        { "9", 12, "", FALSE },   /* far out of range, but short enough that the length never decides it */
-        /* value 1 either way, so only the glued argv length decides these two */
-        { "0", HTS_MAXRETRYAFTER_MAXBYTES - 2, "1", TRUE },
-        { "0", HTS_MAXRETRYAFTER_MAXBYTES - 1, "1", FALSE },
-        { NULL, 0, NULL, FALSE }
-      };
-      int nchecks = 0;
-      for(int k=0 ; delays[k].lead != NULL ; k++) {
-        CString value;
-
-        for(int n=0 ; n<delays[k].repeat ; n++)
-          value += delays[k].lead;
-        value += delays[k].tail;
-        if (isMaxRetryAfterArgument(value) != delays[k].want) {
-          fprintf(stderr, "FATAL: max retry-after '%s' (%d chars) judged %s\n",
-                  (LPCSTR) value.Left(40), (int) value.GetLength(),
-                  delays[k].want ? "bad, expected good" : "good, expected bad");
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      printf("max retry-after ok on %d checks\n", nchecks);
-    }
-    /* Pin the value the shell hands each option that carries text, because a value the
-       engine refuses costs the whole mirror. Each field has its own cap. */
-    {
-      static const struct { BOOL (*ok)(const CString &); const char* field;
-                            const char* value; int repeat; BOOL want; } quoted[] = {
-        { isFooterArgument, "footer", HTS_DEFAULT_FOOTER, 1, TRUE },
-        { isFooterArgument, "footer", HTS_NOPARAM, 1, TRUE },   /* asks for no footer at all */
-        { isFooterArgument, "footer", "", 1, FALSE },
-        { isFooterArgument, "footer", "-<!-- x -->", 1, FALSE },  /* reads as the argument being missing */
-        { isFooterArgument, "footer", "\"<!-- x -->\"", 1, TRUE },   /* a quote is footer text, so it must pass */
-        { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE - 1, TRUE },  /* one under the cap fits */
-        { isFooterArgument, "footer", "x", HTS_FOOTER_MAXSIZE, FALSE },
-        { isLangIsoArgument, "accept-language", "en, fr", 1, TRUE },
-        { isLangIsoArgument, "accept-language", "x", HTS_LANGISO_MAXSIZE - 1, TRUE },
-        { isLangIsoArgument, "accept-language", "x", HTS_LANGISO_MAXSIZE, FALSE },
-        { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE - 1, TRUE },
-        { isRefererArgument, "referer", "x", HTS_REFERER_MAXSIZE, FALSE },
-        /* the user-agent has no cap of its own, only the engine's ceiling on one argument */
-        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 1, TRUE },
-        { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE, FALSE },
-        { NULL, NULL, NULL, 0, FALSE }
-      };
-      int nchecks = 0;
-      for(int k=0 ; quoted[k].field != NULL ; k++) {
-        CString value;
-        for(int n=0 ; n<quoted[k].repeat ; n++)
-          value += quoted[k].value;
-        const char *why = NULL;
-
-        if (quoted[k].ok(value) != quoted[k].want)
-          why = quoted[k].want ? "refused, expected accepted" : "accepted, expected refused";
-        else if (quoted[k].ok(CString()))   /* for every option, not only the footer rows above */
-          why = "accepted an empty value";
-        else if (quoted[k].ok("-" + value))
-          why = "accepted a leading dash";
-        else if (optionValue(value, quoted[k].ok) != (quoted[k].want ? value : CString()))
-          why = "wrapped or dropped the value";
-        if (why != NULL) {
-          fprintf(stderr, "FATAL: %s argument '%s' (%d chars) %s\n",
-                  quoted[k].field, (LPCSTR) value.Left(40), (int) value.GetLength(), why);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      /* The caps count the UTF-8 bytes the engine will see: 200 accented characters are 400 of
-         them. Under a UTF-8 ANSI codepage the conversion is a copy, and 200 stay 200. */
-      const BOOL mbcs = GetACP() != CP_UTF8;
-      if (mbcs) {
-        if (isFooterArgument(CString('\xE9', 200))) {
-          fprintf(stderr, "FATAL: a 400-byte accented footer was judged short enough\n");
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
+      if (nchecks != expected) {
+        fprintf(stderr, "FATAL: argv caps ran %d checks, expected %d\n", nchecks, expected);
+        fflush(stderr);
+        ExitProcess(3);
       }
       /* Count before the suffix: the CI guard rejects the suffix right after it, so a skip
          is still visible. */
-      printf("quoted arguments ok on %d checks%s\n", nchecks,
-             mbcs ? "" : " (accented case skipped)");
+      printf("argv caps ok on %d checks%s\n", nchecks,
+             nskipped != 0 ? " (accented case skipped)" : "");
     }
     /* The wizard's answer only reaches the engine through a modal dialog, and a
        wrong number there quietly applies the wrong filter rather than failing. */

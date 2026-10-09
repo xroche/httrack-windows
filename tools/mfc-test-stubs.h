@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright (C) 2026 Xavier Roche and other contributors
 
-   Just enough of MFC and of the engine for WinHTTrack/winprofile-io.cpp and
-   WinHTTrack/rules-split.cpp to compile off Windows, so tools/winprofile-bind-test.cpp
-   and tools/rules-split-test.cpp exercise the real code. Each stub is reproduced to its
-   real contract. See tools/test-winprofile-bind.py and tools/test-rules-split.py. */
+   Just enough of MFC and of the engine for WinHTTrack/winprofile-io.cpp,
+   WinHTTrack/rules-split.cpp and WinHTTrack/argv-caps.cpp to compile off Windows, so the
+   harnesses in this directory exercise the real code. Each stub is reproduced to its real
+   contract. See tools/test-winprofile-bind.py, tools/test-rules-split.py and
+   tools/test-argv-caps.py. */
 
 #ifndef MFC_TEST_STUBS_H
 #define MFC_TEST_STUBS_H
@@ -131,5 +132,37 @@ static inline int linput(FILE *fp, char *s, int max) {
 }
 
 #define strcatbuff(a, b) strcat(a, b)
+
+#ifdef ARGV_CAPS_TEST
+/* A legacy codepage, which is what makes the accented case decidable, and what the
+   Windows runner reports too. */
+#define CP_UTF8 65001u
+static inline unsigned int GetACP(void) { return 1252u; }
+
+/* The engine's converter under that codepage, over the Latin-1 range where CP1252 agrees
+   with ISO-8859-1. What the cases read off it is the byte count. */
+static inline char *hts_convertStringSystemToUTF8(const char *s, size_t size) {
+  char *const out = (char *) malloc(size * 2 + 1);
+  size_t j = 0;
+
+  if (out == NULL)
+    return NULL;
+  for(size_t i = 0 ; i < size ; i++) {
+    const unsigned char c = (unsigned char) s[i];
+
+    if (c < 0x80) {
+      out[j++] = (char) c;
+    } else {
+      out[j++] = (char) (0xc0 | (c >> 6));
+      out[j++] = (char) (0x80 | (c & 0x3f));
+    }
+  }
+  out[j] = '\0';
+  return out;
+}
+
+/* The engine's freet() nulls what it frees, so its callers hold a non-const pointer. */
+#define freet(p) do { free(p); (p) = NULL; } while(0)
+#endif
 
 #endif

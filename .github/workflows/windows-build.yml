@@ -79,6 +79,9 @@ jobs:
       # Same reason, and hts_scan_token() is what decides where a rule ends.
       - name: Scan-rule splitting and the preset checkboxes
         run: python3 tools/test-rules-split.py --engine engine
+      # Same reason, and the caps these values are held against are the engine's.
+      - name: The caps on one option value
+        run: python3 tools/test-argv-caps.py --engine engine
       # A mismatch here means a selftest line and its CI matcher drifted apart.
       - name: Selftest lines and their matchers name each other
         run: |

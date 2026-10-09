@@ -317,10 +317,10 @@ runs:
         if ("$so" -notmatch 'update-url basename unique and ASCII on [1-9]\d* locales') {
           throw "selftest did not sweep every catalog for a backfilled or non-ASCII basename"
         }
-        # The option caps count UTF-8 bytes, so the accented value is the case that matters;
-        # it carries an ANSI-codepage guard and names itself when it skips.
-        if ("$so" -notmatch 'quoted arguments ok on 15 checks(?! \(accented)') {
-          throw "selftest did not check the quoted arguments against an accented value"
+        # A value the engine refuses aborts the mirror. The caps count UTF-8 bytes, so the
+        # accented case is the one that matters; it names itself when the codepage skips it.
+        if ("$so" -notmatch 'argv caps ok on 37 checks(?! \(accented)') {
+          throw "selftest did not check the option-value caps against an accented value"
         }
         # A footer preset is only reachable by opening the Browser ID page. The field count
         # is loose: they come from the engine's default footer, not from our table.
@@ -369,14 +369,6 @@ runs:
         # held against the roster the language list printed above.
         if ("$so" -notmatch "build structure ok on 26 checks and 15 combo entries in $nlangs languages(?! \(accented)") {
           throw "selftest did not check the Build tab's naming structure in every language"
-        }
-        # A cap the engine refuses aborts the mirror, so the shell must never build one.
-        if ("$so" -notmatch 'single-file caps ok on 7 checks') {
-          throw "selftest did not check the single-file cap"
-        }
-        # A delay the engine refuses aborts the mirror, and a typed 0 must survive as a value.
-        if ("$so" -notmatch 'max retry-after ok on 14 checks') {
-          throw "selftest did not check the max retry-after delay"
         }
         # The grammar lives in the engine, so a change there has to land here, not in a mirror.
         if ("$so" -notmatch 'host-alias rules ok on 34 checks') {

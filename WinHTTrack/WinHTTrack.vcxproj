@@ -201,6 +201,9 @@
     <ClCompile Include="rules-split.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="argv-caps.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
 
     <!-- C sources: no PCH (they cannot include the C++ StdAfx.h). -->
     <ClCompile Include="HTTrackInterface.c">
