@@ -656,9 +656,7 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("live opt guard ok on %d checks\n", nchecks);
     }
-    /* The rule splitter and the preset checkboxes, held against the same cases
-       tools/rules-split-test.cpp runs on ubuntu, where a reviewer can rerun them and
-       mutate them. This build is what runs them against the real MFC CString. */
+    /* Same cases as tools/rules-split-test.cpp, now checked against the real MFC CString. */
     {
       CString err;
       const int nchecks = rulesSplitCheckCases(&err);

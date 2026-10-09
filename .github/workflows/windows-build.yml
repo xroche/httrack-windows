@@ -78,10 +78,7 @@ jobs:
       # Same reason, and hts_scan_token() is what decides where a rule ends.
       - name: Scan-rule splitting and the preset checkboxes
         run: python3 tools/test-rules-split.py --engine engine
-      # Two files match what --selftest prints, and a line moved in one of them leaves the
-      # other matching nothing. The matcher then fails on every run, which is how this
-      # check came to exist. A changed count on a line that still prints is not covered:
-      # only the Windows run knows the count.
+      # A mismatch here means a selftest line and its CI matcher drifted apart.
       - name: Selftest lines and their matchers name each other
         run: |
           python3 - <<'EOF'
@@ -93,7 +90,7 @@ jobs:
           for path in glob.glob('.github/workflows/*.yml') + glob.glob('.github/actions/*/*.yml'):
               for m in re.findall(r"-notmatch '([^']*? ok on )", open(path, encoding='utf-8').read()):
                   matched.add(m.replace('\\', ''))
-          # The floors are the control: a regex that matched nothing would sweep clean.
+          # The floor catches a regex that silently matches nothing.
           if len(printed) < 20 or len(matched) < 20:
               sys.exit('found %d printed lines and %d matchers: this check would prove '
                        'nothing' % (len(printed), len(matched)))
