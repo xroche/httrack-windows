@@ -34,6 +34,7 @@ Please visit our Website: http://www.httrack.com
 
 #include "wid1.h"
 #include "maintab.h"
+#include "winprofile-bind.h"
 
 #include "MainFrm.h"
 #include "splitter.h"
@@ -1041,6 +1042,67 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("profile escaping ok on %d decodes, %d round trips and %d terminators\n",
              ndecodes, nroundtrips, nterminators);
     }
+    /* What the option pages save, held against the engine's generated key table, because
+       the other front ends read this file under that contract.
+       tools/test-winprofile-bind.py runs the same function on ubuntu, where a reviewer can
+       rerun it and mutate it. */
+    {
+      int nskipped = 0, ncombos = 0;
+      CString err;
+      const int nchecks = winprofileCheckBindings(&err, &nskipped);
+
+      if (nchecks == 0) {
+        fprintf(stderr, "FATAL: winprofile bindings: %s\n", (LPCSTR) err);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      /* A list key's entries reach its combo from the catalog through SetCombo(), so the
+         count the table states is checkable nowhere else. */
+      {
+        const int saved = QLANG_T(-1);
+        const int en = LANG_INDEX_OF("en");
+
+        if (en < 0) {
+          fprintf(stderr, "FATAL: lang.indexes knows no 'en'\n");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        QLANG_T(en);
+        LANG_LOAD(NULL, 0);
+        {
+          /* Copied out as strings, because restoring the language frees the catalog. */
+#define WP_COMBO_ROW(key, listdef) { key, listdef },
+          const struct { const char *key; CString entries; } combos[] = {
+            WINPROFILE_LIST_COMBOS(WP_COMBO_ROW)
+          };
+#undef WP_COMBO_ROW
+
+          QLANG_T(saved);
+          LANG_LOAD(NULL, 0);
+          for(int k=0 ; k<(int)(sizeof(combos)/sizeof(combos[0])) ; k++) {
+            const int offered = countComboEntries(combos[k].entries);
+            int base = 0, count = 0;
+
+            if (!winprofileListRange(combos[k].key, &base, &count) || count != offered) {
+              fprintf(stderr, "FATAL: the %s combo offers %d entries, the table names %d\n",
+                      combos[k].key, offered, count);
+              fflush(stderr);
+              ExitProcess(3);
+            }
+            ncombos++;
+          }
+        }
+      }
+      if (ncombos != WINPROFILE_LIST_COMBO_COUNT) {
+        fprintf(stderr, "FATAL: counted %d catalog lists, expected %d\n",
+                ncombos, WINPROFILE_LIST_COMBO_COUNT);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      /* winprofileCheckBindings() pins the counts, and CI matches this line. */
+      printf("winprofile bindings ok on %d checks over %d keys and %d catalog lists"
+             " (%d table rows skipped)\n", nchecks, WINPROFILE_BOUND_KEYS, ncombos, nskipped);
+    }
     /* lance() is out of reach here, so this is the only pin on the gating
        contract declared in Shell.h. */
     {
@@ -1204,17 +1266,7 @@ BOOL CWinHTTrackApp::InitInstance()
         list = LISTDEF_3;
         QLANG_T(saved);
         LANG_LOAD(NULL, 0);
-        /* split as SetCombo() does, so an entry it would drop is not counted here either */
-        list.TrimLeft(); list.TrimRight();
-        while (list.GetLength()) {
-          const int pos = list.Find('\n');
-          CString item = (pos >= 0) ? list.Left(pos) : list;
-
-          list = (pos >= 0) ? list.Mid(pos + 1) : CString("");
-          item.TrimLeft(); item.TrimRight();
-          if (item.GetLength())
-            nentries++;
-        }
+        nentries = countComboEntries(list);
         if (nentries != BUILD_STRUCTURE_COUNT) {
           fprintf(stderr, "FATAL: IDC_build offers %d structures, the table names %d\n",
                   nentries, BUILD_STRUCTURE_COUNT);
