@@ -183,8 +183,9 @@ static BOOL darkIsRadio(DWORD style)
 
 int WhttDarkGlyphState(DWORD style, UINT state)
 {
-  /* vsstyle.h numbers the check and the radio glyph alike: unchecked 1 to 4, checked 5
-     to 8, mixed 9 to 12, each run reading normal, hot, pressed, disabled. */
+  /* vsstyle.h numbers both glyphs alike: unchecked 1 to 4 then checked 5 to 8, each run
+     reading normal, hot, pressed, disabled. Mixed, 9 to 12, is the check box only: a
+     radio has no such art, and never reports BST_INDETERMINATE either. */
   int base = CBS_UNCHECKEDNORMAL;
 
   if ((state & BST_INDETERMINATE) != 0)
@@ -246,6 +247,8 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
   const HFONT font = (HFONT) SendMessage(hwnd, WM_GETFONT, 0, 0);
   const int gap = MulDiv(DARK_GLYPH_GAP, GetDeviceCaps(hdc, LOGPIXELSX), 96);
   HGDIOBJ oldFont = NULL;
+  COLORREF oldColor;
+  int oldBkMode;
   HTHEME theme = NULL;
   SIZE glyph = { 0, 0 };
   RECT client, box, text;
@@ -300,8 +303,9 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
   else
     DrawFrameControl(hdc, &box, DFC_BUTTON, darkFrameState(style, state));
 
-  SetBkMode(hdc, TRANSPARENT);
-  SetTextColor(hdc, ((style & WS_DISABLED) != 0) ? DARK_TEXT_OFF : DARK_TEXT);
+  /* The DC belongs to the caller under WM_PRINT, and to the parent under CS_PARENTDC. */
+  oldBkMode = SetBkMode(hdc, TRANSPARENT);
+  oldColor = SetTextColor(hdc, ((style & WS_DISABLED) != 0) ? DARK_TEXT_OFF : DARK_TEXT);
   DrawTextW(hdc, caption, -1, &text, flags);
   if ((state & BST_FOCUS) != 0 && (ui & UISF_HIDEFOCUS) == 0) {
     RECT focus = text;
@@ -325,6 +329,8 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
 
   if (theme != NULL)
     darkTheme.close(theme);
+  SetTextColor(hdc, oldColor);
+  SetBkMode(hdc, oldBkMode);
   if (oldFont != NULL)
     SelectObject(hdc, oldFont);
 }
@@ -341,13 +347,14 @@ static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
   case WM_ERASEBKGND:
     return 1;   /* the paint fills the whole client area */
   case WM_PAINT:
+    /* Fall through on failure: returning validates nothing, so Windows reposts. */
     if (BeginPaint(hwnd, &ps) != NULL) {
       darkPaintButton(hwnd, ps.hdc);
       EndPaint(hwnd, &ps);
+      return 0;
     }
-    return 0;
-  /* PrintWindow, which is how the screenshot walk captures a window. It reaches a child
-     by either message, depending on the Windows and the flags it was given. */
+    break;
+  /* PrintWindow reaches a child by either message, depending on the flags. */
   case WM_PRINTCLIENT:
     darkPaintButton(hwnd, (HDC) wParam);
     return 0;
@@ -361,8 +368,8 @@ static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
   return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
 
-/* Takes over the painting of a check or radio button, leaving it a real one: the style
-   bits, the auto-toggle and BM_GETCHECK all stay as they were. */
+/* Leaves the control a real check or radio button: the style bits, the auto-toggle and
+   BM_GETCHECK all stay as they were. */
 static void darkOwnerDrawButton(HWND hwnd)
 {
   const DWORD style = (DWORD) GetWindowLong(hwnd, GWL_STYLE);

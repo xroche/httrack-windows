@@ -1199,7 +1199,7 @@ jobs:
             throw 'the rule-splitting check did not run every case'
           }
           # The screenshot walk shoots one state per control, so only this pins the rest.
-          if ("$so" -notmatch 'dark glyph states ok on 12 checks') {
+          if ("$so" -notmatch 'dark glyph states ok on 13 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the dark glyph-state check did not run every case'
           }

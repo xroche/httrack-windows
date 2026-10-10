@@ -792,7 +792,9 @@ BOOL CWinHTTrackApp::InitInstance()
         /* disabled outranks hot, which a mouse resting on a greyed box would report */
         { WS_DISABLED, BST_CHECKED | BST_HOT,           CBS_CHECKEDDISABLED },
         /* the focus bit names no glyph of its own */
-        { 0,           BST_CHECKED | BST_FOCUS,         CBS_CHECKEDNORMAL }
+        { 0,           BST_CHECKED | BST_FOCUS,         CBS_CHECKEDNORMAL },
+        /* a pressed button reports hot too, and no row above sets both bits */
+        { 0,           BST_CHECKED | BST_PUSHED | BST_HOT, CBS_CHECKEDPRESSED }
       };
       int nchecks = 0;
       for(int k=0 ; k < (int) (sizeof(glyphs)/sizeof(glyphs[0])) ; k++) {
@@ -805,8 +807,8 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
-      if (nchecks != 12) {
-        fprintf(stderr, "FATAL: dark glyph states ran %d checks, expected 12\n", nchecks);
+      if (nchecks != 13) {
+        fprintf(stderr, "FATAL: dark glyph states ran %d checks, expected 13\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
