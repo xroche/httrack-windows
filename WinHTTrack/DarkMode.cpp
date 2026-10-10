@@ -395,15 +395,12 @@ static void darkThemeControl(HWND hwnd)
   }
   if (GetClassNameA(hwnd, name, sizeof(name)) == 0)
     return;
-  /* A button needs no theme call: we paint it ourselves. */
-  if (lstrcmpiA(name, "Button") == 0)
-    darkOwnerDrawButton(hwnd);
-  else if (setTheme == NULL)
+  if (setTheme == NULL)
     return;
   /* A theme name the system does not know falls back to the default one, so an older
      Windows just keeps its own look. The theme carries the control's scrollbars. */
-  else if (lstrcmpiA(name, "SysTreeView32") == 0 || lstrcmpiA(name, "SysListView32") == 0
-           || lstrcmpiA(name, "Edit") == 0)
+  if (lstrcmpiA(name, "SysTreeView32") == 0 || lstrcmpiA(name, "SysListView32") == 0
+      || lstrcmpiA(name, "Edit") == 0 || lstrcmpiA(name, "Button") == 0)
     setTheme(hwnd, L"DarkMode_Explorer", NULL);
   /* A combo box paints its closed field from the theme and never asks for a brush. */
   else if (lstrcmpiA(name, "ComboBox") == 0)
