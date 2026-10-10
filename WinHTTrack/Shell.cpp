@@ -1977,55 +1977,6 @@ BOOL setLiveScanRules(httrackp *opt, const CString &edited) {
   return taken;
 }
 
-// A value restored from a profile never met the dialog, so it is checked here instead,
-// against the cap of the option carrying it.
-static BOOL fitsEngineArgument(const CString &value, size_t maxBytes) {
-  if (value.IsEmpty())
-    return FALSE;
-  // the engine measures the UTF-8 bytes strdupt_utf8() will hand it, not these characters
-  char *utf8 = hts_convertStringSystemToUTF8(value, value.GetLength());  // freet() nulls it, so not const
-  // strdupt_utf8() falls back to these same ANSI bytes when the conversion fails
-  const size_t bytes = utf8 != NULL ? strlen(utf8) : (size_t) value.GetLength();
-  if (utf8 != NULL)
-    freet(utf8);
-  return bytes < maxBytes;
-}
-
-// A leading dash reads as the argument being missing, which aborts the mirror.
-static BOOL isEngineArgument(const CString &value, size_t maxBytes) {
-  return fitsEngineArgument(value, maxBytes) && value[0] != '-';
-}
-
-// Same, except the engine also refuses any argument that reaches HTS_CDLMAXSIZE bytes.
-static BOOL isCappedArgument(const CString &value, size_t maxBytes) {
-  const size_t ceiling = (size_t) HTS_CDLMAXSIZE;
-  const size_t cap = maxBytes < ceiling ? maxBytes : ceiling;
-
-  return isEngineArgument(value, cap);
-}
-
-// see Shell.h
-BOOL isUserAgentArgument(const CString &value) {
-  return isCappedArgument(value, HTS_CDLMAXSIZE);   // -F has no cap of its own
-}
-
-BOOL isFooterArgument(const CString &value) {
-  return isCappedArgument(value, HTS_FOOTER_MAXSIZE);
-}
-
-BOOL isLangIsoArgument(const CString &value) {
-  return isCappedArgument(value, HTS_LANGISO_MAXSIZE);
-}
-
-BOOL isRefererArgument(const CString &value) {
-  return isCappedArgument(value, HTS_REFERER_MAXSIZE);
-}
-
-// see Shell.h
-CString optionValue(const CString &text, BOOL (*fits)(const CString &)) {
-  return fits(text) ? text : CString();
-}
-
 // TRUE if RULE is a well-formed "[scheme://]alias[,...]=[scheme://]host".
 static BOOL isHostAliasRule(const CString &rule) {
   // ask the engine about the very bytes argv will carry, not the ANSI ones MFC holds
@@ -2040,36 +1991,6 @@ static BOOL isHostAliasRule(const CString &rule) {
 BOOL isHostAliasArgument(const CString &rule) {
   // --host-alias takes an alias starting with a dash, so no dash test here (engine #1179)
   return isHostAliasRule(rule) && fitsEngineArgument(rule, HTS_URLMAXSIZE);
-}
-
-static BOOL isAllDigits(const CString &value) {
-  for(int i = 0 ; i < value.GetLength() ; i++) {
-    if (value[i] < '0' || value[i] > '9')
-      return FALSE;
-  }
-  return !value.IsEmpty();
-}
-
-// see Shell.h
-BOOL isSingleFileMaxArgument(const CString &value) {
-  char *end;
-  LLint v;
-
-  if (!isAllDigits(value))   // strtoll would otherwise take a sign or leading spaces
-    return FALSE;
-  errno = 0;
-  v = strtoll((LPCSTR) value, &end, 10);
-  // leading zeros keep the value small however long the string is, so argv still caps it
-  return *end == '\0' && errno != ERANGE && v > 0 && fitsEngineArgument(value, HTS_CDLMAXSIZE);
-}
-
-// see Shell.h
-BOOL isMaxRetryAfterArgument(const CString &value) {
-  // strtol takes a sign and saturates silently at LONG_MAX, so digits come first
-  if (!isAllDigits(value))
-    return FALSE;
-  return strtol((LPCSTR) value, NULL, 10) <= HTS_MAX_RETRY_AFTER_LIMIT
-         && fitsEngineArgument(value, HTS_MAXRETRYAFTER_MAXBYTES);
 }
 
 // see Shell.h

@@ -201,6 +201,9 @@
     <ClCompile Include="rules-split.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="argv-caps.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
 
     <!-- Compiled by tools/test-newlang-key.py as well, and it needs no MFC. -->
     <ClCompile Include="newlang-key.cpp">

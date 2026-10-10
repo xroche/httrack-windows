@@ -433,6 +433,18 @@ BOOL isBuildStringArgument(const CString &value);
    Nothing here may wrap TEXT in quotes of its own. Exposed for --selftest. */
 CString optionValue(const CString &text, BOOL (*fits)(const CString &));
 
+/* TRUE if VALUE is not empty and stays under MAXBYTES once converted to the UTF-8 bytes
+   argv will carry. A value restored from a profile never met the dialog, so it is checked
+   here instead, against the cap of the option carrying it. */
+BOOL fitsEngineArgument(const CString &value, size_t maxBytes);
+/* Same, except a leading dash reads as the argument being missing, which aborts the mirror. */
+BOOL isEngineArgument(const CString &value, size_t maxBytes);
+
+/* Runs the option-value cap cases, returning the number of checks or 0 with *ERR naming
+   the disagreement. *NSKIPPED counts the accented case, which needs a legacy ANSI
+   codepage. tools/argv-caps-test.cpp runs it off Windows too. */
+int argvCapsCheckCases(CString *err, int *nskipped);
+
 void Build_TopIndex(BOOL check_empty=TRUE);
 
 void InitRAS();
