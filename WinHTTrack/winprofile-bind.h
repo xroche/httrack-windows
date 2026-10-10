@@ -112,7 +112,8 @@ Please visit our Website: http://www.httrack.com
   TEXT("DefaultReferer", maintab->m_option6.m_default_referer, "")             \
   NUMBER("MaxRate", maintab->m_option5.m_maxrate, "")                          \
   TEXT("WildCardFilters", maintab->m_option7.m_url2,                           \
-       "+*.png +*.gif +*.jpg +*.jpeg +*.css +*.js"                             \
+       "+*.png +*.gif +*.jpg +*.jpeg +*.webp +*.avif +*.svg +*.css +*.js"      \
+       " +*.woff2 +*.woff +*.ttf +*.otf +*.mp4 +*.webm"                        \
        " -ad.doubleclick.net/* -mime:application/foobar")                      \
   TEXT("Proxy", maintab->m_option10.m_proxy, "")                               \
   TEXT("Port", maintab->m_option10.m_port, "")                                 \
