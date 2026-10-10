@@ -32,6 +32,8 @@ Please visit our Website: http://www.httrack.com
 /* ------------------------------------------------------------ */
 
 #include "stdafx.h"
+#include <uxtheme.h>
+#include <vsstyle.h>
 #include "DarkMode.h"
 
 #ifdef _DEBUG
@@ -43,6 +45,10 @@ static char THIS_FILE[] = __FILE__;
 #define DARK_DLG_BG   RGB(32, 32, 32)
 #define DARK_EDIT_BG  RGB(45, 45, 45)
 #define DARK_TEXT     RGB(240, 240, 240)
+#define DARK_TEXT_OFF RGB(140, 140, 140)
+
+/* Between the glyph and its label, at 96 dpi. */
+#define DARK_GLYPH_GAP 3
 
 /* DWMWA_USE_IMMERSIVE_DARK_MODE, and the number it answered to before Windows 10 20H1. */
 #define DARK_DWMWA_DARK_MODE      20
@@ -54,6 +60,11 @@ static char THIS_FILE[] = __FILE__;
 
 typedef HRESULT (WINAPI *dark_DwmSetWindowAttribute_t)(HWND, DWORD, LPCVOID, DWORD);
 typedef HRESULT (WINAPI *dark_SetWindowTheme_t)(HWND, LPCWSTR, LPCWSTR);
+typedef HTHEME (WINAPI *dark_OpenThemeData_t)(HWND, LPCWSTR);
+typedef HRESULT (WINAPI *dark_CloseThemeData_t)(HTHEME);
+typedef HRESULT (WINAPI *dark_DrawThemeBackground_t)(HTHEME, HDC, int, int, LPCRECT, LPCRECT);
+typedef HRESULT (WINAPI *dark_GetThemePartSize_t)(HTHEME, HDC, int, int, LPCRECT, THEMESIZE,
+                                                  SIZE *);
 
 static BOOL darkOn = FALSE;
 static HBRUSH darkDlgBrush = NULL;
@@ -125,6 +136,253 @@ static void darkTitleBar(HWND hwnd)
     setAttribute(hwnd, DARK_DWMWA_DARK_MODE_OLD, &on, sizeof(on));
 }
 
+/* The theme calls the glyph needs, all named exports: the dark-mode ordinals have moved
+   between Windows builds. */
+static struct {
+  BOOL resolved;
+  dark_OpenThemeData_t open;
+  dark_CloseThemeData_t close;
+  dark_DrawThemeBackground_t draw;
+  dark_GetThemePartSize_t size;
+} darkTheme;
+
+static BOOL darkThemeApi(void)
+{
+  if (!darkTheme.resolved) {
+    darkTheme.open = (dark_OpenThemeData_t) darkProc(L"uxtheme.dll", "OpenThemeData");
+    darkTheme.close = (dark_CloseThemeData_t) darkProc(L"uxtheme.dll", "CloseThemeData");
+    darkTheme.draw =
+      (dark_DrawThemeBackground_t) darkProc(L"uxtheme.dll", "DrawThemeBackground");
+    darkTheme.size = (dark_GetThemePartSize_t) darkProc(L"uxtheme.dll", "GetThemePartSize");
+    darkTheme.resolved = TRUE;
+  }
+  return darkTheme.open != NULL && darkTheme.close != NULL && darkTheme.draw != NULL
+    && darkTheme.size != NULL;
+}
+
+/* The dark glyph where this Windows has one: a class it does not know answers NULL. The
+   last name is the light glyph, bright against the dark page but still native. */
+static HTHEME darkOpenButtonTheme(HWND hwnd)
+{
+  static const wchar_t *const classes[] = {
+    L"DarkMode_Explorer::Button", L"DarkMode::Button", L"Button"
+  };
+  HTHEME theme = NULL;
+
+  for(int i=0 ; theme == NULL && i < (int) (sizeof(classes)/sizeof(classes[0])) ; i++)
+    theme = darkTheme.open(hwnd, classes[i]);
+  return theme;
+}
+
+static BOOL darkIsRadio(DWORD style)
+{
+  const DWORD type = style & BS_TYPEMASK;
+
+  return type == BS_RADIOBUTTON || type == BS_AUTORADIOBUTTON;
+}
+
+int WhttDarkGlyphState(DWORD style, UINT state)
+{
+  /* vsstyle.h numbers both glyphs alike: unchecked 1 to 4 then checked 5 to 8, each run
+     reading normal, hot, pressed, disabled. Mixed, 9 to 12, is the check box only: a
+     radio has no such art, and never reports BST_INDETERMINATE either. */
+  int base = CBS_UNCHECKEDNORMAL;
+
+  if ((state & BST_INDETERMINATE) != 0)
+    base = CBS_MIXEDNORMAL;
+  else if ((state & BST_CHECKED) != 0)
+    base = CBS_CHECKEDNORMAL;
+  if ((style & WS_DISABLED) != 0)
+    return base + 3;
+  if ((state & BST_PUSHED) != 0)
+    return base + 2;
+  if ((state & BST_HOT) != 0)
+    return base + 1;
+  return base;
+}
+
+/* What DrawFrameControl wants for the same glyph, where no theme is active. */
+static UINT darkFrameState(DWORD style, UINT state)
+{
+  UINT flags = darkIsRadio(style) ? DFCS_BUTTONRADIO : DFCS_BUTTONCHECK;
+
+  if ((state & BST_INDETERMINATE) != 0)
+    flags |= DFCS_BUTTON3STATE | DFCS_CHECKED;
+  else if ((state & BST_CHECKED) != 0)
+    flags |= DFCS_CHECKED;
+  if ((style & WS_DISABLED) != 0)
+    flags |= DFCS_INACTIVE;
+  if ((state & BST_PUSHED) != 0)
+    flags |= DFCS_PUSHED;
+  if ((state & BST_HOT) != 0)
+    flags |= DFCS_HOT;
+  return flags;
+}
+
+/* How the label is laid out, from the control's style and the dialog's UI-cue state. */
+static UINT darkTextFlags(DWORD style, UINT ui)
+{
+  UINT flags = ((style & BS_MULTILINE) != 0) ? (DT_WORDBREAK | DT_TOP)
+    : (DT_SINGLELINE | DT_VCENTER);
+
+  if ((style & BS_CENTER) == BS_CENTER)
+    flags |= DT_CENTER;
+  else if ((style & BS_RIGHT) != 0)
+    flags |= DT_RIGHT;
+  if ((ui & UISF_HIDEACCEL) != 0)
+    flags |= DT_HIDEPREFIX;
+  return flags;
+}
+
+/* Paints the whole control, because a themed check or radio button draws its own label
+   and ignores WM_CTLCOLORBTN, so the text would stay black on the dark page. */
+static void darkPaintButton(HWND hwnd, HDC hdc)
+{
+  const DWORD style = (DWORD) GetWindowLong(hwnd, GWL_STYLE);
+  const UINT ui = (UINT) SendMessage(hwnd, WM_QUERYUISTATE, 0, 0);
+  const UINT state = (UINT) SendMessage(hwnd, BM_GETSTATE, 0, 0);
+  const UINT flags = darkTextFlags(style, ui);
+  const int part = darkIsRadio(style) ? BP_RADIOBUTTON : BP_CHECKBOX;
+  const int glyphState = WhttDarkGlyphState(style, state);
+  const HFONT font = (HFONT) SendMessage(hwnd, WM_GETFONT, 0, 0);
+  const int gap = MulDiv(DARK_GLYPH_GAP, GetDeviceCaps(hdc, LOGPIXELSX), 96);
+  HGDIOBJ oldFont = NULL;
+  COLORREF oldColor;
+  int oldBkMode;
+  HTHEME theme = NULL;
+  SIZE glyph = { 0, 0 };
+  RECT client, box, text;
+  WCHAR caption[512];
+
+  GetClientRect(hwnd, &client);
+  FillRect(hdc, &client, darkDlgBrush);
+  caption[0] = L'\0';
+  GetWindowTextW(hwnd, caption, sizeof(caption) / sizeof(caption[0]));
+  if (font != NULL)
+    oldFont = SelectObject(hdc, font);
+  if (darkThemeApi())
+    theme = darkOpenButtonTheme(hwnd);
+  /* 13 by 13 at 96 dpi is what the theme answers, and what Windows drew before themes. */
+  if (theme == NULL
+      || FAILED(darkTheme.size(theme, hdc, part, glyphState, NULL, TS_DRAW, &glyph))
+      || glyph.cx <= 0 || glyph.cy <= 0)
+    glyph.cx = glyph.cy = MulDiv(13, GetDeviceCaps(hdc, LOGPIXELSX), 96);
+
+  box.top = client.top + (client.bottom - client.top - glyph.cy) / 2;
+  box.bottom = box.top + glyph.cy;
+  text.top = client.top;
+  text.bottom = client.bottom;
+  /* BS_LEFTTEXT and BS_RIGHTBUTTON are the same bit: the glyph moves to the far end. */
+  if ((style & BS_RIGHTBUTTON) != 0) {
+    box.right = client.right;
+    box.left = box.right - glyph.cx;
+    text.left = client.left;
+    text.right = box.left - gap;
+  } else {
+    box.left = client.left;
+    box.right = box.left + glyph.cx;
+    text.left = box.right + gap;
+    text.right = client.right;
+  }
+
+  /* DrawText centres one line for us, but a wrapped block has to be measured first. */
+  if ((style & BS_MULTILINE) != 0) {
+    RECT measured = text;
+    int height;
+
+    DrawTextW(hdc, caption, -1, &measured, flags | DT_CALCRECT);
+    height = measured.bottom - measured.top;
+    if (height < text.bottom - text.top) {
+      text.top += (text.bottom - text.top - height) / 2;
+      text.bottom = text.top + height;
+    }
+  }
+
+  if (theme != NULL)
+    darkTheme.draw(theme, hdc, part, glyphState, &box, NULL);
+  else
+    DrawFrameControl(hdc, &box, DFC_BUTTON, darkFrameState(style, state));
+
+  /* The DC belongs to the caller under WM_PRINT, and to the parent under CS_PARENTDC. */
+  oldBkMode = SetBkMode(hdc, TRANSPARENT);
+  oldColor = SetTextColor(hdc, ((style & WS_DISABLED) != 0) ? DARK_TEXT_OFF : DARK_TEXT);
+  DrawTextW(hdc, caption, -1, &text, flags);
+  if ((state & BST_FOCUS) != 0 && (ui & UISF_HIDEFOCUS) == 0) {
+    RECT focus = text;
+
+    DrawTextW(hdc, caption, -1, &focus, flags | DT_CALCRECT);
+    /* DT_CALCRECT ignores DT_VCENTER, so put the single-line box back where the text is. */
+    if ((style & BS_MULTILINE) == 0) {
+      const int height = focus.bottom - focus.top;
+
+      focus.top = text.top + (text.bottom - text.top - height) / 2;
+      focus.bottom = focus.top + height;
+    }
+    /* DT_CALCRECT measures from the left edge whatever the alignment is. */
+    if ((flags & DT_RIGHT) != 0)
+      OffsetRect(&focus, text.right - focus.right, 0);
+    else if ((flags & DT_CENTER) != 0)
+      OffsetRect(&focus, (text.right - focus.right) / 2, 0);
+    InflateRect(&focus, 1, 1);
+    DrawFocusRect(hdc, &focus);
+  }
+
+  if (theme != NULL)
+    darkTheme.close(theme);
+  SetTextColor(hdc, oldColor);
+  SetBkMode(hdc, oldBkMode);
+  if (oldFont != NULL)
+    SelectObject(hdc, oldFont);
+}
+
+static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                       UINT_PTR id, DWORD_PTR)
+{
+  PAINTSTRUCT ps;
+
+  switch (msg) {
+  case WM_NCDESTROY:
+    RemoveWindowSubclass(hwnd, darkButtonProc, id);
+    break;
+  case WM_ERASEBKGND:
+    return 1;   /* the paint fills the whole client area */
+  case WM_PAINT:
+    /* Fall through on failure: returning validates nothing, so Windows reposts. */
+    if (BeginPaint(hwnd, &ps) != NULL) {
+      darkPaintButton(hwnd, ps.hdc);
+      EndPaint(hwnd, &ps);
+      return 0;
+    }
+    break;
+  /* PrintWindow reaches a child by either message, depending on the flags. */
+  case WM_PRINTCLIENT:
+    darkPaintButton(hwnd, (HDC) wParam);
+    return 0;
+  case WM_PRINT:
+    if ((lParam & PRF_CLIENT) != 0) {
+      darkPaintButton(hwnd, (HDC) wParam);
+      return 0;
+    }
+    break;
+  }
+  return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
+/* Leaves the control a real check or radio button: the style bits, the auto-toggle and
+   BM_GETCHECK all stay as they were. */
+static void darkOwnerDrawButton(HWND hwnd)
+{
+  const DWORD style = (DWORD) GetWindowLong(hwnd, GWL_STYLE);
+  const DWORD type = style & BS_TYPEMASK;
+
+  /* A push-like, bitmap or icon button draws neither the glyph nor the label we would. */
+  if ((style & (BS_PUSHLIKE | BS_BITMAP | BS_ICON)) != 0)
+    return;
+  if (type == BS_CHECKBOX || type == BS_AUTOCHECKBOX || type == BS_3STATE
+      || type == BS_AUTO3STATE || darkIsRadio(style))
+    SetWindowSubclass(hwnd, darkButtonProc, 0, 0);
+}
+
 static void darkThemeControl(HWND hwnd)
 {
   static dark_SetWindowTheme_t setTheme = NULL;
@@ -135,12 +393,17 @@ static void darkThemeControl(HWND hwnd)
     setTheme = (dark_SetWindowTheme_t) darkProc(L"uxtheme.dll", "SetWindowTheme");
     resolved = TRUE;
   }
-  if (setTheme == NULL || GetClassNameA(hwnd, name, sizeof(name)) == 0)
+  if (GetClassNameA(hwnd, name, sizeof(name)) == 0)
+    return;
+  /* A button needs no theme call: we paint it ourselves. */
+  if (lstrcmpiA(name, "Button") == 0)
+    darkOwnerDrawButton(hwnd);
+  else if (setTheme == NULL)
     return;
   /* A theme name the system does not know falls back to the default one, so an older
      Windows just keeps its own look. The theme carries the control's scrollbars. */
-  if (lstrcmpiA(name, "SysTreeView32") == 0 || lstrcmpiA(name, "SysListView32") == 0
-      || lstrcmpiA(name, "Edit") == 0)
+  else if (lstrcmpiA(name, "SysTreeView32") == 0 || lstrcmpiA(name, "SysListView32") == 0
+           || lstrcmpiA(name, "Edit") == 0)
     setTheme(hwnd, L"DarkMode_Explorer", NULL);
   /* A combo box paints its closed field from the theme and never asks for a brush. */
   else if (lstrcmpiA(name, "ComboBox") == 0)

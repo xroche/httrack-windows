@@ -52,6 +52,7 @@ Please visit our Website: http://www.httrack.com
 #include "version.h"
 
 #include <shlwapi.h>   /* AssocQueryStringA, for what the shell resolves .whtt to */
+#include <vsstyle.h>   /* CBS_*, for the dark glyph-state check */
 
 // KB955045 (http://support.microsoft.com/kb/955045)
 // To execute an application using this function on earlier versions of Windows
@@ -773,6 +774,45 @@ BOOL CWinHTTrackApp::InitInstance()
           nchecks++;
       }
       printf("catalog keys ok on %d checks\n", nchecks);
+    }
+    /* Dark mode paints the check and radio glyphs itself, and the walk shoots one state
+       per control, so pin the rest of the mapping here. */
+    {
+      static const struct { DWORD style; UINT state; int want; } glyphs[] = {
+        { 0,           0,                               CBS_UNCHECKEDNORMAL },
+        { 0,           BST_HOT,                         CBS_UNCHECKEDHOT },
+        { 0,           BST_PUSHED,                      CBS_UNCHECKEDPRESSED },
+        { WS_DISABLED, 0,                               CBS_UNCHECKEDDISABLED },
+        { 0,           BST_CHECKED,                     CBS_CHECKEDNORMAL },
+        { 0,           BST_CHECKED | BST_HOT,           CBS_CHECKEDHOT },
+        { 0,           BST_CHECKED | BST_PUSHED,        CBS_CHECKEDPRESSED },
+        { WS_DISABLED, BST_CHECKED,                     CBS_CHECKEDDISABLED },
+        { 0,           BST_INDETERMINATE,               CBS_MIXEDNORMAL },
+        { WS_DISABLED, BST_INDETERMINATE,               CBS_MIXEDDISABLED },
+        /* disabled outranks hot, which a mouse resting on a greyed box would report */
+        { WS_DISABLED, BST_CHECKED | BST_HOT,           CBS_CHECKEDDISABLED },
+        /* the focus bit names no glyph of its own */
+        { 0,           BST_CHECKED | BST_FOCUS,         CBS_CHECKEDNORMAL },
+        /* a pressed button reports hot too, and no row above sets both bits */
+        { 0,           BST_CHECKED | BST_PUSHED | BST_HOT, CBS_CHECKEDPRESSED }
+      };
+      int nchecks = 0;
+      for(int k=0 ; k < (int) (sizeof(glyphs)/sizeof(glyphs[0])) ; k++) {
+        const int got = WhttDarkGlyphState(glyphs[k].style, glyphs[k].state);
+        if (got != glyphs[k].want) {
+          fprintf(stderr, "FATAL: style 0x%lx state 0x%x draws glyph state %d, expected %d\n",
+                  (unsigned long) glyphs[k].style, glyphs[k].state, got, glyphs[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      if (nchecks != 13) {
+        fprintf(stderr, "FATAL: dark glyph states ran %d checks, expected 13\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("dark glyph states ok on %d checks\n", nchecks);
     }
     /* A bad rule must not reach a running mirror. */
     {
