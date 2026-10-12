@@ -102,6 +102,24 @@ def main():
         )
     checked += 1
 
+    # 2b. And so does every copy CI matches. One of them was missed once, and only a
+    #     Windows leg said so, half an hour after the ubuntu one went green.
+    pinned = [
+        os.path.join(".github", "workflows", "windows-build.yml"),
+        os.path.join(".github", "actions", "smoke-test", "action.yml"),
+    ]
+    for rel in pinned:
+        text = read(os.path.join(ROOT, rel))
+        counts = set(re.findall(r"rule splitting ok on (\d+) checks", text))
+        if not counts:
+            sys.exit("%s no longer matches the rule-splitting line at all" % rel)
+        if counts != {mine.group(1)}:
+            sys.exit(
+                "%s matches %s checks, where the code runs %s"
+                % (rel, ", ".join(sorted(counts)), mine.group(1))
+            )
+        checked += 1
+
     # 3. One definition only: a copy left in Shell.cpp would mean the Windows build and
     #    this run test different code.
     shell = read(os.path.join(ROOT, "WinHTTrack", "Shell.cpp"))
