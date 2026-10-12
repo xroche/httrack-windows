@@ -134,76 +134,20 @@ static void NewFilter(int i,char* s,size_t ssize) {  // 0: forbid 1: accept
         strlcpybuff(s,"+",ssize);
       strlcatbuff(s,"*",ssize);
     } else {
-      while(strlen(q)>0) {
-        while ((*q==' ') || (*q==',')) q++;
-        strcpybuff(t,"");
-        {  // prochain (séparé par des ,)
-          char *a,*b;
-          a=strchr(q,' ');
-          b=strchr(q,',');
-          if (a && b) {  // départager
-            if ( b < a)
-              a=b;
-          } else if (b) a=b;
-          
-          if (a) {
-            t[0]='\0';
-            strlncatbuff(t,q,sizeof(t),a-q);
-            q=a+1;
-          } else {
-            strlcpybuff(t,q,sizeof(t));
-            strcpybuff(q,"");
-          }
-        }
-        
-        if (strlen(t)>0) {
-          strcpybuff(as,"");
-          switch (AddF.m_aftype) {
-          case 0:  // ext
-            sprintf(as,"*.%s",t);
+      // OnOK() has already refused a keyword this template cannot use
+      while(nextFilterKeyword(&q,t,sizeof(t))) {
+        if (filterRuleForKeyword(AddF.m_aftype,t,as,sizeof(as))) {
+          /* Stop at capacity rather than abort: strlcatbuff() does not truncate. */
+          if (strlen(s) + strlen(as) + 4 >= ssize)
             break;
-          case 1:  // contient
-            sprintf(as,"*/*%s*",t);
-            break;
-          case 2:  // this one
-            sprintf(as,"*/%s",t);
-            break;
-          case 3:  // folder contains
-            sprintf(as,"*/*%s*/*",t);
-            break;
-          case 4:  // this folder
-            sprintf(as,"*/%s/*",t);
-            break;
-          case 5:  // domaine
-            sprintf(as,"*[name].%s/*",t);
-            break;
-          case 6:  // contien
-            sprintf(as,"*[name].*[name]%s*[name].*[name]/*",t);
-            break;
-          case 7:  // host
-            sprintf(as,"%s/*",t);
-            break;
-          case 8:  // link contient
-            sprintf(as,"*%s*",t);
-            break;
-          case 9:  // lien exact
-            sprintf(as,"%s",t);
-            break;
-          }
-          if (strlen(as)>0) {
-            /* Stop at capacity rather than abort: strlcatbuff() does not truncate. */
-            if (strlen(s) + strlen(as) + 4 >= ssize)
-              break;
-            if (i==0)
-              strlcatbuff(s,"-",ssize);
-            else
-              strlcatbuff(s,"+",ssize);
-            strlcatbuff(s,as,ssize);
-            strlcatbuff(s,"\x0d\x0a",ssize);
-          }
+          if (i==0)
+            strlcatbuff(s,"-",ssize);
+          else
+            strlcatbuff(s,"+",ssize);
+          strlcatbuff(s,as,ssize);
+          strlcatbuff(s,"\x0d\x0a",ssize);
         }
       }
-      
     }
 
   } else strlcpybuff(s,"",ssize);

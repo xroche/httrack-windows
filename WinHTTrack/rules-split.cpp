@@ -209,6 +209,74 @@ CString applyRulePreset(const CString &box, const CString &preset, BOOL checked)
   return out;
 }
 
+// see Shell.h
+BOOL nextFilterKeyword(char **q, char *t, size_t tsize) {
+  char *p = *q;
+  const char *end;
+  const char *sep;
+  size_t len;
+
+  while (*p == ' ' || *p == ',')
+    p++;
+  end = p + strlen(p);
+  if ((sep = strchr(p, ' ')) != NULL && sep < end)
+    end = sep;
+  if ((sep = strchr(p, ',')) != NULL && sep < end)
+    end = sep;
+  len = (size_t) (end - p);
+  *q = *end != '\0' ? (char *) end + 1 : (char *) end;
+  if (len == 0 || len >= tsize)
+    return FALSE;
+  memcpy(t, p, len);
+  t[len] = '\0';
+  return TRUE;
+}
+
+// see Shell.h
+BOOL filterRuleForKeyword(int type, const char *keyword, char *out, size_t outsize) {
+  int n;
+
+  switch (type) {
+  case 0:                      /* extension */
+    n = snprintf(out, outsize, "*.%s", keyword);
+    break;
+  case 1:                      /* name holds */
+    n = snprintf(out, outsize, "*/*%s*", keyword);
+    break;
+  case 2:                      /* this file */
+    n = snprintf(out, outsize, "*/%s", keyword);
+    break;
+  case 3:                      /* folder name holds */
+    n = snprintf(out, outsize, "*/*%s*/*", keyword);
+    break;
+  case 4:                      /* this folder */
+    n = snprintf(out, outsize, "*/%s/*", keyword);
+    break;
+  case 5:                      /* domain */
+    n = snprintf(out, outsize, "*[name].%s/*", keyword);
+    break;
+  case 6:                      /* domain name holds */
+    n = snprintf(out, outsize, "*[name].*[name]%s*[name].*[name]/*", keyword);
+    break;
+  case 7:                      /* host */
+    n = snprintf(out, outsize, "%s/*", keyword);
+    break;
+  case 8:                      /* link holds */
+    n = snprintf(out, outsize, "*%s*", keyword);
+    break;
+  case 9:
+    /* A pattern is anchored at both ends, so a keyword with none of these matches
+       nothing, and the engine reads the rule "-word" as a cluster of options. */
+    if (strpbrk(keyword, "./*") == NULL)
+      return FALSE;
+    n = snprintf(out, outsize, "%s", keyword);
+    break;
+  default:                     /* every link, and no selection: no keyword used */
+    return FALSE;
+  }
+  return n >= 0 && (size_t) n < outsize ? TRUE : FALSE;
+}
+
 /* These paths are only reachable by typing into the Experts page or clicking a preset
    checkbox, and a rule the engine cannot parse aborts the whole mirror. Both --selftest
    and tools/rules-split-test.cpp call this, and both pin the count. */
@@ -266,6 +334,107 @@ int rulesSplitCheckCases(CString *err) {
                  "two %d-byte rules split into %d rules, the first %d bytes",
                  longRule.GetLength(), (int) got.GetSize(),
                  got.GetSize() != 0 ? got[0].GetLength() : 0);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* nextFilterKeyword(): the keywords the Add Filter dialog reads out of its field. */
+  {
+    static const struct { const char* field; const char* want; } fields[] = {
+      { "gif", "gif" },
+      { "gif jpg", "gif|jpg" },
+      { "gif,jpg", "gif|jpg" },
+      { "  gif ,, jpg  ", "gif|jpg" },
+      { " , ", "" },
+      { "", "" },
+      { NULL, NULL }
+    };
+
+    for(int k=0 ; fields[k].field != NULL ; k++) {
+      char field[2048], keyword[2048];
+      char *q = field;
+      CString joined;
+
+      snprintf(field, sizeof(field), "%s", fields[k].field);
+      while(nextFilterKeyword(&q, keyword, sizeof(keyword))) {
+        if (!joined.IsEmpty())
+          joined += "|";
+        joined += keyword;
+      }
+      if (joined != fields[k].want) {
+        snprintf(msg, sizeof(msg), "keyword field '%s' read as '%s', expected '%s'",
+                 fields[k].field, (LPCSTR) joined, fields[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* filterRuleForKeyword(): the rule each Add Filter template builds. The dialog's own
+     example text is the contract, so each keyword here is the one the dialog shows. */
+  {
+    static const struct { int type; const char* keyword; const char* want; } templates[] = {
+      { 0, "gif", "*.gif" },
+      { 1, "blue", "*/*blue*" },
+      { 2, "bigfile.mov", "*/bigfile.mov" },
+      { 3, "cgi", "*/*cgi*/*" },
+      { 4, "cgi-bin", "*/cgi-bin/*" },
+      { 5, "myweb.com", "*[name].myweb.com/*" },
+      { 6, "myweb", "*[name].*[name]myweb*[name].*[name]/*" },
+      { 7, "www.myweb.com", "www.myweb.com/*" },
+      { 8, "myweb", "*myweb*" },
+      { 9, "www.test.com/test/myweb.html", "www.test.com/test/myweb.html" },
+      /* the exact link passes the keyword through, so it is the one that can emit
+         a rule the engine reads as options */
+      { 9, "localhost", NULL },
+      { 9, "", NULL },
+      /* every link takes no keyword, and neither does an empty selection */
+      { 10, "gif", NULL },
+      { -1, "gif", NULL },
+      { 0, NULL, NULL }
+    };
+
+    for(int k=0 ; templates[k].keyword != NULL ; k++) {
+      char rule[256];
+      const BOOL got = filterRuleForKeyword(templates[k].type, templates[k].keyword,
+                                            rule, sizeof(rule));
+
+      if (!got != !templates[k].want
+          || (got && strcmp(rule, templates[k].want) != 0)) {
+        snprintf(msg, sizeof(msg), "filter type %d on '%s' built %s, expected %s",
+                 templates[k].type, templates[k].keyword,
+                 got ? rule : "nothing",
+                 templates[k].want != NULL ? templates[k].want : "nothing");
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* No template may build a rule the engine would walk as options: it calls any
+       '-'-leading argument holding none of '.', '/' or '*' an option cluster. */
+    for(int type = 0 ; type <= 10 ; type++) {
+      char rule[256];
+
+      if (filterRuleForKeyword(type, "blue", rule, sizeof(rule))
+          && strpbrk(rule, "./*") == NULL) {
+        snprintf(msg, sizeof(msg), "filter type %d built '%s', which the engine reads as options",
+                 type, rule);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* A rule too long for the buffer comes back refused, never truncated. */
+    {
+      char keyword[300], rule[256];
+
+      memset(keyword, 'x', sizeof(keyword) - 1);
+      keyword[sizeof(keyword) - 1] = '\0';
+      if (filterRuleForKeyword(0, keyword, rule, sizeof(rule))) {
+        snprintf(msg, sizeof(msg), "a %d-byte keyword built a rule in %d bytes",
+                 (int) strlen(keyword), (int) sizeof(rule));
         *err = msg;
         return 0;
       }

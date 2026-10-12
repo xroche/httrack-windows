@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "rule splitting ok on 49 checks"
+EXPECTED_LINE = "rule splitting ok on 81 checks"
 
 
 def read(path):
@@ -104,6 +104,30 @@ def main():
         if re.search(r"^\w[^;()\n]*\b%s\s*\(" % name, shell, re.M):
             sys.exit("%s is defined in Shell.cpp as well as rules-split.cpp" % name)
         checked += 1
+
+    # 4. The Add Filter templates have to be the ones tested here, not a copy left in
+    #    the dialog code.
+    tab7 = read(os.path.join(ROOT, "WinHTTrack", "OptionTab7.cpp"))
+    if "filterRuleForKeyword(" not in tab7:
+        sys.exit(
+            "OptionTab7.cpp no longer calls filterRuleForKeyword(): the Add Filter "
+            "templates stopped being the ones under test"
+        )
+    checked += 1
+    if re.search(r"sprintf\s*\(\s*as\s*,", tab7):
+        sys.exit("OptionTab7.cpp builds a filter rule of its own again")
+    checked += 1
+
+    # 5. And the dialog has to keep refusing a keyword no template can use, which only
+    #    a hand on the dialog can see otherwise.
+    if "filterRuleForKeyword(" not in read(
+        os.path.join(ROOT, "WinHTTrack", "AddFilter.cpp")
+    ):
+        sys.exit(
+            "AddFilter.cpp no longer calls filterRuleForKeyword(): OnOK() stopped "
+            "refusing a keyword the template cannot use"
+        )
+    checked += 1
 
     print("%d source checks pass" % checked)
 
