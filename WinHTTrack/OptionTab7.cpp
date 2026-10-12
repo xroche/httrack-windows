@@ -115,48 +115,15 @@ static void NewFilter(int i,char* s,size_t ssize) {  // 0: forbid 1: accept
   else
     AddF.m_addtype=LANG(LANG_B21); // "Links following this rule will be accepted:";
   if (AddF.DoModal()==IDOK) {
-    char query[2048],t[2048],as[2100];
-    char* q;
-
-    // error
-    if (AddF.m_afquery.GetLength() >= sizeof(query) - 2 ) {
-      return;
-    }
-
-    strlcpybuff(s,"",ssize);
-    strcpybuff(query,AddF.m_afquery);
-    q=query;
-    
-    if (AddF.m_aftype==10) {
-      if (i==0)
-        strlcpybuff(s,"-",ssize);
-      else
-        strlcpybuff(s,"+",ssize);
-      strlcatbuff(s,"*",ssize);
-    } else {
-      // OnOK() has already refused a keyword this template cannot use
-      while(nextFilterKeyword(&q,t,sizeof(t))) {
-        if (filterRuleForKeyword(AddF.m_aftype,t,as,sizeof(as))) {
-          /* Stop at capacity rather than abort: strlcatbuff() does not truncate. */
-          if (strlen(s) + strlen(as) + 4 >= ssize)
-            break;
-          if (i==0)
-            strlcatbuff(s,"-",ssize);
-          else
-            strlcatbuff(s,"+",ssize);
-          strlcatbuff(s,as,ssize);
-          strlcatbuff(s,"\x0d\x0a",ssize);
-        }
-      }
-    }
-
+    // OnOK() refuses a keyword no rule can be built from, so FALSE cannot land here
+    (void) filterRulesForField(AddF.m_aftype,i!=0,AddF.m_afquery,s,ssize);
   } else strlcpybuff(s,"",ssize);
 }
 
 
 void COptionTab7::OnAdd1() 
 {
-  char s[1024]; s[0]='\0';
+  char s[FILTER_RULES_MAXSIZE]; s[0]='\0';
   NewFilter(0,s,sizeof(s));
   if (strlen(s)>0) {
     char tempo[HTS_URLMAXSIZE*16];
@@ -180,7 +147,7 @@ void COptionTab7::OnAdd1()
 
 void COptionTab7::OnAdd2() 
 {
-  char s[1024]; s[0]='\0';
+  char s[FILTER_RULES_MAXSIZE]; s[0]='\0';
   NewFilter(1,s,sizeof(s));
   if (strlen(s)>0) {
     char tempo[HTS_URLMAXSIZE*16];

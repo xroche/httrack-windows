@@ -194,21 +194,16 @@ void CAddFilter::OnOK()
   int r=m_ctl_aftype.GetCurSel();
 	GetDlgItemText(IDC_AFext,st);
   if ((strlen(st)>0) || (r==10)) {
-    char query[2048],keyword[2048],rule[2100];
-    char* q=query;
+    char rules[FILTER_RULES_MAXSIZE];
 
-    strlcpybuff(query,st,sizeof(query));
-    // the rule the box would get, so a keyword this template cannot use is refused with
-    // the dialog still open on it
-    while(r!=10 && nextFilterKeyword(&q,keyword,sizeof(keyword))) {
-      if (!filterRuleForKeyword(r,keyword,rule,sizeof(rule))) {
-        char hlp[1024];
+    // check before OnOK() commits, so the dialog stays open on the keyword that failed
+    if (!filterRulesForField(r,type!=0,st,rules,sizeof(rules))) {
+      char hlp[1024];
 
-        filterTypeExample(r,hlp,sizeof(hlp));
-        AfxMessageBox(CString(LANG(LANG_A2)) + "\x0d\x0a\x0d\x0a" + hlp
-          ,MB_OK+MB_ICONINFORMATION);
-        return;
-      }
+      filterTypeExample(r,hlp,sizeof(hlp));
+      AfxMessageBox(CString(LANG(LANG_A2)) + "\x0d\x0a\x0d\x0a" + hlp
+        ,MB_OK+MB_ICONINFORMATION);
+      return;
     }
     CDialog::OnOK();
   } else {
