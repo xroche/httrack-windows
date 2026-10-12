@@ -45,7 +45,8 @@ int LangKeyIsSymbol(const char *key);
 typedef struct LangCatalogIO {
   void *ctx;
   /* Opens catalog index 0, the selected language, or 1, the English fallback. A binding
-     returning NULL has already reported the failure. */
+     returning NULL has already reported the failure, and NULL for index 0 drops the
+     English pass too. */
   FILE *(*open)(void *ctx, int index);
   /* linput_cpp(), which decides where a key ends. */
   int (*readLine)(FILE *fp, char *line, int max);
