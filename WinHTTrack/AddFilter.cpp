@@ -196,7 +196,7 @@ void CAddFilter::OnOK()
   if ((strlen(st)>0) || (r==10)) {
     char rules[FILTER_RULES_MAXSIZE];
 
-    // check before OnOK() commits, so the dialog stays open on the keyword that failed
+    // type!=0 is the accepting button, and the verdict is the same either way
     if (!filterRulesForField(r,type!=0,st,rules,sizeof(rules))) {
       char hlp[1024];
 

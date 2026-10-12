@@ -223,8 +223,10 @@ BOOL patternReadsAsOptions(const char *pattern) {
   return strchr(pattern, '/') == NULL && strchr(pattern, '*') == NULL ? TRUE : FALSE;
 }
 
-// see Shell.h
-BOOL nextFilterKeyword(const char **field, char *keyword, size_t keywordsize) {
+/* Copies the next keyword of *FIELD into KEYWORD and advances *FIELD past it, which it
+   does even on FALSE. Returns FALSE, KEYWORD left alone, once the field holds no more,
+   and for a keyword too long for KEYWORD, so the rest of that field is not read. */
+static BOOL nextFilterKeyword(const char **field, char *keyword, size_t keywordsize) {
   const char *const start = *field + strspn(*field, FILTER_KEYWORD_SEPARATORS);
   const size_t len = strcspn(start, FILTER_KEYWORD_SEPARATORS);
 
@@ -236,8 +238,10 @@ BOOL nextFilterKeyword(const char **field, char *keyword, size_t keywordsize) {
   return TRUE;
 }
 
-// see Shell.h
-BOOL filterRuleForKeyword(int type, const char *keyword, char *out, size_t outsize) {
+/* Builds into OUT the rule the dialog's template TYPE makes of KEYWORD, with no leading
+   sign. Returns FALSE with OUT empty when TYPE cannot use KEYWORD, which only the exact
+   link (9) does, and when the rule does not fit OUT. */
+static BOOL filterRuleForKeyword(int type, const char *keyword, char *out, size_t outsize) {
   int n;
 
   out[0] = '\0';
@@ -508,8 +512,10 @@ int rulesSplitCheckCases(CString *err) {
       const BOOL got = filterRuleForKeyword(templates[k].type, templates[k].keyword,
                                             rule, sizeof(rule));
 
+      /* OUT comes back empty on a refusal, which is what lets a caller skip the
+         keyword without reading a half-built rule */
       if (got != (templates[k].want != NULL)
-          || (got && strcmp(rule, templates[k].want) != 0)) {
+          || strcmp(rule, got ? templates[k].want : "") != 0) {
         snprintf(msg, sizeof(msg), "filter type %d on '%s' built %s, expected %s",
                  templates[k].type, templates[k].keyword,
                  got ? rule : "nothing",
@@ -545,9 +551,9 @@ int rulesSplitCheckCases(CString *err) {
 
       memset(keyword, 'x', sizeof(keyword) - 1);
       keyword[sizeof(keyword) - 1] = '\0';
-      if (filterRuleForKeyword(0, keyword, rule, sizeof(rule))) {
-        snprintf(msg, sizeof(msg), "a %d-byte keyword built a rule in %d bytes",
-                 (int) strlen(keyword), (int) sizeof(rule));
+      if (filterRuleForKeyword(0, keyword, rule, sizeof(rule)) || rule[0] != '\0') {
+        snprintf(msg, sizeof(msg), "a %d-byte keyword built '%.80s' in %d bytes",
+                 (int) strlen(keyword), rule, (int) sizeof(rule));
         *err = msg;
         return 0;
       }

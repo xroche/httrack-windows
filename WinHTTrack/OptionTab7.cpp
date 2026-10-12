@@ -107,16 +107,16 @@ END_MESSAGE_MAP()
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab7 message handlers
 
-static void NewFilter(int i,char* s,size_t ssize) {  // 0: forbid 1: accept
+static void NewFilter(int accept,char* s,size_t ssize) {  // 0: forbid 1: accept
   CAddFilter AddF;
-  AddF.type=i;
+  AddF.type=accept;
   if (AddF.type==0)
     AddF.m_addtype=LANG(LANG_B20); /*"Links following this rule will be forbidden:"*/
   else
     AddF.m_addtype=LANG(LANG_B21); // "Links following this rule will be accepted:";
   if (AddF.DoModal()==IDOK) {
     // OnOK() refuses a keyword no rule can be built from, so FALSE cannot land here
-    (void) filterRulesForField(AddF.m_aftype,i!=0,AddF.m_afquery,s,ssize);
+    (void) filterRulesForField(AddF.m_aftype,accept!=0,AddF.m_afquery,s,ssize);
   } else strlcpybuff(s,"",ssize);
 }
 

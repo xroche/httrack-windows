@@ -247,7 +247,9 @@ def main():
                         "the %s harness printed %r, expected %r"
                         % (label, out.strip(), want)
                     )
-        print(out, end="")
+            # named per build, so the log shows the sanitized one ran as well
+            for line in out.splitlines():
+                print("%s: %s" % (label, line))
 
 
 if __name__ == "__main__":

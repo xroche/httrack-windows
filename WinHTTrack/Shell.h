@@ -333,26 +333,17 @@ void splitLinesInArray(CSimpleArray<CString> &args, const CString &str,
    single-letter options rather than as a scan rule. Exposed for --selftest. */
 BOOL patternReadsAsOptions(const char *pattern);
 
-/* The Add Filter dialog's keyword field holds keywords separated by spaces or commas.
-   Copies the next one into KEYWORD and advances *FIELD past it, which it does even on
-   FALSE. Returns FALSE, KEYWORD left alone, once the field holds no more. A keyword too
-   long for KEYWORD also returns FALSE, so the rest of the field is not read. */
-BOOL nextFilterKeyword(const char **field, char *keyword, size_t keywordsize);
-
-/* Builds into OUT the rule template TYPE makes of KEYWORD, with no leading sign.
-   Returns FALSE with OUT empty when TYPE cannot use KEYWORD. Only the exact link (9)
-   refuses one, so see its definition. Exposed for --selftest. */
-BOOL filterRuleForKeyword(int type, const char *keyword, char *out, size_t outsize);
-
-/* The room the Add Filter dialog gets for the rules of one field. Both the refusal and
-   the build must give filterRulesForField() the same room, or the dialog would accept a
+/* The room the Add Filter dialog gets for the rules of one field. The refusal and the
+   build must give filterRulesForField() the same room, or the dialog would accept a
    field whose last rules the box never gets. */
 #define FILTER_RULES_MAXSIZE 1024
 
 /* Builds into OUT the CRLF-separated rules the Add Filter dialog adds to the Scan Rules
-   box, one per keyword of FIELD, each signed '+' when ACCEPT and '-' otherwise. Returns
-   FALSE when a keyword has no usable rule, which is what the dialog refuses on, and
-   stops early rather than overrun OUT. Exposed for --selftest. */
+   box, one per keyword of FIELD, each signed '+' when ACCEPT and '-' otherwise. TYPE is
+   the rule the user picked in the dialog's combo box, counted in the order the controls
+   sit in the .rc, so 9 is the exact link and 10 is every link. Returns FALSE when a
+   keyword has no usable rule, which is what the dialog refuses on. Running out of room
+   in OUT stops it early and still returns TRUE. Exposed for --selftest. */
 BOOL filterRulesForField(int type, BOOL accept, const char *field,
                          char *out, size_t outsize);
 
