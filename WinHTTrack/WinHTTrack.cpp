@@ -762,6 +762,10 @@ BOOL CWinHTTrackApp::InitInstance()
       const struct { const char* name; const char* text; } keys[] = {
         { "LANG_LIVERULES", LANG(LANG_LIVERULES) },
         { "LANG_LIVERULESBAD", LANG(LANG_LIVERULESBAD) },
+        /* The two copies of "Start". The second one resolves only while the text pass
+           still increments past the slots the symbol pass took. */
+        { "LANG_J9", LANG(LANG_J9) },
+        { "LANG_J13", LANG(LANG_J13) },
         { NULL, NULL }
       };
       int nchecks = 0;

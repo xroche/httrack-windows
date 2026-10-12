@@ -336,8 +336,9 @@ runs:
         if ("$so" -notmatch 'rule splitting ok on 49 checks') {
           throw "selftest did not check the Experts rule splitter and the preset checkboxes"
         }
-        # A key the engine's catalog drops shows the wrong label, not a failure.
-        if ("$so" -notmatch 'catalog keys ok on 2 checks') {
+        # A key the engine's catalog drops shows the wrong label, not a failure. The last
+        # two are the copies of "Start", so this is also where a lost increment shows.
+        if ("$so" -notmatch 'catalog keys ok on 4 checks') {
           throw "selftest did not check the catalog keys"
         }
         # A malformed rule must not reach a running mirror, and the page is what stops it.

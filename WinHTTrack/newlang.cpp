@@ -442,6 +442,61 @@ void LANG_SELFTEST_DECODE(void) {
   }
 }
 
+/* One pass over a catalog, taking either its symbol-keyed lines or its text-keyed ones.
+   fallback is the English pass, which fills only what the selected language left unset. */
+static void LANG_LOAD_CATALOG(FILE* fp,BOOL fallback,BOOL symbols) {
+  char extkey[8192];
+  TCHAR value[8192];
+
+  rewind(fp);
+  while(!feof(fp)) {
+    const char* intkey;
+
+    linput_cpp(fp,extkey,8000);
+    linput_cpp(fp,value,8000);
+    if (!strnotempty(extkey) || !strnotempty(value))
+      continue;
+    intkey=LANGINTKEY(extkey);
+
+    /* A row may key on its LANG_ symbol instead of the English text, so a reworded
+       string keeps its translations. Reached only where lang.def has no row. */
+    const BOOL is_symbol=(!strnotempty(intkey) && LangKeyIsSymbol(extkey)) ? TRUE : FALSE;
+
+    if (is_symbol != symbols)
+      continue;
+    if (symbols) {
+      /* The first symbol line wins, and no symbol line ever increments. */
+      if (strnotempty(LANGSEL(extkey)))
+        continue;
+      intkey=extkey;
+    } else {
+      if (!strnotempty(intkey))
+        continue;
+      if (strnotempty(LANGSEL(intkey))) {
+        size_t pos=strlen(extkey);
+        int increment=0;
+
+        if (fallback)
+          continue;
+        /* Repeated English text: lang.def keys its Nth copy as text + N. */
+        do {
+          increment++;
+          sprintf(extkey+pos,"%d",increment);
+          intkey=LANGINTKEY(extkey);
+        }  while (strnotempty(intkey) && strnotempty(LANGSEL(intkey)));
+        if (!strnotempty(intkey))
+          continue;
+      }
+    }
+    {
+      char* const buff=ConvertCatalogValue(value,CP_ACP);
+
+      if (buff)
+        coucal_add(NewLangStr,intkey,(intptr_t)buff);
+    }
+  }
+}
+
 void LANG_LOAD(char* limit_to, size_t limit_size) {
   CWaitCursor wait;
   //
@@ -555,7 +610,6 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
   /* Load specific language file */
   {
     int loops;
-    CString err_msg="";
     // 2nd loop: load undefined strings
     for(loops=0;loops<2;loops++) {
       CString lbasename;
@@ -569,80 +623,9 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
       CString lname=LANG_DATAFILE(lbasename);
       FILE* fp=fopen(lname,"rb");
       if (fp) {
-        char extkey[8192];
-        TCHAR value[8192];
-        while(!feof(fp)) {
-          //int ssz;
-          linput_cpp(fp,extkey,8000);
-          linput_cpp(fp,value,8000);
-          /*
-          ssz=linput_cpp(fp,value,8000);
-          CString st=value;
-          AfxMessageBox(st);
-          if (ssz>0) {
-            int tst=0;
-            int test=IsTextUnicode(value,ssz,&tst);
-            unsigned short st2[1024];
-            int ret=MultiByteToWideChar(CP_UTF8,0,(char*)value,ssz,st2,1024);
-            if (ret>0) {
-              char st3[1024]="";
-              int ret2=WideCharToMultiByte(CP_THREAD_ACP,0,st2,ret,(char*)st3,1024,NULL,FALSE);
-              if (ret2>0) {
-                AfxMessageBox(st3);
-              }
-            }
-          }
-          */
-
-          if (strnotempty(extkey) && strnotempty(value)) {
-            char* buff;
-            const char* intkey;
-            
-            intkey=LANGINTKEY(extkey);
-            
-            /* A row may key on its LANG_ symbol instead of the English text, so a reworded
-               string keeps its translations. Reached only where lang.def has no row. */
-            if (!strnotempty(intkey) && LangKeyIsSymbol(extkey))
-              intkey=extkey;
-            
-            if (strnotempty(intkey)) {
-              
-              /* Increment for multiple definitions */
-              {
-                const char* test=LANGSEL(intkey);
-                if (strnotempty(test)) {
-                  if (loops == 0) {
-                    int increment=0;
-                    size_t pos=strlen(extkey);
-                    do {
-                      increment++;
-                      sprintf(extkey+pos,"%d",increment);
-                      intkey=LANGINTKEY(extkey);
-                      if (strnotempty(intkey))
-                        test=LANGSEL(intkey);
-                      else
-                        test="";
-                    }  while (strnotempty(test));
-                  } else
-                    intkey="";
-                } else {
-                  if (loops > 0) {
-                    err_msg += intkey;
-                    err_msg += " ";
-                  }
-                }
-              }
-              
-              /* Add key */
-              if (strnotempty(intkey)) {
-                buff = ConvertCatalogValue(value,CP_ACP);
-                if (buff)
-                  coucal_add(NewLangStr,intkey,(intptr_t)buff);
-              }
-              
-            }
-          } // if
-        }  // while
+        /* Symbols go first, so a repeated text skips the slots they own. */
+        LANG_LOAD_CATALOG(fp,loops>0,TRUE);
+        LANG_LOAD_CATALOG(fp,loops>0,FALSE);
         fclose(fp);
       } else {
         /* This branch is the per-language file, not lang.def: say which one. */
@@ -655,9 +638,6 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
         AfxMessageBox("FATAL ERROR\r\n" + lbasename + " NOT FOUND!\r\nEnsure that the installation was complete!");
         exit(1);
       }
-    }
-    if (err_msg.GetLength()>0) {
-      // AfxMessageBox("Error: undefined strings follows:\r\n"+err_msg);
     }
   }
 
