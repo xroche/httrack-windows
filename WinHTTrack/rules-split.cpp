@@ -39,6 +39,8 @@ Please visit our Website: http://www.httrack.com
 #include "mfc-test-stubs.h"          /* CString and the two arrays for the harness */
 extern "C" {
   int hts_scan_token(char **ptr, char *dest, size_t destsize);
+  /* both copied in by tools/test-rules-split.py, out of the engine's own source */
+  int hts_rule_would_be_read_as_opt(const char *arg);
 };
 #else
 #include "stdafx.h"
@@ -214,15 +216,6 @@ CString applyRulePreset(const CString &box, const CString &preset, BOOL checked)
    against the engine's HTS_REALSPACES by tools/test-rules-split.py. */
 #define FILTER_KEYWORD_SEPARATORS " ,\t\n\v\f\r"
 
-// see Shell.h
-BOOL patternReadsAsOptions(const char *pattern) {
-  /* cmdl_opt() in the engine's htscoremain.c, which reads a '%' as an option's
-     parameter, so a '.' only saves the rule without one. */
-  if (strchr(pattern, '.') != NULL && strchr(pattern, '%') == NULL)
-    return FALSE;
-  return strchr(pattern, '/') == NULL && strchr(pattern, '*') == NULL ? TRUE : FALSE;
-}
-
 /* Copies the next keyword of *FIELD into KEYWORD and advances *FIELD past it, which it
    does even on FALSE. Returns FALSE, KEYWORD left alone, once the field holds no more,
    and for a keyword too long for KEYWORD, so the rest of that field is not read. */
@@ -274,10 +267,21 @@ static BOOL filterRuleForKeyword(int type, const char *keyword, char *out, size_
     n = snprintf(out, outsize, "*%s*", keyword);
     break;
   case 9:
-    /* A pattern is anchored at both ends, so such a keyword never matches. A
-       forbidding rule made of it turns on options instead of filtering. */
-    if (patternReadsAsOptions(keyword))
-      return FALSE;
+    /* The engine's own answer, asked about the token a forbidding rule would carry.
+       Such a keyword turns on options instead of filtering, and a pattern anchored at
+       both ends never matches it anyway. */
+    {
+      char forbidding[1 + 1024 + 1];   /* the sign, the field's own cap, the NUL */
+
+      /* The dialog caps its field at 1024, so this refuses nothing it can produce. It
+         is here because asking the engine about a truncated token would answer about
+         a different rule, and no test can tell that apart from this refusal. */
+      if ((size_t) snprintf(forbidding, sizeof(forbidding), "-%s", keyword)
+          >= sizeof(forbidding))
+        return FALSE;
+      if (hts_rule_would_be_read_as_opt(forbidding))
+        return FALSE;
+    }
     n = snprintf(out, outsize, "%s", keyword);
     break;
   default:                     /* every link, and no selection: no keyword used */
@@ -411,8 +415,10 @@ int rulesSplitCheckCases(CString *err) {
       nchecks++;
     }
   }
-  /* patternReadsAsOptions(): the engine's own rule for telling an option from a scan
-     rule. tools/test-rules-split.py checks it against the engine's cmdl_opt() itself. */
+  /* hts_rule_would_be_read_as_opt(): the engine's own answer, which the exact-link
+     refusal rests on. The engine tests it too (its test 584), and it is asserted here
+     as well because the dialog's refusal and its "address and path" help text mean
+     something different the day that answer changes. */
   {
     static const struct { const char* pattern; int reads; } patterns[] = {
       { "localhost", 1 },
@@ -421,6 +427,8 @@ int rulesSplitCheckCases(CString *err) {
       { "www.test.com", 0 },
       { "*.gif", 0 },
       { "a/b", 0 },
+      /* no '.' to answer first, so this is the only case the '*' clause decides */
+      { "*x", 0 },
       /* a '%' makes the engine read the '.' as an option's parameter, so the dot
          stops saving the rule */
       { "www.test.com%2Ftest.html", 1 },
@@ -431,7 +439,11 @@ int rulesSplitCheckCases(CString *err) {
     };
 
     for(int k=0 ; patterns[k].pattern != NULL ; k++) {
-      const BOOL got = patternReadsAsOptions(patterns[k].pattern);
+      char forbidding[64];
+      BOOL got;
+
+      snprintf(forbidding, sizeof(forbidding), "-%s", patterns[k].pattern);
+      got = hts_rule_would_be_read_as_opt(forbidding) ? TRUE : FALSE;
 
       if (got != (patterns[k].reads != 0)) {
         snprintf(msg, sizeof(msg), "'-%s' reads as %s, expected %s", patterns[k].pattern,
@@ -525,8 +537,9 @@ int rulesSplitCheckCases(CString *err) {
       }
       nchecks++;
     }
-    /* No template may build a rule the engine reads as options. The restatement is
-       deliberate, so a widened guard in patternReadsAsOptions() cannot hide here. */
+    /* No template may build a rule the engine reads as options. The condition is
+       restated here rather than asked of the engine, so a change on either side of
+       that contract cannot hide behind the other. */
     static const char* const risky[] = { "blue", "cgi-bin", "localhost",
                                          "a.b%20c", "x%2Fy", NULL };
 

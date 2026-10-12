@@ -749,8 +749,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 157) {
-        fprintf(stderr, "FATAL: rule splitting ran %d checks, expected 157\n", nchecks);
+      if (nchecks != 158) {
+        fprintf(stderr, "FATAL: rule splitting ran %d checks, expected 158\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

@@ -329,10 +329,6 @@ void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 void splitLinesInArray(CSimpleArray<CString> &args, const CString &str,
                        const CString &separator=CString());
 
-/* TRUE if the engine's cmdl_opt() reads PATTERN behind a '-' sign as a cluster of
-   single-letter options rather than as a scan rule. Exposed for --selftest. */
-BOOL patternReadsAsOptions(const char *pattern);
-
 /* The room the Add Filter dialog gets for the rules of one field. The refusal and the
    build must give filterRulesForField() the same room, or the dialog would accept a
    field whose last rules the box never gets. */
