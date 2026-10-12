@@ -53,7 +53,7 @@ static char THIS_FILE[] = __FILE__;
 
 /* From the left edge of a group box to its caption, and the gap each side of the caption
    where the frame stops, both what Windows uses at 96 dpi. */
-#define DARK_GROUP_INDENT 10
+#define DARK_GROUP_INDENT 9
 #define DARK_GROUP_PAD    2
 
 /* DWMWA_USE_IMMERSIVE_DARK_MODE, and the number it answered to before Windows 10 20H1. */
@@ -180,9 +180,8 @@ static const COLORREF darkGlyphFill[4] = {
   RGB(45, 45, 45), RGB(58, 58, 58), RGB(72, 72, 72), RGB(40, 40, 40)
 };
 
-/* Draws the check or radio glyph. Both the themed and the classic glyph are drawn for a
-   light page, and a BUTTON gets no dark art without the undocumented opt-in, so the only
-   way to a dark one is to draw it. */
+/* Draws the check or radio glyph. The themed and the classic BUTTON art are both drawn
+   for a light page, and the dark art needs the undocumented opt-in. */
 static void darkDrawGlyph(HDC hdc, const RECT *box, BOOL radio, int glyphState)
 {
   /* The vsstyle ids run in fours, so the glyph and its phase divide out. */
@@ -336,12 +335,10 @@ static void darkPaintGroupBox(HWND hwnd, HDC hdc, DWORD style)
   if (!GetTextMetricsW(hdc, &metrics))
     metrics.tmHeight = MulDiv(13, GetDeviceCaps(hdc, LOGPIXELSY), 96);
 
-  /* The caption sits on the top line, so a captioned frame starts half a line down,
-     and an untitled one at the top. Windows etches the line the same whether the
-     control is enabled or not. */
+  /* The caption sits on the top line, so the frame starts half a line down, captioned
+     or not. Windows etches that line the same whether the control is enabled or not. */
   frame = client;
-  if (caption[0] != L'\0')
-    frame.top += metrics.tmHeight / 2;
+  frame.top += metrics.tmHeight / 2;
   FrameRect(hdc, &frame, darkFrameBrush);
 
   if (caption[0] != L'\0') {
