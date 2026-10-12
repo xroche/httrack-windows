@@ -68,11 +68,20 @@ typedef struct {
   int unselectedTop;      /* and the topmost its neighbour painted */
   int selectedFill;       /* the pixel inside the selected tab */
   int unselectedFill;     /* and inside its neighbour */
-  int labelInk;           /* the brightest pixel a label drew */
+  int frameOnOther;       /* the pixel on an unselected tab's own frame */
+  int raiseLeft;          /* the columns the selected tab reaches above the row */
+  int raiseRight;
+  int labelInk;           /* the brightest pixel the selected tab's label drew */
   int labelLeft;          /* the columns that label's ink spans */
   int labelRight;
-  int itemLeft;           /* and the columns its tab spans */
+  int labelTop;           /* and the rows */
+  int labelBottom;
+  int otherLabelTop;      /* the rows the neighbour's label inked */
+  int otherLabelBottom;
+  int itemLeft;           /* and the columns the selected tab's own rect spans */
   int itemRight;
+  int itemTop;            /* and its rows */
+  int itemBottom;
   int seamUnderSelected;  /* the pixel on the page's top line under the selected tab */
   int seamUnderOther;     /* and under its neighbour */
 } whtt_dark_tab_probe_t;

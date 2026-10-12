@@ -1216,7 +1216,7 @@ jobs:
             throw 'the dark glyph-art check did not run every case'
           }
           # The walk never compares a selected tab with an unselected one. Only this does.
-          if ("$so" -notmatch 'dark tab art ok on 9 checks') {
+          if ("$so" -notmatch 'dark tab art ok on 12 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the dark tab-art check did not run every case'
           }

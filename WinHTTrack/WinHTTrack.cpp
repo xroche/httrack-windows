@@ -901,7 +901,10 @@ BOOL CWinHTTrackApp::InitInstance()
         { "the label's ink", tab.labelInk, 240 },
         /* the selected tab covers the page's top line, and only it does */
         { "the line under the selected tab", tab.seamUnderSelected, 32 },
-        { "the line under an unselected tab", tab.seamUnderOther, 90 }
+        { "the line under an unselected tab", tab.seamUnderOther, 90 },
+        /* an unselected tab is framed too, and in the frame colour. The seam row above
+           reads the page's frame, not a tab's. */
+        { "the frame on an unselected tab", tab.frameOnOther, 90 }
       };
       for(int k=0 ; k < (int) (sizeof(same)/sizeof(same[0])) ; k++) {
         if (same[k].got != same[k].want) {
@@ -943,8 +946,40 @@ BOOL CWinHTTrackApp::InitInstance()
         }
         nchecks++;
       }
-      if (nchecks != 9) {
-        fprintf(stderr, "FATAL: dark tab art ran %d checks, expected 9\n", nchecks);
+      /* The selected tab grows sideways by what it rose, so a raise scaled on one axis
+         alone, or dropped on one, keeps every colour above and moves only these. */
+      {
+        const int up = tab.unselectedTop - tab.selectedTop;
+        const int left = tab.itemLeft - tab.raiseLeft;
+        const int right = tab.raiseRight - (tab.itemRight - 1);
+
+        if (left != up || right != up) {
+          fprintf(stderr, "FATAL: the selected tab rose %d rows but grew %d left and %d "
+                  "right\n", up, left, right);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      /* Where the label sits between its tab's top and the page's line, which no x-only
+         field above can see: it rises with the selected tab, and stays centred in the row
+         both tabs share. */
+      {
+        const int above = tab.otherLabelTop - tab.itemTop;
+        const int below = tab.itemBottom - 1 - tab.otherLabelBottom;
+        const int off = (above > below) ? above - below : below - above;
+
+        if (tab.labelTop >= tab.otherLabelTop || off > 3) {
+          fprintf(stderr, "FATAL: the label inks row %d against its neighbour's %d, which "
+                  "leaves %d above and %d below\n", tab.labelTop, tab.otherLabelTop, above,
+                  below);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      if (nchecks != 12) {
+        fprintf(stderr, "FATAL: dark tab art ran %d checks, expected 12\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

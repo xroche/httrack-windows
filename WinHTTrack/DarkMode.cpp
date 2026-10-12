@@ -340,7 +340,8 @@ static BOOL darkCanvasOpen(dark_canvas_t *canvas, int width, int height)
   }
   canvas->oldBitmap = SelectObject(canvas->dc, canvas->bitmap);
   /* The page goes under the drawing, so one that drew nothing is told apart from one that
-     drew the page's own colour. */
+     drew the page's own colour. That test compares luma, so a non-grey pixel averaging to
+     the page's would read as undrawn. Every colour here is grey. */
   SetRect(&all, 0, 0, width, height);
   FillRect(canvas->dc, &all, page);
   DeleteObject(page);
@@ -679,17 +680,58 @@ static int darkTopOfColumn(const dark_canvas_t *canvas, int x, int below)
   return below;
 }
 
+/* The brightest pixel one label left inside a tab's own rect, and the box its ink spans.
+   The frame is the only other thing drawn there, and it never reaches the text colour. */
+typedef struct {
+  int brightest;
+  int left;
+  int right;
+  int top;
+  int bottom;
+} dark_ink_t;
+
+static void darkInkIn(const dark_canvas_t *canvas, const RECT *box, dark_ink_t *ink)
+{
+  int x, y;
+
+  ink->brightest = 0;
+  ink->left = box->right;
+  ink->right = box->left;
+  ink->top = box->bottom;
+  ink->bottom = box->top;
+  for (y = box->top; y < box->bottom; y++) {
+    for (x = box->left; x < box->right; x++) {
+      const int luma = darkCanvasAt(canvas, x, y);
+
+      if (luma > DARK_LUMA(DARK_FRAME)) {
+        if (luma > ink->brightest)
+          ink->brightest = luma;
+        if (x < ink->left)
+          ink->left = x;
+        if (x > ink->right)
+          ink->right = x;
+        if (y < ink->top)
+          ink->top = y;
+        if (y > ink->bottom)
+          ink->bottom = y;
+      }
+    }
+  }
+}
+
 BOOL WhttDarkTabProbe(whtt_dark_tab_probe_t *probe)
 {
   /* Three tabs on one row with the middle one selected, the smallest layout that has a
-     neighbour to compare against and a seam to look under. */
-  static const WCHAR *const labels[3] = { L"A", L"X", L"C" };
+     neighbour to compare against and a seam to look under. The same glyph in each, so one
+     label's ink rows mean the same as another's. */
+  static const WCHAR *const labels[3] = { L"X", L"X", L"X" };
   const int rowTop = 6, rowBottom = 26, bodyBottom = 44;
   dark_tab_item_t items[3];
   dark_tab_brushes_t brush;
   dark_tab_layout_t tabs;
   dark_canvas_t canvas;
-  int selectedMid, otherMid, x, y, i;
+  dark_ink_t ink;
+  int selectedMid, otherMid, x, i;
 
   ZeroMemory(probe, sizeof(*probe));
   if (!darkCanvasOpen(&canvas, 180, 48))
@@ -720,6 +762,8 @@ BOOL WhttDarkTabProbe(whtt_dark_tab_probe_t *probe)
 
   probe->itemLeft = items[1].rect.left;
   probe->itemRight = items[1].rect.right;
+  probe->itemTop = items[1].rect.top;
+  probe->itemBottom = items[1].rect.bottom;
   selectedMid = (items[1].rect.left + items[1].rect.right) / 2;
   otherMid = (items[0].rect.left + items[0].rect.right) / 2;
   probe->seamUnderSelected = darkCanvasAt(&canvas, selectedMid, rowBottom);
@@ -727,28 +771,34 @@ BOOL WhttDarkTabProbe(whtt_dark_tab_probe_t *probe)
   /* A point well inside each tab and clear of its centred label. */
   probe->selectedFill = darkCanvasAt(&canvas, items[1].rect.left + 4, rowTop + 4);
   probe->unselectedFill = darkCanvasAt(&canvas, items[0].rect.left + 4, rowTop + 4);
+  /* An unselected tab's own left edge, which is not the page frame the seams read. */
+  probe->frameOnOther = darkCanvasAt(&canvas, items[0].rect.left, rowTop + 4);
+  /* On the row above the layout row, the selected tab's edges are the only frame drawn, so
+     how far past its own rect they sit is the raise's width. */
+  probe->raiseLeft = canvas.width;
+  probe->raiseRight = -1;
+  for (x = 0; x < canvas.width; x++) {
+    if (darkCanvasAt(&canvas, x, rowTop - 1) == DARK_LUMA(DARK_FRAME)) {
+      if (x < probe->raiseLeft)
+        probe->raiseLeft = x;
+      probe->raiseRight = x;
+    }
+  }
   /* How far each tab reaches above the row separates a raise that happened from one that
      did not, which no whole-bitmap mean can see. */
   probe->selectedTop = darkTopOfColumn(&canvas, selectedMid, rowTop);
   probe->unselectedTop = darkTopOfColumn(&canvas, otherMid, rowTop);
-  /* The label's own ink, and where it sits inside its tab. The frame is the only other
-     thing drawn there, and it never reaches the text colour. */
-  probe->labelLeft = probe->itemRight;
-  probe->labelRight = probe->itemLeft;
-  for (y = rowTop; y < rowBottom; y++) {
-    for (x = probe->itemLeft; x < probe->itemRight; x++) {
-      const int luma = darkCanvasAt(&canvas, x, y);
-
-      if (luma > DARK_LUMA(DARK_FRAME)) {
-        if (luma > probe->labelInk)
-          probe->labelInk = luma;
-        if (x < probe->labelLeft)
-          probe->labelLeft = x;
-        if (x > probe->labelRight)
-          probe->labelRight = x;
-      }
-    }
-  }
+  /* The label's own ink, and where it sits inside its tab. Its neighbour's rows come too,
+     because the raise moves them and nothing else does. */
+  darkInkIn(&canvas, &items[1].rect, &ink);
+  probe->labelInk = ink.brightest;
+  probe->labelLeft = ink.left;
+  probe->labelRight = ink.right;
+  probe->labelTop = ink.top;
+  probe->labelBottom = ink.bottom;
+  darkInkIn(&canvas, &items[0].rect, &ink);
+  probe->otherLabelTop = ink.top;
+  probe->otherLabelBottom = ink.bottom;
   DeleteObject(brush.page);
   DeleteObject(brush.tab);
   DeleteObject(brush.frame);
@@ -836,7 +886,7 @@ static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
     break;
   case WM_ERASEBKGND:
     /* A group box draws its frame and its caption only, so it keeps its usual erase. */
-    if (!darkIsTab(hwnd) && darkIsGroupBox((DWORD) GetWindowLong(hwnd, GWL_STYLE)))
+    if (darkIsGroupBox((DWORD) GetWindowLong(hwnd, GWL_STYLE)) && !darkIsTab(hwnd))
       break;
     return 1;   /* the paint fills the whole client area */
   case WM_PAINT:
