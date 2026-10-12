@@ -44,23 +44,29 @@ def engine_opt_function(htscoremain):
     The engine is exporting that decision as hts_rule_would_be_read_as_opt() and dropping
     cmdl_opt() with it (xroche/httrack#1948), and CI builds the engine from master. So
     take whichever this engine has, and wrap it under one name for the harness."""
-    for pattern, call in (
+    for name, pattern, call in (
         (
+            "hts_rule_would_be_read_as_opt",
             r"^HTSEXT_API hts_boolean hts_rule_would_be_read_as_opt\(const char \*arg\) "
             r"\{.*?^\}$",
             "hts_rule_would_be_read_as_opt(s)",
         ),
-        (r"^int cmdl_opt\(char \*s\) \{.*?^\}$", "cmdl_opt((char *) s)"),
+        ("cmdl_opt", r"^int cmdl_opt\(char \*s\) \{.*?^\}$", "cmdl_opt((char *) s)"),
     ):
+        # Named but unreadable stops here rather than falling through to the other name.
+        # Falling through would check our copy against whichever one is dead code.
+        if name not in htscoremain:
+            continue
         m = re.search(pattern, htscoremain, re.M | re.S)
-        if m is not None:
-            return (
-                "%s\nint engine_reads_as_opt(const char *s) { return %s ? 1 : 0; }"
-                % (
-                    m.group(0),
-                    call,
-                )
+        if m is None:
+            sys.exit(
+                "the engine's htscoremain.c names %s, and this harness cannot read its "
+                "definition. Fix the pattern in engine_opt_function()." % name
             )
+        return "%s\nint engine_reads_as_opt(const char *s) { return %s ? 1 : 0; }" % (
+            m.group(0),
+            call,
+        )
     sys.exit(
         "the engine's htscoremain.c holds neither hts_rule_would_be_read_as_opt() nor "
         "cmdl_opt(), so nothing checks our copy of its decision"
