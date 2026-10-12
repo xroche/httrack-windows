@@ -14,13 +14,14 @@ int rulesSplitCheckCases(CString *err);
 BOOL patternReadsAsOptions(const char *pattern);
 
 extern "C" {
-  int cmdl_opt(char *s);              /* copied in by tools/test-rules-split.py */
+  /* the engine's own answer, wrapped under one name by tools/test-rules-split.py */
+  int engine_reads_as_opt(const char *s);
 };
 
 /* Our copy of the engine's option-or-rule decision against the engine's own, over every
    pattern of up to three bytes that can change the answer. The Windows --selftest cannot
-   do this, because cmdl_opt() is not exported from the library. */
-static int cmdl_opt_agrees(void) {
+   do this, because the engine we build against may not export that decision yet. */
+static int engineAgreesOnPatterns(void) {
   static const char alphabet[] = "a./*%-";
   char rule[8];
   int nchecks = 0;
@@ -38,10 +39,10 @@ static int cmdl_opt_agrees(void) {
         if (alphabet[i] != '\0' && alphabet[j] != '\0' && alphabet[k] != '\0')
           rule[at++] = alphabet[k];
         rule[at] = '\0';
-        if (patternReadsAsOptions(rule + 1) != (cmdl_opt(rule) ? TRUE : FALSE)) {
+        if (patternReadsAsOptions(rule + 1) != (engine_reads_as_opt(rule) ? TRUE : FALSE)) {
           fprintf(stderr, "FAIL: '%s' reads as %s here and as %s in the engine\n", rule,
                   patternReadsAsOptions(rule + 1) ? "options" : "a rule",
-                  cmdl_opt(rule) ? "options" : "a rule");
+                  engine_reads_as_opt(rule) ? "options" : "a rule");
           return 0;
         }
         nchecks++;
@@ -66,11 +67,11 @@ int main(void) {
     return 1;
   }
   {
-    const int agreed = cmdl_opt_agrees();
+    const int agreed = engineAgreesOnPatterns();
 
     if (agreed == 0)
       return 1;
-    printf("the engine's own cmdl_opt() agrees on %d patterns\n", agreed);
+    printf("the engine agrees on %d patterns\n", agreed);
   }
   printf("rule splitting ok on %d checks\n", nchecks);
   return 0;
