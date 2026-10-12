@@ -329,6 +329,24 @@ void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 void splitLinesInArray(CSimpleArray<CString> &args, const CString &str,
                        const CString &separator=CString());
 
+/* TRUE if the engine's cmdl_opt() reads PATTERN behind a '-' sign as a cluster of
+   single-letter options rather than as a scan rule. Exposed for --selftest. */
+BOOL patternReadsAsOptions(const char *pattern);
+
+/* The room the Add Filter dialog gets for the rules of one field. The refusal and the
+   build must give filterRulesForField() the same room, or the dialog would accept a
+   field whose last rules the box never gets. */
+#define FILTER_RULES_MAXSIZE 1024
+
+/* Builds into OUT the CRLF-separated rules the Add Filter dialog adds to the Scan Rules
+   box, one per keyword of FIELD, each signed '+' when ACCEPT and '-' otherwise. TYPE is
+   the rule the user picked in the dialog's combo box, counted in the order the controls
+   sit in the .rc, so 9 is the exact link and 10 is every link. Returns FALSE when a
+   keyword has no usable rule, which is what the dialog refuses on. Running out of room
+   in OUT stops it early and still returns TRUE. Exposed for --selftest. */
+BOOL filterRulesForField(int type, BOOL accept, const char *field,
+                         char *out, size_t outsize);
+
 /* Runs the rule-splitting and preset cases, returning the number of checks or 0 with *ERR
    naming the disagreement. tools/rules-split-test.cpp runs it off Windows too. */
 int rulesSplitCheckCases(CString *err);

@@ -209,6 +209,114 @@ CString applyRulePreset(const CString &box, const CString &preset, BOOL checked)
   return out;
 }
 
+/* The dialog's own ' ' and ',', plus every byte the engine's hts_scan_token() ends a
+   token on, so one keyword can never reach the engine as two argv tokens. Checked
+   against the engine's HTS_REALSPACES by tools/test-rules-split.py. */
+#define FILTER_KEYWORD_SEPARATORS " ,\t\n\v\f\r"
+
+// see Shell.h
+BOOL patternReadsAsOptions(const char *pattern) {
+  /* cmdl_opt() in the engine's htscoremain.c, which reads a '%' as an option's
+     parameter, so a '.' only saves the rule without one. */
+  if (strchr(pattern, '.') != NULL && strchr(pattern, '%') == NULL)
+    return FALSE;
+  return strchr(pattern, '/') == NULL && strchr(pattern, '*') == NULL ? TRUE : FALSE;
+}
+
+/* Copies the next keyword of *FIELD into KEYWORD and advances *FIELD past it, which it
+   does even on FALSE. Returns FALSE, KEYWORD left alone, once the field holds no more,
+   and for a keyword too long for KEYWORD, so the rest of that field is not read. */
+static BOOL nextFilterKeyword(const char **field, char *keyword, size_t keywordsize) {
+  const char *const start = *field + strspn(*field, FILTER_KEYWORD_SEPARATORS);
+  const size_t len = strcspn(start, FILTER_KEYWORD_SEPARATORS);
+
+  *field = start[len] != '\0' ? start + len + 1 : start + len;
+  if (len == 0 || len >= keywordsize)
+    return FALSE;
+  memcpy(keyword, start, len);
+  keyword[len] = '\0';
+  return TRUE;
+}
+
+/* Builds into OUT the rule the dialog's template TYPE makes of KEYWORD, with no leading
+   sign. Returns FALSE with OUT empty when TYPE cannot use KEYWORD, which only the exact
+   link (9) does, and when the rule does not fit OUT. */
+static BOOL filterRuleForKeyword(int type, const char *keyword, char *out, size_t outsize) {
+  int n;
+
+  out[0] = '\0';
+  switch (type) {
+  case 0:                      /* extension */
+    n = snprintf(out, outsize, "*.%s", keyword);
+    break;
+  case 1:                      /* name holds */
+    n = snprintf(out, outsize, "*/*%s*", keyword);
+    break;
+  case 2:                      /* this file */
+    n = snprintf(out, outsize, "*/%s", keyword);
+    break;
+  case 3:                      /* folder name holds */
+    n = snprintf(out, outsize, "*/*%s*/*", keyword);
+    break;
+  case 4:                      /* this folder */
+    n = snprintf(out, outsize, "*/%s/*", keyword);
+    break;
+  case 5:                      /* domain */
+    n = snprintf(out, outsize, "*[name].%s/*", keyword);
+    break;
+  case 6:                      /* domain name holds */
+    n = snprintf(out, outsize, "*[name].*[name]%s*[name].*[name]/*", keyword);
+    break;
+  case 7:                      /* host */
+    n = snprintf(out, outsize, "%s/*", keyword);
+    break;
+  case 8:                      /* link holds */
+    n = snprintf(out, outsize, "*%s*", keyword);
+    break;
+  case 9:
+    /* A pattern is anchored at both ends, so such a keyword never matches. A
+       forbidding rule made of it turns on options instead of filtering. */
+    if (patternReadsAsOptions(keyword))
+      return FALSE;
+    n = snprintf(out, outsize, "%s", keyword);
+    break;
+  default:                     /* every link, and no selection: no keyword used */
+    return FALSE;
+  }
+  if (n < 0 || (size_t) n >= outsize) {
+    out[0] = '\0';             /* a rule that does not fit is refused, not truncated */
+    return FALSE;
+  }
+  return TRUE;
+}
+
+// see Shell.h
+BOOL filterRulesForField(int type, BOOL accept, const char *field,
+                         char *out, size_t outsize) {
+  const char *cursor = field;
+  char keyword[2048], rule[2100];      /* as the dialog's own buffers */
+  BOOL every = TRUE;
+
+  out[0] = '\0';
+  if (type == 10) {            /* every link: the keyword field is not read */
+    snprintf(out, outsize, "%s*", accept ? "+" : "-");
+    return TRUE;
+  }
+  while (nextFilterKeyword(&cursor, keyword, sizeof(keyword))) {
+    const size_t used = strlen(out);
+
+    if (!filterRuleForKeyword(type, keyword, rule, sizeof(rule))) {
+      every = FALSE;
+      continue;
+    }
+    /* room for the sign, the CRLF and the NUL, then the rule itself */
+    if (used + 4 >= outsize || strlen(rule) >= outsize - used - 4)
+      break;
+    snprintf(out + used, outsize - used, "%s%s\x0d\x0a", accept ? "+" : "-", rule);
+  }
+  return every;
+}
+
 /* These paths are only reachable by typing into the Experts page or clicking a preset
    checkbox, and a rule the engine cannot parse aborts the whole mirror. Both --selftest
    and tools/rules-split-test.cpp call this, and both pin the count. */
@@ -266,6 +374,244 @@ int rulesSplitCheckCases(CString *err) {
                  "two %d-byte rules split into %d rules, the first %d bytes",
                  longRule.GetLength(), (int) got.GetSize(),
                  got.GetSize() != 0 ? got[0].GetLength() : 0);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* nextFilterKeyword(): the keywords the Add Filter dialog reads out of its field. */
+  {
+    static const struct { const char* field; const char* want; } fields[] = {
+      { "gif", "gif" },
+      { "gif jpg", "gif|jpg" },
+      { "gif,jpg", "gif|jpg" },
+      { "  gif ,, jpg  ", "gif|jpg" },
+      { " , ", "" },
+      { "", "" },
+      { NULL, NULL }
+    };
+
+    for(int k=0 ; fields[k].field != NULL ; k++) {
+      char keyword[2048];
+      const char *cursor = fields[k].field;
+      CString joined;
+
+      while(nextFilterKeyword(&cursor, keyword, sizeof(keyword))) {
+        if (!joined.IsEmpty())
+          joined += "|";
+        joined += keyword;
+      }
+      if (joined != fields[k].want) {
+        snprintf(msg, sizeof(msg), "keyword field '%s' read as '%s', expected '%s'",
+                 fields[k].field, (LPCSTR) joined, fields[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* patternReadsAsOptions(): the engine's own rule for telling an option from a scan
+     rule. tools/test-rules-split.py checks it against the engine's cmdl_opt() itself. */
+  {
+    static const struct { const char* pattern; int reads; } patterns[] = {
+      { "localhost", 1 },
+      { "cgi-bin", 1 },
+      { "blue", 1 },
+      { "www.test.com", 0 },
+      { "*.gif", 0 },
+      { "a/b", 0 },
+      /* a '%' makes the engine read the '.' as an option's parameter, so the dot
+         stops saving the rule */
+      { "www.test.com%2Ftest.html", 1 },
+      { "a.b%20c", 1 },
+      { "a.b%20c/", 0 },
+      { "", 1 },
+      { NULL, 0 }
+    };
+
+    for(int k=0 ; patterns[k].pattern != NULL ; k++) {
+      const BOOL got = patternReadsAsOptions(patterns[k].pattern);
+
+      if (got != (patterns[k].reads != 0)) {
+        snprintf(msg, sizeof(msg), "'-%s' reads as %s, expected %s", patterns[k].pattern,
+                 got ? "options" : "a rule", patterns[k].reads ? "options" : "a rule");
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* Every byte the engine ends a token on separates keywords here too, or one keyword
+     would reach the engine as two argv tokens, the second one unsigned. */
+  {
+    static const char seps[] = " ,\t\n\v\f\r";
+
+    for(size_t k = 0 ; k < sizeof(seps) - 1 ; k++) {
+      char field[16], keyword[16];
+      const char *cursor = field;
+
+      snprintf(field, sizeof(field), "gif%cjpg", seps[k]);
+      if (!nextFilterKeyword(&cursor, keyword, sizeof(keyword))
+          || strcmp(keyword, "gif") != 0
+          || !nextFilterKeyword(&cursor, keyword, sizeof(keyword))
+          || strcmp(keyword, "jpg") != 0) {
+        snprintf(msg, sizeof(msg), "byte 0x%02x does not separate two keywords",
+                 (unsigned char) seps[k]);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* A keyword too long for the buffer ends the walk, so the field's tail is dropped
+     rather than half a keyword taken. The 4-byte keyword is the boundary: it needs the
+     buffer's last byte for its NUL. */
+  {
+    static const char* const fields[] = { "aaaaa bb", "aaaa bb", NULL };
+
+    for(int k = 0 ; fields[k] != NULL ; k++) {
+      char keyword[4];
+      const char *cursor = fields[k];
+
+      if (nextFilterKeyword(&cursor, keyword, sizeof(keyword))) {
+        snprintf(msg, sizeof(msg), "'%s' gave a keyword in %d bytes", fields[k],
+                 (int) sizeof(keyword));
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* filterRuleForKeyword(): the rule each Add Filter template builds. The dialog's own
+     example text is the contract, so each keyword here is the one the dialog shows. */
+  {
+    static const struct { int type; const char* keyword; const char* want; } templates[] = {
+      { 0, "gif", "*.gif" },
+      { 1, "blue", "*/*blue*" },
+      { 2, "bigfile.mov", "*/bigfile.mov" },
+      { 3, "cgi", "*/*cgi*/*" },
+      { 4, "cgi-bin", "*/cgi-bin/*" },
+      { 5, "myweb.com", "*[name].myweb.com/*" },
+      { 6, "myweb", "*[name].*[name]myweb*[name].*[name]/*" },
+      { 7, "www.myweb.com", "www.myweb.com/*" },
+      { 8, "myweb", "*myweb*" },
+      { 9, "www.test.com/test/myweb.html", "www.test.com/test/myweb.html" },
+      /* the exact link passes the keyword through, so it is the one that can emit
+         a rule the engine reads as options */
+      { 9, "localhost", NULL },
+      { 9, "", NULL },
+      /* every link takes no keyword, and neither does an empty selection */
+      { 10, "gif", NULL },
+      { -1, "gif", NULL },                   /* -1 is the combo box's CB_ERR */
+      { 0, NULL, NULL }
+    };
+
+    for(int k=0 ; templates[k].keyword != NULL ; k++) {
+      char rule[256];
+      const BOOL got = filterRuleForKeyword(templates[k].type, templates[k].keyword,
+                                            rule, sizeof(rule));
+
+      /* OUT comes back empty on a refusal, which is what lets a caller skip the
+         keyword without reading a half-built rule */
+      if (got != (templates[k].want != NULL)
+          || strcmp(rule, got ? templates[k].want : "") != 0) {
+        snprintf(msg, sizeof(msg), "filter type %d on '%s' built %s, expected %s",
+                 templates[k].type, templates[k].keyword,
+                 got ? rule : "nothing",
+                 templates[k].want != NULL ? templates[k].want : "nothing");
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* No template may build a rule the engine reads as options. The restatement is
+       deliberate, so a widened guard in patternReadsAsOptions() cannot hide here. */
+    static const char* const risky[] = { "blue", "cgi-bin", "localhost",
+                                         "a.b%20c", "x%2Fy", NULL };
+
+    for(int type = 0 ; type <= 10 ; type++) {
+      for(int k = 0 ; risky[k] != NULL ; k++) {
+        char rule[256];
+
+        if (filterRuleForKeyword(type, risky[k], rule, sizeof(rule))
+            && !(strchr(rule, '/') != NULL || strchr(rule, '*') != NULL
+                 || (strchr(rule, '.') != NULL && strchr(rule, '%') == NULL))) {
+          snprintf(msg, sizeof(msg), "filter type %d on '%s' built '%s', which the engine "
+                   "reads as options", type, risky[k], rule);
+          *err = msg;
+          return 0;
+        }
+        nchecks++;
+      }
+    }
+    /* A rule too long for the buffer comes back refused, never truncated. */
+    {
+      char keyword[300], rule[256];
+
+      memset(keyword, 'x', sizeof(keyword) - 1);
+      keyword[sizeof(keyword) - 1] = '\0';
+      if (filterRuleForKeyword(0, keyword, rule, sizeof(rule)) || rule[0] != '\0') {
+        snprintf(msg, sizeof(msg), "a %d-byte keyword built '%.80s' in %d bytes",
+                 (int) strlen(keyword), rule, (int) sizeof(rule));
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* filterRulesForField(): the lines the Add Filter dialog adds to the box, which is
+     also the verdict OnOK() refuses on. */
+  {
+    static const struct { int type; int accept; const char* field; const char* want; int every; } fields[] = {
+      { 0, 0, "gif", "-*.gif\x0d\x0a", 1 },
+      { 0, 1, "gif", "+*.gif\x0d\x0a", 1 },
+      { 0, 0, "gif jpg", "-*.gif\x0d\x0a-*.jpg\x0d\x0a", 1 },
+      /* every link takes no keyword, so the field is not read */
+      { 10, 0, "", "-*", 1 },
+      { 10, 1, "gif", "+*", 1 },
+      /* the exact link refuses a keyword the engine would read as options, and the
+         refusal is the whole field's, so the dialog can keep its box open on it */
+      { 9, 0, "localhost", "", 0 },
+      { 9, 0, "www.test.com/a.html", "-www.test.com/a.html\x0d\x0a", 1 },
+      /* a bad keyword is refused wherever it sits, and the good ones still build */
+      { 9, 0, "www.test.com/a.html localhost", "-www.test.com/a.html\x0d\x0a", 0 },
+      { 9, 0, "localhost www.test.com/a.html", "-www.test.com/a.html\x0d\x0a", 0 },
+      /* a whitespace byte inside a keyword would reach the engine as a second,
+         unsigned argv token, so it separates keywords here */
+      { 0, 0, "gif\tjpg", "-*.gif\x0d\x0a-*.jpg\x0d\x0a", 1 },
+      { 0, 0, "", "", 1 },
+      { -1, 0, "gif", "", 0 },
+      { 0, 0, NULL, NULL, 0 }
+    };
+
+    for(int k=0 ; fields[k].field != NULL ; k++) {
+      char out[1024];              /* FILTER_RULES_MAXSIZE, which lives in Shell.h */
+      const BOOL every = filterRulesForField(fields[k].type, fields[k].accept ? TRUE : FALSE,
+                                             fields[k].field, out, sizeof(out));
+
+      if (strcmp(out, fields[k].want) != 0 || every != (fields[k].every != 0)) {
+        snprintf(msg, sizeof(msg), "type %d on '%.80s' gave '%.200s' (%s), expected "
+                 "'%.200s' (%s)", fields[k].type, fields[k].field, out,
+                 every ? "all" : "not all", fields[k].want,
+                 fields[k].every ? "all" : "not all");
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* More rules than the box has room for: it stops on a whole rule and still reports
+       every keyword usable, because the dialog must not refuse the field over room. */
+    {
+      char room[32];
+      const BOOL every = filterRulesForField(0, FALSE,
+                                             "aaaaaaaaaa bbbbbbbbbb cccccccccc",
+                                             room, sizeof(room));
+
+      if (every != TRUE
+          || strcmp(room, "-*.aaaaaaaaaa\x0d\x0a-*.bbbbbbbbbb\x0d\x0a") != 0) {
+        snprintf(msg, sizeof(msg), "three rules in %d bytes gave '%.200s' (%s)",
+                 (int) sizeof(room), room, every ? "all" : "not all");
         *err = msg;
         return 0;
       }

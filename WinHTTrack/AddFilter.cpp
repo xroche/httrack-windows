@@ -118,48 +118,53 @@ BOOL CAddFilter::OnInitDialog()
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
 
-void CAddFilter::OnSelchangeAFtype() 
-{
-  char hlp[256];
-  int r;
-  strcpybuff(hlp,LANG(LANG_B22)); //  "Example: ");
-  r=m_ctl_aftype.GetCurSel();
-  switch(r) {
+// "Example: " and what to type, as the field help shows it for template R.
+static void filterTypeExample(int type,char* hlp,size_t hlpsize) {
+  strlcpybuff(hlp,LANG(LANG_B22),hlpsize); //  "Example: ");
+  switch(type) {
   case CB_ERR : break;  // pas de sélection
   case 0:
-    strcatbuff(hlp,LANG(LANG_B23)); // "gif\x0d\x0aWill detect all gif files (or GIF files)");
+    strlcatbuff(hlp,LANG(LANG_B23),hlpsize); // "gif\x0d\x0aWill detect all gif files (or GIF files)");
     break;
   case 1:
-    strcatbuff(hlp,LANG(LANG_B24)); // "blue\x0d\x0aWill detect all files containing blue, such as 'bluesky-small.jpeg'");
+    strlcatbuff(hlp,LANG(LANG_B24),hlpsize); // "blue\x0d\x0aWill detect all files containing blue, such as 'bluesky-small.jpeg'");
     break;
   case 2:
-    strcatbuff(hlp,LANG(LANG_B25)); // "bigfile.mov\x0d\x0aWill detect the file 'bigfile.mov', but not 'bigfile2.mov'");
+    strlcatbuff(hlp,LANG(LANG_B25),hlpsize); // "bigfile.mov\x0d\x0aWill detect the file 'bigfile.mov', but not 'bigfile2.mov'");
     break;
   case 3:
-    strcatbuff(hlp,LANG(LANG_B26)); // "cgi\x0d\x0aWill detect links with folder containing 'cgi' such as /cgi-bin/mycgi.cgi");
+    strlcatbuff(hlp,LANG(LANG_B26),hlpsize); // "cgi\x0d\x0aWill detect links with folder containing 'cgi' such as /cgi-bin/mycgi.cgi");
     break;
   case 4:
-    strcatbuff(hlp,LANG(LANG_B27)); // "cgi-bin\x0d\x0aWill detect links with folder name 'cgi-bin' (but not cgi-bin-2, for example)");
+    strlcatbuff(hlp,LANG(LANG_B27),hlpsize); // "cgi-bin\x0d\x0aWill detect links with folder name 'cgi-bin' (but not cgi-bin-2, for example)");
     break;
   case 5:
-    strcatbuff(hlp,LANG(LANG_B28)); // "myweb.com\x0d\x0aWill detect all links like www.myweb.com, private.myweb.com etc.");
+    strlcatbuff(hlp,LANG(LANG_B28),hlpsize); // "myweb.com\x0d\x0aWill detect all links like www.myweb.com, private.myweb.com etc.");
     break;
   case 6:
-    strcatbuff(hlp,LANG(LANG_B29)); // "myweb\x0d\x0aWill detect all links like www.myweb.com, www.myweb.edu, private.myweb.otherweb.com etc.");
+    strlcatbuff(hlp,LANG(LANG_B29),hlpsize); // "myweb\x0d\x0aWill detect all links like www.myweb.com, www.myweb.edu, private.myweb.otherweb.com etc.");
     break;
   case 7:
-    strcatbuff(hlp,LANG(LANG_B30)); // "www.myweb.com\x0d\x0aWill detect all links like www.myweb.com/... (but not links like private.myweb.com/..)");
+    strlcatbuff(hlp,LANG(LANG_B30),hlpsize); // "www.myweb.com\x0d\x0aWill detect all links like www.myweb.com/... (but not links like private.myweb.com/..)");
     break;
   case 8:
-    strcatbuff(hlp,LANG(LANG_B31)); // "myweb\x0d\x0aWill detect all links like www.myweb.com/.., www.test.abc/frommyweb/index.html, www.test.abc/test/myweb.html etc.");
+    strlcatbuff(hlp,LANG(LANG_B31),hlpsize); // "myweb\x0d\x0aWill detect all links like www.myweb.com/.., www.test.abc/frommyweb/index.html, www.test.abc/test/myweb.html etc.");
     break;
   case 9:
-    strcatbuff(hlp,LANG(LANG_B32)); // "www.test.com/test/myweb.html\x0d\x0aWill only detect the link www.test.com/test/myweb.html. Note that you have to type both address (www.xxx.yyy) and path (/test/myweb.html)");
+    strlcatbuff(hlp,LANG(LANG_B32),hlpsize); // "www.test.com/test/myweb.html\x0d\x0aWill only detect the link www.test.com/test/myweb.html. Note that you have to type both address (www.xxx.yyy) and path (/test/myweb.html)");
     break;
   case 10:
-    strcatbuff(hlp,LANG(LANG_B33)); // "All links will be forbidden/accepted");
+    strlcatbuff(hlp,LANG(LANG_B33),hlpsize); // "All links will be forbidden/accepted");
     break;
   }
+}
+
+void CAddFilter::OnSelchangeAFtype() 
+{
+  char hlp[1024];
+  int r=m_ctl_aftype.GetCurSel();
+
+  filterTypeExample(r,hlp,sizeof(hlp));
   SetDlgItemTextCP(this, IDC_EDIT2,hlp);
   if (r!=10) {
     m_ctl_afext.ModifyStyle(WS_DISABLED,0);
@@ -189,6 +194,17 @@ void CAddFilter::OnOK()
   int r=m_ctl_aftype.GetCurSel();
 	GetDlgItemText(IDC_AFext,st);
   if ((strlen(st)>0) || (r==10)) {
+    char rules[FILTER_RULES_MAXSIZE];
+
+    // type!=0 is the accepting button, and the verdict is the same either way
+    if (!filterRulesForField(r,type!=0,st,rules,sizeof(rules))) {
+      char hlp[1024];
+
+      filterTypeExample(r,hlp,sizeof(hlp));
+      AfxMessageBox(CString(LANG(LANG_A2)) + "\x0d\x0a\x0d\x0a" + hlp
+        ,MB_OK+MB_ICONINFORMATION);
+      return;
+    }
     CDialog::OnOK();
   } else {
     AfxMessageBox(

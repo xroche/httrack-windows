@@ -107,112 +107,23 @@ END_MESSAGE_MAP()
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab7 message handlers
 
-static void NewFilter(int i,char* s,size_t ssize) {  // 0: forbid 1: accept
+static void NewFilter(int accept,char* s,size_t ssize) {  // 0: forbid 1: accept
   CAddFilter AddF;
-  AddF.type=i;
+  AddF.type=accept;
   if (AddF.type==0)
     AddF.m_addtype=LANG(LANG_B20); /*"Links following this rule will be forbidden:"*/
   else
     AddF.m_addtype=LANG(LANG_B21); // "Links following this rule will be accepted:";
   if (AddF.DoModal()==IDOK) {
-    char query[2048],t[2048],as[2100];
-    char* q;
-
-    // error
-    if (AddF.m_afquery.GetLength() >= sizeof(query) - 2 ) {
-      return;
-    }
-
-    strlcpybuff(s,"",ssize);
-    strcpybuff(query,AddF.m_afquery);
-    q=query;
-    
-    if (AddF.m_aftype==10) {
-      if (i==0)
-        strlcpybuff(s,"-",ssize);
-      else
-        strlcpybuff(s,"+",ssize);
-      strlcatbuff(s,"*",ssize);
-    } else {
-      while(strlen(q)>0) {
-        while ((*q==' ') || (*q==',')) q++;
-        strcpybuff(t,"");
-        {  // prochain (séparé par des ,)
-          char *a,*b;
-          a=strchr(q,' ');
-          b=strchr(q,',');
-          if (a && b) {  // départager
-            if ( b < a)
-              a=b;
-          } else if (b) a=b;
-          
-          if (a) {
-            t[0]='\0';
-            strlncatbuff(t,q,sizeof(t),a-q);
-            q=a+1;
-          } else {
-            strlcpybuff(t,q,sizeof(t));
-            strcpybuff(q,"");
-          }
-        }
-        
-        if (strlen(t)>0) {
-          strcpybuff(as,"");
-          switch (AddF.m_aftype) {
-          case 0:  // ext
-            sprintf(as,"*.%s",t);
-            break;
-          case 1:  // contient
-            sprintf(as,"*/*%s*",t);
-            break;
-          case 2:  // this one
-            sprintf(as,"*/%s",t);
-            break;
-          case 3:  // folder contains
-            sprintf(as,"*/*%s*/*",t);
-            break;
-          case 4:  // this folder
-            sprintf(as,"*/%s/*",t);
-            break;
-          case 5:  // domaine
-            sprintf(as,"*[name].%s/*",t);
-            break;
-          case 6:  // contien
-            sprintf(as,"*[name].*[name]%s*[name].*[name]/*",t);
-            break;
-          case 7:  // host
-            sprintf(as,"%s/*",t);
-            break;
-          case 8:  // link contient
-            sprintf(as,"*%s*",t);
-            break;
-          case 9:  // lien exact
-            sprintf(as,"%s",t);
-            break;
-          }
-          if (strlen(as)>0) {
-            /* Stop at capacity rather than abort: strlcatbuff() does not truncate. */
-            if (strlen(s) + strlen(as) + 4 >= ssize)
-              break;
-            if (i==0)
-              strlcatbuff(s,"-",ssize);
-            else
-              strlcatbuff(s,"+",ssize);
-            strlcatbuff(s,as,ssize);
-            strlcatbuff(s,"\x0d\x0a",ssize);
-          }
-        }
-      }
-      
-    }
-
+    // OnOK() refuses a keyword no rule can be built from, so FALSE cannot land here
+    (void) filterRulesForField(AddF.m_aftype,accept!=0,AddF.m_afquery,s,ssize);
   } else strlcpybuff(s,"",ssize);
 }
 
 
 void COptionTab7::OnAdd1() 
 {
-  char s[1024]; s[0]='\0';
+  char s[FILTER_RULES_MAXSIZE]; s[0]='\0';
   NewFilter(0,s,sizeof(s));
   if (strlen(s)>0) {
     char tempo[HTS_URLMAXSIZE*16];
@@ -236,7 +147,7 @@ void COptionTab7::OnAdd1()
 
 void COptionTab7::OnAdd2() 
 {
-  char s[1024]; s[0]='\0';
+  char s[FILTER_RULES_MAXSIZE]; s[0]='\0';
   NewFilter(1,s,sizeof(s));
   if (strlen(s)>0) {
     char tempo[HTS_URLMAXSIZE*16];

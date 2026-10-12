@@ -19,7 +19,8 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "rule splitting ok on 49 checks"
+EXPECTED_LINE = "rule splitting ok on 157 checks"
+EXPECTED_AGREED = "the engine's own cmdl_opt() agrees on 343 patterns"
 
 
 def read(path):
@@ -33,6 +34,15 @@ def engine_token_function(htscore):
     m = re.search(r"^hts_boolean hts_scan_token\(.*?^\}$", htscore, re.M | re.S)
     if m is None:
         sys.exit("no hts_scan_token() in the engine's htscore.c")
+    return m.group(0)
+
+
+def engine_opt_function(htscoremain):
+    """The engine's cmdl_opt(), copied out rather than described here, so our own copy of
+    its decision is checked against the code that makes it."""
+    m = re.search(r"^int cmdl_opt\(char \*s\) \{.*?^\}$", htscoremain, re.M | re.S)
+    if m is None:
+        sys.exit("no cmdl_opt() in the engine's htscoremain.c")
     return m.group(0)
 
 
@@ -56,8 +66,9 @@ def main():
     args = ap.parse_args()
 
     htscore = os.path.join(args.engine, "src", "htscore.c")
+    htscoremain = os.path.join(args.engine, "src", "htscoremain.c")
     htssafe = os.path.join(args.engine, "src", "htssafe.h")
-    for path in (htscore, htssafe):
+    for path in (htscore, htscoremain, htssafe):
         if not os.path.exists(path):
             sys.exit(
                 "%s: no engine source, so the token scanner cannot be the engine's. "
@@ -91,6 +102,24 @@ def main():
         )
     checked += 1
 
+    # 2b. And so does every copy CI matches. One of them was missed once, and only a
+    #     Windows leg said so, half an hour after the ubuntu one went green.
+    pinned = [
+        os.path.join(".github", "workflows", "windows-build.yml"),
+        os.path.join(".github", "actions", "smoke-test", "action.yml"),
+    ]
+    for rel in pinned:
+        text = read(os.path.join(ROOT, rel))
+        counts = set(re.findall(r"rule splitting ok on (\d+) checks", text))
+        if not counts:
+            sys.exit("%s no longer matches the rule-splitting line at all" % rel)
+        if counts != {mine.group(1)}:
+            sys.exit(
+                "%s matches %s checks, where the code runs %s"
+                % (rel, ", ".join(sorted(counts)), mine.group(1))
+            )
+        checked += 1
+
     # 3. One definition only: a copy left in Shell.cpp would mean the Windows build and
     #    this run test different code.
     shell = read(os.path.join(ROOT, "WinHTTrack", "Shell.cpp"))
@@ -104,6 +133,67 @@ def main():
         if re.search(r"^\w[^;()\n]*\b%s\s*\(" % name, shell, re.M):
             sys.exit("%s is defined in Shell.cpp as well as rules-split.cpp" % name)
         checked += 1
+
+    # 4. The Add Filter rules have to be the ones tested here, not a copy left in the
+    #    dialog code, and both the refusal and the build must ask for the same thing.
+    tab7 = read(os.path.join(ROOT, "WinHTTrack", "OptionTab7.cpp"))
+    addfilter = read(os.path.join(ROOT, "WinHTTrack", "AddFilter.cpp"))
+    for name, text in (("OptionTab7.cpp", tab7), ("AddFilter.cpp", addfilter)):
+        if "filterRulesForField(" not in text:
+            sys.exit(
+                "%s no longer calls filterRulesForField(), so the dialog's rules are "
+                "not the ones under test" % name
+            )
+        checked += 1
+        if "FILTER_RULES_MAXSIZE" not in text:
+            sys.exit(
+                "%s no longer sizes its buffer with FILTER_RULES_MAXSIZE, so the "
+                "refusal and the build can disagree on the last rule" % name
+            )
+        checked += 1
+    if re.search(r"sprintf\s*\(", tab7):
+        sys.exit("OptionTab7.cpp builds a filter rule of its own again")
+    checked += 1
+
+    # 5. Nothing off Windows can open the dialog, so the shape of OnOK()'s refusal is
+    #    checked as text: the verdict has to be read, and it has to stop the dialog.
+    guard = re.search(
+        r"if \(!filterRulesForField\([^;]*?\)\) \{(.*?)\n    \}", addfilter, re.S
+    )
+    if guard is None:
+        sys.exit(
+            "AddFilter.cpp no longer refuses on filterRulesForField()'s verdict, so "
+            "OnOK() lets a keyword through that builds no rule"
+        )
+    checked += 1
+    if not re.search(r"^\s*return;\s*$", guard.group(1), re.M):
+        sys.exit(
+            "AddFilter.cpp's refusal no longer returns, so the dialog closes on a "
+            "keyword it just refused"
+        )
+    checked += 1
+
+    # 6. Our keyword separators have to hold every byte the engine ends a token on, or
+    #    one keyword reaches it as two arguments and the second one carries no sign.
+    ours = re.search(
+        r'#\s*define\s+FILTER_KEYWORD_SEPARATORS\s+"([^"]*)"',
+        read(os.path.join(ROOT, "WinHTTrack", "rules-split.cpp")),
+    )
+    if ours is None:
+        sys.exit("no FILTER_KEYWORD_SEPARATORS in rules-split.cpp")
+    mine = set(ours.group(1).encode().decode("unicode_escape"))
+    theirs = set(
+        re.search(r'HTS_REALSPACES\s+"([^"]*)"', read(htssafe))
+        .group(1)
+        .encode()
+        .decode("unicode_escape")
+    )
+    if not theirs <= mine:
+        sys.exit(
+            "the engine ends a token on %r, which does not separate two keywords"
+            % "".join(sorted(theirs - mine))
+        )
+    checked += 1
 
     print("%d source checks pass" % checked)
 
@@ -119,38 +209,65 @@ def main():
                 "#define HTS_TRUE 1\n#define HTS_FALSE 0\n"
                 "#define assertf(x) assert(x)\n"
                 "%s\n"
-                'extern "C" {\n%s\n}\n'
+                'extern "C" {\n%s\n%s\n}\n'
                 % (
                     engine_space_set(read(htssafe)),
                     engine_token_function(read(htscore)),
+                    engine_opt_function(read(htscoremain)),
                 )
             )
-        exe = os.path.join(tmp, "rules-split-test")
-        subprocess.run(
-            [
-                args.cxx,
-                "-std=c++14",
-                "-Wall",
-                "-Wextra",
-                "-Werror",
-                "-o",
-                exe,
-                os.path.join(ROOT, "tools", "rules-split-test.cpp"),
-                os.path.join(ROOT, "WinHTTrack", "rules-split.cpp"),
-                gen,
-                "-DRULES_SPLIT_TEST",
-                "-I" + os.path.join(ROOT, "tools"),
-                "-I" + os.path.join(ROOT, "WinHTTrack"),
-            ],
-            check=True,
-        )
-        out = subprocess.run([exe], check=True, capture_output=True, text=True).stdout
-        # The count is printed and has to be matched, or coverage can shrink in silence.
-        if EXPECTED_LINE not in out:
-            sys.exit(
-                "the harness printed %r, expected %r" % (out.strip(), EXPECTED_LINE)
+        # Built and run twice: once as the Windows build sees it, once with the
+        # sanitizers, because a walk that reads one byte past a field passes every case.
+        for label, extra in (
+            ("plain", []),
+            ("sanitized", ["-fsanitize=address,undefined"]),
+        ):
+            exe = os.path.join(tmp, "rules-split-test-" + label)
+            subprocess.run(
+                [
+                    args.cxx,
+                    "-std=c++14",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-g",
+                    "-o",
+                    exe,
+                ]
+                + extra
+                + [
+                    os.path.join(ROOT, "tools", "rules-split-test.cpp"),
+                    os.path.join(ROOT, "WinHTTrack", "rules-split.cpp"),
+                    gen,
+                    "-DRULES_SPLIT_TEST",
+                    "-I" + os.path.join(ROOT, "tools"),
+                    "-I" + os.path.join(ROOT, "WinHTTrack"),
+                ],
+                check=True,
             )
-        print(out, end="")
+            # A case that loops rather than fails would otherwise wedge CI, and a
+            # failing case prints its disagreement on stderr.
+            try:
+                run = subprocess.run([exe], capture_output=True, text=True, timeout=300)
+            except subprocess.TimeoutExpired:
+                sys.exit(
+                    "the %s cases did not finish in 300 seconds, so one of them loops"
+                    % label
+                )
+            if run.returncode != 0:
+                sys.exit("%s: %s" % (label, (run.stdout + run.stderr).strip()))
+            out = run.stdout
+            # Both counts are printed and have to be matched, or coverage can shrink in
+            # silence.
+            for want in (EXPECTED_LINE, EXPECTED_AGREED):
+                if want not in out:
+                    sys.exit(
+                        "the %s harness printed %r, expected %r"
+                        % (label, out.strip(), want)
+                    )
+            # named per build, so the log shows the sanitized one ran as well
+            for line in out.splitlines():
+                print("%s: %s" % (label, line))
 
 
 if __name__ == "__main__":

@@ -11,9 +11,46 @@
 #include "mfc-test-stubs.h"
 
 int rulesSplitCheckCases(CString *err);
+BOOL patternReadsAsOptions(const char *pattern);
+
+extern "C" {
+  int cmdl_opt(char *s);              /* copied in by tools/test-rules-split.py */
+};
+
+/* Our copy of the engine's option-or-rule decision against the engine's own, over every
+   pattern of up to three bytes that can change the answer. The Windows --selftest cannot
+   do this, because cmdl_opt() is not exported from the library. */
+static int cmdl_opt_agrees(void) {
+  static const char alphabet[] = "a./*%-";
+  char rule[8];
+  int nchecks = 0;
+
+  for(size_t i = 0 ; i < sizeof(alphabet) ; i++)
+    for(size_t j = 0 ; j < sizeof(alphabet) ; j++)
+      for(size_t k = 0 ; k < sizeof(alphabet) ; k++) {
+        size_t at = 1;
+
+        rule[0] = '-';
+        if (alphabet[i] != '\0')
+          rule[at++] = alphabet[i];
+        if (alphabet[i] != '\0' && alphabet[j] != '\0')
+          rule[at++] = alphabet[j];
+        if (alphabet[i] != '\0' && alphabet[j] != '\0' && alphabet[k] != '\0')
+          rule[at++] = alphabet[k];
+        rule[at] = '\0';
+        if (patternReadsAsOptions(rule + 1) != (cmdl_opt(rule) ? TRUE : FALSE)) {
+          fprintf(stderr, "FAIL: '%s' reads as %s here and as %s in the engine\n", rule,
+                  patternReadsAsOptions(rule + 1) ? "options" : "a rule",
+                  cmdl_opt(rule) ? "options" : "a rule");
+          return 0;
+        }
+        nchecks++;
+      }
+  return nchecks;
+}
 
 /* Both callers pin the count, so a case deleted from rules-split.cpp reds here as well. */
-#define RS_EXPECTED_CHECKS 49
+#define RS_EXPECTED_CHECKS 157
 
 int main(void) {
   CString err;
@@ -27,6 +64,13 @@ int main(void) {
     fprintf(stderr, "FAIL: rule splitting ran %d checks, expected %d\n",
             nchecks, RS_EXPECTED_CHECKS);
     return 1;
+  }
+  {
+    const int agreed = cmdl_opt_agrees();
+
+    if (agreed == 0)
+      return 1;
+    printf("the engine's own cmdl_opt() agrees on %d patterns\n", agreed);
   }
   printf("rule splitting ok on %d checks\n", nchecks);
   return 0;
