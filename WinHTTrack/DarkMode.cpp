@@ -64,6 +64,12 @@ static char THIS_FILE[] = __FILE__;
    control draws. */
 #define DARK_TAB_RAISE 2
 
+/* The control's window runs past the page frame it draws, by the depth of the raised edge.
+   No message answers that depth: TCM_ADJUSTRECT answers a page area the sheet does not use,
+   so these two come from measuring the light control. */
+#define DARK_TAB_PANE_RIGHT  2
+#define DARK_TAB_PANE_BOTTOM 1
+
 /* DWMWA_USE_IMMERSIVE_DARK_MODE, and the number it answered to before Windows 10 20H1. */
 #define DARK_DWMWA_DARK_MODE      20
 #define DARK_DWMWA_DARK_MODE_OLD  19
@@ -624,8 +630,8 @@ int WhttDarkTabLuminance(const WCHAR *label, BOOL selected, int *changed)
 }
 
 /* Paints the whole control, background included, because no DarkMode_* theme class covers
-   SysTabControl32 and its own art is light whatever is asked of it. Nothing here decides
-   any geometry: the control lays out both the items and the page area. */
+   SysTabControl32 and its own art is light whatever is asked of it. Every tab is drawn on
+   the rect the control laid out for it, so nothing here moves one. */
 static void darkPaintTab(HWND hwnd, HDC hdc)
 {
   const dark_tab_brushes_t brush = { darkDlgBrush, darkTabBrush, darkFrameBrush };
@@ -650,10 +656,17 @@ static void darkPaintTab(HWND hwnd, HDC hdc)
   oldBkMode = SetBkMode(hdc, TRANSPARENT);
   oldColor = GetTextColor(hdc);
 
-  /* TCM_ADJUSTRECT answers the area the page covers, and the line sits just outside it. */
+  /* The page frame starts under the lowest row of tabs, and TCM_GETITEMRECT answers the
+     layout rect, which the selected item's raised drawing is not part of. */
   body = client;
-  SendMessage(hwnd, TCM_ADJUSTRECT, FALSE, (LPARAM) &body);
-  InflateRect(&body, 1, 1);
+  body.right -= MulDiv(DARK_TAB_PANE_RIGHT, GetDeviceCaps(hdc, LOGPIXELSX), 96);
+  body.bottom -= MulDiv(DARK_TAB_PANE_BOTTOM, GetDeviceCaps(hdc, LOGPIXELSY), 96);
+  for (i = 0; i < count; i++) {
+    RECT item;
+
+    if (SendMessage(hwnd, TCM_GETITEMRECT, i, (LPARAM) &item) && item.bottom > body.top)
+      body.top = item.bottom;
+  }
   FrameRect(hdc, &body, brush.frame);
 
   /* The selected tab overlaps its neighbours and the page's top line, so it goes last. */
