@@ -20,7 +20,6 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 EXPECTED_LINE = "rule splitting ok on 157 checks"
-EXPECTED_AGREED = "the engine agrees on 343 patterns"
 
 
 def read(path):
@@ -38,39 +37,29 @@ def engine_token_function(htscore):
 
 
 def engine_opt_function(htscoremain):
-    """The engine's own option-or-rule decision, copied out rather than described here, so
-    our copy is checked against the code that makes it.
+    """The engine's hts_rule_would_be_read_as_opt(), copied out so the harness links the
+    same function rules-split.cpp calls in the Windows build.
 
-    The engine is exporting that decision as hts_rule_would_be_read_as_opt() and dropping
-    cmdl_opt() with it (xroche/httrack#1948), and CI builds the engine from master. So
-    take whichever this engine has, and wrap it under one name for the harness."""
-    for name, pattern, call in (
-        (
-            "hts_rule_would_be_read_as_opt",
-            r"^HTSEXT_API hts_boolean hts_rule_would_be_read_as_opt\(const char \*arg\) "
-            r"\{.*?^\}$",
-            "hts_rule_would_be_read_as_opt(s)",
-        ),
-        ("cmdl_opt", r"^int cmdl_opt\(char \*s\) \{.*?^\}$", "cmdl_opt((char *) s)"),
-    ):
-        # Named but unreadable stops here rather than falling through to the other name.
-        # Falling through would check our copy against whichever one is dead code.
-        if name not in htscoremain:
-            continue
-        m = re.search(pattern, htscoremain, re.M | re.S)
-        if m is None:
-            sys.exit(
-                "the engine's htscoremain.c names %s, and this harness cannot read its "
-                "definition. Fix the pattern in engine_opt_function()." % name
-            )
-        return "%s\nint engine_reads_as_opt(const char *s) { return %s ? 1 : 0; }" % (
-            m.group(0),
-            call,
-        )
-    sys.exit(
-        "the engine's htscoremain.c holds neither hts_rule_would_be_read_as_opt() nor "
-        "cmdl_opt(), so nothing checks our copy of its decision"
+    The engine exported it and dropped cmdl_opt() in xroche/httrack#1948, and
+    rules-split.cpp calls it directly now, so an engine without it cannot build this GUI
+    at all."""
+    m = re.search(
+        r"^HTSEXT_API hts_boolean hts_rule_would_be_read_as_opt\(const char \*arg\) "
+        r"\{.*?^\}$",
+        htscoremain,
+        re.M | re.S,
     )
+    if m is None:
+        if "hts_rule_would_be_read_as_opt" in htscoremain:
+            sys.exit(
+                "the engine names hts_rule_would_be_read_as_opt() and this harness "
+                "cannot read its definition. Fix the pattern in engine_opt_function()."
+            )
+        sys.exit(
+            "the engine has no hts_rule_would_be_read_as_opt(), so it is older than "
+            "xroche/httrack#1948 and this GUI cannot be built against it"
+        )
+    return m.group(0)
 
 
 def engine_space_set(htssafe):
@@ -286,7 +275,7 @@ def main():
             out = run.stdout
             # Both counts are printed and have to be matched, or coverage can shrink in
             # silence.
-            for want in (EXPECTED_LINE, EXPECTED_AGREED):
+            for want in (EXPECTED_LINE,):
                 if want not in out:
                     sys.exit(
                         "the %s harness printed %r, expected %r"
