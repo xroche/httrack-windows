@@ -27,13 +27,14 @@ Please visit our Website: http://www.httrack.com
 
 /* ------------------------------------------------------------ */
 /* File: WinHTTrack subroutines:                                */
-/*       catalog key shape test                                 */
+/*       catalog keys and the catalog loader                    */
 /* Author: Xavier Roche                                         */
 /* ------------------------------------------------------------ */
 
-/* Split out of newlang.cpp so tools/newlang-key-test.cpp can replay the real key
-   resolution over the engine's catalogs. Nothing here needs MFC. */
+/* Split out of newlang.cpp so tools/newlang-key-test.cpp runs the real key resolution over
+   the engine's catalogs. Nothing here needs MFC. */
 
+#include <stdio.h>
 #include <string.h>
 
 #include "newlang-key.h"
@@ -65,4 +66,78 @@ int LangKeyIsSymbol(const char *key) {
     }
   }
   return 0;
+}
+
+/* The engine's strnotempty(), whose header this unit cannot include. */
+static int notempty(const char *s) {
+  return (s != NULL && s[0] != '\0') ? 1 : 0;
+}
+
+/* One pass over a catalog, taking either its symbol-keyed lines or its text-keyed ones.
+   fallback is the English pass, which fills only what the selected language left unset. */
+static void LangLoadCatalogPass(const LangCatalogIO *io, FILE *fp, int fallback,
+                                int symbols) {
+  char extkey[8192];
+  char value[8192];
+
+  rewind(fp);
+  while(!feof(fp)) {
+    const char *intkey;
+    int is_symbol;
+
+    io->readLine(fp, extkey, 8000);
+    io->readLine(fp, value, 8000);
+    if (!notempty(extkey) || !notempty(value))
+      continue;
+    intkey = io->internalKey(io->ctx, extkey);
+
+    /* A row may key on its LANG_ symbol instead of the English text, so a reworded
+       string keeps its translations. Reached only where lang.def has no row. */
+    is_symbol = (!notempty(intkey) && LangKeyIsSymbol(extkey)) ? 1 : 0;
+
+    if (is_symbol != symbols)
+      continue;
+    if (symbols) {
+      /* The first symbol line wins, and no symbol line ever increments. */
+      if (notempty(io->resolved(io->ctx, extkey)))
+        continue;
+      intkey = extkey;
+    } else {
+      if (!notempty(intkey))
+        continue;
+      if (notempty(io->resolved(io->ctx, intkey))) {
+        size_t pos = strlen(extkey);
+        int increment = 0;
+
+        if (fallback)
+          continue;
+        /* Repeated English text: lang.def keys its Nth copy as text + N. */
+        do {
+          increment++;
+          sprintf(extkey + pos, "%d", increment);
+          intkey = io->internalKey(io->ctx, extkey);
+        }  while(notempty(intkey) && notempty(io->resolved(io->ctx, intkey)));
+        if (!notempty(intkey))
+          continue;
+      }
+    }
+    io->store(io->ctx, intkey, value);
+  }
+}
+
+void LangLoadCatalogs(const LangCatalogIO *io) {
+  int index;
+
+  for(index = 0 ; index < 2 ; index++) {
+    FILE *const fp = io->open(io->ctx, index);
+
+    if (fp == NULL)
+      return;
+    /* Symbol lines first, so a repeated text skips the slots they own. Inside this loop
+       and never around it: English's symbols must not preempt the selected language's
+       text lines. */
+    LangLoadCatalogPass(io, fp, index > 0, 1);
+    LangLoadCatalogPass(io, fp, index > 0, 0);
+    fclose(fp);
+  }
 }
