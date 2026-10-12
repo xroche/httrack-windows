@@ -814,6 +814,38 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("dark glyph states ok on %d checks\n", nchecks);
     }
+    /* The glyph has to be dark art. The themed BUTTON answers a bitmap drawn for a light
+       page, which measures 210 of 255 against a background of 32. */
+    {
+      static const struct { int state; BOOL radio; } art[] = {
+        { CBS_UNCHECKEDNORMAL, FALSE },
+        { CBS_UNCHECKEDHOT, FALSE },
+        { CBS_CHECKEDNORMAL, FALSE },
+        { CBS_CHECKEDPRESSED, FALSE },
+        { CBS_CHECKEDDISABLED, FALSE },
+        { CBS_MIXEDNORMAL, FALSE },
+        { CBS_UNCHECKEDNORMAL, TRUE },
+        { CBS_CHECKEDNORMAL, TRUE },
+        { CBS_CHECKEDDISABLED, TRUE }
+      };
+      int nchecks = 0;
+      for(int k=0 ; k < (int) (sizeof(art)/sizeof(art[0])) ; k++) {
+        const int mean = WhttDarkGlyphLuminance(art[k].state, art[k].radio);
+        if (mean < 0 || mean > 160) {
+          fprintf(stderr, "FATAL: glyph state %d%s measures %d, expected dark art\n",
+                  art[k].state, art[k].radio ? " (radio)" : "", mean);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      if (nchecks != 9) {
+        fprintf(stderr, "FATAL: dark glyph art ran %d checks, expected 9\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("dark glyph art ok on %d checks\n", nchecks);
+    }
     /* A bad rule must not reach a running mirror. */
     {
       static const struct { const char* opened; const char* box; int live; const char* names; } bad[] = {

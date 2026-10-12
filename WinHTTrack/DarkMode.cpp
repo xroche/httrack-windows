@@ -44,11 +44,17 @@ static char THIS_FILE[] = __FILE__;
 
 #define DARK_DLG_BG   RGB(32, 32, 32)
 #define DARK_EDIT_BG  RGB(45, 45, 45)
+#define DARK_FRAME    RGB(90, 90, 90)
 #define DARK_TEXT     RGB(240, 240, 240)
 #define DARK_TEXT_OFF RGB(140, 140, 140)
 
 /* Between the glyph and its label, at 96 dpi. */
 #define DARK_GLYPH_GAP 3
+
+/* From the left edge of a group box to its caption, and the gap each side of the caption
+   where the frame stops, both what Windows uses at 96 dpi. */
+#define DARK_GROUP_INDENT 10
+#define DARK_GROUP_PAD    2
 
 /* DWMWA_USE_IMMERSIVE_DARK_MODE, and the number it answered to before Windows 10 20H1. */
 #define DARK_DWMWA_DARK_MODE      20
@@ -60,15 +66,11 @@ static char THIS_FILE[] = __FILE__;
 
 typedef HRESULT (WINAPI *dark_DwmSetWindowAttribute_t)(HWND, DWORD, LPCVOID, DWORD);
 typedef HRESULT (WINAPI *dark_SetWindowTheme_t)(HWND, LPCWSTR, LPCWSTR);
-typedef HTHEME (WINAPI *dark_OpenThemeData_t)(HWND, LPCWSTR);
-typedef HRESULT (WINAPI *dark_CloseThemeData_t)(HTHEME);
-typedef HRESULT (WINAPI *dark_DrawThemeBackground_t)(HTHEME, HDC, int, int, LPCRECT, LPCRECT);
-typedef HRESULT (WINAPI *dark_GetThemePartSize_t)(HTHEME, HDC, int, int, LPCRECT, THEMESIZE,
-                                                  SIZE *);
 
 static BOOL darkOn = FALSE;
 static HBRUSH darkDlgBrush = NULL;
 static HBRUSH darkEditBrush = NULL;
+static HBRUSH darkFrameBrush = NULL;
 
 /* Resolved rather than imported. Neither API has to exist on Windows 7, and a missing
    import would stop the app loading. */
@@ -108,11 +110,13 @@ void WhttDarkModeInit(BOOL requested)
     return;
   darkDlgBrush = CreateSolidBrush(DARK_DLG_BG);
   darkEditBrush = CreateSolidBrush(DARK_EDIT_BG);
+  darkFrameBrush = CreateSolidBrush(DARK_FRAME);
   /* One brush short would leave half the window unpainted, so give up on all of it. */
-  if (darkDlgBrush == NULL || darkEditBrush == NULL) {
+  if (darkDlgBrush == NULL || darkEditBrush == NULL || darkFrameBrush == NULL) {
     DeleteObject(darkDlgBrush);
     DeleteObject(darkEditBrush);
-    darkDlgBrush = darkEditBrush = NULL;
+    DeleteObject(darkFrameBrush);
+    darkDlgBrush = darkEditBrush = darkFrameBrush = NULL;
     darkOn = FALSE;
   }
 }
@@ -136,49 +140,16 @@ static void darkTitleBar(HWND hwnd)
     setAttribute(hwnd, DARK_DWMWA_DARK_MODE_OLD, &on, sizeof(on));
 }
 
-/* The theme calls the glyph needs, all named exports: the dark-mode ordinals have moved
-   between Windows builds. */
-static struct {
-  BOOL resolved;
-  dark_OpenThemeData_t open;
-  dark_CloseThemeData_t close;
-  dark_DrawThemeBackground_t draw;
-  dark_GetThemePartSize_t size;
-} darkTheme;
-
-static BOOL darkThemeApi(void)
-{
-  if (!darkTheme.resolved) {
-    darkTheme.open = (dark_OpenThemeData_t) darkProc(L"uxtheme.dll", "OpenThemeData");
-    darkTheme.close = (dark_CloseThemeData_t) darkProc(L"uxtheme.dll", "CloseThemeData");
-    darkTheme.draw =
-      (dark_DrawThemeBackground_t) darkProc(L"uxtheme.dll", "DrawThemeBackground");
-    darkTheme.size = (dark_GetThemePartSize_t) darkProc(L"uxtheme.dll", "GetThemePartSize");
-    darkTheme.resolved = TRUE;
-  }
-  return darkTheme.open != NULL && darkTheme.close != NULL && darkTheme.draw != NULL
-    && darkTheme.size != NULL;
-}
-
-/* The dark glyph where this Windows has one: a class it does not know answers NULL. The
-   last name is the light glyph, bright against the dark page but still native. */
-static HTHEME darkOpenButtonTheme(HWND hwnd)
-{
-  static const wchar_t *const classes[] = {
-    L"DarkMode_Explorer::Button", L"DarkMode::Button", L"Button"
-  };
-  HTHEME theme = NULL;
-
-  for(int i=0 ; theme == NULL && i < (int) (sizeof(classes)/sizeof(classes[0])) ; i++)
-    theme = darkTheme.open(hwnd, classes[i]);
-  return theme;
-}
-
 static BOOL darkIsRadio(DWORD style)
 {
   const DWORD type = style & BS_TYPEMASK;
 
   return type == BS_RADIOBUTTON || type == BS_AUTORADIOBUTTON;
+}
+
+static BOOL darkIsGroupBox(DWORD style)
+{
+  return (style & BS_TYPEMASK) == BS_GROUPBOX;
 }
 
 int WhttDarkGlyphState(DWORD style, UINT state)
@@ -201,22 +172,126 @@ int WhttDarkGlyphState(DWORD style, UINT state)
   return base;
 }
 
-/* What DrawFrameControl wants for the same glyph, where no theme is active. */
-static UINT darkFrameState(DWORD style, UINT state)
-{
-  UINT flags = darkIsRadio(style) ? DFCS_BUTTONRADIO : DFCS_BUTTONCHECK;
+/* The box itself, one colour per phase: normal, hot, pressed, disabled. */
+static const COLORREF darkGlyphBorder[4] = {
+  RGB(140, 140, 140), RGB(190, 190, 190), RGB(110, 110, 110), RGB(85, 85, 85)
+};
+static const COLORREF darkGlyphFill[4] = {
+  RGB(45, 45, 45), RGB(58, 58, 58), RGB(72, 72, 72), RGB(40, 40, 40)
+};
 
-  if ((state & BST_INDETERMINATE) != 0)
-    flags |= DFCS_BUTTON3STATE | DFCS_CHECKED;
-  else if ((state & BST_CHECKED) != 0)
-    flags |= DFCS_CHECKED;
-  if ((style & WS_DISABLED) != 0)
-    flags |= DFCS_INACTIVE;
-  if ((state & BST_PUSHED) != 0)
-    flags |= DFCS_PUSHED;
-  if ((state & BST_HOT) != 0)
-    flags |= DFCS_HOT;
-  return flags;
+/* Draws the check or radio glyph. Both the themed and the classic glyph are drawn for a
+   light page, and a BUTTON gets no dark art without the undocumented opt-in, so the only
+   way to a dark one is to draw it. */
+static void darkDrawGlyph(HDC hdc, const RECT *box, BOOL radio, int glyphState)
+{
+  /* The vsstyle ids run in fours, so the glyph and its phase divide out. */
+  const int kind = (glyphState - 1) / 4;
+  const int phase = (glyphState - 1) % 4;
+  const COLORREF mark = (phase == 3) ? DARK_TEXT_OFF : DARK_TEXT;
+  const int width = box->right - box->left;
+  const int height = box->bottom - box->top;
+  const HPEN pen = CreatePen(PS_SOLID, 1, darkGlyphBorder[phase]);
+  const HBRUSH fill = CreateSolidBrush(darkGlyphFill[phase]);
+  HGDIOBJ oldPen, oldBrush;
+
+  if (pen == NULL || fill == NULL) {
+    DeleteObject(pen);
+    DeleteObject(fill);
+    return;
+  }
+  oldPen = SelectObject(hdc, pen);
+  oldBrush = SelectObject(hdc, fill);
+  if (radio)
+    Ellipse(hdc, box->left, box->top, box->right, box->bottom);
+  else
+    Rectangle(hdc, box->left, box->top, box->right, box->bottom);
+  SelectObject(hdc, oldBrush);
+  SelectObject(hdc, oldPen);
+  DeleteObject(pen);
+  DeleteObject(fill);
+
+  if (kind == 0)   /* unchecked, and the empty box is the whole glyph */
+    return;
+  if (radio) {
+    const int inset = (width + 2) / 4;
+    const HPEN dotPen = CreatePen(PS_SOLID, 1, mark);
+    const HBRUSH dot = CreateSolidBrush(mark);
+
+    if (dotPen != NULL && dot != NULL) {
+      oldPen = SelectObject(hdc, dotPen);
+      oldBrush = SelectObject(hdc, dot);
+      Ellipse(hdc, box->left + inset, box->top + inset, box->right - inset,
+              box->bottom - inset);
+      SelectObject(hdc, oldBrush);
+      SelectObject(hdc, oldPen);
+    }
+    DeleteObject(dotPen);
+    DeleteObject(dot);
+  } else if (kind == 2) {   /* mixed, which the check box alone reports */
+    const HBRUSH square = CreateSolidBrush(mark);
+    RECT inner = *box;
+
+    if (square != NULL) {
+      InflateRect(&inner, -(width * 3 / 8), -(height * 3 / 8));
+      FillRect(hdc, &inner, square);
+      DeleteObject(square);
+    }
+  } else {
+    const HPEN tick = CreatePen(PS_SOLID, (width >= 12) ? 2 : 1, mark);
+    POINT stroke[3];
+
+    if (tick != NULL) {
+      stroke[0].x = box->left + width * 22 / 100;
+      stroke[0].y = box->top + height * 50 / 100;
+      stroke[1].x = box->left + width * 42 / 100;
+      stroke[1].y = box->top + height * 72 / 100;
+      stroke[2].x = box->left + width * 78 / 100;
+      stroke[2].y = box->top + height * 26 / 100;
+      oldPen = SelectObject(hdc, tick);
+      Polyline(hdc, stroke, 3);
+      SelectObject(hdc, oldPen);
+      DeleteObject(tick);
+    }
+  }
+}
+
+int WhttDarkGlyphLuminance(int glyphState, BOOL radio)
+{
+  const int side = 13;
+  const HDC dc = CreateCompatibleDC(NULL);
+  HGDIOBJ oldBitmap;
+  HBITMAP bitmap;
+  BITMAPINFO info;
+  BYTE *bits = NULL;
+  RECT box;
+  int total = 0;
+
+  if (dc == NULL)
+    return -1;
+  ZeroMemory(&info, sizeof(info));
+  info.bmiHeader.biSize = sizeof(info.bmiHeader);
+  info.bmiHeader.biWidth = side;
+  info.bmiHeader.biHeight = side;
+  info.bmiHeader.biPlanes = 1;
+  info.bmiHeader.biBitCount = 32;
+  info.bmiHeader.biCompression = BI_RGB;
+  bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, (void **) &bits, NULL, 0);
+  if (bitmap == NULL || bits == NULL) {
+    DeleteObject(bitmap);
+    DeleteDC(dc);
+    return -1;
+  }
+  oldBitmap = SelectObject(dc, bitmap);
+  SetRect(&box, 0, 0, side, side);
+  darkDrawGlyph(dc, &box, radio, glyphState);
+  GdiFlush();   /* the drawing reaches the bits only once the batch has run */
+  for (int i = 0; i < side * side; i++)
+    total += (bits[i * 4] + bits[i * 4 + 1] + bits[i * 4 + 2]) / 3;
+  SelectObject(dc, oldBitmap);
+  DeleteObject(bitmap);
+  DeleteDC(dc);
+  return total / (side * side);
 }
 
 /* How the label is laid out, from the control's style and the dialog's UI-cue state. */
@@ -234,23 +309,91 @@ static UINT darkTextFlags(DWORD style, UINT ui)
   return flags;
 }
 
+/* Paints the frame and the caption of a group box, which is a Button too and would
+   otherwise draw a caption in the system's black. The interior is left untouched: the
+   controls standing in a group box are its siblings, not its children. */
+static void darkPaintGroupBox(HWND hwnd, HDC hdc, DWORD style)
+{
+  const UINT ui = (UINT) SendMessage(hwnd, WM_QUERYUISTATE, 0, 0);
+  /* A group box caption never wraps, whatever the style asks for. */
+  const UINT flags =
+    (darkTextFlags(style, ui) & ~(DT_WORDBREAK | DT_TOP | DT_CENTER | DT_RIGHT))
+    | DT_SINGLELINE | DT_VCENTER;
+  const HFONT font = (HFONT) SendMessage(hwnd, WM_GETFONT, 0, 0);
+  const int dpi = GetDeviceCaps(hdc, LOGPIXELSX);
+  const int indent = MulDiv(DARK_GROUP_INDENT, dpi, 96);
+  const int pad = MulDiv(DARK_GROUP_PAD, dpi, 96);
+  HGDIOBJ oldFont = NULL;
+  TEXTMETRICW metrics;
+  RECT client, frame, text;
+  WCHAR caption[512];
+
+  GetClientRect(hwnd, &client);
+  caption[0] = L'\0';
+  GetWindowTextW(hwnd, caption, sizeof(caption) / sizeof(caption[0]));
+  if (font != NULL)
+    oldFont = SelectObject(hdc, font);
+  if (!GetTextMetricsW(hdc, &metrics))
+    metrics.tmHeight = MulDiv(13, GetDeviceCaps(hdc, LOGPIXELSY), 96);
+
+  /* The caption sits on the top line, so a captioned frame starts half a line down,
+     and an untitled one at the top. Windows etches the line the same whether the
+     control is enabled or not. */
+  frame = client;
+  if (caption[0] != L'\0')
+    frame.top += metrics.tmHeight / 2;
+  FrameRect(hdc, &frame, darkFrameBrush);
+
+  if (caption[0] != L'\0') {
+    COLORREF oldColor;
+    int oldBkMode, width;
+    RECT measured;
+
+    text = client;
+    text.left += indent;
+    text.right -= indent;
+    text.bottom = text.top + metrics.tmHeight;
+    measured = text;
+    DrawTextW(hdc, caption, -1, &measured, flags | DT_CALCRECT);
+    width = measured.right - measured.left;
+    if (width > text.right - text.left)
+      width = text.right - text.left;
+    /* BS_CENTER and BS_RIGHT move the caption along the top line. */
+    if ((style & BS_CENTER) == BS_CENTER)
+      text.left = client.left + (client.right - client.left - width) / 2;
+    else if ((style & BS_RIGHT) != 0)
+      text.left = text.right - width;
+    text.right = text.left + width;
+
+    measured = text;
+    InflateRect(&measured, pad, 0);
+    FillRect(hdc, &measured, darkDlgBrush);   /* the frame must not run behind the text */
+    oldBkMode = SetBkMode(hdc, TRANSPARENT);
+    oldColor = SetTextColor(hdc, ((style & WS_DISABLED) != 0) ? DARK_TEXT_OFF : DARK_TEXT);
+    DrawTextW(hdc, caption, -1, &text, flags);
+    SetTextColor(hdc, oldColor);
+    SetBkMode(hdc, oldBkMode);
+  }
+  if (oldFont != NULL)
+    SelectObject(hdc, oldFont);
+}
+
 /* Paints the whole control, because a themed check or radio button draws its own label
    and ignores WM_CTLCOLORBTN, so the text would stay black on the dark page. */
-static void darkPaintButton(HWND hwnd, HDC hdc)
+static void darkPaintButton(HWND hwnd, HDC hdc, DWORD style)
 {
-  const DWORD style = (DWORD) GetWindowLong(hwnd, GWL_STYLE);
   const UINT ui = (UINT) SendMessage(hwnd, WM_QUERYUISTATE, 0, 0);
   const UINT state = (UINT) SendMessage(hwnd, BM_GETSTATE, 0, 0);
   const UINT flags = darkTextFlags(style, ui);
-  const int part = darkIsRadio(style) ? BP_RADIOBUTTON : BP_CHECKBOX;
+  const BOOL radio = darkIsRadio(style);
   const int glyphState = WhttDarkGlyphState(style, state);
   const HFONT font = (HFONT) SendMessage(hwnd, WM_GETFONT, 0, 0);
   const int gap = MulDiv(DARK_GLYPH_GAP, GetDeviceCaps(hdc, LOGPIXELSX), 96);
+  /* 13 by 13 at 96 dpi is what Windows has drawn since it had themes. */
+  const int glyph = MulDiv(13, GetDeviceCaps(hdc, LOGPIXELSX), 96);
   HGDIOBJ oldFont = NULL;
   COLORREF oldColor;
   int oldBkMode;
-  HTHEME theme = NULL;
-  SIZE glyph = { 0, 0 };
   RECT client, box, text;
   WCHAR caption[512];
 
@@ -260,27 +403,19 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
   GetWindowTextW(hwnd, caption, sizeof(caption) / sizeof(caption[0]));
   if (font != NULL)
     oldFont = SelectObject(hdc, font);
-  if (darkThemeApi())
-    theme = darkOpenButtonTheme(hwnd);
-  /* 13 by 13 at 96 dpi is what the theme answers, and what Windows drew before themes. */
-  if (theme == NULL
-      || FAILED(darkTheme.size(theme, hdc, part, glyphState, NULL, TS_DRAW, &glyph))
-      || glyph.cx <= 0 || glyph.cy <= 0)
-    glyph.cx = glyph.cy = MulDiv(13, GetDeviceCaps(hdc, LOGPIXELSX), 96);
-
-  box.top = client.top + (client.bottom - client.top - glyph.cy) / 2;
-  box.bottom = box.top + glyph.cy;
+  box.top = client.top + (client.bottom - client.top - glyph) / 2;
+  box.bottom = box.top + glyph;
   text.top = client.top;
   text.bottom = client.bottom;
   /* BS_LEFTTEXT and BS_RIGHTBUTTON are the same bit: the glyph moves to the far end. */
   if ((style & BS_RIGHTBUTTON) != 0) {
     box.right = client.right;
-    box.left = box.right - glyph.cx;
+    box.left = box.right - glyph;
     text.left = client.left;
     text.right = box.left - gap;
   } else {
     box.left = client.left;
-    box.right = box.left + glyph.cx;
+    box.right = box.left + glyph;
     text.left = box.right + gap;
     text.right = client.right;
   }
@@ -298,10 +433,7 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
     }
   }
 
-  if (theme != NULL)
-    darkTheme.draw(theme, hdc, part, glyphState, &box, NULL);
-  else
-    DrawFrameControl(hdc, &box, DFC_BUTTON, darkFrameState(style, state));
+  darkDrawGlyph(hdc, &box, radio, glyphState);
 
   /* The DC belongs to the caller under WM_PRINT, and to the parent under CS_PARENTDC. */
   oldBkMode = SetBkMode(hdc, TRANSPARENT);
@@ -327,12 +459,20 @@ static void darkPaintButton(HWND hwnd, HDC hdc)
     DrawFocusRect(hdc, &focus);
   }
 
-  if (theme != NULL)
-    darkTheme.close(theme);
   SetTextColor(hdc, oldColor);
   SetBkMode(hdc, oldBkMode);
   if (oldFont != NULL)
     SelectObject(hdc, oldFont);
+}
+
+static void darkPaint(HWND hwnd, HDC hdc)
+{
+  const DWORD style = (DWORD) GetWindowLong(hwnd, GWL_STYLE);
+
+  if (darkIsGroupBox(style))
+    darkPaintGroupBox(hwnd, hdc, style);
+  else
+    darkPaintButton(hwnd, hdc, style);
 }
 
 static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
@@ -345,22 +485,25 @@ static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
     RemoveWindowSubclass(hwnd, darkButtonProc, id);
     break;
   case WM_ERASEBKGND:
+    /* A group box draws its frame and its caption only, so it keeps its usual erase. */
+    if (darkIsGroupBox((DWORD) GetWindowLong(hwnd, GWL_STYLE)))
+      break;
     return 1;   /* the paint fills the whole client area */
   case WM_PAINT:
     /* Fall through on failure: returning validates nothing, so Windows reposts. */
     if (BeginPaint(hwnd, &ps) != NULL) {
-      darkPaintButton(hwnd, ps.hdc);
+      darkPaint(hwnd, ps.hdc);
       EndPaint(hwnd, &ps);
       return 0;
     }
     break;
   /* PrintWindow reaches a child by either message, depending on the flags. */
   case WM_PRINTCLIENT:
-    darkPaintButton(hwnd, (HDC) wParam);
+    darkPaint(hwnd, (HDC) wParam);
     return 0;
   case WM_PRINT:
     if ((lParam & PRF_CLIENT) != 0) {
-      darkPaintButton(hwnd, (HDC) wParam);
+      darkPaint(hwnd, (HDC) wParam);
       return 0;
     }
     break;
@@ -368,7 +511,7 @@ static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
   return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
 
-/* Leaves the control a real check or radio button: the style bits, the auto-toggle and
+/* Leaves the control exactly what it was: the style bits, the auto-toggle and
    BM_GETCHECK all stay as they were. */
 static void darkOwnerDrawButton(HWND hwnd)
 {
@@ -379,7 +522,7 @@ static void darkOwnerDrawButton(HWND hwnd)
   if ((style & (BS_PUSHLIKE | BS_BITMAP | BS_ICON)) != 0)
     return;
   if (type == BS_CHECKBOX || type == BS_AUTOCHECKBOX || type == BS_3STATE
-      || type == BS_AUTO3STATE || darkIsRadio(style))
+      || type == BS_AUTO3STATE || type == BS_GROUPBOX || darkIsRadio(style))
     SetWindowSubclass(hwnd, darkButtonProc, 0, 0);
 }
 
