@@ -333,7 +333,7 @@ runs:
         }
         # A rule the splitter mangles reaches the engine as --host-alias "" and aborts the
         # mirror, and a checkmark on a preset the box only partly holds deletes the rest.
-        if ("$so" -notmatch 'rule splitting ok on 157 checks') {
+        if ("$so" -notmatch 'rule splitting ok on 158 checks') {
           throw "selftest did not check the Experts rule splitter and the preset checkboxes"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure. The last

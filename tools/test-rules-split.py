@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "rule splitting ok on 157 checks"
+EXPECTED_LINE = "rule splitting ok on 158 checks"
 
 
 def read(path):

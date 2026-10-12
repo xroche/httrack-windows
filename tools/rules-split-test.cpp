@@ -13,7 +13,7 @@
 int rulesSplitCheckCases(CString *err);
 
 /* Both callers pin the count, so a case deleted from rules-split.cpp reds here as well. */
-#define RS_EXPECTED_CHECKS 157
+#define RS_EXPECTED_CHECKS 158
 
 int main(void) {
   CString err;

@@ -427,6 +427,8 @@ int rulesSplitCheckCases(CString *err) {
       { "www.test.com", 0 },
       { "*.gif", 0 },
       { "a/b", 0 },
+      /* no '.' to answer first, so this is the only case the '*' clause decides */
+      { "*x", 0 },
       /* a '%' makes the engine read the '.' as an option's parameter, so the dot
          stops saving the rule */
       { "www.test.com%2Ftest.html", 1 },

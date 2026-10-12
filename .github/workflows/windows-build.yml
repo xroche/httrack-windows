@@ -1201,7 +1201,7 @@ jobs:
           }
           # The ubuntu run pins the same count, but only this one runs the cases against
           # the real MFC CString.
-          if ("$so" -notmatch 'rule splitting ok on 157 checks') {
+          if ("$so" -notmatch 'rule splitting ok on 158 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the rule-splitting check did not run every case'
           }
