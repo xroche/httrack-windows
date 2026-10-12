@@ -119,9 +119,9 @@ BOOL CAddFilter::OnInitDialog()
 }
 
 // "Example: " and what to type, as the field help shows it for template R.
-static void filterTypeExample(int r,char* hlp,size_t hlpsize) {
+static void filterTypeExample(int type,char* hlp,size_t hlpsize) {
   strlcpybuff(hlp,LANG(LANG_B22),hlpsize); //  "Example: ");
-  switch(r) {
+  switch(type) {
   case CB_ERR : break;  // pas de sélection
   case 0:
     strlcatbuff(hlp,LANG(LANG_B23),hlpsize); // "gif\x0d\x0aWill detect all gif files (or GIF files)");

@@ -330,13 +330,15 @@ void splitLinesInArray(CSimpleArray<CString> &args, const CString &str,
                        const CString &separator=CString());
 
 /* The Add Filter dialog's keyword field holds keywords separated by spaces or commas.
-   Copies the next one out of *Q into T and advances *Q past it. FALSE, with T left
-   alone, once the field holds no more or a keyword does not fit T. */
-BOOL nextFilterKeyword(char **q, char *t, size_t tsize);
+   Copies the next one into KEYWORD and advances *FIELD past it, which it does even when
+   it returns FALSE. FALSE, with KEYWORD left alone, once the field holds no more or one
+   does not fit. */
+BOOL nextFilterKeyword(char **field, char *keyword, size_t keywordsize);
 
 /* Builds into OUT the scan rule (no leading sign) that the Add Filter dialog's template
-   TYPE makes of KEYWORD, FALSE when that template cannot use the keyword. Only the exact
-   link (9) refuses one: see the definition. Exposed for --selftest. */
+   TYPE makes of KEYWORD. FALSE for the exact link (9) when KEYWORD holds none of '.',
+   '/' or '*', for every link (10) and no selection, and when the rule does not fit OUT.
+   Exposed for --selftest. */
 BOOL filterRuleForKeyword(int type, const char *keyword, char *out, size_t outsize);
 
 /* Runs the rule-splitting and preset cases, returning the number of checks or 0 with *ERR

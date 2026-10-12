@@ -210,25 +210,15 @@ CString applyRulePreset(const CString &box, const CString &preset, BOOL checked)
 }
 
 // see Shell.h
-BOOL nextFilterKeyword(char **q, char *t, size_t tsize) {
-  char *p = *q;
-  const char *end;
-  const char *sep;
-  size_t len;
+BOOL nextFilterKeyword(char **field, char *keyword, size_t keywordsize) {
+  char *const start = *field + strspn(*field, " ,");
+  const size_t len = strcspn(start, " ,");
 
-  while (*p == ' ' || *p == ',')
-    p++;
-  end = p + strlen(p);
-  if ((sep = strchr(p, ' ')) != NULL && sep < end)
-    end = sep;
-  if ((sep = strchr(p, ',')) != NULL && sep < end)
-    end = sep;
-  len = (size_t) (end - p);
-  *q = *end != '\0' ? (char *) end + 1 : (char *) end;
-  if (len == 0 || len >= tsize)
+  *field = start[len] != '\0' ? start + len + 1 : start + len;
+  if (len == 0 || len >= keywordsize)
     return FALSE;
-  memcpy(t, p, len);
-  t[len] = '\0';
+  memcpy(keyword, start, len);
+  keyword[len] = '\0';
   return TRUE;
 }
 
@@ -392,7 +382,7 @@ int rulesSplitCheckCases(CString *err) {
       { 9, "", NULL },
       /* every link takes no keyword, and neither does an empty selection */
       { 10, "gif", NULL },
-      { -1, "gif", NULL },
+      { -1, "gif", NULL },                   /* -1 is the combo box's CB_ERR */
       { 0, NULL, NULL }
     };
 
@@ -401,7 +391,7 @@ int rulesSplitCheckCases(CString *err) {
       const BOOL got = filterRuleForKeyword(templates[k].type, templates[k].keyword,
                                             rule, sizeof(rule));
 
-      if (!got != !templates[k].want
+      if (got != (templates[k].want != NULL)
           || (got && strcmp(rule, templates[k].want) != 0)) {
         snprintf(msg, sizeof(msg), "filter type %d on '%s' built %s, expected %s",
                  templates[k].type, templates[k].keyword,
