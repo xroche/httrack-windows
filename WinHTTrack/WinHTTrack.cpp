@@ -878,53 +878,73 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("dark glyph art ok on %d checks\n", nchecks);
     }
-    /* The tab control is painted here too, and the walk never compares a selected tab with
-       an unselected one. */
+    /* The tab control is painted here too. WhttDarkTabProbe drives the real painter over
+       a layout built here, so every check below is a relation in what it drew. */
     {
-      static const struct { const WCHAR* label; BOOL selected; } art[] = {
-        { L"Tab", FALSE },   /* 0 */
-        { L"Tab", TRUE },    /* 1 */
-        { L"", TRUE },       /* 2 */
-        { L"", FALSE }       /* 3 */
-      };
-      /* An item that drew nothing, or drew every item alike, would satisfy the means
-         above on their own, so each row names two states that must differ. */
-      static const struct { int bright; int dim; const char* what; } order[] = {
-        { 1, 0, "the selected tab over an unselected one" },
-        { 1, 2, "a labelled selected tab over a blank one" },
-        { 0, 3, "a labelled unselected tab over a blank one" }
-      };
-      int mean[sizeof(art)/sizeof(art[0])];
+      whtt_dark_tab_probe_t tab;
       int nchecks = 0;
-      for(int k=0 ; k < (int) (sizeof(art)/sizeof(art[0])) ; k++) {
-        int changed = 0;
-        mean[k] = WhttDarkTabLuminance(art[k].label, art[k].selected, &changed);
-        if (mean[k] < 0 || mean[k] > 160 || changed <= 0) {
-          fprintf(stderr, "FATAL: a %s tab labelled \"%ls\" measures %d over %d pixels, "
-                  "expected dark art\n", art[k].selected ? "selected" : "unselected",
-                  art[k].label, mean[k], changed);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      for(int k=0 ; k < (int) (sizeof(order)/sizeof(order[0])) ; k++) {
-        if (mean[order[k].bright] <= mean[order[k].dim]) {
-          fprintf(stderr, "FATAL: %s measures %d, not above %d\n", order[k].what,
-                  mean[order[k].bright], mean[order[k].dim]);
-          fflush(stderr);
-          ExitProcess(3);
-        } else
-          nchecks++;
-      }
-      if (WhttDarkTabLuminance(NULL, FALSE, NULL) != -1) {
-        fprintf(stderr, "FATAL: a tab item with no label at all was drawn anyway\n");
+
+      if (!WhttDarkTabProbe(&tab)) {
+        fprintf(stderr, "FATAL: the dark tab probe could not paint at all\n");
         fflush(stderr);
         ExitProcess(3);
       }
       nchecks++;
-      if (nchecks != 8) {
-        fprintf(stderr, "FATAL: dark tab art ran %d checks, expected 8\n", nchecks);
+      /* The greys are pinned here on purpose, because reading them back out of DarkMode.cpp
+         would let a palette change pass. Each row names what must be wrong to fail it. */
+      const struct { const char* what; int got; int want; } same[] = {
+        /* the page's own colour, which the selected tab carries so it reads as one piece */
+        { "the selected tab's fill", tab.selectedFill, 32 },
+        /* and the colour that sets an unselected tab behind the page */
+        { "an unselected tab's fill", tab.unselectedFill, 20 },
+        /* the label has to be the text colour, not merely brighter than the tab */
+        { "the label's ink", tab.labelInk, 240 },
+        /* the selected tab covers the page's top line, and only it does */
+        { "the line under the selected tab", tab.seamUnderSelected, 32 },
+        { "the line under an unselected tab", tab.seamUnderOther, 90 }
+      };
+      for(int k=0 ; k < (int) (sizeof(same)/sizeof(same[0])) ; k++) {
+        if (same[k].got != same[k].want) {
+          fprintf(stderr, "FATAL: %s measures %d, expected %d\n", same[k].what, same[k].got,
+                  same[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* The selected tab stands above the rest. No mean over the whole bitmap can see
+         that, and no colour check above would catch it. */
+      if (tab.selectedTop >= tab.unselectedTop) {
+        fprintf(stderr, "FATAL: the selected tab starts at row %d, not above %d\n",
+                tab.selectedTop, tab.unselectedTop);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      /* The label sits inside its tab, and centred in it. A label drawn at the wrong end
+         keeps every colour above and moves only these two. */
+      if (tab.labelLeft <= tab.itemLeft || tab.labelRight >= tab.itemRight) {
+        fprintf(stderr, "FATAL: the label spans %d to %d, outside its tab's %d to %d\n",
+                tab.labelLeft, tab.labelRight, tab.itemLeft, tab.itemRight);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      {
+        const int before = tab.labelLeft - tab.itemLeft;
+        const int after = tab.itemRight - 1 - tab.labelRight;
+        const int off = (before > after) ? before - after : after - before;
+
+        if (off > 2) {
+          fprintf(stderr, "FATAL: the label leaves %d before it and %d after it\n", before,
+                  after);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      if (nchecks != 9) {
+        fprintf(stderr, "FATAL: dark tab art ran %d checks, expected 9\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

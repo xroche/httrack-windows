@@ -61,12 +61,26 @@ int WhttDarkGlyphState(DWORD style, UINT state);
    has no window to measure. */
 int WhttDarkGlyphLuminance(int glyphState, BOOL radio, int *changed);
 
-/* Draws one tab item over the dark page in a memory bitmap and answers the mean of its
-   pixels, 0 to 255, or -1 where GDI refused or label is NULL. changed, where it is not
-   NULL, takes the count of pixels the item moved off the page colour. Nothing reaches the
-   screen, and dark mode may be off: this is for --selftest, which has no window to
-   measure. */
-int WhttDarkTabLuminance(const WCHAR *label, BOOL selected, int *changed);
+/* What --selftest reads off one painted row of tabs. Every field is a bitmap coordinate or
+   a pixel value, so a painter that moved or recoloured something answers differently. */
+typedef struct {
+  int selectedTop;        /* the topmost row the selected tab painted */
+  int unselectedTop;      /* and the topmost its neighbour painted */
+  int selectedFill;       /* the pixel inside the selected tab */
+  int unselectedFill;     /* and inside its neighbour */
+  int labelInk;           /* the brightest pixel a label drew */
+  int labelLeft;          /* the columns that label's ink spans */
+  int labelRight;
+  int itemLeft;           /* and the columns its tab spans */
+  int itemRight;
+  int seamUnderSelected;  /* the pixel on the page's top line under the selected tab */
+  int seamUnderOther;     /* and under its neighbour */
+} whtt_dark_tab_probe_t;
+
+/* Paints three tabs with the middle one selected into a memory bitmap, and fills probe from
+   what came out. FALSE where GDI refused. Nothing reaches the screen, and dark mode may be
+   off: this is for --selftest, which has no property sheet to measure. */
+BOOL WhttDarkTabProbe(whtt_dark_tab_probe_t *probe);
 
 /* The brush a dark dialog, static text, edit control or list wants, after setting the
    text and background colours on pDC. NULL means the caller keeps its base class
