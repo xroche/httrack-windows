@@ -51,7 +51,9 @@ int LangKeyIsSymbol(const char *key) {
       const char *p;
 
       /* Every remaining byte has to be an identifier byte, so no English sentence
-         starting with those letters can pass. cpp_lang.h mixes case (LANG_F11b). */
+         starting with those letters can pass. cpp_lang.h mixes case (LANG_F11b).
+         The engine's lang_is_symbol() tests the prefix alone, and a key only one of
+         the two accepts resolves to a name no call site looks up either way. */
       for(p = key + len ; *p != '\0' ; p++) {
         if (!(*p == '_'
               || (*p >= '0' && *p <= '9')

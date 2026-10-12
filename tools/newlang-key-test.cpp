@@ -213,12 +213,12 @@ static Table resolve(const std::string &engine, const Table &keys,
                       engine + "/lang/English.txt", keys, mode, fallbackHits);
 }
 
-/* What the engine's catalogs hold today. Counted rather than assumed, because a pass
-   that silently stopped running resolves fewer strings and nothing else would notice.
-   A catalog gaining or losing a string moves these, and the CI step quotes them. */
-static const long kLanguages = 30;
-static const long kStrings = 515;   /* per language, kSymbols of them LANG_ or LISTDEF_ */
-static const long kSymbols = 510;
+/* Floors, not counts. The engine owns the catalogs and adds a string every few weeks, so
+   every expected total below is derived from lang.def in the same run and held against
+   another count of the same thing. These only catch a loop that read nothing at all. */
+static const long kMinLanguages = 30;
+static const long kMinStrings = 400;
+static const long kMinSymbols = 480;
 
 static int failures = 0;
 
@@ -280,8 +280,10 @@ int main(int argc, char **argv) {
   expectSymbol("", 0);
   expectSymbol(NULL, 0);
 
-  /* 2. No key either file carries has the symbol shape, so the branch is unreachable. */
-  long shaped = 0;
+  /* 2. No key either file carries has the symbol shape, so the branch is unreachable.
+     The same walk counts the symbols lang.def names, which is what a catalog has to
+     resolve and what every total below is measured against. */
+  long shaped = 0, named = 0;
 
   for(Table::const_iterator i = keys.begin() ; i != keys.end() ; ++i) {
     if (LangKeyIsSymbol(i->first.c_str())) {
@@ -289,15 +291,24 @@ int main(int argc, char **argv) {
               i->first.c_str());
       shaped++;
     }
+    if (LangKeyIsSymbol(i->second.c_str()))
+      named++;
+  }
+  if (named < kMinSymbols) {
+    fprintf(stderr, "lang.def names %ld symbols, under the %ld this check needs to prove "
+            "anything\n", named, kMinSymbols);
+    return 1;
   }
 
-  /* 3. Every catalog resolves byte-identically with the fallback and without it. */
+  /* 3. Every catalog resolves byte-identically with the fallback and without it. The
+     English pass fills whatever a catalog lacks, so all of them resolve the same count,
+     and that count is the engine's to change. */
   const std::vector<std::string> langs = languages(keys);
-  long compared = 0, hits = 0;
+  long compared = 0, hits = 0, strings = 0;
 
-  if ((long) langs.size() != kLanguages) {
-    fprintf(stderr, "lang.def names %d languages, expected %ld\n",
-            (int) langs.size(), kLanguages);
+  if ((long) langs.size() < kMinLanguages) {
+    fprintf(stderr, "lang.def names %d languages, under the %ld this check needs to "
+            "prove anything\n", (int) langs.size(), kMinLanguages);
     return 1;
   }
   for(size_t i = 0 ; i < langs.size() ; i++) {
@@ -305,11 +316,19 @@ int main(int argc, char **argv) {
     const Table old = resolve(engine, keys, langs[i], OFF, &before);
     const Table now = resolve(engine, keys, langs[i], GUARDED, &after);
 
+    if (i == 0)
+      strings = (long) old.size();
     if (before != 0) {
       fprintf(stderr, "%s: the fallback ran with it switched off\n", langs[i].c_str());
       failures++;
     }
     hits += after;
+    if ((long) old.size() != strings) {
+      fprintf(stderr, "lang/%s.txt resolves %d strings where lang/%s.txt resolves %ld: "
+              "one of the two is short of a string the other carries\n",
+              langs[i].c_str(), (int) old.size(), langs[0].c_str(), strings);
+      failures++;
+    }
     if (old.size() != now.size()) {
       fprintf(stderr, "%s: %d symbols resolve, %d with the fallback\n",
               langs[i].c_str(), (int) old.size(), (int) now.size());
@@ -488,17 +507,35 @@ int main(int argc, char **argv) {
     failures++;
   }
 
-  /* Each count is its own check, so a loop that stopped running cannot hide behind
-     another one's total. */
-  if (compared != kLanguages * kStrings || controls != 2 || variants != 4
-      || parityCompared != 4 * baselineStrings || gapChecks != 3
-      || baselineStrings != kStrings || resolvedSymbols != kSymbols) {
-    fprintf(stderr, "ran %ld string comparisons over %ld catalogs, %ld controls, %ld "
-            "re-keyed variants, %ld comparisons over %ld baseline strings (%ld symbols) "
-            "and %ld gap checks: expected %ld, 2, 4, %ld, %ld, %ld and 3\n",
-            compared, (long) langs.size(), controls, variants, parityCompared,
-            baselineStrings, resolvedSymbols, gapChecks, kLanguages * kStrings,
-            4 * kStrings, kStrings, kSymbols);
+  /* Every total is held against another count of the same thing, one check per cause, so
+     a loop that stopped running cannot hide behind another one's figure. */
+  if (compared != (long) langs.size() * strings || strings < kMinStrings) {
+    fprintf(stderr, "compared %ld strings over %ld catalogs of %ld each: the loop over "
+            "the catalogs stopped short\n", compared, (long) langs.size(), strings);
+    failures++;
+  }
+  if (baselineStrings != strings) {
+    fprintf(stderr, "the rebuilt French fixture resolves %ld strings where the shipped "
+            "catalog resolves %ld: the builder pairs the lines up differently from the "
+            "loader\n", baselineStrings, strings);
+    failures++;
+  }
+  if (resolvedSymbols != named) {
+    fprintf(stderr, "French resolves %ld of the %ld symbols lang.def names: a catalog "
+            "line for one of them went missing upstream\n", resolvedSymbols, named);
+    failures++;
+  }
+  if (parityCompared != variants * baselineStrings) {
+    fprintf(stderr, "compared %ld strings over %ld re-keyed variants of %ld each: the "
+            "loop over the fixtures stopped short\n",
+            parityCompared, variants, baselineStrings);
+    failures++;
+  }
+  /* Our own fixtures, so these stay exact. */
+  if (controls != 2 || variants != 4 || gapChecks != 3 || gapFilled != 1) {
+    fprintf(stderr, "ran %ld controls, %ld variants, %ld gap checks and filled %ld gap "
+            "strings, expected 2, 4, 3 and 1\n",
+            controls, variants, gapChecks, gapFilled);
     failures++;
   }
 

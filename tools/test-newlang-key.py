@@ -11,8 +11,8 @@ shipped function and so cannot speak for the real path.
 
 It also builds the fixtures of the engine's tests/576_webhttrack-lang-symbol-keys.test,
 which re-key a catalog in whole or in part, and check 1 holds the shipped loader against
-the five rules the engine's lang_load_catalog() follows. Both front ends have to resolve
-a part-re-keyed catalog to the same strings.
+four of the five rules the engine's lang_load_catalog() follows. Both front ends have to
+resolve a part-re-keyed catalog to the same strings.
 
 The engine has to be checked out. --engine says where, and defaults to the sibling
 directory CI uses.
@@ -53,11 +53,10 @@ RULES = (
         "rule 2, the first symbol line winning and never incrementing",
     ),
     ("if(fallback)continue;", "rule 5, the English pass filling only empty slots"),
-    (
-        "LANG_LOAD_CATALOG(fp,loops>0,TRUE);LANG_LOAD_CATALOG(fp,loops>0,FALSE);",
-        "rule 4, the symbol and text passes nested inside the language loop",
-    ),
 )
+# Rule 4, the pass order, is not here. A pattern over the two calls waves through an extra
+# English symbol pass hoisted above them and fails a loop that calls them in order, so it
+# blocks the refactor and misses the bug. Nothing checks rule 4 in the shipped loader.
 
 
 def read(path, encoding="utf-8"):
