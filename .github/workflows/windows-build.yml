@@ -1210,6 +1210,11 @@ jobs:
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the dark glyph-state check did not run every case'
           }
+          # The walk cannot see a disabled or a hot glyph at all.
+          if ("$so" -notmatch 'dark glyph art ok on 14 checks') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the dark glyph-art check did not run every case'
+          }
           if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
             throw 'a portable run registered .whtt under HKCU, from this block or another'
           }

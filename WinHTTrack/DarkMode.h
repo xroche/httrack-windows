@@ -46,13 +46,21 @@ Please visit our Website: http://www.httrack.com
 void WhttDarkModeInit(BOOL requested);
 
 /* Gives a top-level window a dark title bar, and the common controls under it their
-   dark theme. Check and radio buttons are taken over for painting here, so nothing in
-   this file draws anything while dark mode is off. Safe to call on a child window. */
+   dark theme. Check boxes, radio buttons and group boxes are taken over for painting
+   here, so nothing in this file draws anything while dark mode is off. Safe to call on
+   a child window. */
 void WhttDarkInitWindow(CWnd *wnd);
 
 /* The vsstyle.h state id for the check or radio glyph, from the control's window style
    and its BM_GETSTATE answer. Reachable with dark mode off, for --selftest. */
 int WhttDarkGlyphState(DWORD style, UINT state);
+
+/* Draws that glyph over the dark page in a memory bitmap and answers the mean of its
+   pixels, 0 to 255, or -1 where GDI refused or glyphState is outside 1 to 12. changed,
+   where it is not NULL, takes the count of pixels the glyph moved off the page colour.
+   Nothing reaches the screen, and dark mode may be off: this is for --selftest, which
+   has no window to measure. */
+int WhttDarkGlyphLuminance(int glyphState, BOOL radio, int *changed);
 
 /* The brush a dark dialog, static text, edit control or list wants, after setting the
    text and background colours on pDC. NULL means the caller keeps its base class
