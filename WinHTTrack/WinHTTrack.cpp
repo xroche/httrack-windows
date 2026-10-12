@@ -878,6 +878,113 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("dark glyph art ok on %d checks\n", nchecks);
     }
+    /* The tab control is painted here too. WhttDarkTabProbe drives the real painter over
+       a layout built here, so every check below is a relation in what it drew. */
+    {
+      whtt_dark_tab_probe_t tab;
+      int nchecks = 0;
+
+      if (!WhttDarkTabProbe(&tab)) {
+        fprintf(stderr, "FATAL: the dark tab probe could not paint at all\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      /* The greys are pinned here on purpose, because reading them back out of DarkMode.cpp
+         would let a palette change pass. Each row names what must be wrong to fail it. */
+      const struct { const char* what; int got; int want; } same[] = {
+        /* the page's own colour, which the selected tab carries so it reads as one piece */
+        { "the selected tab's fill", tab.selectedFill, 32 },
+        /* and the colour that sets an unselected tab behind the page */
+        { "an unselected tab's fill", tab.unselectedFill, 20 },
+        /* the label has to be the text colour, not merely brighter than the tab */
+        { "the label's ink", tab.labelInk, 240 },
+        /* the selected tab covers the page's top line, and only it does */
+        { "the line under the selected tab", tab.seamUnderSelected, 32 },
+        { "the line under an unselected tab", tab.seamUnderOther, 90 },
+        /* an unselected tab is framed too, and in the frame colour. The seam row above
+           reads the page's frame, not a tab's. */
+        { "the frame on an unselected tab", tab.frameOnOther, 90 }
+      };
+      for(int k=0 ; k < (int) (sizeof(same)/sizeof(same[0])) ; k++) {
+        if (same[k].got != same[k].want) {
+          fprintf(stderr, "FATAL: %s measures %d, expected %d\n", same[k].what, same[k].got,
+                  same[k].want);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* The selected tab stands above the rest. No mean over the whole bitmap can see
+         that, and no colour check above would catch it. */
+      if (tab.selectedTop >= tab.unselectedTop) {
+        fprintf(stderr, "FATAL: the selected tab starts at row %d, not above %d\n",
+                tab.selectedTop, tab.unselectedTop);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      /* The label sits inside its tab, and centred in it. A label drawn at the wrong end
+         keeps every colour above and moves only these two. */
+      if (tab.labelLeft <= tab.itemLeft || tab.labelRight >= tab.itemRight) {
+        fprintf(stderr, "FATAL: the label spans %d to %d, outside its tab's %d to %d\n",
+                tab.labelLeft, tab.labelRight, tab.itemLeft, tab.itemRight);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      {
+        const int before = tab.labelLeft - tab.itemLeft;
+        const int after = tab.itemRight - 1 - tab.labelRight;
+        const int off = (before > after) ? before - after : after - before;
+
+        if (off > 2) {
+          fprintf(stderr, "FATAL: the label leaves %d before it and %d after it\n", before,
+                  after);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      /* The selected tab grows sideways by what it rose, so a raise scaled on one axis
+         alone, or dropped on one, keeps every colour above and moves only these. */
+      {
+        const int up = tab.unselectedTop - tab.selectedTop;
+        const int left = tab.itemLeft - tab.raiseLeft;
+        const int right = tab.raiseRight - (tab.itemRight - 1);
+
+        if (left != up || right != up) {
+          fprintf(stderr, "FATAL: the selected tab rose %d rows but grew %d left and %d "
+                  "right\n", up, left, right);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      /* Where the label sits between its tab's top and the page's line, which no x-only
+         field above can see: it rises with the selected tab, and stays centred in the row
+         both tabs share. */
+      {
+        const int above = tab.otherLabelTop - tab.itemTop;
+        const int below = tab.itemBottom - 1 - tab.otherLabelBottom;
+        const int off = (above > below) ? above - below : below - above;
+
+        if (tab.labelTop >= tab.otherLabelTop || off > 3) {
+          fprintf(stderr, "FATAL: the label inks row %d against its neighbour's %d, which "
+                  "leaves %d above and %d below\n", tab.labelTop, tab.otherLabelTop, above,
+                  below);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      if (nchecks != 12) {
+        fprintf(stderr, "FATAL: dark tab art ran %d checks, expected 12\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("dark tab art ok on %d checks\n", nchecks);
+    }
     /* A bad rule must not reach a running mirror. */
     {
       static const struct { const char* opened; const char* box; int live; const char* names; } bad[] = {

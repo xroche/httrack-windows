@@ -34,9 +34,8 @@ Please visit our Website: http://www.httrack.com
 #ifndef WINHTTRACK_DARKMODE_H
 #define WINHTTRACK_DARKMODE_H
 
-/* Unfinished. It ships off, and --dark turns it on. Push buttons and the tab control
-   keep the light visual style, and res/Toolbar.bmp is a 1998 bitmap drawn for a light
-   background.
+/* Unfinished. It ships off, and --dark turns it on. Push buttons keep the light visual
+   style, and res/Toolbar.bmp is a 1998 bitmap drawn for a light background.
 
    A window calls WhttDarkInitWindow from OnInitDialog (or OnInitialUpdate) and forwards
    its OnCtlColor to WhttDarkCtlColor. Both do nothing while dark mode is off. */
@@ -46,9 +45,9 @@ Please visit our Website: http://www.httrack.com
 void WhttDarkModeInit(BOOL requested);
 
 /* Gives a top-level window a dark title bar, and the common controls under it their
-   dark theme. Check boxes, radio buttons and group boxes are taken over for painting
-   here, so nothing in this file draws anything while dark mode is off. Safe to call on
-   a child window. */
+   dark theme. Check boxes, radio buttons, group boxes and the tab control are taken over
+   for painting here, so nothing in this file draws anything while dark mode is off. Safe
+   to call on a child window. */
 void WhttDarkInitWindow(CWnd *wnd);
 
 /* The vsstyle.h state id for the check or radio glyph, from the control's window style
@@ -61,6 +60,36 @@ int WhttDarkGlyphState(DWORD style, UINT state);
    Nothing reaches the screen, and dark mode may be off: this is for --selftest, which
    has no window to measure. */
 int WhttDarkGlyphLuminance(int glyphState, BOOL radio, int *changed);
+
+/* What --selftest reads off one painted row of tabs. Every field is a bitmap coordinate or
+   a pixel value, so a painter that moved or recoloured something answers differently. */
+typedef struct {
+  int selectedTop;        /* the topmost row the selected tab painted */
+  int unselectedTop;      /* and the topmost its neighbour painted */
+  int selectedFill;       /* the pixel inside the selected tab */
+  int unselectedFill;     /* and inside its neighbour */
+  int frameOnOther;       /* the pixel on an unselected tab's own frame */
+  int raiseLeft;          /* the columns the selected tab reaches above the row */
+  int raiseRight;
+  int labelInk;           /* the brightest pixel the selected tab's label drew */
+  int labelLeft;          /* the columns that label's ink spans */
+  int labelRight;
+  int labelTop;           /* and the rows */
+  int labelBottom;
+  int otherLabelTop;      /* the rows the neighbour's label inked */
+  int otherLabelBottom;
+  int itemLeft;           /* and the columns the selected tab's own rect spans */
+  int itemRight;
+  int itemTop;            /* and its rows */
+  int itemBottom;
+  int seamUnderSelected;  /* the pixel on the page's top line under the selected tab */
+  int seamUnderOther;     /* and under its neighbour */
+} whtt_dark_tab_probe_t;
+
+/* Paints three tabs with the middle one selected into a memory bitmap, and fills probe from
+   what came out. FALSE where GDI refused. Nothing reaches the screen, and dark mode may be
+   off: this is for --selftest, which has no property sheet to measure. */
+BOOL WhttDarkTabProbe(whtt_dark_tab_probe_t *probe);
 
 /* The brush a dark dialog, static text, edit control or list wants, after setting the
    text and background colours on pDC. NULL means the caller keeps its base class
