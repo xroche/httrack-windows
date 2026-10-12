@@ -878,7 +878,8 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("dark glyph art ok on %d checks\n", nchecks);
     }
-    /* The tab control is painted here too, and the walk shoots the selected tab only. */
+    /* The tab control is painted here too, and the walk never compares a selected tab with
+       an unselected one. */
     {
       static const struct { const WCHAR* label; BOOL selected; } art[] = {
         { L"Tab", FALSE },   /* 0 */

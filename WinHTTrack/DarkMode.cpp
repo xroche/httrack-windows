@@ -342,6 +342,26 @@ static UINT darkTextFlags(DWORD style, UINT ui)
   return flags;
 }
 
+/* The box DrawText inks inside in, which DT_CALCRECT measures without the alignment
+   DrawText then applies for us. */
+static void darkTextRect(HDC hdc, const WCHAR *text, UINT flags, const RECT *in, RECT *out)
+{
+  *out = *in;
+  DrawTextW(hdc, text, -1, out, flags | DT_CALCRECT);
+  /* DT_CALCRECT ignores DT_VCENTER, so put a single line back where the text is. */
+  if ((flags & DT_SINGLELINE) != 0) {
+    const int height = out->bottom - out->top;
+
+    out->top = in->top + (in->bottom - in->top - height) / 2;
+    out->bottom = out->top + height;
+  }
+  /* And it measures from the left edge whatever the alignment is. */
+  if ((flags & DT_RIGHT) != 0)
+    OffsetRect(out, in->right - out->right, 0);
+  else if ((flags & DT_CENTER) != 0)
+    OffsetRect(out, (in->right - out->right) / 2, 0);
+}
+
 /* Paints the frame and the caption of a group box, which is a Button too and would
    otherwise draw a caption in the system's black. The interior is left untouched: the
    controls standing in a group box are its siblings, not its children. */
@@ -471,21 +491,9 @@ static void darkPaintButton(HWND hwnd, HDC hdc, DWORD style)
   oldColor = SetTextColor(hdc, ((style & WS_DISABLED) != 0) ? DARK_TEXT_OFF : DARK_TEXT);
   DrawTextW(hdc, caption, -1, &text, flags);
   if ((state & BST_FOCUS) != 0 && (ui & UISF_HIDEFOCUS) == 0) {
-    RECT focus = text;
+    RECT focus;
 
-    DrawTextW(hdc, caption, -1, &focus, flags | DT_CALCRECT);
-    /* DT_CALCRECT ignores DT_VCENTER, so put the single-line box back where the text is. */
-    if ((style & BS_MULTILINE) == 0) {
-      const int height = focus.bottom - focus.top;
-
-      focus.top = text.top + (text.bottom - text.top - height) / 2;
-      focus.bottom = focus.top + height;
-    }
-    /* DT_CALCRECT measures from the left edge whatever the alignment is. */
-    if ((flags & DT_RIGHT) != 0)
-      OffsetRect(&focus, text.right - focus.right, 0);
-    else if ((flags & DT_CENTER) != 0)
-      OffsetRect(&focus, (text.right - focus.right) / 2, 0);
+    darkTextRect(hdc, caption, flags, &text, &focus);
     InflateRect(&focus, 1, 1);
     DrawFocusRect(hdc, &focus);
   }
@@ -504,38 +512,48 @@ typedef struct {
   HBRUSH frame;
 } dark_tab_brushes_t;
 
-/* One tab item, in client coordinates. The selected one grows past its neighbours and
-   loses the line between itself and the page below, which is how Windows tells it apart.
-   bodyTop is where the page area starts. */
-static void darkDrawTabItem(HDC hdc, const RECT *item, const WCHAR *label, BOOL selected,
-                            int bodyTop, UINT flags, const dark_tab_brushes_t *brush)
+/* One tab item, in client coordinates, where bodyTop is the line along the top of the
+   page. The selected one grows past its neighbours and runs over that line, which is how
+   Windows tells it apart. Reaching the line assumes the control put the selected tab in
+   the row next to the page, which it does whenever there is more than one row. */
+static void darkDrawTabItem(HDC hdc, const RECT *item, const WCHAR *label, UINT flags,
+                            const dark_tab_brushes_t *brush, int bodyTop, BOOL selected,
+                            BOOL focus)
 {
-  const int raise = MulDiv(DARK_TAB_RAISE, GetDeviceCaps(hdc, LOGPIXELSX), 96);
-  RECT box = *item, text;
+  const int wide = MulDiv(DARK_TAB_RAISE, GetDeviceCaps(hdc, LOGPIXELSX), 96);
+  const int tall = MulDiv(DARK_TAB_RAISE, GetDeviceCaps(hdc, LOGPIXELSY), 96);
+  RECT box = *item, edge, text;
 
   if (selected) {
-    InflateRect(&box, raise, 0);
-    box.top -= raise;
+    InflateRect(&box, wide, 0);
+    box.top -= tall;
     if (box.bottom < bodyTop + 1)
       box.bottom = bodyTop + 1;
   }
   FillRect(hdc, &box, selected ? brush->page : brush->tab);
-  FrameRect(hdc, &box, brush->frame);
-  if (selected) {
-    /* Wipe the stretch of the page's top line this tab stands on. */
-    RECT seam = box;
+  /* Three sides, because the line under a tab is the next row's top edge, or the page's. */
+  edge = box;
+  edge.bottom = edge.top + 1;
+  FillRect(hdc, &edge, brush->frame);
+  edge = box;
+  edge.right = edge.left + 1;
+  FillRect(hdc, &edge, brush->frame);
+  edge = box;
+  edge.left = edge.right - 1;
+  FillRect(hdc, &edge, brush->frame);
 
-    seam.top = bodyTop;
-    seam.bottom = bodyTop + 1;
-    InflateRect(&seam, -1, 0);
-    FillRect(hdc, &seam, brush->page);
-  }
-  text = box;
-  InflateRect(&text, -raise, 0);
+  text = *item;
   if (selected)
-    text.bottom = item->bottom;   /* the label rises with the tab */
+    text.top -= tall;   /* the label rises with the tab */
   SetTextColor(hdc, DARK_TEXT);
   DrawTextW(hdc, label, -1, &text, flags);
+  if (focus) {
+    RECT ring;
+
+    darkTextRect(hdc, label, flags, &text, &ring);
+    InflateRect(&ring, 1, 1);
+    DrawFocusRect(hdc, &ring);
+  }
 }
 
 int WhttDarkTabLuminance(const WCHAR *label, BOOL selected, int *changed)
@@ -583,8 +601,9 @@ int WhttDarkTabLuminance(const WCHAR *label, BOOL selected, int *changed)
   FillRect(dc, &all, brush.page);
   SetBkMode(dc, TRANSPARENT);
   SetRect(&item, 4, 4, width - 4, bodyTop);
-  darkDrawTabItem(dc, &item, label, selected, bodyTop,
-                  DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS, &brush);
+  darkDrawTabItem(dc, &item, label,
+                  DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS, &brush, bodyTop,
+                  selected, FALSE);
   GdiFlush();   /* the drawing reaches the bits only once the batch has run */
   for (int i = 0; i < width * height; i++) {
     const COLORREF pixel = RGB(bits[i * 4 + 2], bits[i * 4 + 1], bits[i * 4]);
@@ -605,8 +624,8 @@ int WhttDarkTabLuminance(const WCHAR *label, BOOL selected, int *changed)
 }
 
 /* Paints the whole control, background included, because no DarkMode_* theme class covers
-   SysTabControl32 and its own art is light whatever is asked of it. Nothing here moves a
-   tab: the rects are the ones the control laid out. */
+   SysTabControl32 and its own art is light whatever is asked of it. Nothing here decides
+   any geometry: the control lays out both the items and the page area. */
 static void darkPaintTab(HWND hwnd, HDC hdc)
 {
   const dark_tab_brushes_t brush = { darkDlgBrush, darkTabBrush, darkFrameBrush };
@@ -614,6 +633,8 @@ static void darkPaintTab(HWND hwnd, HDC hdc)
   const int current = (int) SendMessage(hwnd, TCM_GETCURSEL, 0, 0);
   const UINT ui = (UINT) SendMessage(hwnd, WM_QUERYUISTATE, 0, 0);
   const HFONT font = (HFONT) SendMessage(hwnd, WM_GETFONT, 0, 0);
+  /* The ring goes on the selected tab, and only while the control has the keyboard. */
+  const BOOL focused = GetFocus() == hwnd && (ui & UISF_HIDEFOCUS) == 0;
   UINT flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS;
   HGDIOBJ oldFont = NULL;
   COLORREF oldColor;
@@ -629,15 +650,10 @@ static void darkPaintTab(HWND hwnd, HDC hdc)
   oldBkMode = SetBkMode(hdc, TRANSPARENT);
   oldColor = GetTextColor(hdc);
 
-  /* The page area starts under the lowest row of tabs. TCM_GETITEMRECT answers the layout
-     rect, which the selected item's raised drawing is not part of. */
+  /* TCM_ADJUSTRECT answers the area the page covers, and the line sits just outside it. */
   body = client;
-  for (i = 0; i < count; i++) {
-    RECT item;
-
-    if (SendMessage(hwnd, TCM_GETITEMRECT, i, (LPARAM) &item) && item.bottom > body.top)
-      body.top = item.bottom;
-  }
+  SendMessage(hwnd, TCM_ADJUSTRECT, FALSE, (LPARAM) &body);
+  InflateRect(&body, 1, 1);
   FrameRect(hdc, &body, brush.frame);
 
   /* The selected tab overlaps its neighbours and the page's top line, so it goes last. */
@@ -657,7 +673,8 @@ static void darkPaintTab(HWND hwnd, HDC hdc)
       info.pszText = label;
       info.cchTextMax = sizeof(label) / sizeof(label[0]);
       SendMessage(hwnd, TCM_GETITEMW, i, (LPARAM) &info);
-      darkDrawTabItem(hdc, &item, label, isCurrent, body.top, flags, &brush);
+      darkDrawTabItem(hdc, &item, label, flags, &brush, body.top, isCurrent,
+                      isCurrent && focused);
     }
   }
 
