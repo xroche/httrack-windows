@@ -1210,7 +1210,7 @@ jobs:
             throw 'the dark glyph-state check did not run every case'
           }
           # The walk cannot see a disabled or a hot glyph at all.
-          if ("$so" -notmatch 'dark glyph art ok on 9 checks') {
+          if ("$so" -notmatch 'dark glyph art ok on 14 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the dark glyph-art check did not run every case'
           }

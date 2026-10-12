@@ -814,33 +814,61 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("dark glyph states ok on %d checks\n", nchecks);
     }
-    /* The glyph has to be dark art. The themed BUTTON answers a bitmap drawn for a light
-       page, which measures 210 of 255 against a background of 32. */
+    /* Every state has to paint, and to paint dark: the themed BUTTON answers a bitmap
+       drawn for a light page, which measured 177 over this box in the walk. */
     {
       static const struct { int state; BOOL radio; } art[] = {
-        { CBS_UNCHECKEDNORMAL, FALSE },
-        { CBS_UNCHECKEDHOT, FALSE },
-        { CBS_CHECKEDNORMAL, FALSE },
-        { CBS_CHECKEDPRESSED, FALSE },
-        { CBS_CHECKEDDISABLED, FALSE },
-        { CBS_MIXEDNORMAL, FALSE },
-        { CBS_UNCHECKEDNORMAL, TRUE },
-        { CBS_CHECKEDNORMAL, TRUE },
-        { CBS_CHECKEDDISABLED, TRUE }
+        { CBS_UNCHECKEDNORMAL, FALSE },   /* 0 */
+        { CBS_UNCHECKEDHOT, FALSE },      /* 1 */
+        { CBS_CHECKEDNORMAL, FALSE },     /* 2 */
+        { CBS_CHECKEDPRESSED, FALSE },    /* 3 */
+        { CBS_CHECKEDDISABLED, FALSE },   /* 4 */
+        { CBS_MIXEDNORMAL, FALSE },       /* 5 */
+        { CBS_UNCHECKEDNORMAL, TRUE },    /* 6 */
+        { CBS_CHECKEDNORMAL, TRUE },      /* 7 */
+        { CBS_CHECKEDDISABLED, TRUE }     /* 8 */
       };
+      /* A glyph that drew nothing, or drew every state alike, would satisfy the means
+         above on their own, so each row names two states that must differ. */
+      static const struct { int bright; int dim; const char* what; } order[] = {
+        { 2, 0, "a checked box over an empty one" },
+        { 7, 6, "a checked radio over an empty one" },
+        { 2, 4, "a checked box over its disabled self" },
+        { 7, 8, "a checked radio over its disabled self" }
+      };
+      int mean[sizeof(art)/sizeof(art[0])];
       int nchecks = 0;
       for(int k=0 ; k < (int) (sizeof(art)/sizeof(art[0])) ; k++) {
-        const int mean = WhttDarkGlyphLuminance(art[k].state, art[k].radio);
-        if (mean < 0 || mean > 160) {
-          fprintf(stderr, "FATAL: glyph state %d%s measures %d, expected dark art\n",
-                  art[k].state, art[k].radio ? " (radio)" : "", mean);
+        int changed = 0;
+        mean[k] = WhttDarkGlyphLuminance(art[k].state, art[k].radio, &changed);
+        if (mean[k] < 0 || mean[k] > 160 || changed <= 0) {
+          fprintf(stderr, "FATAL: glyph state %d%s measures %d over %d pixels, expected "
+                  "dark art\n", art[k].state, art[k].radio ? " (radio)" : "", mean[k],
+                  changed);
           fflush(stderr);
           ExitProcess(3);
         } else
           nchecks++;
       }
-      if (nchecks != 9) {
-        fprintf(stderr, "FATAL: dark glyph art ran %d checks, expected 9\n", nchecks);
+      for(int k=0 ; k < (int) (sizeof(order)/sizeof(order[0])) ; k++) {
+        if (mean[order[k].bright] <= mean[order[k].dim]) {
+          fprintf(stderr, "FATAL: %s measures %d, not above %d\n", order[k].what,
+                  mean[order[k].bright], mean[order[k].dim]);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      /* An out-of-range state must be refused, not read off the end of a colour table. */
+      if (WhttDarkGlyphLuminance(0, FALSE, NULL) != -1
+          || WhttDarkGlyphLuminance(13, FALSE, NULL) != -1) {
+        fprintf(stderr, "FATAL: a glyph state outside 1 to 12 was drawn anyway\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      if (nchecks != 14) {
+        fprintf(stderr, "FATAL: dark glyph art ran %d checks, expected 14\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

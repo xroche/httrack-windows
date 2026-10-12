@@ -177,7 +177,7 @@ static const COLORREF darkGlyphBorder[4] = {
   RGB(140, 140, 140), RGB(190, 190, 190), RGB(110, 110, 110), RGB(85, 85, 85)
 };
 static const COLORREF darkGlyphFill[4] = {
-  RGB(45, 45, 45), RGB(58, 58, 58), RGB(72, 72, 72), RGB(40, 40, 40)
+  RGB(45, 45, 45), RGB(58, 58, 58), RGB(50, 50, 50), RGB(40, 40, 40)
 };
 
 /* Draws the check or radio glyph. The themed and the classic BUTTON art are both drawn
@@ -255,7 +255,7 @@ static void darkDrawGlyph(HDC hdc, const RECT *box, BOOL radio, int glyphState)
   }
 }
 
-int WhttDarkGlyphLuminance(int glyphState, BOOL radio)
+int WhttDarkGlyphLuminance(int glyphState, BOOL radio, int *changed)
 {
   const int side = 13;
   const HDC dc = CreateCompatibleDC(NULL);
@@ -263,10 +263,15 @@ int WhttDarkGlyphLuminance(int glyphState, BOOL radio)
   HBITMAP bitmap;
   BITMAPINFO info;
   BYTE *bits = NULL;
+  HBRUSH page;
   RECT box;
-  int total = 0;
+  int total = 0, drawn = 0;
 
-  if (dc == NULL)
+  if (changed != NULL)
+    *changed = 0;
+  /* The caller indexes the colour tables with the phase, so refuse a state they have no
+     row for rather than reading behind them. */
+  if (glyphState < 1 || glyphState > 12 || dc == NULL)
     return -1;
   ZeroMemory(&info, sizeof(info));
   info.bmiHeader.biSize = sizeof(info.bmiHeader);
@@ -281,15 +286,32 @@ int WhttDarkGlyphLuminance(int glyphState, BOOL radio)
     DeleteDC(dc);
     return -1;
   }
+  page = CreateSolidBrush(DARK_DLG_BG);
+  if (page == NULL) {
+    DeleteObject(bitmap);
+    DeleteDC(dc);
+    return -1;
+  }
   oldBitmap = SelectObject(dc, bitmap);
   SetRect(&box, 0, 0, side, side);
+  /* The page goes under the glyph, so one that drew nothing is told apart from one that
+     drew the page's own colour. */
+  FillRect(dc, &box, page);
+  DeleteObject(page);
   darkDrawGlyph(dc, &box, radio, glyphState);
   GdiFlush();   /* the drawing reaches the bits only once the batch has run */
-  for (int i = 0; i < side * side; i++)
+  for (int i = 0; i < side * side; i++) {
+    const COLORREF pixel = RGB(bits[i * 4 + 2], bits[i * 4 + 1], bits[i * 4]);
+
     total += (bits[i * 4] + bits[i * 4 + 1] + bits[i * 4 + 2]) / 3;
+    if (pixel != DARK_DLG_BG)
+      drawn++;
+  }
   SelectObject(dc, oldBitmap);
   DeleteObject(bitmap);
   DeleteDC(dc);
+  if (changed != NULL)
+    *changed = drawn;
   return total / (side * side);
 }
 
