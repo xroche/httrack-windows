@@ -878,6 +878,57 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("dark glyph art ok on %d checks\n", nchecks);
     }
+    /* The tab control is painted here too, and the walk shoots the selected tab only. */
+    {
+      static const struct { const WCHAR* label; BOOL selected; } art[] = {
+        { L"Tab", FALSE },   /* 0 */
+        { L"Tab", TRUE },    /* 1 */
+        { L"", TRUE },       /* 2 */
+        { L"", FALSE }       /* 3 */
+      };
+      /* An item that drew nothing, or drew every item alike, would satisfy the means
+         above on their own, so each row names two states that must differ. */
+      static const struct { int bright; int dim; const char* what; } order[] = {
+        { 1, 0, "the selected tab over an unselected one" },
+        { 1, 2, "a labelled selected tab over a blank one" },
+        { 0, 3, "a labelled unselected tab over a blank one" }
+      };
+      int mean[sizeof(art)/sizeof(art[0])];
+      int nchecks = 0;
+      for(int k=0 ; k < (int) (sizeof(art)/sizeof(art[0])) ; k++) {
+        int changed = 0;
+        mean[k] = WhttDarkTabLuminance(art[k].label, art[k].selected, &changed);
+        if (mean[k] < 0 || mean[k] > 160 || changed <= 0) {
+          fprintf(stderr, "FATAL: a %s tab labelled \"%ls\" measures %d over %d pixels, "
+                  "expected dark art\n", art[k].selected ? "selected" : "unselected",
+                  art[k].label, mean[k], changed);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      for(int k=0 ; k < (int) (sizeof(order)/sizeof(order[0])) ; k++) {
+        if (mean[order[k].bright] <= mean[order[k].dim]) {
+          fprintf(stderr, "FATAL: %s measures %d, not above %d\n", order[k].what,
+                  mean[order[k].bright], mean[order[k].dim]);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      if (WhttDarkTabLuminance(NULL, FALSE, NULL) != -1) {
+        fprintf(stderr, "FATAL: a tab item with no label at all was drawn anyway\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      if (nchecks != 8) {
+        fprintf(stderr, "FATAL: dark tab art ran %d checks, expected 8\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("dark tab art ok on %d checks\n", nchecks);
+    }
     /* A bad rule must not reach a running mirror. */
     {
       static const struct { const char* opened; const char* box; int live; const char* names; } bad[] = {

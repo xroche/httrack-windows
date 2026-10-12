@@ -34,9 +34,8 @@ Please visit our Website: http://www.httrack.com
 #ifndef WINHTTRACK_DARKMODE_H
 #define WINHTTRACK_DARKMODE_H
 
-/* Unfinished. It ships off, and --dark turns it on. Push buttons and the tab control
-   keep the light visual style, and res/Toolbar.bmp is a 1998 bitmap drawn for a light
-   background.
+/* Unfinished. It ships off, and --dark turns it on. Push buttons keep the light visual
+   style, and res/Toolbar.bmp is a 1998 bitmap drawn for a light background.
 
    A window calls WhttDarkInitWindow from OnInitDialog (or OnInitialUpdate) and forwards
    its OnCtlColor to WhttDarkCtlColor. Both do nothing while dark mode is off. */
@@ -46,9 +45,9 @@ Please visit our Website: http://www.httrack.com
 void WhttDarkModeInit(BOOL requested);
 
 /* Gives a top-level window a dark title bar, and the common controls under it their
-   dark theme. Check boxes, radio buttons and group boxes are taken over for painting
-   here, so nothing in this file draws anything while dark mode is off. Safe to call on
-   a child window. */
+   dark theme. Check boxes, radio buttons, group boxes and the tab control are taken over
+   for painting here, so nothing in this file draws anything while dark mode is off. Safe
+   to call on a child window. */
 void WhttDarkInitWindow(CWnd *wnd);
 
 /* The vsstyle.h state id for the check or radio glyph, from the control's window style
@@ -61,6 +60,13 @@ int WhttDarkGlyphState(DWORD style, UINT state);
    Nothing reaches the screen, and dark mode may be off: this is for --selftest, which
    has no window to measure. */
 int WhttDarkGlyphLuminance(int glyphState, BOOL radio, int *changed);
+
+/* Draws one tab item over the dark page in a memory bitmap and answers the mean of its
+   pixels, 0 to 255, or -1 where GDI refused or label is NULL. changed, where it is not
+   NULL, takes the count of pixels the item moved off the page colour. Nothing reaches the
+   screen, and dark mode may be off: this is for --selftest, which has no window to
+   measure. */
+int WhttDarkTabLuminance(const WCHAR *label, BOOL selected, int *changed);
 
 /* The brush a dark dialog, static text, edit control or list wants, after setting the
    text and background colours on pDC. NULL means the caller keeps its base class

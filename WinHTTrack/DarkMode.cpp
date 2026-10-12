@@ -56,6 +56,14 @@ static char THIS_FILE[] = __FILE__;
 #define DARK_GROUP_INDENT 9
 #define DARK_GROUP_PAD    2
 
+/* An unselected tab sits behind the page. The selected one takes the page's own colour
+   and merges into it. */
+#define DARK_TAB_BG RGB(20, 20, 20)
+
+/* How far the selected tab grows past the others, at 96 dpi, which is what the classic
+   control draws. */
+#define DARK_TAB_RAISE 2
+
 /* DWMWA_USE_IMMERSIVE_DARK_MODE, and the number it answered to before Windows 10 20H1. */
 #define DARK_DWMWA_DARK_MODE      20
 #define DARK_DWMWA_DARK_MODE_OLD  19
@@ -71,6 +79,7 @@ static BOOL darkOn = FALSE;
 static HBRUSH darkDlgBrush = NULL;
 static HBRUSH darkEditBrush = NULL;
 static HBRUSH darkFrameBrush = NULL;
+static HBRUSH darkTabBrush = NULL;
 
 /* Resolved rather than imported. Neither API has to exist on Windows 7, and a missing
    import would stop the app loading. */
@@ -111,12 +120,15 @@ void WhttDarkModeInit(BOOL requested)
   darkDlgBrush = CreateSolidBrush(DARK_DLG_BG);
   darkEditBrush = CreateSolidBrush(DARK_EDIT_BG);
   darkFrameBrush = CreateSolidBrush(DARK_FRAME);
+  darkTabBrush = CreateSolidBrush(DARK_TAB_BG);
   /* One brush short would leave half the window unpainted, so give up on all of it. */
-  if (darkDlgBrush == NULL || darkEditBrush == NULL || darkFrameBrush == NULL) {
+  if (darkDlgBrush == NULL || darkEditBrush == NULL || darkFrameBrush == NULL
+      || darkTabBrush == NULL) {
     DeleteObject(darkDlgBrush);
     DeleteObject(darkEditBrush);
     DeleteObject(darkFrameBrush);
-    darkDlgBrush = darkEditBrush = darkFrameBrush = NULL;
+    DeleteObject(darkTabBrush);
+    darkDlgBrush = darkEditBrush = darkFrameBrush = darkTabBrush = NULL;
     darkOn = FALSE;
   }
 }
@@ -484,6 +496,177 @@ static void darkPaintButton(HWND hwnd, HDC hdc, DWORD style)
     SelectObject(hdc, oldFont);
 }
 
+/* The three brushes a tab item is painted with, passed in so --selftest can draw one with
+   dark mode off and the module brushes unmade. */
+typedef struct {
+  HBRUSH page;
+  HBRUSH tab;
+  HBRUSH frame;
+} dark_tab_brushes_t;
+
+/* One tab item, in client coordinates. The selected one grows past its neighbours and
+   loses the line between itself and the page below, which is how Windows tells it apart.
+   bodyTop is where the page area starts. */
+static void darkDrawTabItem(HDC hdc, const RECT *item, const WCHAR *label, BOOL selected,
+                            int bodyTop, UINT flags, const dark_tab_brushes_t *brush)
+{
+  const int raise = MulDiv(DARK_TAB_RAISE, GetDeviceCaps(hdc, LOGPIXELSX), 96);
+  RECT box = *item, text;
+
+  if (selected) {
+    InflateRect(&box, raise, 0);
+    box.top -= raise;
+    if (box.bottom < bodyTop + 1)
+      box.bottom = bodyTop + 1;
+  }
+  FillRect(hdc, &box, selected ? brush->page : brush->tab);
+  FrameRect(hdc, &box, brush->frame);
+  if (selected) {
+    /* Wipe the stretch of the page's top line this tab stands on. */
+    RECT seam = box;
+
+    seam.top = bodyTop;
+    seam.bottom = bodyTop + 1;
+    InflateRect(&seam, -1, 0);
+    FillRect(hdc, &seam, brush->page);
+  }
+  text = box;
+  InflateRect(&text, -raise, 0);
+  if (selected)
+    text.bottom = item->bottom;   /* the label rises with the tab */
+  SetTextColor(hdc, DARK_TEXT);
+  DrawTextW(hdc, label, -1, &text, flags);
+}
+
+int WhttDarkTabLuminance(const WCHAR *label, BOOL selected, int *changed)
+{
+  const int width = 72, height = 24, bodyTop = 20;
+  const HDC dc = CreateCompatibleDC(NULL);
+  dark_tab_brushes_t brush;
+  HGDIOBJ oldBitmap;
+  HBITMAP bitmap;
+  BITMAPINFO info;
+  BYTE *bits = NULL;
+  RECT all, item;
+  int total = 0, drawn = 0;
+
+  if (changed != NULL)
+    *changed = 0;
+  if (label == NULL || dc == NULL) {
+    DeleteDC(dc);
+    return -1;
+  }
+  ZeroMemory(&info, sizeof(info));
+  info.bmiHeader.biSize = sizeof(info.bmiHeader);
+  info.bmiHeader.biWidth = width;
+  info.bmiHeader.biHeight = height;
+  info.bmiHeader.biPlanes = 1;
+  info.bmiHeader.biBitCount = 32;
+  info.bmiHeader.biCompression = BI_RGB;
+  bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, (void **) &bits, NULL, 0);
+  brush.page = CreateSolidBrush(DARK_DLG_BG);
+  brush.tab = CreateSolidBrush(DARK_TAB_BG);
+  brush.frame = CreateSolidBrush(DARK_FRAME);
+  if (bitmap == NULL || bits == NULL || brush.page == NULL || brush.tab == NULL
+      || brush.frame == NULL) {
+    DeleteObject(bitmap);
+    DeleteObject(brush.page);
+    DeleteObject(brush.tab);
+    DeleteObject(brush.frame);
+    DeleteDC(dc);
+    return -1;
+  }
+  oldBitmap = SelectObject(dc, bitmap);
+  SetRect(&all, 0, 0, width, height);
+  /* The control's background goes under the item, so one that drew nothing is told apart
+     from one that drew the page's own colour. */
+  FillRect(dc, &all, brush.page);
+  SetBkMode(dc, TRANSPARENT);
+  SetRect(&item, 4, 4, width - 4, bodyTop);
+  darkDrawTabItem(dc, &item, label, selected, bodyTop,
+                  DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS, &brush);
+  GdiFlush();   /* the drawing reaches the bits only once the batch has run */
+  for (int i = 0; i < width * height; i++) {
+    const COLORREF pixel = RGB(bits[i * 4 + 2], bits[i * 4 + 1], bits[i * 4]);
+
+    total += (bits[i * 4] + bits[i * 4 + 1] + bits[i * 4 + 2]) / 3;
+    if (pixel != DARK_DLG_BG)
+      drawn++;
+  }
+  SelectObject(dc, oldBitmap);
+  DeleteObject(bitmap);
+  DeleteObject(brush.page);
+  DeleteObject(brush.tab);
+  DeleteObject(brush.frame);
+  DeleteDC(dc);
+  if (changed != NULL)
+    *changed = drawn;
+  return total / (width * height);
+}
+
+/* Paints the whole control, background included, because no DarkMode_* theme class covers
+   SysTabControl32 and its own art is light whatever is asked of it. Nothing here moves a
+   tab: the rects are the ones the control laid out. */
+static void darkPaintTab(HWND hwnd, HDC hdc)
+{
+  const dark_tab_brushes_t brush = { darkDlgBrush, darkTabBrush, darkFrameBrush };
+  const int count = (int) SendMessage(hwnd, TCM_GETITEMCOUNT, 0, 0);
+  const int current = (int) SendMessage(hwnd, TCM_GETCURSEL, 0, 0);
+  const UINT ui = (UINT) SendMessage(hwnd, WM_QUERYUISTATE, 0, 0);
+  const HFONT font = (HFONT) SendMessage(hwnd, WM_GETFONT, 0, 0);
+  UINT flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS;
+  HGDIOBJ oldFont = NULL;
+  COLORREF oldColor;
+  RECT client, body;
+  int oldBkMode, pass, i;
+
+  if ((ui & UISF_HIDEACCEL) != 0)
+    flags |= DT_HIDEPREFIX;
+  GetClientRect(hwnd, &client);
+  FillRect(hdc, &client, brush.page);
+  if (font != NULL)
+    oldFont = SelectObject(hdc, font);
+  oldBkMode = SetBkMode(hdc, TRANSPARENT);
+  oldColor = GetTextColor(hdc);
+
+  /* The page area starts under the lowest row of tabs. TCM_GETITEMRECT answers the layout
+     rect, which the selected item's raised drawing is not part of. */
+  body = client;
+  for (i = 0; i < count; i++) {
+    RECT item;
+
+    if (SendMessage(hwnd, TCM_GETITEMRECT, i, (LPARAM) &item) && item.bottom > body.top)
+      body.top = item.bottom;
+  }
+  FrameRect(hdc, &body, brush.frame);
+
+  /* The selected tab overlaps its neighbours and the page's top line, so it goes last. */
+  for (pass = 0; pass < 2; pass++) {
+    for (i = 0; i < count; i++) {
+      const BOOL isCurrent = (i == current);
+      TCITEMW info;
+      RECT item;
+      WCHAR label[256];
+
+      if (isCurrent != (pass == 1)
+          || !SendMessage(hwnd, TCM_GETITEMRECT, i, (LPARAM) &item))
+        continue;
+      label[0] = L'\0';
+      ZeroMemory(&info, sizeof(info));
+      info.mask = TCIF_TEXT;
+      info.pszText = label;
+      info.cchTextMax = sizeof(label) / sizeof(label[0]);
+      SendMessage(hwnd, TCM_GETITEMW, i, (LPARAM) &info);
+      darkDrawTabItem(hdc, &item, label, isCurrent, body.top, flags, &brush);
+    }
+  }
+
+  SetTextColor(hdc, oldColor);
+  SetBkMode(hdc, oldBkMode);
+  if (oldFont != NULL)
+    SelectObject(hdc, oldFont);
+}
+
 static void darkPaint(HWND hwnd, HDC hdc)
 {
   const DWORD style = (DWORD) GetWindowLong(hwnd, GWL_STYLE);
@@ -494,35 +677,39 @@ static void darkPaint(HWND hwnd, HDC hdc)
     darkPaintButton(hwnd, hdc, style);
 }
 
-static LRESULT CALLBACK darkButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
-                                       UINT_PTR id, DWORD_PTR)
+typedef void (*dark_painter_t)(HWND, HDC);
+
+/* Takes over a control the common controls would draw light. The subclass id says whether
+   the painter fills the whole client area, and the reference data is the painter. */
+static LRESULT CALLBACK darkPaintProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                      UINT_PTR fills, DWORD_PTR data)
 {
+  const dark_painter_t paint = (dark_painter_t) data;
   PAINTSTRUCT ps;
 
   switch (msg) {
   case WM_NCDESTROY:
-    RemoveWindowSubclass(hwnd, darkButtonProc, id);
+    RemoveWindowSubclass(hwnd, darkPaintProc, fills);
     break;
   case WM_ERASEBKGND:
-    /* A group box draws its frame and its caption only, so it keeps its usual erase. */
-    if (darkIsGroupBox((DWORD) GetWindowLong(hwnd, GWL_STYLE)))
+    if (fills == 0)
       break;
-    return 1;   /* the paint fills the whole client area */
+    return 1;
   case WM_PAINT:
     /* Fall through on failure: returning validates nothing, so Windows reposts. */
     if (BeginPaint(hwnd, &ps) != NULL) {
-      darkPaint(hwnd, ps.hdc);
+      paint(hwnd, ps.hdc);
       EndPaint(hwnd, &ps);
       return 0;
     }
     break;
   /* PrintWindow reaches a child by either message, depending on the flags. */
   case WM_PRINTCLIENT:
-    darkPaint(hwnd, (HDC) wParam);
+    paint(hwnd, (HDC) wParam);
     return 0;
   case WM_PRINT:
     if ((lParam & PRF_CLIENT) != 0) {
-      darkPaint(hwnd, (HDC) wParam);
+      paint(hwnd, (HDC) wParam);
       return 0;
     }
     break;
@@ -542,7 +729,8 @@ static void darkOwnerDrawButton(HWND hwnd)
     return;
   if (type == BS_CHECKBOX || type == BS_AUTOCHECKBOX || type == BS_3STATE
       || type == BS_AUTO3STATE || type == BS_GROUPBOX || darkIsRadio(style))
-    SetWindowSubclass(hwnd, darkButtonProc, 0, 0);
+    /* A group box paints its frame and its caption only, so it keeps its usual erase. */
+    SetWindowSubclass(hwnd, darkPaintProc, !darkIsGroupBox(style), (DWORD_PTR) darkPaint);
 }
 
 static void darkThemeControl(HWND hwnd)
@@ -560,6 +748,9 @@ static void darkThemeControl(HWND hwnd)
   /* A button needs no theme call: we paint it ourselves. */
   if (lstrcmpiA(name, "Button") == 0)
     darkOwnerDrawButton(hwnd);
+  /* Nor does the tab control, which no theme class reaches. */
+  else if (lstrcmpiA(name, "SysTabControl32") == 0)
+    SetWindowSubclass(hwnd, darkPaintProc, 1, (DWORD_PTR) darkPaintTab);
   else if (setTheme == NULL)
     return;
   /* A theme name the system does not know falls back to the default one, so an older

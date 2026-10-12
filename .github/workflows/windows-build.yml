@@ -1215,6 +1215,11 @@ jobs:
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the dark glyph-art check did not run every case'
           }
+          # The walk shoots the selected tab only, so only this compares it with the rest.
+          if ("$so" -notmatch 'dark tab art ok on 8 checks') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the dark tab-art check did not run every case'
+          }
           if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
             throw 'a portable run registered .whtt under HKCU, from this block or another'
           }
