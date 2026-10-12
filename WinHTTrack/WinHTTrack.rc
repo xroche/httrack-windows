@@ -165,7 +165,7 @@ END
 IDD_WIZ1 DIALOGEX 0, 0, 326, 199
 STYLE DS_SETFONT | DS_CONTEXTHELP | WS_CHILD
 EXSTYLE WS_EX_CONTEXTHELP
-FONT 8, "MS Sans Serif", 0, 0, 0x1
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     EDITTEXT        IDC_URL,16,95,281,49,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL
     LTEXT           "",IDC_INFOMAIN,16,7,300,43
@@ -182,7 +182,7 @@ END
 
 IDD_Debut DIALOGEX 0, 0, 256, 205
 STYLE DS_SETFONT | WS_CHILD
-FONT 8, "MS Sans Serif", 0, 0, 0x0
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     GROUPBOX        "",IDC_STATIC_connect,7,6,242,158
     CONTROL         "Please adjust connection parameters if necessary,\nthen press FINISH to launch the mirroring operation.",IDC_select_start,
@@ -205,7 +205,7 @@ END
 IDD_wizard DIALOG  0, 0, 190, 98
 STYLE DS_SETFONT | WS_CAPTION | WS_SYSMENU
 CAPTION "Wizard query"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_reponse,106,58,77,12,ES_AUTOHSCROLL
     DEFPUSHBUTTON   "OK",IDOK,133,77,50,14
@@ -215,7 +215,7 @@ END
 
 IDD_inprogress DIALOG  0, 0, 361, 207
 STYLE DS_SETFONT | WS_CHILD
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "In progress:",IDC_STATIC_inprog,15,7,70,8
     LTEXT           "",IDC_inforun,85,7,265,8
@@ -313,7 +313,7 @@ END
 IDD_wizard_yn DIALOG  0, 0, 197, 106
 STYLE DS_SETFONT | WS_CAPTION | WS_SYSMENU
 CAPTION "Wizard query"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     PUSHBUTTON      "No",IDCANCEL,7,85,50,14
     DEFPUSHBUTTON   "Ok",IDOK,140,85,50,14
@@ -323,7 +323,7 @@ END
 IDD_wizard_lnk DIALOG  0, 0, 320, 150
 STYLE DS_SETFONT | WS_CAPTION | WS_SYSMENU
 CAPTION "Link detected.."
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_URL,7,7,306,32,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | NOT WS_TABSTOP
     GROUPBOX        "Choose a rule",IDC_STATIC_rule,7,46,306,76
@@ -343,7 +343,7 @@ END
 IDD_ABOUT DIALOG  0, 0, 235, 226
 STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About WinHTTrack Website Copier"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_INFOVER,7,7,221,127,ES_MULTILINE | ES_READONLY | NOT WS_BORDER | NOT WS_TABSTOP
     ICON            IDI_SPLASH,IDC_SPLASH,7,133,20,20,SS_CENTERIMAGE | SS_REALSIZEIMAGE
@@ -356,7 +356,7 @@ END
 IDD_UNOFFICIAL DIALOG  0, 0, 300, 142
 STYLE DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "WinHTTrack - unofficial build"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "",IDC_SIGWARN,7,7,286,18
     LTEXT           "",IDC_SIGWHO,7,29,286,18
@@ -368,7 +368,7 @@ END
 IDD_AddFilter DIALOG  0, 0, 230, 150
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Add Scan Rule"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     COMBOBOX        IDC_AFtype,85,33,138,64,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_AFext,85,48,138,12,ES_AUTOHSCROLL
@@ -383,7 +383,7 @@ END
 IDD_iplog DIALOG  0, 0, 426, 178
 STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "Log files"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_log,10,27,410,143,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL | NOT WS_TABSTOP
     PUSHBUTTON      "log",IDC_changelog,10,7,104,14
@@ -395,7 +395,7 @@ END
 IDD_NewFolder DIALOG  0, 0, 237, 46
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Create New Folder"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_Folder,7,7,167,14,ES_AUTOHSCROLL
     DEFPUSHBUTTON   "OK",IDOK,180,7,50,14
@@ -404,7 +404,7 @@ END
 
 IDD_fin DIALOG  0, 0, 321, 195
 STYLE DS_SETFONT | WS_CHILD
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     PUSHBUTTON      "View log file",IDlog,7,144,90,14
     PUSHBUTTON      "Browse Mirrored Website",IDbrowse,7,165,90,14
@@ -414,7 +414,7 @@ END
 IDD_BuildOptions DIALOG  0, 0, 246, 183
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "User-defined structure"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_BuildString,7,7,232,15,ES_AUTOHSCROLL
     DEFPUSHBUTTON   "OK",IDOK,7,163,50,14
@@ -427,7 +427,7 @@ END
 IDD_ProxyId DIALOG  0, 0, 266, 145
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Proxy settings"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     COMBOBOX        IDC_proxytype,104,8,110,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_proxadr,104,24,141,12,ES_AUTOHSCROLL
@@ -446,7 +446,7 @@ END
 
 IDD_NewProj DIALOG  0, 0, 322, 181
 STYLE DS_SETFONT | WS_CHILD
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "Project name:",IDC_STATIC_projname,7,7,118,13
     COMBOBOX        IDC_projname,130,7,185,113,CBS_DROPDOWN | CBS_AUTOHSCROLL | CBS_SORT | WS_VSCROLL | WS_TABSTOP
@@ -464,7 +464,7 @@ END
 IDD_InsertUrl DIALOG  0, 0, 266, 142
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Insert URL"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_urladr,105,8,141,12,ES_AUTOHSCROLL
     EDITTEXT        IDC_urllogin,106,43,56,12,ES_AUTOHSCROLL
@@ -483,7 +483,7 @@ END
 IDD_OPTION3 DIALOG  0, 0, 324, 141
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Experts Only"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "These options should be modified only exceptionally",IDC_STATIC_warning,16,8,247,8
     CONTROL         "Use a cache for updates",IDC_Cache,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,21,242,9
@@ -504,7 +504,7 @@ END
 IDD_OPTION4 DIALOGEX 0, 0, 324, 152
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Flow Control"
-FONT 8, "MS Sans Serif", 0, 0, 0x0
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     LTEXT           "Number of connections",IDC_STATIC_mc,16,15,104,8
     COMBOBOX        IDC_connexion,130,15,32,54,CBS_DROPDOWN | WS_VSCROLL | WS_TABSTOP
@@ -528,7 +528,7 @@ END
 IDD_OPTION5 DIALOGEX 0, 0, 260, 198
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Limits"
-FONT 8, "MS Sans Serif", 0, 0, 0x1
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     LTEXT           "Maximum mirroring depth:",IDC_infodepth,16,15,129,11
     COMBOBOX        IDC_depth,151,15,59,56,CBS_DROPDOWN | WS_VSCROLL | WS_TABSTOP
@@ -562,7 +562,7 @@ END
 IDD_OPTION6 DIALOGEX 0, 0, 309, 179
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Browser ID"
-FONT 8, "MS Sans Serif", 0, 0, 0x0
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     COMBOBOX        IDC_user,115,16,180,89,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Browser ""Identity""",IDC_STATIC_browsid,16,16,94,8
@@ -579,7 +579,7 @@ END
 IDD_OPTION1 DIALOG  0, 0, 325, 150
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Links"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     CONTROL         "Attempt to detect all links (even in unknown tags/javascript code)",IDC_parseall,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,16,309,10
@@ -596,7 +596,7 @@ END
 IDD_OPTION2 DIALOG  0, 0, 296, 150
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Build"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "Local Structure Type (how links are saved)",IDC_STATIC_buildopt,16,16,243,8
     COMBOBOX        IDC_build,16,24,264,96,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
@@ -613,7 +613,7 @@ END
 IDD_OPTION7 DIALOG  0, 0, 315, 197
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Scan Rules"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "Use wildcards to exclude or include URLs or links.\nYou can put several scan strings on the same line.\nUse spaces as separators.\n\nExample: +*.zip -www.*.com -www.*.edu/cgi-bin/*.cgi",IDC_STATIC_finfo,16,7,289,53
     CONTROL         "gif, jpg, jpeg, png, tif, bmp",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,65,74,10
@@ -628,7 +628,7 @@ END
 IDD_OPTION8 DIALOGEX 0, 0, 272, 198
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Spider"
-FONT 8, "MS Sans Serif", 0, 0, 0x0
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     CONTROL         "Accept cookies",IDC_cookies,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,16,244,9
     LTEXT           "Check document type",IDC_STATIC_checktype,16,32,117,8
@@ -653,7 +653,7 @@ END
 IDD_OPTION9 DIALOGEX 0, 0, 325, 198
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Log, Index, Cache"
-FONT 8, "MS Sans Serif", 0, 0, 0x0
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
     CONTROL         "Store ALL files in cache",IDC_Cache2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,16,305,9
     CONTROL         "Do not re-download locally erased files",IDC_norecatch,
@@ -675,7 +675,7 @@ END
 IDD_OPTION10 DIALOG  0, 0, 309, 61
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Proxy"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "Proxy:",IDC_proxtitle,16,16,39,10
     COMBOBOX        IDC_prox,58,16,157,89,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
@@ -689,7 +689,7 @@ END
 IDD_InfoUrl DIALOG  0, 0, 347, 261
 STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "File download information"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     DEFPUSHBUTTON   "CLOSE",IDOK,290,240,50,14
     COMBOBOX        IDC_backlist,7,7,333,85,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
@@ -704,7 +704,7 @@ END
 IDD_CatchUrl DIALOG  0, 0, 313, 164
 STYLE DS_SETFONT | DS_MODALFRAME | WS_CAPTION
 CAPTION "Catch URL!"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     EDITTEXT        IDC_info,7,45,299,63,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL
     DEFPUSHBUTTON   "ABORT",IDCANCEL,256,143,50,14
@@ -715,7 +715,7 @@ END
 IDD_OPTION11 DIALOG  0, 0, 303, 178
 STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "MIME types"
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     GROUPBOX        "MIME associations",IDC_STATIC_asso,15,15,275,150
     LTEXT           "File types:",IDC_STATIC_filetype,25,27,60,8
@@ -750,7 +750,7 @@ END
 
 IDD_FirstInfo DIALOG  0, 0, 348, 130
 STYLE DS_SETFONT | WS_CHILD
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
     LTEXT           "Welcome to WinHTTrack Website Copier!\n\nPlease click on the NEXT button to\n\n- start a new project\n- or resume a partial download",IDC_STATIC_welcome,7,7,153,116
     ICON            IDI_SPLASH,IDC_SPLASH,161,7,20,20,SS_CENTERIMAGE | SS_REALSIZEIMAGE
@@ -758,7 +758,7 @@ END
 
 IDD_BatchUpdate DIALOG  0, 0, 322, 177
 STYLE DS_SETFONT | WS_CHILD
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
 END
 
@@ -2450,7 +2450,7 @@ IDI_SPLASH              ICON                    "res\\ico00001.ico"
 
 IDD_DIALOGCONTAINER_FORM DIALOG  0, 0, 173, 96
 STYLE DS_SETFONT | WS_CHILD
-FONT 8, "MS Sans Serif"
+FONT 8, "MS Shell Dlg"
 BEGIN
 END
 
