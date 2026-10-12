@@ -442,59 +442,48 @@ void LANG_SELFTEST_DECODE(void) {
   }
 }
 
-/* One pass over a catalog, taking either its symbol-keyed lines or its text-keyed ones.
-   fallback is the English pass, which fills only what the selected language left unset. */
-static void LANG_LOAD_CATALOG(FILE* fp,BOOL fallback,BOOL symbols) {
-  char extkey[8192];
-  TCHAR value[8192];
+/* The open callback's state: index 1 is always English, so only index 0 needs a name. */
+struct LangCatalogOpen {
+  int selected;
+};
 
-  rewind(fp);
-  while(!feof(fp)) {
-    const char* intkey;
-
-    linput_cpp(fp,extkey,8000);
-    linput_cpp(fp,value,8000);
-    if (!strnotempty(extkey) || !strnotempty(value))
-      continue;
-    intkey=LANGINTKEY(extkey);
-
-    /* A row may key on its LANG_ symbol instead of the English text, so a reworded
-       string keeps its translations. Reached only where lang.def has no row. */
-    const BOOL is_symbol=(!strnotempty(intkey) && LangKeyIsSymbol(extkey)) ? TRUE : FALSE;
-
-    if (is_symbol != symbols)
-      continue;
-    if (symbols) {
-      /* The first symbol line wins, and no symbol line ever increments. */
-      if (strnotempty(LANGSEL(extkey)))
-        continue;
-      intkey=extkey;
-    } else {
-      if (!strnotempty(intkey))
-        continue;
-      if (strnotempty(LANGSEL(intkey))) {
-        size_t pos=strlen(extkey);
-        int increment=0;
-
-        if (fallback)
-          continue;
-        /* Repeated English text: lang.def keys its Nth copy as text + N. */
-        do {
-          increment++;
-          sprintf(extkey+pos,"%d",increment);
-          intkey=LANGINTKEY(extkey);
-        }  while (strnotempty(intkey) && strnotempty(LANGSEL(intkey)));
-        if (!strnotempty(intkey))
-          continue;
-      }
+/* Opens the selected language's catalog, or English's. A missing one is fatal here rather
+   than in the loader, which cannot name the file. */
+static FILE* LANG_OPEN_CATALOG(void* ctx, int index) {
+  char name[256];
+  sprintf(name,"LANGUAGE_%d",(index==0)?(((const LangCatalogOpen*)ctx)->selected+1):1);
+  CString lbasename;
+  lbasename.Format("lang/%s.txt",LANGINTKEY(name));
+  CString lname=LANG_DATAFILE(lbasename);
+  FILE* fp=fopen(lname,"rb");
+  if (fp == NULL) {
+    /* This branch is the per-language file, not lang.def: say which one. */
+    if (WhttSelfTest) {
+      fprintf(stderr, "FATAL: cannot open %s: the installation is incomplete\n",
+              (const char*)LPCTSTR(lbasename));
+      fflush(stderr);
+      ExitProcess(1);
     }
-    {
-      char* const buff=ConvertCatalogValue(value,CP_ACP);
-
-      if (buff)
-        coucal_add(NewLangStr,intkey,(intptr_t)buff);
-    }
+    AfxMessageBox("FATAL ERROR\r\n" + lbasename + " NOT FOUND!\r\nEnsure that the installation was complete!");
+    exit(1);
   }
+  return fp;
+}
+
+static const char* LANG_CATALOG_INTKEY(void*, const char* key) {
+  return LANGINTKEY(key);
+}
+
+static const char* LANG_CATALOG_RESOLVED(void*, const char* intkey) {
+  return LANGSEL(intkey);
+}
+
+/* Decoded and unescaped on the way in, because every LANG_* site reads the table raw. */
+static void LANG_STORE_CATALOG(void*, const char* intkey, const char* value) {
+  char* const buff=ConvertCatalogValue(value,CP_ACP);
+
+  if (buff)
+    coucal_add(NewLangStr,intkey,(intptr_t)buff);
 }
 
 void LANG_LOAD(char* limit_to, size_t limit_size) {
@@ -609,36 +598,14 @@ void LANG_LOAD(char* limit_to, size_t limit_size) {
 
   /* Load specific language file */
   {
-    int loops;
-    // 2nd loop: load undefined strings
-    for(loops=0;loops<2;loops++) {
-      CString lbasename;
-      
-      {
-        char name[256];
-        sprintf(name,"LANGUAGE_%d",(loops==0)?(selected_lang+1):1);
-        hashname=LANGINTKEY(name);
-      }
-      lbasename.Format("lang/%s.txt",hashname);
-      CString lname=LANG_DATAFILE(lbasename);
-      FILE* fp=fopen(lname,"rb");
-      if (fp) {
-        /* Symbols go first, so a repeated text skips the slots they own. */
-        LANG_LOAD_CATALOG(fp,loops>0,TRUE);
-        LANG_LOAD_CATALOG(fp,loops>0,FALSE);
-        fclose(fp);
-      } else {
-        /* This branch is the per-language file, not lang.def: say which one. */
-        if (WhttSelfTest) {
-          fprintf(stderr, "FATAL: cannot open %s: the installation is incomplete\n",
-                  (const char*)LPCTSTR(lbasename));
-          fflush(stderr);
-          ExitProcess(1);
-        }
-        AfxMessageBox("FATAL ERROR\r\n" + lbasename + " NOT FOUND!\r\nEnsure that the installation was complete!");
-        exit(1);
-      }
-    }
+    LangCatalogOpen opened;
+    opened.selected=selected_lang;
+    const LangCatalogIO io = {
+      &opened, LANG_OPEN_CATALOG, linput_cpp, LANG_CATALOG_INTKEY, LANG_CATALOG_RESOLVED,
+      LANG_STORE_CATALOG
+    };
+
+    LangLoadCatalogs(&io);
   }
 
 

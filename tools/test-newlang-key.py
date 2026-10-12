@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Compile and run tools/newlang-key-test.cpp, then check what no C code here can check
-about itself: that newlang.cpp reaches the symbol-key fallback only where the English-text
-lookup missed, and that no key the engine ships has the symbol shape.
+"""Compile and run tools/newlang-key-test.cpp over the engine's catalogs, then rerun it
+against a loader mutated one ordering rule at a time.
 
 A catalog keys its rows on the English text, so rewording a string orphans its 30
-translations. newlang.cpp accepts a LANG_ or LISTDEF_ symbol as the key instead. Nothing
-ships symbol-keyed yet, so the fallback cannot be reached and no string changes. Check 2
-is what carries that, because the replay it drives rebuilds the loader around the one
-shipped function and so cannot speak for the real path.
+translations. The loader in WinHTTrack/newlang-key.cpp accepts a LANG_ or LISTDEF_ symbol
+as the key instead. Nothing ships symbol-keyed yet, so the symbol path cannot be reached
+and no string changes, which is what check 2 below carries.
 
-It also builds the fixtures of the engine's tests/576_webhttrack-lang-symbol-keys.test,
-which re-key a catalog in whole or in part, and check 1 holds the shipped loader against
-four of the five rules the engine's lang_load_catalog() follows. Both front ends have to
-resolve a part-re-keyed catalog to the same strings.
+The harness builds the fixtures of the engine's
+tests/576_webhttrack-lang-symbol-keys.test, which re-key a catalog in whole or in part,
+and resolves them through the shipped loader. Each mutation in MUTATIONS breaks one of the
+five rules the engine's lang_load_catalog() follows and has to red the harness, and the
+last entry rewrites the two passes as a loop and has to stay green: that pair is what says
+the rules are checked by what the loader does rather than by how it is written.
 
 The engine has to be checked out. --engine says where, and defaults to the sibling
 directory CI uses.
@@ -35,39 +35,111 @@ SYMBOL = re.compile(r"^(?:LANG_|LISTDEF_)[A-Za-z0-9_]+$")
 # --selftest 'catalog keys' block pins that both resolve, so a rename has to land here.
 START, REPEAT = "LANG_J9", "LANG_J13"
 
-# What LANG_LOAD_CATALOG() in newlang.cpp has to say, whitespace apart, one entry per rule
-# the engine's lang_load_catalog() follows. The harness replays a copy of this loader, so
-# without these the two could drift apart and every check there would still pass.
-RULES = (
-    (
-        "intkey=LANGINTKEY(extkey);constBOOLis_symbol="
-        "(!strnotempty(intkey)&&LangKeyIsSymbol(extkey))?TRUE:FALSE;",
+# One mutation per rule the engine's lang_load_catalog() follows, each breaking it in the
+# shipped loader. `where` has to appear exactly once in WinHTTrack/newlang-key.cpp, `fix`
+# replaces it, and `says` is what the harness has to answer with. The last entry rewrites
+# the two passes as a loop, which changes nothing and has to stay green: a pattern over the
+# source failed both ways round, waving the rule 4 mutation through and rejecting that
+# rewrite.
+Mutation = collections.namedtuple("Mutation", "rule where fix says red")
+
+MUTATIONS = (
+    Mutation(
         "rule 1, the text lookup deciding before the shape test",
+        "is_symbol = (!notempty(intkey) && LangKeyIsSymbol(extkey)) ? 1 : 0;",
+        "is_symbol = LangKeyIsSymbol(extkey) ? 1 : 0;",
+        "the shape test is deciding before the text lookup",
+        True,
     ),
-    (
-        "if(is_symbol!=symbols)continue;",
+    Mutation(
         "rules 2 and 3, each kind of line left to its own pass",
+        """    if (is_symbol != symbols)
+      continue;""",
+        "    (void) is_symbol;",
+        "strings resolved under a key lang.def never names",
+        True,
     ),
-    (
-        "if(symbols){if(strnotempty(LANGSEL(extkey)))continue;intkey=extkey;}",
-        "rule 2, the first symbol line winning and never incrementing",
+    Mutation(
+        "rule 2, the first symbol line winning",
+        """      if (notempty(io->resolved(io->ctx, extkey)))
+        continue;
+      intkey = extkey;""",
+        "      intkey = extkey;",
+        "re-keying both catalogs",
+        True,
     ),
-    ("if(fallback)continue;", "rule 5, the English pass filling only empty slots"),
+    Mutation(
+        "rule 2, no symbol line ever incrementing",
+        "      intkey = extkey;",
+        """      {
+        size_t pos = strlen(extkey);
+        int increment = 0;
+
+        do {
+          increment++;
+          sprintf(extkey + pos, "%d", increment);
+        }  while(notempty(io->resolved(io->ctx, extkey)));
+      }
+      intkey = extkey;""",
+        "re-keying every French line",
+        True,
+    ),
+    Mutation(
+        "rule 3, a repeated text taking the next copy's slot",
+        """        size_t pos = strlen(extkey);
+        int increment = 0;
+
+        if (fallback)
+          continue;
+        /* Repeated English text: lang.def keys its Nth copy as text + N. */
+        do {
+          increment++;
+          sprintf(extkey + pos, "%d", increment);
+          intkey = io->internalKey(io->ctx, extkey);
+        }  while(notempty(intkey) && notempty(io->resolved(io->ctx, intkey)));
+        if (!notempty(intkey))
+          continue;""",
+        """        (void) fallback;
+        continue;""",
+        "the text-keyed French catalog resolved LANG_J13",
+        True,
+    ),
+    Mutation(
+        "rule 4, each catalog's symbol lines read inside the language loop",
+        "  for(index = 0 ; index < 2 ; index++) {",
+        """  FILE *const hoisted = io->open(io->ctx, 1);
+
+  LangLoadCatalogPass(io, hoisted, 1, 1);
+  fclose(hoisted);
+  for(index = 0 ; index < 2 ; index++) {""",
+        "re-keying English alone",
+        True,
+    ),
+    Mutation(
+        "rule 5, the English pass filling only empty slots",
+        """        if (fallback)
+          continue;""",
+        "        (void) fallback;",
+        "fr-gap.txt still resolves LANG_J13",
+        True,
+    ),
+    Mutation(
+        "the same two passes, called from a loop",
+        """    LangLoadCatalogPass(io, fp, index > 0, 1);
+    LangLoadCatalogPass(io, fp, index > 0, 0);""",
+        """    int symbols;
+
+    for(symbols = 1 ; symbols >= 0 ; symbols--)
+      LangLoadCatalogPass(io, fp, index > 0, symbols);""",
+        "",
+        False,
+    ),
 )
-# Rule 4, the pass order, is not here. A pattern over the two calls waves through an extra
-# English symbol pass hoisted above them and fails a loop that calls them in order, so it
-# blocks the refactor and misses the bug. Nothing checks rule 4 in the shipped loader.
 
 
 def read(path, encoding="utf-8"):
     with open(path, encoding=encoding) as f:
         return f.read()
-
-
-def pack(source):
-    """The source with its comments and every space gone, so a pattern can be exact."""
-    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.S)
-    return re.sub(r"\s+", "", re.sub(r"//[^\n]*", " ", source))
 
 
 def catalog_keys(path):
@@ -167,6 +239,37 @@ def build_fixtures(engine, langdef, where):
     write_fixture(os.path.join(where, "fr-gap.txt"), gap, lambda i: False)
 
 
+def build(cxx, exe, loader):
+    """The harness, linked against `loader` as its catalog loader."""
+    subprocess.run(
+        [
+            cxx,
+            "-std=c++14",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-o",
+            exe,
+            os.path.join(ROOT, "tools", "newlang-key-test.cpp"),
+            loader,
+            "-I" + os.path.join(ROOT, "WinHTTrack"),
+        ],
+        check=True,
+    )
+
+
+def mutate(source, mutation, path):
+    """`source` with one rule broken, written to `path`."""
+    if source.count(mutation.where) != 1:
+        sys.exit(
+            "newlang-key.cpp holds %d copies of what %s mutates, so the mutation says "
+            "nothing: expected '%s'"
+            % (source.count(mutation.where), mutation.rule, mutation.where)
+        )
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(source.replace(mutation.where, mutation.fix))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -184,19 +287,10 @@ def main():
             "Check the engine out, or pass --engine." % langdef
         )
 
-    # 1. newlang.cpp has to carry the five rules the harness replays, since the harness
-    #    compiles its own copy of the loader and so cannot speak for the shipped one.
-    #    Check 5 there proves the two fallback directions resolve differently.
-    loader = read(os.path.join(ROOT, "WinHTTrack", "newlang.cpp"))
-    packed = pack(loader)
-    for shape, rule in RULES:
-        if shape not in packed:
-            sys.exit(
-                "newlang.cpp does not carry %s: expected '%s', whitespace apart"
-                % (rule, shape)
-            )
-    if loader.count("LangKeyIsSymbol") != 1:
-        sys.exit("newlang.cpp names LangKeyIsSymbol more than once, so a second call site")
+    # 1. The loader lives in its own unit, so the harness links the shipped one. A copy
+    #    back in newlang.cpp would be tested by nothing.
+    if "LangKeyIsSymbol" in read(os.path.join(ROOT, "WinHTTrack", "newlang.cpp")):
+        sys.exit("newlang.cpp resolves a catalog key itself, so it holds a second loader")
 
     # 2. Independently of the C, no key the engine ships has the symbol shape, in lang.def
     #    or in any catalog. That is why the branch cannot be reached today.
@@ -235,37 +329,50 @@ def main():
         flush=True,
     )
 
-    # 4. Replay both joins and diff them, with a symbol-keyed probe proving the diff
-    #    can see one.
+    # 4. Resolve every catalog and every re-keyed fixture through the shipped loader, with
+    #    a symbol-keyed probe proving the symbol path can be taken at all.
     with tempfile.TemporaryDirectory() as tmp:
         probe = os.path.join(tmp, "probe.txt")
         with open(probe, "w", encoding="utf-8") as f:
             f.write("LANG_OK\nprobe value\n")
         # Keyed by a symbol the harness's synthetic lang.def also lists, which is the only
-        # way to tell the guarded fallback from the inverted one.
+        # way to tell the shipped order from the inverted one.
         guard = os.path.join(tmp, "guard.txt")
         with open(guard, "w", encoding="utf-8") as f:
             f.write("LANG_PROBE\nvia lang.def\n")
         build_fixtures(args.engine, langdef, tmp)
         exe = os.path.join(tmp, "newlang-key-test")
-        subprocess.run(
-            [
-                args.cxx,
-                "-std=c++14",
-                "-Wall",
-                "-Wextra",
-                "-Werror",
-                "-o",
-                exe,
-                os.path.join(ROOT, "tools", "newlang-key-test.cpp"),
-                os.path.join(ROOT, "WinHTTrack", "newlang-key.cpp"),
-                "-I" + os.path.join(ROOT, "WinHTTrack"),
-            ],
-            check=True,
-        )
         env = dict(os.environ, NEWLANG_KEY_PROBE=probe, NEWLANG_KEY_GUARD=guard,
                    NEWLANG_PARITY_DIR=tmp)
+        shipped = os.path.join(ROOT, "WinHTTrack", "newlang-key.cpp")
+        build(args.cxx, exe, shipped)
         subprocess.run([exe, args.engine], check=True, env=env)
+
+        # 5. Each rule broken in turn has to red the harness, naming the rule it broke,
+        #    and the rewritten pass loop has to stay green.
+        source = read(shipped)
+        killed, survived = 0, 0
+        for i, mutation in enumerate(MUTATIONS):
+            loader = os.path.join(tmp, "mutant-%d.cpp" % i)
+            mutate(source, mutation, loader)
+            build(args.cxx, exe + "-mutant", loader)
+            ran = subprocess.run([exe + "-mutant", args.engine], env=env,
+                                 capture_output=True, text=True)
+            if mutation.red:
+                if ran.returncode == 0:
+                    sys.exit("breaking %s changed nothing the harness checks" % mutation.rule)
+                if mutation.says not in ran.stderr:
+                    sys.exit(
+                        "breaking %s was caught by something else: expected '%s', got\n%s"
+                        % (mutation.rule, mutation.says, ran.stderr)
+                    )
+                killed += 1
+            else:
+                if ran.returncode != 0:
+                    sys.exit("%s reds the harness:\n%s" % (mutation.rule, ran.stderr))
+                survived += 1
+        print("%d broken rules each red the harness and %d rewrite of the same rules "
+              "stays green" % (killed, survived))
 
 
 if __name__ == "__main__":

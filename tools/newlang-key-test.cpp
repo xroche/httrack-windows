@@ -1,31 +1,28 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright (C) 2026 Xavier Roche and other contributors
 
-   Replays a COPY of the catalog join in WinHTTrack/newlang.cpp, once with the symbol-key
-   fallback and once without, and holds the two resolved tables against each other. Then
-   it re-keys the French and English catalogs the way the engine's
-   tests/576_webhttrack-lang-symbol-keys.test does, and requires the same strings out.
-   LangKeyIsSymbol() is the only shipped code here, because the line reader below is
-   copied out of HTTrackInterface.c and std::map stands in for coucal. So an equal pair
-   of tables supports the no-op rather than proving it. What proves it is that no shipped
-   key has the symbol shape, checked at 2 below and again over every catalog in
-   tools/test-newlang-key.py, which compiles and drives this and holds the loader this
-   copies against the rules it follows. */
+   Runs the catalog loader of WinHTTrack/newlang-key.cpp over the engine's catalogs, then
+   over the fixtures the engine's tests/576_webhttrack-lang-symbol-keys.test re-keys, and
+   requires the same strings out of each. The loader is the shipped one, so the five
+   ordering rules it follows are checked here and not in a copy: std::map stands in for
+   coucal, the line reader below for the engine's, and tools/test-newlang-key.py mutates
+   each rule in turn to prove a broken one reds this harness. */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "newlang-key.h"
 
 /* The engine's reader, copied from WinHTTrack/HTTrackInterface.c because including it
-   would pull in htsopt.h. It decides where a key ends, so both modes need the real one:
-   CR, TAB and FF are dropped, space and TAB are trimmed off both ends, and a trailing
-   backslash joins the next physical line. */
+   would pull in htsopt.h. It decides where a key ends, so this is the real one: CR, TAB
+   and FF are dropped, space and TAB are trimmed off both ends, and a trailing backslash
+   joins the next physical line. */
 static int linput(FILE *fp, char *s, int max) {
   int c, j = 0;
 
@@ -124,93 +121,68 @@ static bool loadLangDef(const char *path, Table &keys) {
   return true;
 }
 
-/* Which form of the one added line loadCatalog() applies. GUARDED is what newlang.cpp
-   ships. UNGUARDED drops the missed-lookup test, so check 5 can see the guard's
-   direction, which no shipped key is both listed and symbol-shaped enough to show. */
-enum Fallback { OFF, GUARDED, UNGUARDED };
-
-/* One catalog pass, as LANG_LOAD_CATALOG() in newlang.cpp does it. englishPass is its
-   fallback: a slot the selected language filled is left alone. symbols takes the
-   symbol-keyed lines, and the two modes below are the only other thing that can move
-   the resolved table. */
-static bool loadCatalog(const char *path, const Table &keys, Table &str,
-                        bool englishPass, Fallback mode, long *fallbackHits,
-                        bool symbols) {
-  FILE *fp = fopen(path, "rb");
-  char extkey[8192], value[8192];
-
-  if (fp == NULL)
-    return false;
-  while(!feof(fp)) {
-    linput_cpp(fp, extkey, 8000);
-    linput_cpp(fp, value, 8000);
-    if (extkey[0] != '\0' && value[0] != '\0') {
-      std::string intkey(lookup(keys, extkey));
-      /* The text lookup decides first, which is what keeps the LANGUAGE_* keys text. */
-      const bool isSymbol = mode != OFF && LangKeyIsSymbol(extkey)
-                            && (mode == UNGUARDED || intkey.empty());
-
-      if (isSymbol != symbols)
-        continue;
-      if (symbols) {
-        if (!lookup(str, extkey)[0])     /* the first symbol line wins */
-          str[extkey] = value;
-        (*fallbackHits)++;
-        continue;
-      }
-      if (!intkey.empty()) {
-        std::string test(lookup(str, intkey));
-
-        if (!test.empty()) {
-          if (!englishPass) {
-            for(int increment = 1 ; !test.empty() ; increment++) {
-              char suffix[32];
-
-              sprintf(suffix, "%d", increment);
-              intkey = lookup(keys, std::string(extkey) + suffix);
-              test = intkey.empty() ? "" : lookup(str, intkey);
-            }
-          } else
-            intkey = "";
-        }
-        if (!intkey.empty())
-          str[intkey] = value;
-      }
-    }
-  }
-  fclose(fp);
-  return true;
-}
-
-/* One catalog, read twice: its symbol lines, then its text lines. Nested inside the
-   two-language loop below, never around it. */
-static bool loadBoth(const char *path, const Table &keys, Table &str,
-                     bool englishPass, Fallback mode, long *fallbackHits) {
-  return loadCatalog(path, keys, str, englishPass, mode, fallbackHits, true)
-         && loadCatalog(path, keys, str, englishPass, mode, fallbackHits, false);
-}
-
-/* The two-pass load of newlang.cpp: the selected catalog, then English for what it left
-   unset. ConvertCatalogValue() is left out, because it maps a value to a value that this
-   change cannot reach, so equal raw tables stay equal through it. */
-static Table resolveFiles(const std::string &selected, const std::string &english,
-                          const Table &keys, Fallback mode, long *fallbackHits) {
-  const std::string paths[2] = { selected, english };
+/* What the loader reads and writes through, in place of a catalog FILE* and coucal. */
+struct Catalogs {
+  std::string paths[2];
+  const Table *keys;
+  std::set<std::string> named;   /* every internal key lang.def names */
   Table str;
+  long unnamed;                  /* strings resolved under a key lang.def never names */
 
-  for(int pass = 0 ; pass < 2 ; pass++) {
-    if (!loadBoth(paths[pass].c_str(), keys, str, pass > 0, mode, fallbackHits)) {
-      fprintf(stderr, "cannot open %s\n", paths[pass].c_str());
-      exit(1);
-    }
+  Catalogs(const std::string &selected, const std::string &english, const Table &k)
+      : keys(&k), unnamed(0) {
+    paths[0] = selected;
+    paths[1] = english;
+    for(Table::const_iterator i = k.begin() ; i != k.end() ; ++i)
+      named.insert(i->second);
   }
-  return str;
+};
+
+static FILE *catalogOpen(void *ctx, int index) {
+  Catalogs *const c = (Catalogs *) ctx;
+  FILE *const fp = fopen(c->paths[index].c_str(), "rb");
+
+  if (fp == NULL) {
+    fprintf(stderr, "cannot open %s\n", c->paths[index].c_str());
+    exit(1);
+  }
+  return fp;
+}
+
+static const char *catalogInternalKey(void *ctx, const char *key) {
+  return lookup(*((Catalogs *) ctx)->keys, key);
+}
+
+static const char *catalogResolved(void *ctx, const char *intkey) {
+  return lookup(((Catalogs *) ctx)->str, intkey);
+}
+
+static void catalogStore(void *ctx, const char *intkey, const char *value) {
+  Catalogs *const c = (Catalogs *) ctx;
+
+  c->str[intkey] = value;
+  if (c->named.find(intkey) == c->named.end())
+    c->unnamed++;
+}
+
+/* One resolved table, built by the shipped loader. ConvertCatalogValue() is left out,
+   because it maps a value to a value no key rule can reach, so equal raw tables stay
+   equal through it. */
+static Table resolveFiles(const std::string &selected, const std::string &english,
+                          const Table &keys, long *unnamed) {
+  Catalogs c(selected, english, keys);
+  const LangCatalogIO io = { &c, catalogOpen, linput_cpp, catalogInternalKey,
+                             catalogResolved, catalogStore };
+
+  LangLoadCatalogs(&io);
+  *unnamed += c.unnamed;
+  return c.str;
 }
 
 static Table resolve(const std::string &engine, const Table &keys,
-                     const std::string &language, Fallback mode, long *fallbackHits) {
+                     const std::string &language, long *unnamed) {
   return resolveFiles(engine + "/lang/" + language + ".txt",
-                      engine + "/lang/English.txt", keys, mode, fallbackHits);
+                      engine + "/lang/English.txt", keys, unnamed);
 }
 
 /* Floors, not counts. The engine owns the catalogs and adds a string every few weeks, so
@@ -300,11 +272,12 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* 3. Every catalog resolves byte-identically with the fallback and without it. The
-     English pass fills whatever a catalog lacks, so all of them resolve the same count,
-     and that count is the engine's to change. */
+  /* 3. Every catalog resolves the same slots, each under a key lang.def names, which is
+     what leaves the symbol branch unreachable on shipped data. A catalog short of a
+     string the others carry shows up here as a slot nothing filled. */
   const std::vector<std::string> langs = languages(keys);
-  long compared = 0, hits = 0, strings = 0;
+  long compared = 0, unnamed = 0, strings = 0;
+  Table reference;
 
   if ((long) langs.size() < kMinLanguages) {
     fprintf(stderr, "lang.def names %d languages, under the %ld this check needs to "
@@ -312,91 +285,71 @@ int main(int argc, char **argv) {
     return 1;
   }
   for(size_t i = 0 ; i < langs.size() ; i++) {
-    long before = 0, after = 0;
-    const Table old = resolve(engine, keys, langs[i], OFF, &before);
-    const Table now = resolve(engine, keys, langs[i], GUARDED, &after);
+    const Table now = resolve(engine, keys, langs[i], &unnamed);
 
-    if (i == 0)
-      strings = (long) old.size();
-    if (before != 0) {
-      fprintf(stderr, "%s: the fallback ran with it switched off\n", langs[i].c_str());
-      failures++;
+    if (i == 0) {
+      reference = now;
+      strings = (long) now.size();
     }
-    hits += after;
-    if ((long) old.size() != strings) {
+    if ((long) now.size() != strings) {
       fprintf(stderr, "lang/%s.txt resolves %d strings where lang/%s.txt resolves %ld: "
               "one of the two is short of a string the other carries\n",
-              langs[i].c_str(), (int) old.size(), langs[0].c_str(), strings);
+              langs[i].c_str(), (int) now.size(), langs[0].c_str(), strings);
       failures++;
     }
-    if (old.size() != now.size()) {
-      fprintf(stderr, "%s: %d symbols resolve, %d with the fallback\n",
-              langs[i].c_str(), (int) old.size(), (int) now.size());
-      failures++;
-    }
-    for(Table::const_iterator k = old.begin() ; k != old.end() ; ++k) {
-      const char *const got = lookup(now, k->first);
-
-      if (k->second != got) {
-        fprintf(stderr, "%s: %s was \"%s\", is now \"%s\"\n",
-                langs[i].c_str(), k->first.c_str(), k->second.c_str(), got);
+    for(Table::const_iterator k = reference.begin() ; k != reference.end() ; ++k) {
+      if (!lookup(now, k->first)[0]) {
+        fprintf(stderr, "%s: %s resolves to nothing, where %s resolves it\n",
+                langs[i].c_str(), k->first.c_str(), langs[0].c_str());
         failures++;
       }
       compared++;
     }
   }
-  if (hits != 0) {
-    fprintf(stderr, "the fallback resolved %ld rows: a shipped catalog is symbol-keyed "
-            "and the change is no longer a no-op\n", hits);
+  if (unnamed != 0) {
+    fprintf(stderr, "%ld strings resolved under a key lang.def never names: a shipped "
+            "catalog is symbol-keyed and the symbol path is no longer unreachable\n",
+            unnamed);
     failures++;
   }
 
-  /* 4. The control: the comparison above has to be able to see a difference at all.
-     A catalog holding one symbol-keyed row must resolve only with the fallback. */
+  /* 4. The control: the walk above finds no line taking the symbol path, so this is what
+     says the path is there to be taken. Only that path can key a string on the catalog's
+     own key, because lang.def looks nothing up by LANG_OK. */
   const char *probe = getenv("NEWLANG_KEY_PROBE");
 
   if (probe != NULL) {
-    Table off, on;
-    long ignored = 0, probed = 0;
+    long ignored = 0;
+    const Table on = resolveFiles(probe, probe, keys, &ignored);
 
-    loadBoth(probe, keys, off, false, OFF, &ignored);
-    loadBoth(probe, keys, on, false, GUARDED, &probed);
-    if (probed != 1 || !off.empty() || on.size() != 1
-        || lookup(on, "LANG_OK") != std::string("probe value")) {
-      fprintf(stderr, "the probe catalog resolved the same either way: the comparison "
-              "above cannot see a symbol-keyed row\n");
+    if (on.size() != 1 || lookup(on, "LANG_OK") != std::string("probe value")) {
+      fprintf(stderr, "the probe catalog resolved %d strings and LANG_OK to \"%s\": the "
+              "loader never takes the symbol path\n", (int) on.size(),
+              lookup(on, "LANG_OK"));
       failures++;
     }
   } else {
-    fprintf(stderr, "NEWLANG_KEY_PROBE unset: the comparison is unproven\n");
+    fprintf(stderr, "NEWLANG_KEY_PROBE unset: the symbol path is unproven\n");
     failures++;
   }
 
-  /* 5. The guard's direction. newlang.cpp reaches the fallback only where the text
-     lookup missed, and no shipped key is both listed in lang.def and symbol-shaped, so
-     no real catalog can tell the guarded form from the inverted one. This synthetic row
-     is both, and the symbol it resolves to says which form ran. */
+  /* 5. The guard's direction. The loader reaches the symbol path only where the text
+     lookup missed, and no shipped key is both listed in lang.def and symbol-shaped, so no
+     real catalog can tell that order from the inverted one. This synthetic row is both,
+     and the key it resolves under says which one ran. */
   const char *guard = getenv("NEWLANG_KEY_GUARD");
 
   if (guard != NULL) {
-    Table synthetic, guarded, inverted;
-    long onHit = 0, offHit = 0;
+    Table synthetic;
+    long claimed = 0;
 
     synthetic["LANG_PROBE"] = "LANG_REAL";
-    loadBoth(guard, synthetic, guarded, false, GUARDED, &onHit);
-    loadBoth(guard, synthetic, inverted, false, UNGUARDED, &offHit);
-    /* Guarded, the listed key wins and the fallback never runs. */
-    if (onHit != 0 || guarded.size() != 1
-        || lookup(guarded, "LANG_REAL") != std::string("via lang.def")) {
-      fprintf(stderr, "the guarded fallback did not resolve LANG_PROBE through lang.def, "
-              "so it is preempting a listed key\n");
-      failures++;
-    }
-    /* Inverted, it overwrites that symbol with the key, which is the whole difference. */
-    if (offHit != 1 || inverted.size() != 1
-        || lookup(inverted, "LANG_PROBE") != std::string("via lang.def")) {
-      fprintf(stderr, "dropping the missed-lookup test changed nothing, so no check here "
-              "can see the guard's direction\n");
+    const Table resolvedGuard = resolveFiles(guard, guard, synthetic, &claimed);
+    if (claimed != 0 || resolvedGuard.size() != 1
+        || lookup(resolvedGuard, "LANG_REAL") != std::string("via lang.def")) {
+      fprintf(stderr, "a key lang.def lists and the shape test accepts resolved %ld rows "
+              "under itself: the shape test is deciding before the text lookup\n",
+              claimed);
       failures++;
     }
   } else {
@@ -430,7 +383,7 @@ int main(int argc, char **argv) {
     };
     long ignored = 0;
     const Table want = resolveFiles(dir + "/fr-none.txt", dir + "/en-none.txt",
-                                    keys, GUARDED, &ignored);
+                                    keys, &ignored);
 
     baselineStrings = (long) want.size();
     for(Table::const_iterator k = want.begin() ; k != want.end() ; ++k) {
@@ -448,9 +401,8 @@ int main(int argc, char **argv) {
         controls++;
     }
     for(int v = 0 ; rekeyed[v].french != NULL ; v++) {
-      long hit = 0;
       const Table got = resolveFiles(dir + "/" + rekeyed[v].french,
-                                     dir + "/" + rekeyed[v].english, keys, GUARDED, &hit);
+                                     dir + "/" + rekeyed[v].english, keys, &ignored);
 
       if (got.size() != want.size()) {
         fprintf(stderr, "re-keying %s resolves %d strings, expected %d\n",
@@ -469,15 +421,14 @@ int main(int argc, char **argv) {
       variants++;
     }
 
-    /* 7. The one string this change moves. fr-gap.txt drops the second copy of "Start",
-       which a text-keyed English cannot reach, because its pass never increments. A
-       symbol-keyed English names that slot outright and fills it. */
+    /* 7. The one string the symbol key moves. fr-gap.txt drops the second copy of
+       "Start", which a text-keyed English cannot reach, because its pass never
+       increments. A symbol-keyed English names that slot outright and fills it. */
     {
-      long hit = 0;
       const Table text = resolveFiles(dir + "/fr-gap.txt", dir + "/en-none.txt",
-                                      keys, GUARDED, &hit);
+                                      keys, &ignored);
       const Table symbol = resolveFiles(dir + "/fr-gap.txt", dir + "/en-all.txt",
-                                        keys, GUARDED, &hit);
+                                        keys, &ignored);
 
       if (*lookup(text, "LANG_J13") != '\0') {
         fprintf(stderr, "fr-gap.txt still resolves LANG_J13, so it holds no gap and the "
@@ -539,9 +490,9 @@ int main(int argc, char **argv) {
     failures++;
   }
 
-  printf("%ld of the %d lang.def keys have the symbol shape and the fallback resolved "
-         "%ld rows, so the %ld resolved strings of %d catalogs match byte for byte\n",
-         shaped, (int) keys.size(), hits, compared, (int) langs.size());
+  printf("%ld of the %d lang.def keys have the symbol shape and %ld of the %ld resolved "
+         "strings of %d catalogs key on anything else\n",
+         shaped, (int) keys.size(), unnamed, compared, (int) langs.size());
   printf("%ld re-keyed catalog pairs resolve the same %ld strings, %ld of them symbols, "
          "on %ld comparisons, and a symbol-keyed English fills %ld string a text-keyed "
          "one cannot\n", variants, baselineStrings, resolvedSymbols, parityCompared,
