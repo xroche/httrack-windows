@@ -109,7 +109,7 @@ void CAcceptOptions::OnHelpInfo2() {
 
 BOOL CAcceptOptions::OnHelpInfo(HELPINFO* dummy)
 {
-  HtsHelper->Help();
+  HtsHelper->HelpTopic("opt-accept-headers");
   return true;
 }
 
