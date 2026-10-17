@@ -119,7 +119,26 @@ def main():
                 sys.exit("%s expands WINPROFILE_BINDINGS without calling %s" % (name, call))
             checked += 1
 
-    # 4. Every catalog list has to be named here, or tools/catalog-lists-test.cpp never
+    # 4. The Accept rows pair a key with a row of accept-rows.h, and both the binding list
+    #    and the witness table name that pair by hand. The witness cannot see a swap,
+    #    because it names the same members, so the row table is the third opinion: a key
+    #    bound to another row's slot writes one kind's Accept under another kind's key.
+    rows = re.findall(r'ROW\(ACCEPT_ROW_(\w+),\s*(?:NULL|"[a-z]+"),\s*"(\w+)"\)',
+                      read(os.path.join(ROOT, "WinHTTrack", "accept-rows.h")))
+    if len(rows) != 12:
+        sys.exit("found %d Accept rows: the pattern no longer matches accept-rows.h" % len(rows))
+    witness = read(os.path.join(ROOT, "tools", "winprofile-bind-test.cpp"))
+    # A row too long for the table's column is wrapped, so compare without the layout.
+    flat = re.sub(r"\s*\\\n\s*", " ", bind)
+    for name, key in rows:
+        member = "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_%s]" % name
+        if 'TEXT("%s", %s, "")' % (key, member) not in flat:
+            sys.exit("%s is not bound to the %s row of accept-rows.h" % (key, name))
+        if '{ "%s", "%s" }' % (key, member) not in witness:
+            sys.exit("the witness table does not pair %s with the %s row" % (key, name))
+        checked += 2
+
+    # 5. Every catalog list has to be named here, or tools/catalog-lists-test.cpp never
     #    counts it. The count itself needs the engine's line reader, so it is checked there.
     combos = re.findall(r'COMBO\("([A-Za-z0-9]+)",\s*(LISTDEF_\d+)\)', bind)
     if len(combos) < 9:
@@ -130,7 +149,7 @@ def main():
         % (checked, len(bound), len(hand), len(combos))
     )
 
-    # 5. Compile the real writer against the stubs and run it, then the catalog lists.
+    # 6. Compile the real writer against the stubs and run it, then the catalog lists.
     with tempfile.TemporaryDirectory() as tmp:
         gen = os.path.join(tmp, "winprofile-engine-macros.h")
         with open(gen, "w", encoding="utf-8") as f:

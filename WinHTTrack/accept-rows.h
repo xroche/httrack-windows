@@ -37,10 +37,7 @@ Please visit our Website: http://www.httrack.com
 /* The box has one row for the default Accept and one per kind of link, in the order
    hts_accept_kinds() lists the kinds. ROW takes the row's name, the engine's kind word
    and the winprofile.ini key. The default row carries no kind, so --accept takes its
-   value on its own, where a kind row sends "kind=value".
-
-   The kind words reach the engine as typed here, so one it does not know aborts the
-   mirror. --selftest holds them against hts_accept_kinds(). */
+   value on its own, where a kind row sends "kind=value". */
 #define ACCEPT_ROWS(ROW)                                                       \
   ROW(ACCEPT_ROW_DEFAULT, NULL, "AcceptDefault")                               \
   ROW(ACCEPT_ROW_DOCUMENT, "document", "AcceptDocument")                       \
@@ -55,15 +52,14 @@ Please visit our Website: http://www.httrack.com
   ROW(ACCEPT_ROW_OBJECT, "object", "AcceptObject")                             \
   ROW(ACCEPT_ROW_EMBED, "embed", "AcceptEmbed")
 
-/* The kinds and the keys as arrays, for a caller that wants one of the columns. */
+/* One of the columns as an array, for a caller that wants it. */
 #define ACCEPT_ROW_NAME(name, kind, key) name,
 #define ACCEPT_ROW_KIND(name, kind, key) kind,
-#define ACCEPT_ROW_KEY(name, kind, key) key,
 
 enum { ACCEPT_ROWS(ACCEPT_ROW_NAME) ACCEPT_ROW_COUNT };
 
-/* The longest kind word and its '=' sign, which ride the same argv word as the value.
-   isAcceptArgument() spends it out of the engine's ceiling on one argument. */
+/* The longest kind word and its '=' sign ride the same argv word as the value, so
+   isAcceptArgument() holds the sum against the engine's ceiling on one argument. */
 #define ACCEPT_KIND_PREFIX_MAXSIZE (sizeof("document=") - 1)
 
 #endif

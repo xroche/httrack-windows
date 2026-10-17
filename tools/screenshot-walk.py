@@ -343,11 +343,15 @@ def accept_box(sheet, pid, ids, shots):
         combo = find(box, control_id=ids["IDC_accept_" + row], class_name="ComboBox")
         if combo is None:
             raise RuntimeError(f"the Accept box has no {row} row")
-        # Automatic, the catch-all and the old httrack value at the very least; a kind row
-        # adds the two browsers.
+        # Automatic, the catch-all and the old httrack value at the very least. Several kind
+        # rows stop there, because both browsers send the catch-all for them.
         entries = win32gui.SendMessage(combo, CB_GETCOUNT, 0, 0)
         if entries < 3:
             raise RuntimeError(f"the Accept {row} row offers {entries} values")
+        # Images is the row where all four suggestions differ, so it is the one that shows
+        # the browser values really arrived.
+        if row == "image" and entries != 5:
+            raise RuntimeError(f"the Accept image row offers {entries} values, expected 5")
     shots.take(box, "15_options_accept_headers")
     click(find(box, control_id=IDCANCEL, class_name="Button"))
     wait(lambda: box not in top_level_windows(pid), "the Accept headers box to close", 15)

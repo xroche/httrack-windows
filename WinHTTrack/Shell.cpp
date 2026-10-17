@@ -801,7 +801,8 @@ void compute_options() {
                                               isLangIsoArgument);
   for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
     ShellOptions->accept[row] = optionValue(maintab->m_option6.Aopt.m_accept[row],
-                                            isAcceptArgument);
+                                            row == ACCEPT_ROW_DEFAULT
+                                              ? isAcceptDefaultArgument : isAcceptArgument);
   }
 
   if(strcmp(maintab->m_option6.m_other_headers,"")!=0){

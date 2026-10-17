@@ -113,18 +113,20 @@ Please visit our Website: http://www.httrack.com
   TEXT("Footer", maintab->m_option6.m_footer, HTS_DEFAULT_FOOTER)              \
   TEXT("OtherHeaders", maintab->m_option6.m_other_headers, "")                 \
   TEXT("DefaultReferer", maintab->m_option6.m_default_referer, "")             \
-  TEXT("AcceptDefault", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DEFAULT], "") \
-  TEXT("AcceptDocument", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DOCUMENT], "") \
-  TEXT("AcceptIframe", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IFRAME], "") \
-  TEXT("AcceptFrame", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FRAME], "") \
-  TEXT("AcceptImage", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IMAGE], "") \
-  TEXT("AcceptStyle", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_STYLE], "") \
-  TEXT("AcceptScript", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_SCRIPT], "") \
-  TEXT("AcceptFont", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FONT], "")   \
-  TEXT("AcceptAudio", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_AUDIO], "") \
-  TEXT("AcceptVideo", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_VIDEO], "") \
-  TEXT("AcceptObject", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_OBJECT], "") \
-  TEXT("AcceptEmbed", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_EMBED], "") \
+  TEXT("AcceptDefault",                                                        \
+       maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DEFAULT], "")               \
+  TEXT("AcceptDocument",                                                       \
+       maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DOCUMENT], "")              \
+  TEXT("AcceptIframe", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IFRAME], "")\
+  TEXT("AcceptFrame", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FRAME], "")  \
+  TEXT("AcceptImage", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IMAGE], "")  \
+  TEXT("AcceptStyle", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_STYLE], "")  \
+  TEXT("AcceptScript", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_SCRIPT], "")\
+  TEXT("AcceptFont", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FONT], "")    \
+  TEXT("AcceptAudio", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_AUDIO], "")  \
+  TEXT("AcceptVideo", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_VIDEO], "")  \
+  TEXT("AcceptObject", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_OBJECT], "")\
+  TEXT("AcceptEmbed", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_EMBED], "")  \
   NUMBER("MaxRate", maintab->m_option5.m_maxrate, "")                          \
   TEXT("WildCardFilters", maintab->m_option7.m_url2,                           \
        "+*.png +*.gif +*.jpg +*.jpeg +*.webp +*.avif +*.svg +*.css +*.js"      \

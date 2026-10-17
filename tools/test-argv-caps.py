@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "argv caps ok on 44 checks"
+EXPECTED_LINE = "argv caps ok on 55 checks"
 
 # The caps and the footer default the cases read, copied out of the engine rather than
 # kept here: a copy would stop agreeing with the engine the day the engine's moved.
@@ -50,6 +50,9 @@ MOVED = (
     "isLangIsoArgument",
     "isRefererArgument",
     "isAcceptArgument",
+    "isAcceptDefaultArgument",
+    "acceptBoxText",
+    "acceptBoxValue",
     "optionValue",
     "isSingleFileMaxArgument",
     "isMaxRetryAfterArgument",

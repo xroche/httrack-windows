@@ -106,7 +106,7 @@ BOOL CAcceptOptions::OnHelpInfo(HELPINFO* dummy)
   return true;
 }
 
-/* What a row offers, the catch-all last and never twice. The default row gets no browser
+/* A row offers each value once, the catch-all last. The default row gets no browser
    value, because neither browser has one outside a kind. */
 static void fillAcceptCombo(CComboBox *combo, const char *kind)
 {
@@ -141,18 +141,17 @@ BOOL CAcceptOptions::OnInitDialog()
 
   /* LANG() is a call, so the labels cannot sit in a static table. */
   const char *const labels[] = { ACCEPT_DIALOG_ROWS(ACCEPT_DIALOG_LABEL) };
-  const char *const automatic = LANG(LANG_ACCEPTAUTO);
+  const CString automatic = LANG(LANG_ACCEPTAUTO);
 
   for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
     CComboBox *const combo = (CComboBox*) GetDlgItem(acceptValueIds[row]);
 
     SetDlgItemTextLang(this, acceptLabelIds[row], labels[row]);
     if (combo == NULL)
-      continue;
+      continue;              /* a row the .rc lost keeps the value it was given */
     combo->AddString(automatic);   /* first, and it stands for the empty value */
     fillAcceptCombo(combo, acceptKinds[row]);
-    SetDlgItemTextCP(this, acceptValueIds[row],
-                     m_accept[row].IsEmpty() ? automatic : (LPCSTR) m_accept[row]);
+    SetDlgItemTextCP(this, acceptValueIds[row], acceptBoxText(m_accept[row], automatic));
   }
 
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -160,17 +159,17 @@ BOOL CAcceptOptions::OnInitDialog()
 
 void CAcceptOptions::OnOK()
 {
+  /* acceptBoxValue() keeps the automatic word out of the value, whatever language it is
+     in; --selftest holds both directions. */
   const CString automatic = LANG(LANG_ACCEPTAUTO);
 
   for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
     CString text;
 
     if (GetDlgItem(acceptValueIds[row]) == NULL)
-      continue;              /* a row the box never showed keeps the value it was given */
+      continue;              /* same reason as above */
     GetDlgItemText(acceptValueIds[row], text);
-    /* The word the box shows for an empty value never becomes one, or a profile saved
-       under one language would send that language's word as an Accept header. */
-    m_accept[row] = (text == automatic) ? CString() : text;
+    m_accept[row] = acceptBoxValue(text, automatic);
   }
   CDialog::OnOK();
 }

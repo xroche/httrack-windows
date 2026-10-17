@@ -442,10 +442,17 @@ BOOL isUserAgentArgument(const CString &value);
 BOOL isFooterArgument(const CString &value);
 BOOL isLangIsoArgument(const CString &value);
 BOOL isRefererArgument(const CString &value);
-/* Same for one Accept value, which also carries its kind word and '=' in the same argv
-   word, and which no control character may enter: the engine holds these values in one
-   newline-separated list. */
+/* Same for one Accept value, which no control character may enter: the engine holds
+   these values in one newline-separated list. */
 BOOL isAcceptArgument(const CString &value);
+/* Same for the default row, which sends its value with no kind word in front. A value
+   opening with "kind=" would reach the engine as that kind's own entry instead. */
+BOOL isAcceptDefaultArgument(const CString &value);
+/* The Accept box shows an empty value as AUTOMATIC, the word LANG_ACCEPTAUTO carries, and
+   stores that word back as an empty value. Going through here in both directions is what
+   keeps a translated word out of winprofile.ini. Exposed for --selftest. */
+CString acceptBoxText(const CString &value, const CString &automatic);
+CString acceptBoxValue(const CString &text, const CString &automatic);
 /* Same for -N's format; one the engine refuses aborts the mirror. */
 BOOL isBuildStringArgument(const CString &value);
 /* Return TEXT as typed when FITS accepts it, else empty so the option is left out.
