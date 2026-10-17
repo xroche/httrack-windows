@@ -1626,6 +1626,19 @@ BOOL CWinHTTrackApp::InitInstance()
           if (!any)
             why = "drops the catch-all";
         }
+        /* And nothing the engine does not have for this row, or a lookup reading another
+           kind would offer that kind's values and still look complete. */
+        for(int i=0 ; why == NULL && i<n ; i++) {
+          BOOL known = offers[i] == "*/*";
+
+          for(int b=0 ; !known && browsers[b] != NULL ; b++) {
+            const char *const preset = hts_accept_preset(browsers[b], kinds[row]);
+
+            known = preset != NULL && offers[i] == preset;
+          }
+          if (!known)
+            why = "offers a value the engine does not have for it";
+        }
         if (why != NULL) {
           fprintf(stderr, "FATAL: the Accept row %d (%s) %s, over %d values\n", row,
                   kinds[row] != NULL ? kinds[row] : "default", why, n);

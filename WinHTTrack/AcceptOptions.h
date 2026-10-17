@@ -67,7 +67,8 @@ public:
 #define ACCEPT_ROW_OFFERS_MAX 4
 
   /* Writes the values ROW offers into OUT, at most MAX of them, and returns how many.
-     Each value appears once however many browsers send it, and the catch-all comes last.
+     Each value appears once however many browsers send it, and the catch-all is there
+     whether or not a browser already sends it.
      Exposed for --selftest, which holds the list against the engine's own presets. */
   static int acceptRowOffers(int row, CString *out, int max);
 
