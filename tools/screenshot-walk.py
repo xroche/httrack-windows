@@ -348,6 +348,11 @@ def accept_box(sheet, pid, ids, shots, page):
         entries = win32gui.SendMessage(combo, CB_GETCOUNT, 0, 0)
         if entries < 3:
             raise RuntimeError(f"the Accept {row} row offers {entries} values")
+        # A value is offered once however many browsers send it, which a count alone cannot
+        # show: a row can lose one preset and gain a duplicate and still count the same.
+        texts = ComboBoxWrapper(combo).item_texts()
+        if len(set(texts)) != len(texts):
+            raise RuntimeError(f"the Accept {row} row offers a value twice: {texts}")
         # Images is the row where all four suggestions differ, so it is the one that shows
         # the browser values really arrived.
         if row == "image" and entries != 5:
