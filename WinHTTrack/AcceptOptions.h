@@ -63,6 +63,14 @@ public:
      for anything else. A value two browsers both send names both. Exposed for --selftest. */
   static CString acceptPresetTip(int row, const CString &text);
 
+  /* How many values a row can offer: one per browser the box knows, plus the catch-all. */
+#define ACCEPT_ROW_OFFERS_MAX 4
+
+  /* Writes the values ROW offers into OUT, at most MAX of them, and returns how many.
+     Each value appears once however many browsers send it, and the catch-all comes last.
+     Exposed for --selftest, which holds the list against the engine's own presets. */
+  static int acceptRowOffers(int row, CString *out, int max);
+
   /* The row ID belongs to, or -1 for any other control. The tooltip asks a row for its
      own text through this, so a wrong answer would describe another row. Exposed for
      --selftest. */

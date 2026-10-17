@@ -1591,6 +1591,49 @@ BOOL CWinHTTrackApp::InitInstance()
           }
         }
       }
+      /* What each row offers, against the engine's own presets. A count alone cannot see
+         a value lost and a duplicate gained in its place, and the box shows this list. */
+      for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
+        CString offers[ACCEPT_ROW_OFFERS_MAX];
+        const int n = CAcceptOptions::acceptRowOffers(row, offers, ACCEPT_ROW_OFFERS_MAX);
+        const char *why = NULL;
+
+        for(int i=0 ; i<n && why == NULL ; i++) {
+          for(int j=i + 1 ; j<n ; j++) {
+            if (offers[i] == offers[j])
+              why = "offers a value twice";
+          }
+        }
+        /* Every preset the engine has for this row has to be there, and so does the
+           catch-all, or a fold that drops values would read as a clean list. The browser
+           names are written out again here, so a change to the box's own list shows. */
+        static const char *const browsers[] = { "chrome", "firefox", "legacy", NULL };
+
+        for(int b=0 ; why == NULL && browsers[b] != NULL ; b++) {
+          const char *const preset = hts_accept_preset(browsers[b], kinds[row]);
+          BOOL found = preset == NULL || *preset == '\0';
+
+          for(int i=0 ; !found && i<n ; i++)
+            found = offers[i] == preset;
+          if (!found)
+            why = "drops a preset the engine has";
+        }
+        if (why == NULL) {
+          BOOL any = FALSE;
+
+          for(int i=0 ; !any && i<n ; i++)
+            any = offers[i] == "*/*";
+          if (!any)
+            why = "drops the catch-all";
+        }
+        if (why != NULL) {
+          fprintf(stderr, "FATAL: the Accept row %d (%s) %s, over %d values\n", row,
+                  kinds[row] != NULL ? kinds[row] : "default", why, n);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
       printf("accept kinds ok on %d checks\n", nchecks);
     }
     /* The wizard's answer only reaches the engine through a modal dialog, and a
