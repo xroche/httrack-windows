@@ -30,13 +30,19 @@ from wincapture import (Timeout, capture, checked, click, content_rect, controls
 ID_WIZBACK, ID_WIZNEXT, ID_WIZFINISH = 0x3023, 0x3024, 0x3025
 IDOK, IDCANCEL = 1, 2
 PSM_SETCURSEL = 0x0465
+CB_GETCOUNT = 0x0146
 CWP_SKIPINVISIBLE = 0x0001
 TCM_GETITEMCOUNT = 0x1304
 
 PROJECT = "Demo Project"
 NEEDED = ("IDC_lang", "IDC_SIGSTATUS", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath",
           "IDC_URL", "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6",
-          "IDC_connexion", "IDC_maxrate")
+          "IDC_connexion", "IDC_maxrate", "IDC_acceptopt", "IDC_accept_default",
+          "IDC_accept_embed")
+
+# The rows of the Accept headers box, in the order the .rc lays them out.
+ACCEPT_ROWS = ("default", "document", "iframe", "frame", "image", "style", "script",
+               "font", "audio", "video", "object", "embed")
 
 
 class Site(BaseHTTPRequestHandler):
@@ -327,6 +333,31 @@ def gated(sheet, ids, count):
     print(f"  gated controls follow their box, on {len(seen)} groups")
 
 
+def accept_box(sheet, pid, ids, shots):
+    """The Accept headers box, which the Browser ID page opens because its twelve rows do
+    not fit that page. Each row offers the browser values hts_accept_preset() returns, so
+    an empty list means the box lost its engine, which no shot of the page would show."""
+    click(find(sheet, control_id=ids["IDC_acceptopt"], class_name="Button"))
+    box = wait(lambda: window_titled(pid, "Accept headers"), "the Accept headers box", 15)
+    for row in ACCEPT_ROWS:
+        combo = find(box, control_id=ids["IDC_accept_" + row], class_name="ComboBox")
+        if combo is None:
+            raise RuntimeError(f"the Accept box has no {row} row")
+        # Automatic, the catch-all and the old httrack value at the very least. Several kind
+        # rows stop there, because both browsers send the catch-all for them.
+        entries = win32gui.SendMessage(combo, CB_GETCOUNT, 0, 0)
+        if entries < 3:
+            raise RuntimeError(f"the Accept {row} row offers {entries} values")
+        # Images is the row where all four suggestions differ, so it is the one that shows
+        # the browser values really arrived.
+        if row == "image" and entries != 5:
+            raise RuntimeError(f"the Accept image row offers {entries} values, expected 5")
+    shots.take(box, "15_options_accept_headers")
+    click(find(box, control_id=IDCANCEL, class_name="Button"))
+    wait(lambda: box not in top_level_windows(pid), "the Accept headers box to close", 15)
+    print(f"  the Accept headers box carries {len(ACCEPT_ROWS)} rows")
+
+
 def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     """The eleven option tabs, switched through the sheet rather than by clicking the tab
     control, so a two-row tab layout cannot put a tab under the mouse of another."""
@@ -350,6 +381,8 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
                                        "so its id does not name one page")
                 owns[control] = i
         shots.take(sheet, f"{4 + i:02d}_options_{page}")
+        if find(sheet, control_id=ids["IDC_acceptopt"], class_name="Button") is not None:
+            accept_box(sheet, pid, ids, shots)
     gated(sheet, ids, count)
     # Eight parallel transfers, so the animation shows a mirror working rather than one
     # file trickling in. Eight is the engine's ceiling; it clamps anything higher. The

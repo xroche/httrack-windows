@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "argv caps ok on 37 checks"
+EXPECTED_LINE = "argv caps ok on 55 checks"
 
 # The caps and the footer default the cases read, copied out of the engine rather than
 # kept here: a copy would stop agreeing with the engine the day the engine's moved.
@@ -35,6 +35,10 @@ ENGINE_MACROS = (
     "HTS_MAX_RETRY_AFTER_LIMIT",
 )
 
+# The Accept cap lives in the engine's public header rather than in htsglobal.h, and is
+# copied the same way for the same reason.
+ENGINE_LIB_MACROS = ("HTS_ACCEPT_MAXSIZE",)
+
 # The functions that moved. A copy left in Shell.cpp would mean the Windows build and this
 # run test different code.
 MOVED = (
@@ -45,6 +49,10 @@ MOVED = (
     "isFooterArgument",
     "isLangIsoArgument",
     "isRefererArgument",
+    "isAcceptArgument",
+    "isAcceptDefaultArgument",
+    "acceptBoxText",
+    "acceptBoxValue",
     "optionValue",
     "isSingleFileMaxArgument",
     "isMaxRetryAfterArgument",
@@ -57,13 +65,13 @@ def read(path):
         return f.read()
 
 
-def macro_lines(header, names):
+def macro_lines(header, names, where):
     """The exact #define lines for NAMES, continuations included."""
     out = []
     for name in names:
         m = re.search(r"^#\s*define\s+%s(?:[^\n]*\\\n)*[^\n]*$" % name, header, re.M)
         if m is None:
-            sys.exit("no %s in the engine's htsglobal.h" % name)
+            sys.exit("no %s in the engine's %s" % (name, where))
         out.append(m.group(0))
     return "\n".join(out)
 
@@ -98,11 +106,13 @@ def main():
     args = ap.parse_args()
 
     htsglobal = os.path.join(args.engine, "src", "htsglobal.h")
-    if not os.path.exists(htsglobal):
-        sys.exit(
-            "%s: no engine source, so the caps cannot be the engine's. Check the engine "
-            "out, or pass --engine." % htsglobal
-        )
+    htslib = os.path.join(args.engine, "src", "httrack-library.h")
+    for path in (htsglobal, htslib):
+        if not os.path.exists(path):
+            sys.exit(
+                "%s: no engine source, so the caps cannot be the engine's. Check the "
+                "engine out, or pass --engine." % path
+            )
 
     checked = 0
 
@@ -155,11 +165,12 @@ def main():
         with open(gen, "w", encoding="utf-8") as f:
             f.write(
                 "/* Copied by tools/test-argv-caps.py out of the engine's src/htsglobal.h"
-                " and out of WinHTTrack/Shell.h. */\n"
+                " and src/httrack-library.h, and out of WinHTTrack/Shell.h. */\n"
                 "#include <stdint.h>\n"
             )
             f.write(llint_typedef(read(htsglobal)) + "\n")
-            f.write(macro_lines(read(htsglobal), ENGINE_MACROS) + "\n")
+            f.write(macro_lines(read(htsglobal), ENGINE_MACROS, "htsglobal.h") + "\n")
+            f.write(macro_lines(read(htslib), ENGINE_LIB_MACROS, "httrack-library.h") + "\n")
             f.write(
                 retry_after_cap(read(os.path.join(ROOT, "WinHTTrack", "Shell.h")))
                 + "\n"

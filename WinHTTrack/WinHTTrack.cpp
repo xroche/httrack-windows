@@ -1463,7 +1463,7 @@ BOOL CWinHTTrackApp::InitInstance()
       CString err;
       int nskipped = 0;
       const int nchecks = argvCapsCheckCases(&err, &nskipped);
-      const int expected = 37 - nskipped;
+      const int expected = 55 - nskipped;
 
       if (nchecks == 0) {
         fprintf(stderr, "FATAL: argv caps: %s\n", (LPCSTR) err);
@@ -1479,6 +1479,57 @@ BOOL CWinHTTrackApp::InitInstance()
          is still visible. */
       printf("argv caps ok on %d checks%s\n", nchecks,
              nskipped != 0 ? " (accented case skipped)" : "");
+    }
+    /* The kind words the Accept box sends, against the engine's own list. One it does not
+       know is taken as a default Accept value instead, so that row's own kind would keep
+       the browser value for ever. Only here: the harness has no engine to ask. */
+    {
+      static const char *const kinds[] = { ACCEPT_ROWS(ACCEPT_ROW_KIND) };
+      const char *const *const theirs = hts_accept_kinds();
+      int ntheirs = 0, nchecks = 0;
+
+      while (theirs[ntheirs] != NULL)
+        ntheirs++;
+      /* Their kinds, plus our own row for the default, which carries no kind. */
+      if (ntheirs != ACCEPT_ROW_COUNT - 1 || kinds[ACCEPT_ROW_DEFAULT] != NULL) {
+        fprintf(stderr, "FATAL: the engine publishes %d Accept kinds, the box has %d rows\n",
+                ntheirs, ACCEPT_ROW_COUNT);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      for(int row=ACCEPT_ROW_DEFAULT + 1 ; row<ACCEPT_ROW_COUNT ; row++) {
+        const char *const engineKind = theirs[row - 1];   /* row 0 is the default row */
+
+        if (strcmp(kinds[row], engineKind) != 0) {
+          fprintf(stderr, "FATAL: Accept row %d sends '%s', the engine's kind is '%s'\n",
+                  row, kinds[row], engineKind);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+        /* isAcceptArgument() takes this much off argv's ceiling for the prefix. */
+        if (strlen(kinds[row]) + 1 > ACCEPT_KIND_PREFIX_MAXSIZE) {
+          fprintf(stderr, "FATAL: the kind '%s' is longer than the prefix the cap allows\n",
+                  kinds[row]);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
+      /* A browser offers a value for a kind but none for the default row. That is why the
+         default row has three choices and the others more. */
+      if (hts_accept_preset("chrome", kinds[ACCEPT_ROW_IMAGE]) == NULL
+          || hts_accept_preset("firefox", kinds[ACCEPT_ROW_IMAGE]) == NULL
+          || hts_accept_preset("legacy", NULL) == NULL
+          || hts_accept_preset("chrome", NULL) != NULL
+          || hts_accept_preset("chrome", "nosuchkind") != NULL) {
+        fprintf(stderr, "FATAL: the engine's Accept suggestions are not what the box offers\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      printf("accept kinds ok on %d checks\n", nchecks);
     }
     /* The wizard's answer only reaches the engine through a modal dialog, and a
        wrong number there quietly applies the wrong filter rather than failing. */

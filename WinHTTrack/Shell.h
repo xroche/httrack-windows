@@ -53,6 +53,7 @@ Please visit our Website: http://www.httrack.com
 
 #include "resource.h"       // main symbols
 #include "cpp_lang.h"
+#include "accept-rows.h"   /* the rows of the Accept headers box */
 // Ras
 #if USE_RAS
 #include "RasLoad.h"
@@ -441,6 +442,17 @@ BOOL isUserAgentArgument(const CString &value);
 BOOL isFooterArgument(const CString &value);
 BOOL isLangIsoArgument(const CString &value);
 BOOL isRefererArgument(const CString &value);
+/* Same for one Accept value, which no control character may enter: the engine replaces
+   CR, LF and TAB with spaces, so it would send such a value mangled. */
+BOOL isAcceptArgument(const CString &value);
+/* Same for the default row, which sends its value with no kind word in front. A value
+   opening with "kind=" would reach the engine as that kind's own entry instead. */
+BOOL isAcceptDefaultArgument(const CString &value);
+/* The Accept box shows an empty value as AUTOMATIC, the word LANG_ACCEPTAUTO carries, and
+   stores that word back as an empty value. Going through here in both directions is what
+   keeps a translated word out of winprofile.ini. Exposed for --selftest. */
+CString acceptBoxText(const CString &value, const CString &automatic);
+CString acceptBoxValue(const CString &text, const CString &automatic);
 /* Same for -N's format; one the engine refuses aborts the mirror. */
 BOOL isBuildStringArgument(const CString &value);
 /* Return TEXT as typed when FITS accepts it, else empty so the option is left out.
@@ -520,6 +532,8 @@ public:
     cookiesfile, pausefiles, maxretryafter, keepwww, keepslashes, keepqueryorder,
     stripquery, hostalias, sitemap, sitemapurl, singlefile, singlefilemax,
     changes, warccdx, wacz, buildstring;
+  /* The Accept headers box, one value per ACCEPT_ROWS row, empty where it is automatic. */
+  CString accept[ACCEPT_ROW_COUNT];
   CString LINE_back;
   RASDIALPARAMS _dial;
 };

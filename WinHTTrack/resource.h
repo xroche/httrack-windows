@@ -96,6 +96,7 @@ Please visit our Website: http://www.httrack.com
 #define IDD_OPTION11                    222
 #define IDD_BatchUpdate                 223
 #define IDD_UNOFFICIAL                  247
+#define IDD_AcceptHeaders               248
 #define IDB_SPLASH                      236
 #define IDC_CURSWWW                     237
 #define IDI_SPLASH                      242
@@ -556,6 +557,32 @@ Please visit our Website: http://www.httrack.com
 #define IDC_hostscope                   1343
 #define IDC_maxretryafter               1344
 #define IDC_STATIC_maxretryafter        1345
+#define IDC_acceptopt                   1346
+#define IDC_STATIC_accepttip            1347
+#define IDC_accept_default              1348
+#define IDC_STATIC_accept_default       1349
+#define IDC_accept_document             1350
+#define IDC_STATIC_accept_document      1351
+#define IDC_accept_iframe               1352
+#define IDC_STATIC_accept_iframe        1353
+#define IDC_accept_frame                1354
+#define IDC_STATIC_accept_frame         1355
+#define IDC_accept_image                1356
+#define IDC_STATIC_accept_image         1357
+#define IDC_accept_style                1358
+#define IDC_STATIC_accept_style         1359
+#define IDC_accept_script               1360
+#define IDC_STATIC_accept_script        1361
+#define IDC_accept_font                 1362
+#define IDC_STATIC_accept_font          1363
+#define IDC_accept_audio                1364
+#define IDC_STATIC_accept_audio         1365
+#define IDC_accept_video                1366
+#define IDC_STATIC_accept_video         1367
+#define IDC_accept_object               1368
+#define IDC_STATIC_accept_object        1369
+#define IDC_accept_embed                1370
+#define IDC_STATIC_accept_embed         1371
 #define ID_MENUITEM32771                32771
 #define ID_MENUITEM32772                32772
 #define ID_EXIT                         32772
@@ -625,9 +652,9 @@ Please visit our Website: http://www.httrack.com
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_3D_CONTROLS                     1
-#define _APS_NEXT_RESOURCE_VALUE        248
+#define _APS_NEXT_RESOURCE_VALUE        249
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1346
+#define _APS_NEXT_CONTROL_VALUE         1372
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif

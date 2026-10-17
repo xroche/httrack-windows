@@ -103,12 +103,19 @@ BEGIN_MESSAGE_MAP(COptionTab6, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab6)
 	ON_WM_SIZE()
 	ON_WM_CTLCOLOR()
+	ON_BN_CLICKED(IDC_acceptopt, Onacceptopt)
 	//}}AFX_MSG_MAP
   ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
 // COptionTab6 message handlers
+
+/* The box keeps its own values, so a cancelled dialog changes nothing. */
+void COptionTab6::Onacceptopt()
+{
+  Aopt.DoModal();
+}
 
 BOOL COptionTab6::OnInitDialog() 
 {
@@ -135,6 +142,8 @@ BOOL COptionTab6::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_other_headers,LANG(LANG_I43d));
     SetDlgItemTextCP(this, IDC_STATIC_default_referer,LANG(LANG_I43e));
   }
+  /* After that block, or every translated UI would lose it. */
+  SetDlgItemTextLang(this, IDC_acceptopt, LANG(LANG_ACCEPT));
 	
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
@@ -184,6 +193,7 @@ const char* COptionTab6::GetTip(int ID)
     case IDC_accept_language: return LANG(LANG_I23c); break;
     case IDC_other_headers: return LANG(LANG_I23d); break;
     case IDC_default_referer: return LANG(LANG_I23e); break;
+    case IDC_acceptopt: return LANG(LANG_ACCEPTTIP); break;
   }
   return "";
 }
@@ -201,6 +211,7 @@ void COptionTab6::BuildLayout()
   m_layout.AddId(this, IDC_other_headers, 0, 100, 0, 100);
   m_layout.AddId(this, IDC_STATIC_default_referer, 0, 0, 100, 0);
   m_layout.AddId(this, IDC_default_referer, 0, 100, 100, 0);
+  m_layout.AddId(this, IDC_acceptopt, 0, 0, 100, 0);
 }
 
 void COptionTab6::OnSize(UINT nType, int cx, int cy)

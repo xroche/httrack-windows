@@ -38,6 +38,7 @@ Please visit our Website: http://www.httrack.com
 #ifdef ARGV_CAPS_TEST
 #include "mfc-test-stubs.h"          /* CString, and the engine calls as the harness sees them */
 #include "argv-caps-engine-macros.h" /* the caps, copied out of the engine by the harness */
+#include "accept-rows.h"
 #else
 #include "stdafx.h"
 #include "Shell.h"
@@ -91,6 +92,46 @@ BOOL isLangIsoArgument(const CString &value) {
 
 BOOL isRefererArgument(const CString &value) {
   return isCappedArgument(value, HTS_REFERER_MAXSIZE);
+}
+
+// A kind row glues "kind=" in front of its value, and the two ride one argv word.
+static_assert(HTS_ACCEPT_MAXSIZE + ACCEPT_KIND_PREFIX_MAXSIZE < HTS_CDLMAXSIZE,
+              "a kind row's argv word could pass the engine's ceiling");
+
+// see Shell.h. A control character is refused too. The engine turns CR, LF and TAB into
+// spaces in every argument (htscoremain.c), so such a value would otherwise go out
+// mangled, under a kind the user never meant for the newline case.
+BOOL isAcceptArgument(const CString &value) {
+  for(int i=0 ; i<value.GetLength() ; i++) {
+    if ((unsigned char) value[i] < ' ')
+      return FALSE;
+  }
+  return isEngineArgument(value, HTS_ACCEPT_MAXSIZE);
+}
+
+// see Shell.h
+BOOL isAcceptDefaultArgument(const CString &value) {
+  static const char *const kinds[] = { ACCEPT_ROWS(ACCEPT_ROW_KIND) };
+  const int eq = value.Find('=');
+
+  if (!isAcceptArgument(value))
+    return FALSE;
+  for(int row=0 ; eq > 0 && row<ACCEPT_ROW_COUNT ; row++) {
+    if (kinds[row] != NULL && (int) strlen(kinds[row]) == eq
+        && strncmp((LPCSTR) value, kinds[row], (size_t) eq) == 0)
+      return FALSE;
+  }
+  return TRUE;
+}
+
+// see Shell.h
+CString acceptBoxText(const CString &value, const CString &automatic) {
+  return value.IsEmpty() ? automatic : value;
+}
+
+// see Shell.h
+CString acceptBoxValue(const CString &text, const CString &automatic) {
+  return text == automatic ? CString() : text;
 }
 
 // see Shell.h
@@ -158,6 +199,24 @@ int argvCapsCheckCases(CString *err, int *nskipped) {
       /* the user-agent has no cap of its own, only the engine's ceiling on one argument */
       { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 1, TRUE },
       { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE, FALSE },
+      { isAcceptArgument, "accept", "text/html,image/avif,*/*;q=0.8", 1, TRUE },
+      { isAcceptArgument, "accept", "*/*", 1, TRUE },
+      { isAcceptArgument, "accept", "text/html, */*", 1, TRUE },   /* a space is legal */
+      { isAcceptArgument, "accept", "x", HTS_ACCEPT_MAXSIZE - 1, TRUE },
+      { isAcceptArgument, "accept", "x", HTS_ACCEPT_MAXSIZE, FALSE },
+      /* the engine would turn each of these into a space and send the value mangled */
+      { isAcceptArgument, "accept", "*/*\nscript=*/*", 1, FALSE },
+      { isAcceptArgument, "accept", "*/*\rscript=*/*", 1, FALSE },
+      { isAcceptArgument, "accept", "*/*\tq=0.1", 1, FALSE },
+      /* a kind row's value may hold anything, since its own kind word goes in front */
+      { isAcceptArgument, "accept", "image=*/*", 1, TRUE },
+      /* the default row sends its value alone, so the engine would read these two as the
+         image kind: one would apply the default to images, the other would send images no
+         Accept header at all */
+      { isAcceptDefaultArgument, "accept default", "image=*/*", 1, FALSE },
+      { isAcceptDefaultArgument, "accept default", "image=", 1, FALSE },
+      { isAcceptDefaultArgument, "accept default", "text/html,*/*;q=0.8", 1, TRUE },
+      { isAcceptDefaultArgument, "accept default", "imagex=y", 1, TRUE },   /* no kind word */
       { NULL, NULL, NULL, 0, FALSE }
     };
 
@@ -221,6 +280,35 @@ int argvCapsCheckCases(CString *err, int *nskipped) {
         snprintf(msg, sizeof(msg), "single-file cap '%s' (%d chars) judged %s",
                  (LPCSTR) value.Left(40), (int) value.GetLength(),
                  caps[k].want ? "bad, expected good" : "good, expected bad");
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  /* The box shows an empty value as a word, and that word has to come back as an empty
+     value under every language, or a profile would carry it into a request. */
+  {
+    static const struct { const char *automatic; const char *shown; const char *value; } rows[] = {
+      { "Automatic", "Automatic", "" },
+      { "Automatique", "Automatique", "" },        /* the same row under another language */
+      { "Automatic", "*/*", "*/*" },
+      { "Automatic", "Automatic ", "Automatic " },   /* the user's own text, near the word */
+      { "", "", "" },   /* a catalog without the key: the word is empty, and so is the value */
+      { NULL, NULL, NULL }
+    };
+
+    for(int k=0 ; rows[k].automatic != NULL ; k++) {
+      const CString automatic = rows[k].automatic;
+      const char *why = NULL;
+
+      if (acceptBoxValue(rows[k].shown, automatic) != CString(rows[k].value))
+        why = "stored the wrong value";
+      else if (acceptBoxText(rows[k].value, automatic) != CString(rows[k].shown))
+        why = "showed the wrong text";
+      if (why != NULL) {
+        snprintf(msg, sizeof(msg), "the accept box showing '%s' under '%s' %s",
+                 rows[k].shown, rows[k].automatic, why);
         *err = msg;
         return 0;
       }
