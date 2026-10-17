@@ -333,7 +333,7 @@ def gated(sheet, ids, count):
     print(f"  gated controls follow their box, on {len(seen)} groups")
 
 
-def accept_box(sheet, pid, ids, shots):
+def accept_box(sheet, pid, ids, shots, page):
     """The Accept headers box, which the Browser ID page opens because its twelve rows do
     not fit that page. Each row offers the browser values hts_accept_preset() returns, so
     an empty list means the box lost its engine, which no shot of the page would show."""
@@ -352,7 +352,8 @@ def accept_box(sheet, pid, ids, shots):
         # the browser values really arrived.
         if row == "image" and entries != 5:
             raise RuntimeError(f"the Accept image row offers {entries} values, expected 5")
-    shots.take(box, "15_options_accept_headers")
+    # The shot moves under its own page, because 15 already names ready_to_start.
+    shots.take(box, f"{page}b_options_accept_headers")
     click(find(box, control_id=IDCANCEL, class_name="Button"))
     wait(lambda: box not in top_level_windows(pid), "the Accept headers box to close", 15)
     print(f"  the Accept headers box carries {len(ACCEPT_ROWS)} rows")
@@ -382,7 +383,7 @@ def options(main, pid, ids, shots, connections=8, rate=2_000_000):
                 owns[control] = i
         shots.take(sheet, f"{4 + i:02d}_options_{page}")
         if find(sheet, control_id=ids["IDC_acceptopt"], class_name="Button") is not None:
-            accept_box(sheet, pid, ids, shots)
+            accept_box(sheet, pid, ids, shots, f"{4 + i:02d}")
     gated(sheet, ids, count)
     # Eight parallel transfers, so the animation shows a mirror working rather than one
     # file trickling in. Eight is the engine's ceiling; it clamps anything higher. The

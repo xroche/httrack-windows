@@ -72,6 +72,12 @@ static const int acceptValueIds[] = { ACCEPT_DIALOG_ROWS(ACCEPT_DIALOG_VALUE_ID)
 static const int acceptLabelIds[] = { ACCEPT_DIALOG_ROWS(ACCEPT_DIALOG_LABEL_ID) };
 static const char *const acceptKinds[] = { ACCEPT_ROWS(ACCEPT_ROW_KIND) };
 
+/* The presets a row offers, in the order it offers them. The browser names are proper
+   nouns, so only the old HTTrack value is translated, and it carries no name here. */
+static const struct { const char *browser; const char *name; } acceptBrowsers[] = {
+  { "chrome", "Chrome" }, { "firefox", "Firefox" }, { "legacy", NULL }, { NULL, NULL }
+};
+
 /* A row missing here would leave a value nothing in the box can reach. */
 static_assert(sizeof(acceptValueIds) / sizeof(acceptValueIds[0]) == ACCEPT_ROW_COUNT,
               "ACCEPT_DIALOG_ROWS and ACCEPT_ROWS disagree on the rows");
@@ -87,6 +93,7 @@ CAcceptOptions::CAcceptOptions(CWnd* pParent /*=NULL*/)
 BEGIN_MESSAGE_MAP(CAcceptOptions, CDialog)
 	ON_WM_HELPINFO()
 	ON_WM_CTLCOLOR()
+  ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
   ON_COMMAND(ID_HELP,OnHelpInfo2)
 	ON_COMMAND(ID_DEFAULT_HELP,OnHelpInfo2)
@@ -110,10 +117,8 @@ BOOL CAcceptOptions::OnHelpInfo(HELPINFO* dummy)
    value, because neither browser has one outside a kind. */
 static void fillAcceptCombo(CComboBox *combo, const char *kind)
 {
-  static const char *const browsers[] = { "chrome", "firefox", "legacy", NULL };
-
-  for(int b=0 ; browsers[b] != NULL ; b++) {
-    const char *const preset = hts_accept_preset(browsers[b], kind);
+  for(int b=0 ; acceptBrowsers[b].browser != NULL ; b++) {
+    const char *const preset = hts_accept_preset(acceptBrowsers[b].browser, kind);
 
     if (preset != NULL && *preset != '\0' && combo->FindStringExact(-1, preset) == CB_ERR)
       combo->AddString(preset);
@@ -126,6 +131,7 @@ BOOL CAcceptOptions::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 	WhttDarkInitWindow(this);
+  EnableToolTips(true);     // TOOL TIPS
 
   if (LANG_T(-1)) {    // Patcher en français
     SetDlgItemTextLang(this, IDOK, LANG(LANG_OK));
@@ -172,6 +178,72 @@ void CAcceptOptions::OnOK()
     m_accept[row] = acceptBoxValue(text, automatic);
   }
   CDialog::OnOK();
+}
+
+// see AcceptOptions.h
+CString CAcceptOptions::acceptPresetTip(int row, const CString &text)
+{
+  CString tip;
+
+  /* An empty row shows the automatic word and names no preset, and the bounds hold
+     kinds[] against a row from a caller --selftest does not control. */
+  if (text.IsEmpty() || row < 0 || row >= ACCEPT_ROW_COUNT)
+    return tip;
+  for(int k=0 ; acceptBrowsers[k].browser != NULL ; k++) {
+    const char *const preset = hts_accept_preset(acceptBrowsers[k].browser, acceptKinds[row]);
+
+    if (preset == NULL || text != preset)
+      continue;
+    if (!tip.IsEmpty())
+      tip += ", ";
+    tip += acceptBrowsers[k].name != NULL ? CString(acceptBrowsers[k].name)
+                                          : CString(LANG(LANG_ACCEPTLEGACY));
+  }
+  return tip;
+}
+
+// see AcceptOptions.h
+int CAcceptOptions::acceptRowOfId(int id)
+{
+  for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
+    if (acceptValueIds[row] == id)
+      return row;
+  }
+  return -1;
+}
+
+// TOOL TIPS, as the option pages do it
+BOOL CAcceptOptions::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
+{
+  TOOLTIPTEXT *pTTT = (TOOLTIPTEXT *)pNMHDR;
+  UINT_PTR nID =pNMHDR->idFrom;
+  if (pTTT->uFlags & TTF_IDISHWND)
+  {
+    // idFrom is actually the HWND of the tool
+    nID = ::GetDlgCtrlID((HWND)nID);
+    if(nID)
+    {
+      const char* st=GetTip((int)nID);
+      if (st != NULL && *st) {
+        pTTT->lpszText = (LPSTR)st;
+        pTTT->hinst = AfxGetResourceHandle();
+        return(TRUE);
+      }
+    }
+  }
+  return(FALSE);
+}
+
+const char* CAcceptOptions::GetTip(int ID)
+{
+  const int row = acceptRowOfId(ID);
+  CString text;
+
+  if (row < 0)
+    return "";
+  GetDlgItemText(ID, text);
+  m_tip = acceptPresetTip(row, text);
+  return m_tip;
 }
 
 HBRUSH CAcceptOptions::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
