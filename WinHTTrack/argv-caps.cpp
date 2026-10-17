@@ -98,9 +98,9 @@ BOOL isRefererArgument(const CString &value) {
 static_assert(HTS_ACCEPT_MAXSIZE + ACCEPT_KIND_PREFIX_MAXSIZE < HTS_CDLMAXSIZE,
               "a kind row's argv word could pass the engine's ceiling");
 
-// see Shell.h. A control character is refused too: the engine keeps these values in one
-// newline-separated list, so a newline forges a second entry, and a bare CR or LF would
-// reach the request as its own header.
+// see Shell.h. A control character is refused too. The engine turns CR, LF and TAB into
+// spaces in every argument (htscoremain.c), so such a value would otherwise go out
+// mangled, under a kind the user never meant for the newline case.
 BOOL isAcceptArgument(const CString &value) {
   for(int i=0 ; i<value.GetLength() ; i++) {
     if ((unsigned char) value[i] < ' ')
@@ -204,8 +204,7 @@ int argvCapsCheckCases(CString *err, int *nskipped) {
       { isAcceptArgument, "accept", "text/html, */*", 1, TRUE },   /* a space is legal */
       { isAcceptArgument, "accept", "x", HTS_ACCEPT_MAXSIZE - 1, TRUE },
       { isAcceptArgument, "accept", "x", HTS_ACCEPT_MAXSIZE, FALSE },
-      /* a newline forges a second entry in the engine's list, and the other two would
-         ride into the request as a header of their own */
+      /* the engine would turn each of these into a space and send the value mangled */
       { isAcceptArgument, "accept", "*/*\nscript=*/*", 1, FALSE },
       { isAcceptArgument, "accept", "*/*\rscript=*/*", 1, FALSE },
       { isAcceptArgument, "accept", "*/*\tq=0.1", 1, FALSE },

@@ -442,8 +442,8 @@ BOOL isUserAgentArgument(const CString &value);
 BOOL isFooterArgument(const CString &value);
 BOOL isLangIsoArgument(const CString &value);
 BOOL isRefererArgument(const CString &value);
-/* Same for one Accept value, which no control character may enter: the engine holds
-   these values in one newline-separated list. */
+/* Same for one Accept value, which no control character may enter: the engine replaces
+   CR, LF and TAB with spaces, so it would send such a value mangled. */
 BOOL isAcceptArgument(const CString &value);
 /* Same for the default row, which sends its value with no kind word in front. A value
    opening with "kind=" would reach the engine as that kind's own entry instead. */
