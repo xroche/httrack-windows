@@ -1540,8 +1540,10 @@ BOOL CWinHTTrackApp::InitInstance()
           { ACCEPT_ROW_IMAGE, CString(), "" },
           /* both browsers send the catch-all for scripts, so both are named */
           { ACCEPT_ROW_SCRIPT, CString("*/*"), "Chrome, Firefox" },
-          /* a strict prefix of a preset, which a Find() in place of a compare would name */
+          /* both directions of a Find() in place of a compare: the text inside the preset,
+             then the preset inside the text. One case alone leaves the other mutant alive. */
           { ACCEPT_ROW_IMAGE, chrome.Left(10), "" },
+          { ACCEPT_ROW_IMAGE, chrome + ",text/plain", "" },
           { -1, CString(), NULL }
         };
 
@@ -1588,6 +1590,62 @@ BOOL CWinHTTrackApp::InitInstance()
             nchecks++;
           }
         }
+      }
+      /* What each row offers, against the engine's own presets. A count alone cannot see
+         a value lost and a duplicate gained in its place, and the box shows this list. */
+      for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
+        CString offers[ACCEPT_ROW_OFFERS_MAX];
+        const int n = CAcceptOptions::acceptRowOffers(row, offers, ACCEPT_ROW_OFFERS_MAX);
+        const char *why = NULL;
+
+        for(int i=0 ; i<n && why == NULL ; i++) {
+          for(int j=i + 1 ; j<n ; j++) {
+            if (offers[i] == offers[j])
+              why = "offers a value twice";
+          }
+        }
+        /* Every preset the engine has for this row has to be there, and so does the
+           catch-all, or a fold that drops values would read as a clean list. The browser
+           names are written out again here, so a change to the box's own list shows. */
+        static const char *const browsers[] = { "chrome", "firefox", "legacy", NULL };
+
+        for(int b=0 ; why == NULL && browsers[b] != NULL ; b++) {
+          const char *const preset = hts_accept_preset(browsers[b], kinds[row]);
+          BOOL found = preset == NULL || *preset == '\0';
+
+          for(int i=0 ; !found && i<n ; i++)
+            found = offers[i] == preset;
+          if (!found)
+            why = "drops a preset the engine has";
+        }
+        if (why == NULL) {
+          BOOL any = FALSE;
+
+          for(int i=0 ; !any && i<n ; i++)
+            any = offers[i] == "*/*";
+          if (!any)
+            why = "drops the catch-all";
+        }
+        /* And nothing the engine does not have for this row, or a lookup reading another
+           kind would offer that kind's values and still look complete. */
+        for(int i=0 ; why == NULL && i<n ; i++) {
+          BOOL known = offers[i] == "*/*";
+
+          for(int b=0 ; !known && browsers[b] != NULL ; b++) {
+            const char *const preset = hts_accept_preset(browsers[b], kinds[row]);
+
+            known = preset != NULL && offers[i] == preset;
+          }
+          if (!known)
+            why = "offers a value the engine does not have for it";
+        }
+        if (why != NULL) {
+          fprintf(stderr, "FATAL: the Accept row %d (%s) %s, over %d values\n", row,
+                  kinds[row] != NULL ? kinds[row] : "default", why, n);
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
       }
       printf("accept kinds ok on %d checks\n", nchecks);
     }

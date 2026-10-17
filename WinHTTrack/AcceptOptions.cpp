@@ -113,18 +113,42 @@ BOOL CAcceptOptions::OnHelpInfo(HELPINFO* dummy)
   return true;
 }
 
-/* A row offers each value once, the catch-all last. The default row gets no browser
-   value, because neither browser has one outside a kind. */
-static void fillAcceptCombo(CComboBox *combo, const char *kind)
+static BOOL alreadyOffered(const CString *out, int n, const char *value)
 {
-  for(int b=0 ; acceptBrowsers[b].browser != NULL ; b++) {
-    const char *const preset = hts_accept_preset(acceptBrowsers[b].browser, kind);
-
-    if (preset != NULL && *preset != '\0' && combo->FindStringExact(-1, preset) == CB_ERR)
-      combo->AddString(preset);
+  for(int i=0 ; i<n ; i++) {
+    if (out[i] == value)
+      return TRUE;
   }
-  if (combo->FindStringExact(-1, "*/*") == CB_ERR)
-    combo->AddString("*/*");
+  return FALSE;
+}
+
+// see AcceptOptions.h
+int CAcceptOptions::acceptRowOffers(int row, CString *out, int max)
+{
+  int n = 0;
+
+  if (row < 0 || row >= ACCEPT_ROW_COUNT)
+    return 0;
+  /* The default row gets no browser value, because neither browser has one outside a
+     kind, and two browsers sending the same value for a kind offer it once. */
+  for(int b=0 ; acceptBrowsers[b].browser != NULL ; b++) {
+    const char *const preset = hts_accept_preset(acceptBrowsers[b].browser, acceptKinds[row]);
+
+    if (preset != NULL && *preset != '\0' && !alreadyOffered(out, n, preset) && n < max)
+      out[n++] = preset;
+  }
+  if (!alreadyOffered(out, n, "*/*") && n < max)
+    out[n++] = "*/*";
+  return n;
+}
+
+static void fillAcceptCombo(CComboBox *combo, int row)
+{
+  CString offers[ACCEPT_ROW_OFFERS_MAX];
+  const int n = CAcceptOptions::acceptRowOffers(row, offers, ACCEPT_ROW_OFFERS_MAX);
+
+  for(int i=0 ; i<n ; i++)
+    combo->AddString(offers[i]);
 }
 
 BOOL CAcceptOptions::OnInitDialog()
@@ -156,7 +180,7 @@ BOOL CAcceptOptions::OnInitDialog()
     if (combo == NULL)
       continue;              /* a row the .rc lost keeps the value it was given */
     combo->AddString(automatic);   /* first, and it stands for the empty value */
-    fillAcceptCombo(combo, acceptKinds[row]);
+    fillAcceptCombo(combo, row);
     SetDlgItemTextCP(this, acceptValueIds[row], acceptBoxText(m_accept[row], automatic));
   }
 

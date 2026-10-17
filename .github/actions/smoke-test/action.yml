@@ -324,7 +324,7 @@ runs:
         }
         # The box sends its kind words as typed. One the engine does not know is read as a
         # default Accept value, so the comparison against hts_accept_kinds() must run.
-        if ("$so" -notmatch 'accept kinds ok on 34 checks') {
+        if ("$so" -notmatch 'accept kinds ok on 47 checks') {
           throw "selftest did not hold the Accept box rows against the engine's kinds"
         }
         # A footer preset is only reachable by opening the Browser ID page. The field count
