@@ -424,6 +424,40 @@ BEGIN
     EDITTEXT        IDC_STATIC_bo1,7,43,232,84,ES_MULTILINE | ES_READONLY | NOT WS_BORDER
 END
 
+IDD_AcceptHeaders DIALOGEX 0, 0, 380, 250
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Accept headers"
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    LTEXT           "The Accept header sent for each kind of link. Automatic sends what the chosen browser sends.",IDC_STATIC_accepttip,7,7,366,18
+    LTEXT           "Default",IDC_STATIC_accept_default,7,33,64,8
+    COMBOBOX        IDC_accept_default,75,31,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Pages",IDC_STATIC_accept_document,7,49,64,8
+    COMBOBOX        IDC_accept_document,75,47,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Inline frames",IDC_STATIC_accept_iframe,7,65,64,8
+    COMBOBOX        IDC_accept_iframe,75,63,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Frames",IDC_STATIC_accept_frame,7,81,64,8
+    COMBOBOX        IDC_accept_frame,75,79,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Images",IDC_STATIC_accept_image,7,97,64,8
+    COMBOBOX        IDC_accept_image,75,95,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Style sheets",IDC_STATIC_accept_style,7,113,64,8
+    COMBOBOX        IDC_accept_style,75,111,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Scripts",IDC_STATIC_accept_script,7,129,64,8
+    COMBOBOX        IDC_accept_script,75,127,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Fonts",IDC_STATIC_accept_font,7,145,64,8
+    COMBOBOX        IDC_accept_font,75,143,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Audio",IDC_STATIC_accept_audio,7,161,64,8
+    COMBOBOX        IDC_accept_audio,75,159,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Video",IDC_STATIC_accept_video,7,177,64,8
+    COMBOBOX        IDC_accept_video,75,175,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Objects",IDC_STATIC_accept_object,7,193,64,8
+    COMBOBOX        IDC_accept_object,75,191,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Embedded content",IDC_STATIC_accept_embed,7,209,64,8
+    COMBOBOX        IDC_accept_embed,75,207,298,70,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "OK",IDOK,7,228,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,323,228,50,14
+END
+
 IDD_ProxyId DIALOG  0, 0, 266, 145
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Proxy settings"
@@ -574,6 +608,7 @@ BEGIN
     LTEXT           "Default referer URL",IDC_STATIC_default_referer,16,108,94,8
     EDITTEXT        IDC_default_referer,115,108,180,12,ES_AUTOHSCROLL
     EDITTEXT        IDC_accept_language,115,54,180,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "Accept headers",IDC_acceptopt,115,130,100,14
 END
 
 IDD_OPTION1 DIALOG  0, 0, 325, 150

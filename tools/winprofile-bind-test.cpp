@@ -18,6 +18,7 @@
    Driven by tools/test-winprofile-bind.py. */
 
 #include "mfc-test-stubs.h"
+#include "accept-rows.h"
 
 /* The option pages, with the members WINPROFILE_BINDINGS names. Declared here rather than
    included, because OptionTab*.h is MFC. */
@@ -109,6 +110,7 @@ struct WpStub_m_option6 {
   CString  m_footer;
   CString  m_other_headers;
   CString  m_default_referer;
+  struct { CString m_accept[ACCEPT_ROW_COUNT]; } Aopt;
 };
 struct WpStub_m_option7 {
   CString  m_url2;
@@ -246,6 +248,18 @@ static const struct { const char *key, *member; } wpWitness[] = {
   { "Footer", "maintab->m_option6.m_footer" },
   { "OtherHeaders", "maintab->m_option6.m_other_headers" },
   { "DefaultReferer", "maintab->m_option6.m_default_referer" },
+  { "AcceptDefault", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DEFAULT]" },
+  { "AcceptDocument", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DOCUMENT]" },
+  { "AcceptIframe", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IFRAME]" },
+  { "AcceptFrame", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FRAME]" },
+  { "AcceptImage", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IMAGE]" },
+  { "AcceptStyle", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_STYLE]" },
+  { "AcceptScript", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_SCRIPT]" },
+  { "AcceptFont", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FONT]" },
+  { "AcceptAudio", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_AUDIO]" },
+  { "AcceptVideo", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_VIDEO]" },
+  { "AcceptObject", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_OBJECT]" },
+  { "AcceptEmbed", "maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_EMBED]" },
   { "MaxRate", "maintab->m_option5.m_maxrate" },
   { "WildCardFilters", "maintab->m_option7.m_url2" },
   { "Proxy", "maintab->m_option10.m_proxy" },

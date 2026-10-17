@@ -142,6 +142,7 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="about.cpp" />
+    <ClCompile Include="AcceptOptions.cpp" />
     <ClCompile Include="AddFilter.cpp" />
     <ClCompile Include="BatchUpdate.cpp" />
     <ClCompile Include="BuildOptions.cpp" />
@@ -225,6 +226,8 @@
 
   <ItemGroup>
     <ClInclude Include="about.h" />
+    <ClInclude Include="AcceptOptions.h" />
+    <ClInclude Include="accept-rows.h" />
     <ClInclude Include="AddFilter.h" />
     <ClInclude Include="BatchUpdate.h" />
     <ClInclude Include="BuildOptions.h" />

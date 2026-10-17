@@ -37,6 +37,7 @@ Please visit our Website: http://www.httrack.com
 // COptionTab6 dialog
 
 #include "WndLayout.h"
+#include "AcceptOptions.h"
 
 /* NULL-terminated footer templates offered in the drop-down, HTS_DEFAULT_FOOTER
    first and no "%s" in any of them; --selftest checks both. Extern only for it. */
@@ -62,6 +63,8 @@ public:
 	CString	m_other_headers;
 	CString	m_default_referer;
 	//}}AFX_DATA
+  /* The twelve Accept values, which the box opened by IDC_acceptopt edits in place. */
+  CAcceptOptions     Aopt;
 
 
 // Overrides
@@ -80,6 +83,7 @@ protected:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+	afx_msg void Onacceptopt();
 	//}}AFX_MSG
   afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
 	DECLARE_MESSAGE_MAP()

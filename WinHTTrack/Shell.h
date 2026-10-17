@@ -53,6 +53,7 @@ Please visit our Website: http://www.httrack.com
 
 #include "resource.h"       // main symbols
 #include "cpp_lang.h"
+#include "accept-rows.h"   /* the rows of the Accept headers box */
 // Ras
 #if USE_RAS
 #include "RasLoad.h"
@@ -441,6 +442,10 @@ BOOL isUserAgentArgument(const CString &value);
 BOOL isFooterArgument(const CString &value);
 BOOL isLangIsoArgument(const CString &value);
 BOOL isRefererArgument(const CString &value);
+/* Same for one Accept value, which also carries its kind word and '=' in the same argv
+   word, and which no control character may enter: the engine holds these values in one
+   newline-separated list. */
+BOOL isAcceptArgument(const CString &value);
 /* Same for -N's format; one the engine refuses aborts the mirror. */
 BOOL isBuildStringArgument(const CString &value);
 /* Return TEXT as typed when FITS accepts it, else empty so the option is left out.
@@ -520,6 +525,8 @@ public:
     cookiesfile, pausefiles, maxretryafter, keepwww, keepslashes, keepqueryorder,
     stripquery, hostalias, sitemap, sitemapurl, singlefile, singlefilemax,
     changes, warccdx, wacz, buildstring;
+  /* The Accept headers box, one value per ACCEPT_ROWS row, empty where it is automatic. */
+  CString accept[ACCEPT_ROW_COUNT];
   CString LINE_back;
   RASDIALPARAMS _dial;
 };

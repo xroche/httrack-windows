@@ -38,6 +38,7 @@ Please visit our Website: http://www.httrack.com
 #ifdef ARGV_CAPS_TEST
 #include "mfc-test-stubs.h"          /* CString, and the engine calls as the harness sees them */
 #include "argv-caps-engine-macros.h" /* the caps, copied out of the engine by the harness */
+#include "accept-rows.h"
 #else
 #include "stdafx.h"
 #include "Shell.h"
@@ -91,6 +92,24 @@ BOOL isLangIsoArgument(const CString &value) {
 
 BOOL isRefererArgument(const CString &value) {
   return isCappedArgument(value, HTS_REFERER_MAXSIZE);
+}
+
+/* see Shell.h. A kind row sends "kind=value" as one argv word, so the longest prefix
+   comes off the engine's ceiling before the value meets its own cap. A control character
+   is refused as well: the engine keeps these values in one newline-separated list, so a
+   newline in one of them forges an entry for another kind, and a bare CR or LF would
+   otherwise reach the request as a header of its own. Only a hand-edited profile can
+   carry one, since the box is a single-line field. */
+BOOL isAcceptArgument(const CString &value) {
+  const size_t ceiling = (size_t) HTS_CDLMAXSIZE - ACCEPT_KIND_PREFIX_MAXSIZE;
+  const size_t cap = (size_t) HTS_ACCEPT_MAXSIZE < ceiling
+                       ? (size_t) HTS_ACCEPT_MAXSIZE : ceiling;
+
+  for(int i=0 ; i<value.GetLength() ; i++) {
+    if ((unsigned char) value[i] < ' ')
+      return FALSE;
+  }
+  return isEngineArgument(value, cap);
 }
 
 // see Shell.h
@@ -158,6 +177,16 @@ int argvCapsCheckCases(CString *err, int *nskipped) {
       /* the user-agent has no cap of its own, only the engine's ceiling on one argument */
       { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 1, TRUE },
       { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE, FALSE },
+      { isAcceptArgument, "accept", "text/html,image/avif,*/*;q=0.8", 1, TRUE },
+      { isAcceptArgument, "accept", "*/*", 1, TRUE },
+      /* the value's own cap decides these two, since no kind word brings it near argv's */
+      { isAcceptArgument, "accept", "x", HTS_ACCEPT_MAXSIZE - 1, TRUE },
+      { isAcceptArgument, "accept", "x", HTS_ACCEPT_MAXSIZE, FALSE },
+      /* a newline forges a second entry in the engine's list, and the other two would
+         ride into the request as a header of their own */
+      { isAcceptArgument, "accept", "*/*\nscript=*/*", 1, FALSE },
+      { isAcceptArgument, "accept", "*/*\rscript=*/*", 1, FALSE },
+      { isAcceptArgument, "accept", "*/*\tq=0.1", 1, FALSE },
       { NULL, NULL, NULL, 0, FALSE }
     };
 

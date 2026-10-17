@@ -41,6 +41,9 @@ Please visit our Website: http://www.httrack.com
    WebHTTrack and HTTrack for Android read this file under. */
 #include "winprofile-keys.h"
 
+/* The Accept headers box, whose twelve rows are keys of their own. */
+#include "accept-rows.h"
+
 /* WINPROFILE_BINDINGS lists every saved key, its member, and the value an absent key
    means. Write_profile, Read_profile and --selftest all expand it, so each key is named,
    typed and defaulted once. A row's macro is its kind in the table above, which --selftest
@@ -110,6 +113,18 @@ Please visit our Website: http://www.httrack.com
   TEXT("Footer", maintab->m_option6.m_footer, HTS_DEFAULT_FOOTER)              \
   TEXT("OtherHeaders", maintab->m_option6.m_other_headers, "")                 \
   TEXT("DefaultReferer", maintab->m_option6.m_default_referer, "")             \
+  TEXT("AcceptDefault", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DEFAULT], "") \
+  TEXT("AcceptDocument", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_DOCUMENT], "") \
+  TEXT("AcceptIframe", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IFRAME], "") \
+  TEXT("AcceptFrame", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FRAME], "") \
+  TEXT("AcceptImage", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_IMAGE], "") \
+  TEXT("AcceptStyle", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_STYLE], "") \
+  TEXT("AcceptScript", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_SCRIPT], "") \
+  TEXT("AcceptFont", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_FONT], "")   \
+  TEXT("AcceptAudio", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_AUDIO], "") \
+  TEXT("AcceptVideo", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_VIDEO], "") \
+  TEXT("AcceptObject", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_OBJECT], "") \
+  TEXT("AcceptEmbed", maintab->m_option6.Aopt.m_accept[ACCEPT_ROW_EMBED], "") \
   NUMBER("MaxRate", maintab->m_option5.m_maxrate, "")                          \
   TEXT("WildCardFilters", maintab->m_option7.m_url2,                           \
        "+*.png +*.gif +*.jpg +*.jpeg +*.webp +*.avif +*.svg +*.css +*.js"      \
@@ -143,10 +158,10 @@ Please visit our Website: http://www.httrack.com
    still prints "ok". The engine's table is checked out fresh, so a row it gains for
    another front end moves WINPROFILE_SKIPPED_ROWS and reds this on purpose. The three key
    counts add up to WINPROFILE_KEY_COUNT. */
-#define WINPROFILE_BOUND_KEYS 88
+#define WINPROFILE_BOUND_KEYS 100
 #define WINPROFILE_HANDWRITTEN_KEYS 8
 #define WINPROFILE_SKIPPED_ROWS 11
-#define WINPROFILE_BINDING_CHECKS 468
+#define WINPROFILE_BINDING_CHECKS 528
 #define WINPROFILE_LIST_COMBO_COUNT 9
 
 /* The keys no binding can carry. These stay hand-written: ProfileFormat is a constant,

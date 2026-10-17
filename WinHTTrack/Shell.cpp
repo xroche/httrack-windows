@@ -794,11 +794,15 @@ void compute_options() {
     ShellOptions->rate += maintab->m_option4.m_rate;
   } else ShellOptions->rate = "";
   
-  // passing a value these four cannot carry would abort the mirror
+  // passing a value these fields cannot carry would abort the mirror
   ShellOptions->user = optionValue(maintab->m_option6.m_user, isUserAgentArgument);
   ShellOptions->footer = optionValue(maintab->m_option6.m_footer, isFooterArgument);
   ShellOptions->accept_language = optionValue(maintab->m_option6.m_accept_language,
                                               isLangIsoArgument);
+  for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
+    ShellOptions->accept[row] = optionValue(maintab->m_option6.Aopt.m_accept[row],
+                                            isAcceptArgument);
+  }
 
   if(strcmp(maintab->m_option6.m_other_headers,"")!=0){
     ShellOptions->other_headers += maintab->m_option6.m_other_headers;
@@ -2261,6 +2265,22 @@ void lance(void) {
   if (ShellOptions->default_referer.GetLength() != 0) {
     args.Add("-%R");
     args.Add(ShellOptions->default_referer);
+  }
+
+  /* One --accept per filled row. The engine reads the word before the first '=' as a
+     kind, so the default row sends its value alone. */
+  {
+    static const char *const kinds[] = { ACCEPT_ROWS(ACCEPT_ROW_KIND) };
+
+    for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
+      if (ShellOptions->accept[row].GetLength() != 0) {
+        args.Add("--accept");
+        if (kinds[row] != NULL)
+          args.Add(CString(kinds[row]) + "=" + ShellOptions->accept[row]);
+        else
+          args.Add(ShellOptions->accept[row]);
+      }
+    }
   }
 
   // Explode \n in other_headers
