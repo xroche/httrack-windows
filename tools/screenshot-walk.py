@@ -352,6 +352,10 @@ def accept_box(sheet, pid, ids, shots, page):
         # the browser values really arrived.
         if row == "image" and entries != 5:
             raise RuntimeError(f"the Accept image row offers {entries} values, expected 5")
+        # Scripts is the opposite case: both browsers send the catch-all, so the list folds
+        # three identical offers into one.
+        if row == "script" and entries != 3:
+            raise RuntimeError(f"the Accept script row offers {entries} values, expected 3")
     # The shot moves under its own page, because 15 already names ready_to_start.
     shots.take(box, f"{page}b_options_accept_headers")
     click(find(box, control_id=IDCANCEL, class_name="Button"))

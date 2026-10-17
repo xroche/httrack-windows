@@ -1540,8 +1540,10 @@ BOOL CWinHTTrackApp::InitInstance()
           { ACCEPT_ROW_IMAGE, CString(), "" },
           /* both browsers send the catch-all for scripts, so both are named */
           { ACCEPT_ROW_SCRIPT, CString("*/*"), "Chrome, Firefox" },
-          /* a strict prefix of a preset, which a Find() in place of a compare would name */
+          /* both directions of a Find() in place of a compare: the text inside the preset,
+             then the preset inside the text. One case alone leaves the other mutant alive. */
           { ACCEPT_ROW_IMAGE, chrome.Left(10), "" },
+          { ACCEPT_ROW_IMAGE, chrome + ",text/plain", "" },
           { -1, CString(), NULL }
         };
 
