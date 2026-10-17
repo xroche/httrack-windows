@@ -87,6 +87,7 @@ CAcceptOptions::CAcceptOptions(CWnd* pParent /*=NULL*/)
 BEGIN_MESSAGE_MAP(CAcceptOptions, CDialog)
 	ON_WM_HELPINFO()
 	ON_WM_CTLCOLOR()
+  ON_NOTIFY_EX( TTN_NEEDTEXT, 0, OnToolTipNotify )
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
   ON_COMMAND(ID_HELP,OnHelpInfo2)
 	ON_COMMAND(ID_DEFAULT_HELP,OnHelpInfo2)
@@ -126,6 +127,7 @@ BOOL CAcceptOptions::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 	WhttDarkInitWindow(this);
+  EnableToolTips(true);     // TOOL TIPS
 
   if (LANG_T(-1)) {    // Patcher en français
     SetDlgItemTextLang(this, IDOK, LANG(LANG_OK));
@@ -172,6 +174,66 @@ void CAcceptOptions::OnOK()
     m_accept[row] = acceptBoxValue(text, automatic);
   }
   CDialog::OnOK();
+}
+
+// see AcceptOptions.h
+CString CAcceptOptions::acceptPresetTip(int row, const CString &text)
+{
+  /* The browser names are proper nouns, so only the old HTTrack value is translated. */
+  static const struct { const char *browser; const char *name; } known[] = {
+    { "chrome", "Chrome" }, { "firefox", "Firefox" }, { "legacy", NULL }, { NULL, NULL }
+  };
+  static const char *const kinds[] = { ACCEPT_ROWS(ACCEPT_ROW_KIND) };
+  CString tip;
+
+  if (text.IsEmpty() || row < 0 || row >= ACCEPT_ROW_COUNT)
+    return tip;
+  for(int k=0 ; known[k].browser != NULL ; k++) {
+    const char *const preset = hts_accept_preset(known[k].browser, kinds[row]);
+
+    if (preset == NULL || text != preset)
+      continue;
+    if (!tip.IsEmpty())
+      tip += ", ";
+    tip += known[k].name != NULL ? CString(known[k].name) : CString(LANG(LANG_ACCEPTLEGACY));
+  }
+  return tip;
+}
+
+// TOOL TIPS, as the option pages do it
+BOOL CAcceptOptions::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult )
+{
+  TOOLTIPTEXT *pTTT = (TOOLTIPTEXT *)pNMHDR;
+  UINT_PTR nID =pNMHDR->idFrom;
+  if (pTTT->uFlags & TTF_IDISHWND)
+  {
+    // idFrom is actually the HWND of the tool
+    nID = ::GetDlgCtrlID((HWND)nID);
+    if(nID)
+    {
+      const char* st=GetTip((int)nID);
+      if (st != NULL && *st) {
+        pTTT->lpszText = (LPSTR)st;
+        pTTT->hinst = AfxGetResourceHandle();
+        return(TRUE);
+      }
+    }
+  }
+  return(FALSE);
+}
+
+const char* CAcceptOptions::GetTip(int ID)
+{
+  for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
+    CString text;
+
+    if (acceptValueIds[row] != ID)
+      continue;
+    GetDlgItemText(ID, text);
+    m_tip = acceptPresetTip(row, text);   /* member, because the tooltip keeps the pointer */
+    return m_tip;
+  }
+  return "";
 }
 
 HBRUSH CAcceptOptions::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)

@@ -1529,6 +1529,42 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       nchecks++;
+      /* And what the tooltip says a shown value is. The browser names are not
+         translated, so these four do not depend on a catalog being loaded. */
+      {
+        const CString chrome = hts_accept_preset("chrome", kinds[ACCEPT_ROW_IMAGE]);
+        const CString legacy = hts_accept_preset("legacy", NULL);
+        const struct { int row; CString text; const char *want; } tips[] = {
+          { ACCEPT_ROW_IMAGE, chrome, "Chrome" },
+          { ACCEPT_ROW_IMAGE, CString("text/plain"), "" },
+          { ACCEPT_ROW_IMAGE, CString(), "" },
+          /* both browsers send the catch-all for scripts, so both are named */
+          { ACCEPT_ROW_SCRIPT, CString("*/*"), "Chrome, Firefox" },
+          { -1, CString(), NULL }
+        };
+
+        for(int k=0 ; tips[k].want != NULL ; k++) {
+          const CString got = CAcceptOptions::acceptPresetTip(tips[k].row, tips[k].text);
+
+          if (got != CString(tips[k].want)) {
+            fprintf(stderr, "FATAL: the Accept tooltip reads '%s' for '%s', expected '%s'\n",
+                    (LPCSTR) got, (LPCSTR) tips[k].text.Left(40), tips[k].want);
+            fflush(stderr);
+            ExitProcess(3);
+          }
+          nchecks++;
+        }
+        /* The legacy row resolves through the catalog, so it is held against the string
+           the box itself would show rather than against a literal. */
+        if (legacy.IsEmpty()
+            || CAcceptOptions::acceptPresetTip(ACCEPT_ROW_DEFAULT, legacy)
+                 != CString(LANG(LANG_ACCEPTLEGACY))) {
+          fprintf(stderr, "FATAL: the Accept tooltip does not name the old HTTrack value\n");
+          fflush(stderr);
+          ExitProcess(3);
+        }
+        nchecks++;
+      }
       printf("accept kinds ok on %d checks\n", nchecks);
     }
     /* The wizard's answer only reaches the engine through a modal dialog, and a

@@ -59,14 +59,21 @@ public:
      field, so no language ever writes that word into a profile. */
   CString m_accept[ACCEPT_ROW_COUNT];
 
+  /* Which preset ROW's TEXT is, as the tooltip words it, or empty for anything else.
+     A value two browsers both send names both. Exposed for --selftest. */
+  static CString acceptPresetTip(int row, const CString &text);
+
 // Implementation
 protected:
   void OnHelpInfo2();
+  const char* GetTip(int id);
+  CString m_tip;   /* holds what GetTip() returns, since the tooltip keeps the pointer */
 
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
 	virtual BOOL OnInitDialog();
 	virtual void OnOK();
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+	afx_msg BOOL OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult );
 	DECLARE_MESSAGE_MAP()
 };
 
