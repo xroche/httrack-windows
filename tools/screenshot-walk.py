@@ -352,7 +352,7 @@ def accept_box(sheet, pid, ids, shots, page):
         # the browser values really arrived.
         if row == "image" and entries != 5:
             raise RuntimeError(f"the Accept image row offers {entries} values, expected 5")
-    # Under its own page rather than after the last tab: 15 is ready_to_start already.
+    # The shot moves under its own page, because 15 already names ready_to_start.
     shots.take(box, f"{page}b_options_accept_headers")
     click(find(box, control_id=IDCANCEL, class_name="Button"))
     wait(lambda: box not in top_level_windows(pid), "the Accept headers box to close", 15)

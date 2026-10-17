@@ -72,6 +72,12 @@ static const int acceptValueIds[] = { ACCEPT_DIALOG_ROWS(ACCEPT_DIALOG_VALUE_ID)
 static const int acceptLabelIds[] = { ACCEPT_DIALOG_ROWS(ACCEPT_DIALOG_LABEL_ID) };
 static const char *const acceptKinds[] = { ACCEPT_ROWS(ACCEPT_ROW_KIND) };
 
+/* The presets a row offers, in the order it offers them. The browser names are proper
+   nouns, so only the old HTTrack value is translated, and it carries no name here. */
+static const struct { const char *browser; const char *name; } acceptBrowsers[] = {
+  { "chrome", "Chrome" }, { "firefox", "Firefox" }, { "legacy", NULL }, { NULL, NULL }
+};
+
 /* A row missing here would leave a value nothing in the box can reach. */
 static_assert(sizeof(acceptValueIds) / sizeof(acceptValueIds[0]) == ACCEPT_ROW_COUNT,
               "ACCEPT_DIALOG_ROWS and ACCEPT_ROWS disagree on the rows");
@@ -111,10 +117,8 @@ BOOL CAcceptOptions::OnHelpInfo(HELPINFO* dummy)
    value, because neither browser has one outside a kind. */
 static void fillAcceptCombo(CComboBox *combo, const char *kind)
 {
-  static const char *const browsers[] = { "chrome", "firefox", "legacy", NULL };
-
-  for(int b=0 ; browsers[b] != NULL ; b++) {
-    const char *const preset = hts_accept_preset(browsers[b], kind);
+  for(int b=0 ; acceptBrowsers[b].browser != NULL ; b++) {
+    const char *const preset = hts_accept_preset(acceptBrowsers[b].browser, kind);
 
     if (preset != NULL && *preset != '\0' && combo->FindStringExact(-1, preset) == CB_ERR)
       combo->AddString(preset);
@@ -179,25 +183,33 @@ void CAcceptOptions::OnOK()
 // see AcceptOptions.h
 CString CAcceptOptions::acceptPresetTip(int row, const CString &text)
 {
-  /* The browser names are proper nouns, so only the old HTTrack value is translated. */
-  static const struct { const char *browser; const char *name; } known[] = {
-    { "chrome", "Chrome" }, { "firefox", "Firefox" }, { "legacy", NULL }, { NULL, NULL }
-  };
-  static const char *const kinds[] = { ACCEPT_ROWS(ACCEPT_ROW_KIND) };
   CString tip;
 
+  /* An empty row shows the automatic word and names no preset, and the bounds hold
+     kinds[] against a row from a caller --selftest does not control. */
   if (text.IsEmpty() || row < 0 || row >= ACCEPT_ROW_COUNT)
     return tip;
-  for(int k=0 ; known[k].browser != NULL ; k++) {
-    const char *const preset = hts_accept_preset(known[k].browser, kinds[row]);
+  for(int k=0 ; acceptBrowsers[k].browser != NULL ; k++) {
+    const char *const preset = hts_accept_preset(acceptBrowsers[k].browser, acceptKinds[row]);
 
     if (preset == NULL || text != preset)
       continue;
     if (!tip.IsEmpty())
       tip += ", ";
-    tip += known[k].name != NULL ? CString(known[k].name) : CString(LANG(LANG_ACCEPTLEGACY));
+    tip += acceptBrowsers[k].name != NULL ? CString(acceptBrowsers[k].name)
+                                          : CString(LANG(LANG_ACCEPTLEGACY));
   }
   return tip;
+}
+
+// see AcceptOptions.h
+int CAcceptOptions::acceptRowOfId(int id)
+{
+  for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
+    if (acceptValueIds[row] == id)
+      return row;
+  }
+  return -1;
 }
 
 // TOOL TIPS, as the option pages do it
@@ -224,16 +236,14 @@ BOOL CAcceptOptions::OnToolTipNotify( UINT id, NMHDR * pNMHDR, LRESULT * pResult
 
 const char* CAcceptOptions::GetTip(int ID)
 {
-  for(int row=0 ; row<ACCEPT_ROW_COUNT ; row++) {
-    CString text;
+  const int row = acceptRowOfId(ID);
+  CString text;
 
-    if (acceptValueIds[row] != ID)
-      continue;
-    GetDlgItemText(ID, text);
-    m_tip = acceptPresetTip(row, text);   /* member, because the tooltip keeps the pointer */
-    return m_tip;
-  }
-  return "";
+  if (row < 0)
+    return "";
+  GetDlgItemText(ID, text);
+  m_tip = acceptPresetTip(row, text);
+  return m_tip;
 }
 
 HBRUSH CAcceptOptions::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)

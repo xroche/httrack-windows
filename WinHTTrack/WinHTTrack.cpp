@@ -1529,8 +1529,8 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       nchecks++;
-      /* And what the tooltip says a shown value is. The browser names are not
-         translated, so these four do not depend on a catalog being loaded. */
+      /* This also checks what the tooltip names. The browser names are not translated,
+         so these cases do not depend on a catalog being loaded. */
       {
         const CString chrome = hts_accept_preset("chrome", kinds[ACCEPT_ROW_IMAGE]);
         const CString legacy = hts_accept_preset("legacy", NULL);
@@ -1540,6 +1540,8 @@ BOOL CWinHTTrackApp::InitInstance()
           { ACCEPT_ROW_IMAGE, CString(), "" },
           /* both browsers send the catch-all for scripts, so both are named */
           { ACCEPT_ROW_SCRIPT, CString("*/*"), "Chrome, Firefox" },
+          /* a strict prefix of a preset, which a Find() in place of a compare would name */
+          { ACCEPT_ROW_IMAGE, chrome.Left(10), "" },
           { -1, CString(), NULL }
         };
 
@@ -1554,9 +1556,10 @@ BOOL CWinHTTrackApp::InitInstance()
           }
           nchecks++;
         }
-        /* The legacy row resolves through the catalog, so it is held against the string
-           the box itself would show rather than against a literal. */
-        if (legacy.IsEmpty()
+        /* The legacy row is worded by the catalog, so both the engine's value and the
+           catalog's label have to be there: holding LANG() against itself would pass on a
+           catalog that carries neither, and the tooltip would be blank. */
+        if (legacy.IsEmpty() || CString(LANG(LANG_ACCEPTLEGACY)).IsEmpty()
             || CAcceptOptions::acceptPresetTip(ACCEPT_ROW_DEFAULT, legacy)
                  != CString(LANG(LANG_ACCEPTLEGACY))) {
           fprintf(stderr, "FATAL: the Accept tooltip does not name the old HTTrack value\n");
@@ -1564,6 +1567,27 @@ BOOL CWinHTTrackApp::InitInstance()
           ExitProcess(3);
         }
         nchecks++;
+        /* Which row a control id belongs to, since the tooltip asks that row for its own
+           text: a wrong answer would describe another row, and no hover reaches this. */
+        {
+          const struct { int id; int want; } rows[] = {
+            { IDC_accept_default, ACCEPT_ROW_DEFAULT },
+            { IDC_accept_embed, ACCEPT_ROW_EMBED },
+            { IDC_STATIC_accept_image, -1 },   /* a label, not a value */
+            { IDOK, -1 },
+            { 0, -2 }
+          };
+
+          for(int k=0 ; rows[k].want != -2 ; k++) {
+            if (CAcceptOptions::acceptRowOfId(rows[k].id) != rows[k].want) {
+              fprintf(stderr, "FATAL: control %d maps to Accept row %d, expected %d\n",
+                      rows[k].id, CAcceptOptions::acceptRowOfId(rows[k].id), rows[k].want);
+              fflush(stderr);
+              ExitProcess(3);
+            }
+            nchecks++;
+          }
+        }
       }
       printf("accept kinds ok on %d checks\n", nchecks);
     }
