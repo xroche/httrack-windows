@@ -206,6 +206,9 @@
     <ClCompile Include="argv-caps.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="cookie-file.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
 
     <!-- Compiled by tools/test-newlang-key.py as well, and it needs no MFC. -->
     <ClCompile Include="newlang-key.cpp">
@@ -232,6 +235,7 @@
     <ClInclude Include="BatchUpdate.h" />
     <ClInclude Include="BuildOptions.h" />
     <ClInclude Include="CatchUrl.h" />
+    <ClInclude Include="cookie-file.h" />
     <ClInclude Include="cpp_lang.h" />
     <ClInclude Include="CrashReport.h" />
     <ClInclude Include="DarkMode.h" />

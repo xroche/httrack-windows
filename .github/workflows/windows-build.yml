@@ -82,6 +82,9 @@ jobs:
       # Same reason, and the caps these values are held against are the engine's.
       - name: The caps on one option value
         run: python3 tools/test-argv-caps.py --engine engine
+      # Same reason, and the lengths a cookie is held against are cookie_add()'s.
+      - name: The login cookies.txt the engine preloads
+        run: python3 tools/test-cookie-file.py --engine engine
       # Resolves all 30 catalogs through the shipped loader, which --selftest cannot, then
       # breaks one of its ordering rules at a time to prove the run notices.
       - name: Every catalog string resolves, and a broken loader rule reds
@@ -1204,6 +1207,11 @@ jobs:
           if ("$so" -notmatch 'rule splitting ok on 158 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the rule-splitting check did not run every case'
+          }
+          # Same split: ubuntu pins the count, this runs it against the real CString.
+          if ("$so" -notmatch 'cookie file ok on 97 checks') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the cookie-file check did not run every case'
           }
           # The screenshot walk shoots one state per control, so only this pins the rest.
           if ("$so" -notmatch 'dark glyph states ok on 13 checks') {
