@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "cookie file ok on 80 checks"
+EXPECTED_LINE = "cookie file ok on 97 checks"
 SWEEP_LINE = "cookie file properties ok on"
 
 # Each cap is the smallest of the gates below, so each is read from the engine rather than
@@ -32,6 +32,8 @@ FIELD_GATES = {
     "path": (r"strlen\(path\)\s*>\s*(\d+)", r"char path\[(\d+)\];"),
 }
 
+LITERALS = r'strcatbuff\(cook,\s*"((?:[^"\\]|\\.)*)"\)'
+
 MACROS = {
     "domain": "COOKIE_DOMAIN_MAXLEN",
     "name": "COOKIE_NAME_MAXLEN",
@@ -40,6 +42,7 @@ MACROS = {
     "line": "COOKIE_LINE_MAXLEN",
     "jar": "COOKIE_JAR_MAXLEN",
     "reserve": "COOKIE_JAR_RESERVE",
+    "record": "COOKIE_JAR_RECORD",
 }
 
 
@@ -93,6 +96,12 @@ def engine_caps(bauth_c, core_c):
         adding.replace("\n", " "),
         "cookie_add()",
     )
+    # What the stored record spends beyond the four fields, summed from the literals
+    # cookie_add() concatenates. Charging our own shorter line would overrun the jar.
+    literals = re.findall(LITERALS, adding)
+    if len(literals) < 6:
+        sys.exit("cookie_add() no longer builds its record with strcatbuff(cook, ...)")
+    caps["record"] = sum(len(lit.encode().decode("unicode_escape")) for lit in literals)
     return caps
 
 

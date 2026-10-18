@@ -65,15 +65,27 @@ static BOOL hasUnwritableByte(const CString &field) {
   return FALSE;
 }
 
-/* A domain the engine would not scope the cookie to. cookie_host() passes it through
-   jump_identification_const(), which returns whatever follows the last '@' before the
-   first '/', so "attacker.test@bank.test" would send the cookie to bank.test instead.
-   A leading '#' makes cookie_load() read the whole record as a comment. A port or an
-   IPv6 literal is left alone, because the engine folds those to the same host we meant. */
-static BOOL badDomain(const CString &domain) {
-  if (domain.GetLength() != 0 && domain[0] == '#')
-    return TRUE;
-  return domain.Find('@') >= 0 || domain.Find('/') >= 0;
+/* The domain must be a plain host name. cookie_host() rewrites anything else into a
+   different host, and the cookie then goes there. It keeps what follows the last '@',
+   keeps only what a leading '[' brackets, and strips a scheme before a ':'. A leading '#'
+   makes cookie_load() skip the record as a comment. A raw IPv6 literal is refused by this
+   rule too, and loses its preloaded cookies. */
+static BOOL plainHostName(const CString &domain) {
+  for(int i=0 ; i<domain.GetLength() ; i++) {
+    const char c = domain[i];
+
+    if (c != '.' && c != '-' && c != '_'
+        && !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z'))
+      return FALSE;
+  }
+  return TRUE;
+}
+
+/* cookie_add() charges the jar the four fields as it stores them. Our own line spells the
+   flags and the expiry more cheaply, so charging that would overrun the jar. */
+static int jarCost(const CookieRecord &c) {
+  return c.domain.GetLength() + (c.path.IsEmpty() ? 1 : c.path.GetLength())
+         + c.name.GetLength() + c.value.GetLength();
 }
 
 /* The engine parses this field and then ignores it, but curl and the user read it. */
@@ -97,7 +109,7 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line) {
   if (hasUnwritableByte(c.name) || hasUnwritableByte(c.value)
       || hasUnwritableByte(c.domain) || hasUnwritableByte(c.path))
     return CookieUnwritableByte;
-  if (badDomain(c.domain))
+  if (!plainHostName(c.domain))
     return CookieUntrustedDomain;
   if (c.domain.GetLength() > COOKIE_DOMAIN_MAXLEN
       || c.name.GetLength() > COOKIE_NAME_MAXLEN
@@ -121,10 +133,12 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line) {
 
 // see cookie-file.h
 CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStats &stats) {
-  /* cookie_add() charges the jar each record plus its reserve, and the record it stores
-     has the same shape as ours, so our own byte count is the budget. Stopping here rather
-     than letting the engine refuse the tail is what makes the loss countable. */
+  /* cookie_load() stops reading once the jar fills and that loop exit logs nothing, so
+     the writer stops first and counts the rest. The budget is the engine's own: every
+     record already stored, plus this record's fields, plus the reserve cookie_add() keeps
+     free on each call. */
   const int budget = COOKIE_JAR_MAXLEN - COOKIE_JAR_RESERVE;
+  int stored = 0;
   CString text;
 
   stats.written = 0;
@@ -136,12 +150,13 @@ CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStat
 
     if (why != CookieWritable) {
       stats.dropped[why]++;
-    } else if (line.GetLength() > budget - text.GetLength()) {
-      /* Room left on one side, never a sum: text never passes budget, so the subtraction
-         stays non-negative and cannot wrap. */
+    } else if (stored > budget || jarCost(cookies[i]) > budget - stored) {
+      /* Room left on one side, never a sum, and the first test is what keeps the
+         subtraction in the second from going negative. */
       stats.dropped[CookieJarFull]++;
     } else {
       text += line;
+      stored += jarCost(cookies[i]) + COOKIE_JAR_RECORD;
       stats.written++;
     }
   }
@@ -229,11 +244,22 @@ int cookieFileCheckCases(CString *err) {
         CookieUntrustedDomain, NULL },
       { "SID", "abc", "http://evil.test", "/", FALSE, 1700000000.0,
         CookieUntrustedDomain, NULL },
-      /* A port and an IPv6 literal stay: cookie_host() folds both to the host we meant. */
-      { "SID", "abc", "example.com:8080", "/", FALSE, 1700000000.0, CookieWritable,
-        "example.com:8080\tFALSE\t/\tFALSE\t1700000000\tSID\tabc\n" },
-      { "SID", "abc", "[::1]", "/", FALSE, 1700000000.0, CookieWritable,
-        "[::1]\tFALSE\t/\tFALSE\t1700000000\tSID\tabc\n" }
+      /* A leading '[' keeps only what it brackets, so this one would reach bank.test's
+         neighbour evil.test, and a scheme needs no slash to be stripped. */
+      { "SID", "abc", "[evil.test]bank.test", "/", FALSE, 1700000000.0,
+        CookieUntrustedDomain, NULL },
+      { "SID", "abc", "http:bank.test", "/", FALSE, 1700000000.0,
+        CookieUntrustedDomain, NULL },
+      /* A port and an IPv6 literal go the same way, which costs a raw-literal address
+         its preloaded cookies. */
+      { "SID", "abc", "example.com:8080", "/", FALSE, 1700000000.0,
+        CookieUntrustedDomain, NULL },
+      { "SID", "abc", "[::1]", "/", FALSE, 1700000000.0, CookieUntrustedDomain, NULL },
+      /* What a host name is allowed to be made of, so the guard cannot just refuse all. */
+      { "SID", "abc", "192.168.1.1", "/", FALSE, 1700000000.0, CookieWritable,
+        "192.168.1.1\tFALSE\t/\tFALSE\t1700000000\tSID\tabc\n" },
+      { "SID", "abc", "sub_do-main.example.com", "/", FALSE, 1700000000.0, CookieWritable,
+        "sub_do-main.example.com\tFALSE\t/\tFALSE\t1700000000\tSID\tabc\n" }
     };
     const int n = (int) (sizeof(records) / sizeof(records[0]));
 
@@ -361,6 +387,11 @@ int cookieFileCheckCases(CString *err) {
                            -strtod("INF", NULL), -0.0, COOKIE_EXPIRY_MAX };
     static const char *const want[] = { "0", "253402300799", "0", "0", "253402300799" };
 
+    if (odd[0] == odd[0]) {
+      *err = "strtod(\"NAN\") did not return a NaN, so the case below proves nothing";
+      return 0;
+    }
+    nchecks++;
     for(int k=0 ; k<5 ; k++) {
       CookieRecord c = plainRecord();
       CString line;
@@ -378,24 +409,34 @@ int cookieFileCheckCases(CString *err) {
     }
   }
 
-  /* The header promises an emptied LINE on a refusal. A caller reusing one buffer is what
-     would otherwise write the previous cookie's record a second time. */
+  /* The header promises an emptied LINE on a refusal, on every path that refuses. A
+     caller reusing one buffer is what would otherwise write the previous record twice. */
   {
-    CookieRecord bad = plainRecord();
+    static const char *const named[] = { "an empty name", "a TAB in the value",
+                                         "an untrusted domain", "an over-long value" };
+    CookieRecord bad[4];
     CString line;
 
-    bad.name = "";
-    if (cookieFileLine(plainRecord(), line) != CookieWritable || line.IsEmpty()) {
-      *err = "the baseline cookie did not write a record";
-      return 0;
+    for(int k=0 ; k<4 ; k++)
+      bad[k] = plainRecord();
+    bad[0].name = "";
+    bad[1].value = "a\tb";
+    bad[2].domain = "attacker.test@bank.test";
+    bad[3].value = CString('a', COOKIE_VALUE_MAXLEN + 1);
+    for(int k=0 ; k<4 ; k++) {
+      if (cookieFileLine(plainRecord(), line) != CookieWritable || line.IsEmpty()) {
+        *err = "the baseline cookie did not write a record";
+        return 0;
+      }
+      nchecks++;
+      if (cookieFileLine(bad[k], line) == CookieWritable || !line.IsEmpty()) {
+        snprintf(msg, sizeof(msg), "%s left '%s' in the caller's buffer",
+                 named[k], (LPCSTR) line);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
     }
-    nchecks++;
-    if (cookieFileLine(bad, line) != CookieEmptyField || !line.IsEmpty()) {
-      snprintf(msg, sizeof(msg), "a refusal left '%s' in the caller's buffer", (LPCSTR) line);
-      *err = msg;
-      return 0;
-    }
-    nchecks++;
   }
 
   /* The whole file, where a refused cookie has to be counted rather than go missing,
@@ -449,9 +490,10 @@ int cookieFileCheckCases(CString *err) {
   }
 
   /* Past the jar's budget the engine stops reading and logs nothing, so the writer stops
-     first and says how many cookies it left out. */
+     first, says how many it left out, and still packs the jar as full as it will go. */
   {
     const int budget = COOKIE_JAR_MAXLEN - COOKIE_JAR_RESERVE;
+    const int fields = 11 + 1 + 3 + COOKIE_VALUE_MAXLEN;   /* domain, path, name, value */
     CSimpleArray<CookieRecord> cookies;
     CookieFileStats stats;
     CString text;
@@ -463,11 +505,30 @@ int cookieFileCheckCases(CString *err) {
       cookies.Add(c);
     }
     text = cookieFileText(cookies, stats);
-    if (text.GetLength() > budget || stats.dropped[CookieJarFull] == 0
+    if (stats.dropped[CookieJarFull] == 0
         || stats.written + stats.dropped[CookieJarFull] != 64) {
+      snprintf(msg, sizeof(msg), "64 big cookies gave %d written and %d left out",
+               stats.written, stats.dropped[CookieJarFull]);
+      *err = msg;
+      return 0;
+    }
+    nchecks++;
+    /* The last record written has to be one cookie_add() would still have taken, which is
+       what a budget charged in our own cheaper bytes would get wrong. */
+    if ((stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields > budget) {
+      snprintf(msg, sizeof(msg), "%d records charge the jar %d bytes, past its %d",
+               stats.written, (stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields,
+               budget);
+      *err = msg;
+      return 0;
+    }
+    nchecks++;
+    /* And one more would have to overflow, or the writer stopped early and threw away
+       cookies the engine would have taken. */
+    if (stats.written * (fields + COOKIE_JAR_RECORD) + fields <= budget) {
       snprintf(msg, sizeof(msg),
-               "64 big cookies wrote %d bytes (budget %d), %d in and %d left out",
-               text.GetLength(), budget, stats.written, stats.dropped[CookieJarFull]);
+               "%d records is %d jar bytes of %d, so another would still have fitted",
+               stats.written, stats.written * (fields + COOKIE_JAR_RECORD), budget);
       *err = msg;
       return 0;
     }

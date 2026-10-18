@@ -54,6 +54,10 @@ Please visit our Website: http://www.httrack.com
    budget loses whichever cookies sit at its end and says nothing. */
 #define COOKIE_JAR_MAXLEN    30000
 #define COOKIE_JAR_RESERVE   256
+/* What the record cookie_add() stores spends on separators and fixed literals, on top of
+   the four fields. Our own line spells the flags and the expiry differently and comes out
+   shorter, so charging the jar our bytes would overrun it. */
+#define COOKIE_JAR_RECORD    26
 
 /* CookieRecord holds one browser cookie, every string in the engine's UTF-8. */
 struct CookieRecord {
@@ -72,7 +76,7 @@ enum CookieReject {
   CookieWritable,
   CookieEmptyField,      /* no name, or no domain to scope it to */
   CookieUnwritableByte,  /* a byte that would forge a field or a record */
-  CookieUntrustedDomain, /* see badDomain() in cookie-file.cpp */
+  CookieUntrustedDomain, /* see plainHostName() in cookie-file.cpp */
   CookieFieldTooLong,
   CookieJarFull,         /* the engine's jar filled up, so cookieFileText() alone */
   CookieRejectCount

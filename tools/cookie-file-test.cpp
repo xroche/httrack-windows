@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 /* Both callers pin the count, so a case deleted from cookie-file.cpp reds here as well. */
-#define CF_EXPECTED_CHECKS 80
+#define CF_EXPECTED_CHECKS 97
 
 /* How many random records the sweep below builds. */
 #define CF_RANDOM_RECORDS 200000
@@ -26,13 +26,17 @@ static unsigned prngNext(unsigned below) {
   return (unsigned) ((prngState >> 16) % below);
 }
 
-/* Any byte, NUL included, because those are the records the shared cases cannot spell. */
-static CString randomField(void) {
-  const unsigned len = prngNext(12);
+/* Two alphabets, and one field in thirty-two runs long. The whole byte range reaches the
+   byte refusals, NUL included, which the shared cases can barely spell. A host-name
+   alphabet is what lets a long field reach the length caps. 1200 random bytes almost
+   always hold a TAB, which is refused first. */
+static CString randomField(int clean) {
+  static const char host[] = "abcdefghijklmnopqrstuvwxyz0123456789.-_";
+  const unsigned len = prngNext(32) == 0 ? prngNext(1200) : prngNext(12);
   CString s;
 
   for(unsigned i=0 ; i<len ; i++)
-    s += (char) prngNext(256);
+    s += clean != 0 ? host[prngNext((unsigned) sizeof(host) - 1)] : (char) prngNext(256);
   return s;
 }
 
@@ -67,14 +71,18 @@ static int sweepRandomRecords(void) {
   CSimpleArray<CookieRecord> batch;
   CString text;
 
+  /* One buffer for every record, because a fresh one per call would hide a refusal that
+     leaves the caller's own buffer filled. */
+  CString line;
+
   for(int k=0 ; k<CF_RANDOM_RECORDS ; k++) {
     CookieRecord c;
-    CString line;
+    const int clean = (int) prngNext(2);
 
-    c.name = randomField();
-    c.value = randomField();
-    c.domain = randomField();
-    c.path = randomField();
+    c.name = randomField(clean);
+    c.value = randomField(clean);
+    c.domain = randomField(clean);
+    c.path = randomField(clean);
     c.secure = (BOOL) prngNext(2);
     c.expires = (double) prngNext(2000000000u);
     if (cookieFileLine(c, line) == CookieWritable) {
