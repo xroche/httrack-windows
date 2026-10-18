@@ -767,8 +767,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 53) {
-        fprintf(stderr, "FATAL: cookie file ran %d checks, expected 53\n", nchecks);
+      if (nchecks != 80) {
+        fprintf(stderr, "FATAL: cookie file ran %d checks, expected 80\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
