@@ -5,7 +5,11 @@
    WinHTTrack/rules-split.cpp, WinHTTrack/argv-caps.cpp and WinHTTrack/cookie-file.cpp to
    compile off Windows, so the harnesses in this directory exercise the real code. Each
    stub is reproduced to its real contract. See tools/test-winprofile-bind.py,
-   tools/test-rules-split.py, tools/test-argv-caps.py and tools/test-cookie-file.py. */
+   tools/test-rules-split.py, tools/test-argv-caps.py and tools/test-cookie-file.py.
+
+   A green run here is not an MSVC guarantee. This CString offers one conversion where
+   MFC's offers several, so a ternary mixing a string literal with a CString compiles here
+   and is ambiguous there (C2445). Cast both arms. */
 
 #ifndef MFC_TEST_STUBS_H
 #define MFC_TEST_STUBS_H

@@ -122,7 +122,9 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line) {
   /* Field 1: a leading dot is how this format spells "and every subdomain". */
   line = c.domain;
   line += c.domain[0] == '.' ? "\tTRUE\t" : "\tFALSE\t";
-  line += c.path.IsEmpty() ? "/" : c.path;   /* the browser's own default */
+  /* Both arms cast, because MFC's CString converts several ways and the ternary is
+     ambiguous without it. The browser sending no path means this format's default. */
+  line += c.path.IsEmpty() ? "/" : (LPCSTR) c.path;
   line += middle;
   line += c.name;
   line += "\t";
