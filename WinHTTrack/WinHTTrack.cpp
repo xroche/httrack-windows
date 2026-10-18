@@ -49,6 +49,7 @@ Please visit our Website: http://www.httrack.com
 #include "DarkMode.h"
 #include "SignatureCheck.h"
 #include "Unofficial.h"
+#include "cookie-file.h"
 #include "version.h"
 
 #include <shlwapi.h>   /* AssocQueryStringA, for what the shell resolves .whtt to */
@@ -755,6 +756,23 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       printf("rule splitting ok on %d checks\n", nchecks);
+    }
+    /* Same cases as tools/cookie-file-test.cpp, now checked against the real MFC CString. */
+    {
+      CString err;
+      const int nchecks = cookieFileCheckCases(&err);
+
+      if (nchecks == 0) {
+        fprintf(stderr, "FATAL: cookie file: %s\n", (LPCSTR) err);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      if (nchecks != 53) {
+        fprintf(stderr, "FATAL: cookie file ran %d checks, expected 53\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("cookie file ok on %d checks\n", nchecks);
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
