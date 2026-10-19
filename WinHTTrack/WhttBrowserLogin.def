@@ -1,0 +1,4 @@
+; The export set WinHTTrack.exe resolves by name. WhttBrowserLogin.h holds the contract.
+EXPORTS
+    WhttBrowserLoginAbi
+    WhttBrowserLoginAvailable

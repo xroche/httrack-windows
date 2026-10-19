@@ -146,6 +146,7 @@
     <ClCompile Include="AddFilter.cpp" />
     <ClCompile Include="BatchUpdate.cpp" />
     <ClCompile Include="BuildOptions.cpp" />
+    <ClCompile Include="browser-login.cpp" />
     <ClCompile Include="CatchUrl.cpp" />
     <ClCompile Include="CrashReport.cpp" />
     <ClCompile Include="DarkMode.cpp" />
@@ -234,6 +235,7 @@
     <ClInclude Include="AddFilter.h" />
     <ClInclude Include="BatchUpdate.h" />
     <ClInclude Include="BuildOptions.h" />
+    <ClInclude Include="browser-login.h" />
     <ClInclude Include="CatchUrl.h" />
     <ClInclude Include="cookie-file.h" />
     <ClInclude Include="cpp_lang.h" />
@@ -280,6 +282,7 @@
     <ClInclude Include="trans.h" />
     <ClInclude Include="TreeViewToolTip.h" />
     <ClInclude Include="version.h" />
+    <ClInclude Include="WhttBrowserLogin.h" />
     <ClInclude Include="Wid1.h" />
     <ClInclude Include="WinHTTrack.h" />
     <ClInclude Include="WinHTTrackDoc.h" />

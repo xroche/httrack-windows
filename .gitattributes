@@ -1,7 +1,9 @@
 # LF for everything git stores as text, because rc.exe, MSBuild and ISCC all read it.
 # Visual Studio's resource editor and solution writer put CRLF back, and git drops it again.
 *.c          text eol=lf
+*.cmake      text eol=lf
 *.cpp        text eol=lf
+*.def        text eol=lf
 *.h          text eol=lf
 *.htm        text eol=lf
 *.iss        text eol=lf

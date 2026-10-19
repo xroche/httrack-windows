@@ -1,0 +1,38 @@
+// Version metadata only. CI holds every shipped binary to one product name and version.
+#include <winresrc.h>
+#include "version.h"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION WINHTTRACK_VERSION_NUM
+ PRODUCTVERSION WINHTTRACK_VERSION_NUM
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "Comments", "Website Copier [Offline Browser]"
+            VALUE "CompanyName", "HTTrack"
+            VALUE "FileDescription", "WinHTTrack browser login helper"
+            VALUE "FileVersion", WINHTTRACK_VERSIONID
+            VALUE "InternalName", "WhttBrowserLogin"
+            VALUE "LegalCopyright", "Copyright (C) 1998-2026 Xavier Roche and other contributors"
+            VALUE "LegalTrademarks", "This software is covered by the GNU General Public License version 3"
+            VALUE "OriginalFilename", "WhttBrowserLogin.dll"
+            VALUE "ProductName", "HTTrack Website Copier"
+            VALUE "ProductVersion", WINHTTRACK_VERSION
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

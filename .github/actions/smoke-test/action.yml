@@ -123,7 +123,7 @@ runs:
             if (-not (Test-Path $env:VENDORED_LIST)) { throw "no vendored list at $env:VENDORED_LIST" }
             Get-Content $env:VENDORED_LIST | Where-Object { $_.Trim() } | ForEach-Object { $vendored[$_.Trim()] = $true }
           }
-          foreach ($n in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
+          foreach ($n in 'WinHTTrack.exe', 'WhttBrowserLogin.dll', 'httrack.exe', 'libhttrack.dll') {
             if ($vendored.ContainsKey($n)) { throw "$n is listed as vendored: the manifest is wrong" }
           }
           $bad = @()
@@ -157,7 +157,7 @@ runs:
         Write-Host "WinHTTrack.exe --check-signature ->"
         Write-Host $sig
         if ($p.ExitCode -ne 0) { throw "--check-signature exited $($p.ExitCode)" }
-        foreach ($n in 'WinHTTrack.exe', 'libhttrack.dll') {
+        foreach ($n in 'WinHTTrack.exe', 'WhttBrowserLogin.dll', 'libhttrack.dll') {
           if ($sig -notmatch [regex]::Escape($n)) { throw "--check-signature never looked at $n" }
         }
         foreach ($line in ($sig -split "\r?\n")) {
@@ -340,6 +340,11 @@ runs:
         # mirror, and a checkmark on a preset the box only partly holds deletes the rest.
         if ("$so" -notmatch 'rule splitting ok on 158 checks') {
           throw "selftest did not check the Experts rule splitter and the preset checkboxes"
+        }
+        # The installer is what has to lay the helper DLL down beside the exe; the staged
+        # tree says nothing about that.
+        if ("$so" -notmatch 'browser login ok on 3 checks') {
+          throw "the installed copy did not load WhttBrowserLogin.dll"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure. The last
         # two are the copies of "Start", so this is also where a lost increment shows.

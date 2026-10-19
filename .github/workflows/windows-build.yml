@@ -228,8 +228,9 @@ jobs:
               sys.exit(f'only {len(text)} files carry an eol rule: this check would prove nothing')
 
           # Asserts .gitattributes' eol mapping, so a dropped path fails instead of going unchecked.
-          WANT = dict.fromkeys(['.c', '.cpp', '.h', '.htm', '.iss', '.manifest', '.props',
-                                '.rc', '.rc2', '.sln', '.vcxproj', '.xml'], 'lf')
+          WANT = dict.fromkeys(['.c', '.cmake', '.cpp', '.def', '.h', '.htm', '.iss',
+                                '.manifest', '.props', '.rc', '.rc2', '.sln', '.vcxproj',
+                                '.xml'], 'lf')
           WANT['.txt'] = 'crlf'
           for p in paths:
               want = WANT.get(os.path.splitext(p)[1].lower())
@@ -583,6 +584,48 @@ jobs:
             /p:VcpkgEnableManifest=true `
             /flp:LogFile=msbuild.log`;Verbosity=normal
 
+      # The browser-login helper. Its own DLL because the WebView2 loader it links cannot
+      # be part of the exe; the step below is what holds that line.
+      - name: Build WhttBrowserLogin (browser login helper)
+        working-directory: httrack-windows
+        shell: pwsh
+        run: |
+          msbuild WinHTTrack\WhttBrowserLogin.vcxproj `
+            /m `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:Platform=${{ matrix.platform }} `
+            /p:VcpkgEnableManifest=true `
+            /flp:LogFile=msbuild-helper.log`;Verbosity=normal
+
+      # WebView2's loader hard-imports EventSetInformation, which Windows 7 does not
+      # export, so an import of ours would stop the exe starting there with a message no
+      # code of ours could prevent. GetProcAddress is what keeps it off the import table,
+      # and nothing else in the build would notice it coming back.
+      - name: WinHTTrack.exe keeps its Windows 7 floor
+        shell: pwsh
+        run: |
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          $exe = Join-Path $bin 'WinHTTrack.exe'
+          $helper = Join-Path $bin 'WhttBrowserLogin.dll'
+          foreach ($f in @($exe, $helper)) { if (-not (Test-Path $f)) { throw "missing $f" } }
+          function Imports($path) { (& $env:DUMPBIN /imports $path) -join "`n" }
+          $ei = Imports $exe
+          $hi = Imports $helper
+          # An empty dump would let every assertion below pass for the wrong reason.
+          if (-not $ei -or -not $hi) { throw 'dumpbin returned no imports: this check would prove nothing' }
+          # The hazard has to be real, or the two assertions after it are vacuous.
+          if ($hi -notmatch 'EventSetInformation') {
+            throw 'WhttBrowserLogin.dll no longer imports EventSetInformation, so nothing here says anything about the exe'
+          }
+          $fail = @()
+          if ($ei -match 'WhttBrowserLogin') { $fail += 'WinHTTrack.exe links the helper, so Windows 7 would refuse to start it' }
+          if ($ei -match 'EventSetInformation') { $fail += 'WinHTTrack.exe imports EventSetInformation, which Windows 7 does not export' }
+          # Microsoft's loader DLL is Microsoft's to sign, so our overlay triplet takes the
+          # webview2 port statically. An import of it means that stopped working.
+          if ($hi -match 'WebView2Loader') { $fail += 'WhttBrowserLogin.dll imports WebView2Loader.dll instead of linking the static loader' }
+          if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host 'Windows 7 floor held: the helper carries EventSetInformation and the exe imports neither it nor the helper'
+
       # The one failure this whole toolchain cannot otherwise catch: if the exe
       # and the DLL disagree on the CRT, they link cleanly and then crash at
       # runtime on a cross-heap free. Assert they share the dynamic CRT.
@@ -594,7 +637,9 @@ jobs:
           $dll = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\libhttrack.dll"
           # The CLI links the same DLL, so it carries the same cross-heap risk.
           $cli = "httrack\src\${{ matrix.platform }}\${{ matrix.configuration }}\httrack.exe"
-          foreach ($f in @($exe, $dll, $cli)) {
+          # Loaded into the exe's process, so a CRT of its own would be a second heap.
+          $helper = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WhttBrowserLogin.dll"
+          foreach ($f in @($exe, $dll, $cli, $helper)) {
             if (-not (Test-Path $f)) { throw "missing $f" }
           }
 
@@ -613,16 +658,18 @@ jobs:
           $exeDeps = Deps $exe
           $dllDeps = Deps $dll
           $cliDeps = Deps $cli
-          Write-Host "WinHTTrack.exe  -> $($exeDeps -join ', ')"
-          Write-Host "libhttrack.dll  -> $($dllDeps -join ', ')"
-          Write-Host "httrack.exe     -> $($cliDeps -join ', ')"
+          $helperDeps = Deps $helper
+          Write-Host "WinHTTrack.exe       -> $($exeDeps -join ', ')"
+          Write-Host "libhttrack.dll       -> $($dllDeps -join ', ')"
+          Write-Host "httrack.exe          -> $($cliDeps -join ', ')"
+          Write-Host "WhttBrowserLogin.dll -> $($helperDeps -join ', ')"
 
           $fail = @()
 
           # All must import the shared vcruntime. A static-CRT (/MT) build imports
           # none, which is exactly the mismatch that crashes later.
           foreach ($p in @(@{n='WinHTTrack.exe'; d=$exeDeps}, @{n='libhttrack.dll'; d=$dllDeps},
-                           @{n='httrack.exe'; d=$cliDeps})) {
+                           @{n='httrack.exe'; d=$cliDeps}, @{n='WhttBrowserLogin.dll'; d=$helperDeps})) {
             if (-not (BaseCrt $p.d)) {
               $fail += "$($p.n) imports no vcruntime: it was not built with the dynamic CRT (/MD)"
             }
@@ -640,6 +687,10 @@ jobs:
           }
           if ("$cliRt" -ne "$dllRt") {
             $fail += "CRT mismatch: httrack.exe imports [$cliRt] but libhttrack.dll imports [$dllRt]"
+          }
+          $helperRt = BaseCrt $helperDeps
+          if ("$helperRt" -ne "$exeRt") {
+            $fail += "CRT mismatch: WhttBrowserLogin.dll imports [$helperRt] but the exe imports [$exeRt]"
           }
 
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
@@ -668,15 +719,20 @@ jobs:
 
       # A property dropped from the .vcxproj still builds and still passes every
       # other check here, so assert the mitigations where they end up.
-      - name: Check the hardening flags reached WinHTTrack.exe
+      - name: Check the hardening flags reached our binaries
         shell: pwsh
         run: |
 
-          # This checks our exe only, because the engine asserts its own flags.
-          $exe = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}\WinHTTrack.exe"
-          if (-not (Test-Path $exe)) { throw "missing $exe" }
-          $dump = (& $env:DUMPBIN /headers /loadconfig $exe) -join "`n"
-          if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $exe" }
+          # Ours only, because the engine asserts its own flags.
+          $bin = "httrack-windows\WinHTTrack\bin\${{ matrix.platform }}\${{ matrix.configuration }}"
+          $ours = @('WinHTTrack.exe', 'WhttBrowserLogin.dll')
+          $dumps = [ordered]@{}
+          foreach ($n in $ours) {
+            $f = Join-Path $bin $n
+            if (-not (Test-Path $f)) { throw "missing $f" }
+            $dumps[$n] = (& $env:DUMPBIN /headers /loadconfig $f) -join "`n"
+            if ($LASTEXITCODE -ne 0) { throw "dumpbin failed on $f" }
+          }
 
           # $Matches goes stale after a failed match, so capture inside the if.
           function Field($text, $pattern) {
@@ -725,7 +781,12 @@ jobs:
             $bad
           }
 
-          $fail = @(Failures $dump "${{ matrix.platform }}")
+          $fail = @()
+          foreach ($n in $ours) {
+            # Not a piped +=: an empty pipeline appends $null, and two of those read as
+            # two failures with nothing to print.
+            foreach ($m in @(Failures $dumps[$n] "${{ matrix.platform }}")) { $fail += "$n $m" }
+          }
 
           # The control runs the same parse over what this exe really dumped before
           # the flags went on. A check nobody has watched fail is not a check.
@@ -759,10 +820,10 @@ jobs:
           }
 
           if ($fail) {
-            $fail | ForEach-Object { Write-Host "::error::WinHTTrack.exe $_" }
+            $fail | ForEach-Object { Write-Host "::error::$_" }
             exit 1
           }
-          Write-Host "hardening ok (control: the same parse reports $($control.Count) failures on the pre-flag dump)"
+          Write-Host "hardening ok on $($ours.Count) binaries (control: the same parse reports $($control.Count) failures on the pre-flag dump)"
 
       # An invalid embedded manifest does not fail the build: Windows refuses to
       # start the exe with "side-by-side configuration is incorrect", which only
@@ -904,8 +965,9 @@ jobs:
           # they are ours to ship now, so the check below catches a staging regression.
           # Where the UCRT is not vendored, its forwarders are Windows' to supply too.
           $crt = if ($vendorUcrt) { '(?!crt-)' } else { '' }
-          $provided = '^(api-ms-win-' + $crt + '|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|shlwapi|crypt32|wintrust)'
-          $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\httrack.exe") + @(Deps "$bin\libhttrack.dll") |
+          $provided = '^(api-ms-win-' + $crt + '|kernel32|user32|advapi32|shell32|comctl32|ole32|oleaut32|ws2_32|winmm|gdi32|shlwapi|crypt32|wintrust|version)'
+          $needed = @(Deps "$bin\WinHTTrack.exe") + @(Deps "$bin\httrack.exe") + @(Deps "$bin\libhttrack.dll") +
+                    @(Deps "$bin\WhttBrowserLogin.dll") |
             Where-Object { $_ -notmatch $provided } | Sort-Object -Unique
           Write-Host "--- must ship: $($needed -join ', ') ---"
           foreach ($d in $needed) {
@@ -922,6 +984,14 @@ jobs:
           }
           if (-not (Test-Path (Join-Path $bin 'httrack.exe'))) {
             throw "package is missing httrack.exe: the command-line version ships with the GUI"
+          }
+          if (-not (Test-Path (Join-Path $bin 'WhttBrowserLogin.dll'))) {
+            throw "package is missing WhttBrowserLogin.dll: the browser login would stay out of reach"
+          }
+          # The static loader goes inside our DLL. A file of this name means the webview2
+          # port came out dynamic, and we would be shipping a binary of Microsoft's.
+          if (Test-Path (Join-Path $bin 'WebView2Loader.dll')) {
+            throw "package carries Microsoft's WebView2Loader.dll: webview2 is no longer taken statically"
           }
           # Staged, not installed: the check below needs them, and they make the artifact debuggable.
           if (-not (Test-Path (Join-Path $bin 'WinHTTrack.pdb'))) {
@@ -1001,7 +1071,8 @@ jobs:
           $name = 'HTTrack Website Copier'
 
           $bad = @()
-          foreach ($f in @(@{n='WinHTTrack.exe'; v=$gui}, @{n='httrack.exe'; v=$engine}, @{n='libhttrack.dll'; v=$engine})) {
+          foreach ($f in @(@{n='WinHTTrack.exe'; v=$gui}, @{n='WhttBrowserLogin.dll'; v=$gui},
+                           @{n='httrack.exe'; v=$engine}, @{n='libhttrack.dll'; v=$engine})) {
             $v = (Get-Item (Join-Path $bin $f.n)).VersionInfo
             # Trim: resource compilers pad these fields, and Inno certainly does.
             $pn = "$($v.ProductName)".Trim()
@@ -1021,7 +1092,7 @@ jobs:
           if ($num -ne $verid) { throw "WinHTTrack.exe is numbered $num, but WINHTTRACK_VERSIONID says $verid" }
           if ("$($fv.FileVersion)".Trim() -ne $verid) { throw "WinHTTrack.exe FileVersion is '$($fv.FileVersion)', not '$verid'" }
 
-          Write-Host "::notice::all three binaries report $name, the GUI at $gui and the engine at $engine"
+          Write-Host "::notice::all four binaries report $name, the GUI at $gui and the engine at $engine"
 
       # vcpkg is invisible to Dependabot alerts, CodeQL and the dependency graph, so
       # this is the only thing between a stale OpenSSL and a signed installer. Advisory
@@ -1084,7 +1155,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: msbuild-${{ matrix.platform }}-${{ matrix.configuration }}
-          path: httrack-windows/msbuild.log
+          path: |
+            httrack-windows/msbuild.log
+            httrack-windows/msbuild-helper.log
           if-no-files-found: ignore
 
   # A GitHub environment gates a whole job, so signing cannot live in the build job:
@@ -1133,19 +1206,19 @@ jobs:
           }
           $want = [Convert]::ToUInt16('${{ matrix.machine }}', 16)
           $bin = 'artifacts\WinHTTrack-${{ matrix.platform }}-Release'
-          foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
+          foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll', 'WhttBrowserLogin.dll') {
             $pe = [IO.File]::ReadAllBytes((Join-Path $bin $f))
             $machine = [BitConverter]::ToUInt16($pe, [BitConverter]::ToInt32($pe, 0x3c) + 4)
             if ($machine -ne $want) {
               throw ('{0} is machine 0x{1:x}, not the 0x{2:x} this leg needs' -f $f, $machine, $want)
             }
           }
-          foreach ($f in 'WinHTTrack.pdb', 'libhttrack.pdb') {
+          foreach ($f in 'WinHTTrack.pdb', 'WhttBrowserLogin.pdb', 'libhttrack.pdb') {
             if (-not (Test-Path (Join-Path $bin $f))) {
               throw "$f is not in the artifact, so no stack can resolve to a line"
             }
           }
-          Write-Host 'three ${{ matrix.platform }} binaries and their PDBs, on a ${{ matrix.host }} runner'
+          Write-Host 'four ${{ matrix.platform }} binaries and their PDBs, on a ${{ matrix.host }} runner'
 
 
       # Against the staged tree, where the PDBs live, because the installed build can no
@@ -1231,6 +1304,13 @@ jobs:
           if (Test-Path -LiteralPath 'HKCU:\SOFTWARE\Classes\.whtt') {
             throw 'a portable run registered .whtt under HKCU, from this block or another'
           }
+          # The helper is loaded by hand from the program's own directory, so only a run
+          # on a real Windows says whether the exports and the ABI still line up. Which
+          # WebView2 runtime the runner carries is printed, not asserted.
+          if ("$so" -notmatch 'browser login ok on 3 checks') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'WhttBrowserLogin.dll did not load beside the staged binaries'
+          }
           if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
           $trace = Get-Content $report -Raw
           Write-Host "--- crash report ---`n$trace"
@@ -1242,6 +1322,28 @@ jobs:
             throw 'no file:line on the throw stack: the PDB carries no line info'
           }
           Write-Host '::notice::crash report resolves function, file and line'
+
+      # The check above passes by loading a DLL that is sitting there. Take it away and
+      # the run has to red, or a package that lost the helper would ship looking tested.
+      - name: A missing helper reds the selftest
+        shell: pwsh
+        run: |
+          $bin = 'artifacts\WinHTTrack-${{ matrix.platform }}-Release'
+          $dll = Join-Path $bin 'WhttBrowserLogin.dll'
+          $away = "$dll.away"
+          Move-Item $dll $away
+          try {
+            $p = Start-Process (Join-Path $bin 'WinHTTrack.exe') -ArgumentList '--selftest' -Wait -PassThru `
+                   -RedirectStandardOutput "$PWD\nohelper.txt" -RedirectStandardError "$PWD\nohelper.err"
+            $err = "$(Get-Content "$PWD\nohelper.err" -Raw -ErrorAction SilentlyContinue)"
+            if ($p.ExitCode -eq 0) { throw 'the selftest passed with no WhttBrowserLogin.dll beside the exe' }
+            if ($err -notmatch 'browser login helper') {
+              throw "the selftest failed for another reason: $err"
+            }
+          } finally {
+            Move-Item $away $dll
+          }
+          Write-Host 'control ok: the selftest reds when the helper is gone'
 
       - name: Find the downloaded installer
         id: setup
@@ -1391,7 +1493,7 @@ jobs:
                 throw "$($f.Name) is vendored but carries no valid Microsoft signature ($($sig.Status))"
               }
             }
-            foreach ($f in 'WinHTTrack.exe', 'httrack.exe', 'libhttrack.dll') {
+            foreach ($f in 'WinHTTrack.exe', 'WhttBrowserLogin.dll', 'httrack.exe', 'libhttrack.dll') {
               if ($f -notin $pes.Name) { throw "$($d.Name) has no $f to sign" }
             }
             Write-Host "--- $($d.Name): $($pes.Count) to sign, $($vendored.Count) vendored ---"

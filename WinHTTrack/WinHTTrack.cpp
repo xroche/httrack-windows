@@ -49,6 +49,7 @@ Please visit our Website: http://www.httrack.com
 #include "DarkMode.h"
 #include "SignatureCheck.h"
 #include "Unofficial.h"
+#include "browser-login.h"
 #include "cookie-file.h"
 #include "version.h"
 
@@ -773,6 +774,38 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       printf("cookie file ok on %d checks\n", nchecks);
+    }
+    /* Nothing but a run on a real Windows sees a lost export or a stale copy beside the
+       exe. Whether a WebView2 runtime is installed is reported, never required: that one
+       is Microsoft's to install. */
+    {
+      const WhttLoginHelper st = WhttLoginHelperLoad();
+      char runtime[WHTT_BROWSER_LOGIN_VERSION_MAX] = "";
+      int nchecks = 0;
+      BOOL have;
+
+      if (st != WhttLoginReady) {
+        fprintf(stderr, "FATAL: browser login helper: %s\n", WhttLoginHelperWhy(st));
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      have = WhttLoginRuntimeAvailable(runtime, sizeof(runtime));
+      /* Either answer is fine, but it has to agree with the version it reported. */
+      if (have && runtime[0] == '\0') {
+        fprintf(stderr, "FATAL: browser login: a runtime was found with no version\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      if (!have && runtime[0] != '\0') {
+        fprintf(stderr, "FATAL: browser login: no runtime, yet version '%s'\n", runtime);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      printf("browser login ok on %d checks (%s)\n", nchecks,
+             have ? runtime : "no WebView2 runtime");
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
