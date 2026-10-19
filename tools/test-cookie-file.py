@@ -78,6 +78,19 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     # past the point where the file is opened, and each one matches exactly once in here.
     loading = region(bauth_c, r"// then cookies\.txt", r"\n\}", "cookie_load()")
     caps = {}
+    # Every buffer below caps one byte lower than it looks, and these two comparisons are
+    # the whole reason. Read them, rather than resting a -1 on a comment.
+    for where, opening in (
+        ("cookie_load_field()", r"cookie_load_field\(httrackp"),
+        ("cookie_host()", r"hts_boolean cookie_host\("),
+    ):
+        if not re.search(
+            r"len\s*>=\s*dst_size", region(bauth_c, opening, r"\n\}", where)
+        ):
+            sys.exit(
+                "%s no longer refuses at len >= dst_size, so every cap it bounds moved "
+                "one byte" % where
+            )
     buffers = {
         field: one(buf, loading, "cookie_load()") - 1
         for field, buf in LOAD_BUFFERS.items()
@@ -123,11 +136,10 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
         adding.replace("\n", " "),
         "cookie_set()",
     )
-    # What the stored record spends beyond the four fields. cookie_set() assembles it in
-    # one snprintf, so the cost is that call's separators, the widest word each of its two
-    # flag fields can take, and the digits of the latest expiry this writer emits. The
-    # separators include the tab of the HttpOnly field our writer never sets, which
-    # charges the jar one byte more than the record costs.
+    # The stored record spends three things beyond the four fields: the separators of the
+    # snprintf that assembles it, the widest word each of its two flag fields takes, and
+    # the digits of the latest expiry this writer emits. The separator count includes the
+    # tab of the HttpOnly field our writer never sets, so it charges one byte too many.
     record = region(adding, r"snprintf\(cook,", r"\);", "cookie_set()'s record")
     seps = len(re.findall(r"\\[tn]", record))
     if seps < 7:
@@ -240,7 +252,10 @@ def main():
     #    compares only the text before the number.
     workflow = read(os.path.join(ROOT, ".github", "workflows", "windows-build.yml"))
     pins = {
-        "--selftest": re.search(r"cookie file ran %d checks, expected (\d+)", selftest),
+        # Anchored on the call, because every --selftest block has an nchecks guard.
+        "--selftest": re.search(
+            r"cookieFileCheckCases\(&err\);[\s\S]*?nchecks != (\d+)\)", selftest
+        ),
         "this harness": re.search(
             r"define CF_EXPECTED_CHECKS (\d+)",
             read(os.path.join(ROOT, "tools", "cookie-file-test.cpp")),

@@ -39,7 +39,8 @@ Please visit our Website: http://www.httrack.com
    buffer cookie_load() reads the field into, cookie_host()'s buffer for the domain, and
    cookie_set()'s refusals. The engine drops a longer record with nothing but a log line,
    so the writer refuses it first and the caller can say so.
-   tools/test-cookie-file.py recomputes every one of them from the engine's source. */
+   tools/test-cookie-file.py recomputes every one of them from the engine's source. It
+   proves these gates, not that the engine has grown no others. */
 #define COOKIE_DOMAIN_MAXLEN 255
 #define COOKIE_NAME_MAXLEN   4096
 #define COOKIE_PATH_MAXLEN   255
@@ -58,10 +59,9 @@ Please visit our Website: http://www.httrack.com
    budget loses whichever cookies sit at its end and says nothing. */
 #define COOKIE_JAR_MAXLEN    30000
 #define COOKIE_JAR_RESERVE   256
-/* What the record cookie_set() stores spends beyond the four fields: the separators in
-   its snprintf, two flag words at FALSE's length, and the digits of the latest expiry
-   this writer emits. Our own line spends fewer, so charging the jar our bytes would
-   overrun it. */
+/* What the record cookie_set() stores spends beyond the four fields: its snprintf's
+   separators, the two flag words, and the latest expiry's digits. Our own line spends
+   fewer, so charging the jar our bytes would overrun it. */
 #define COOKIE_JAR_RECORD    30
 
 /* CookieRecord holds one browser cookie, every string in the engine's UTF-8. */

@@ -343,8 +343,8 @@ int cookieFileCheckCases(CString *err) {
 
         switch(f) {
           case 0: c.domain = big; break;
-          /* No value beside it: the pair budget would refuse the baseline's three bytes
-             next to a name this long, and the name's own cap is what this row pins. */
+          /* No value beside it, because the pair budget would refuse the baseline's
+             three bytes next to a name this long. */
           case 1: c.name = big; c.value = ""; break;
           default: c.path = big; break;
         }
@@ -360,9 +360,9 @@ int cookieFileCheckCases(CString *err) {
     }
   }
 
-  /* The name and the value share one budget in cookie_set(), so the pair is pinned here
-     as well: at the budget, one byte past it, and on either side of the split. The last
-     row is the one no single-field cap can refuse. */
+  /* The name and the value share one budget in cookie_set(). The rows walk the budget,
+     one byte past it, and both sides of the split. The last row is the one no
+     single-field cap can refuse. */
   {
     static const struct { int name, value; CookieReject want; } pairs[] = {
       { COOKIE_PAIR_MAXLEN, 0, CookieWritable },
@@ -529,10 +529,13 @@ int cookieFileCheckCases(CString *err) {
      first, says how many it left out, and still packs the jar as full as it will go. */
   {
     const int budget = COOKIE_JAR_MAXLEN - COOKIE_JAR_RESERVE;
+    const CookieRecord base = plainRecord();
     /* The widest value the pair budget leaves this name, so the jar fills in the fewest
-       records and the arithmetic below stays tight. */
-    const int wide = COOKIE_PAIR_MAXLEN - 3;               /* "SID" is three bytes */
-    const int fields = 11 + 1 + 3 + wide;                  /* domain, path, name, value */
+       records. Every length comes off the record itself, because a hand-counted one
+       drifts the day the baseline changes. */
+    const int wide = COOKIE_PAIR_MAXLEN - base.name.GetLength();
+    const int fields = base.domain.GetLength() + base.path.GetLength()
+                       + base.name.GetLength() + wide;
     CSimpleArray<CookieRecord> cookies;
     CookieFileStats stats;
     CString text;
@@ -552,8 +555,9 @@ int cookieFileCheckCases(CString *err) {
       return 0;
     }
     nchecks++;
-    /* The last record written has to be one cookie_set() would still have taken, which is
-       what a budget charged in our own cheaper bytes would get wrong. */
+    /* These two hold the writer to its own budget: it fills the jar as full as that
+       budget allows, and stops there. Whether the budget is the engine's is
+       tools/test-cookie-file.py's job, which derives every byte of it. */
     if ((stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields > budget) {
       snprintf(msg, sizeof(msg), "%d records charge the jar %d bytes, past its %d",
                stats.written, (stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields,
