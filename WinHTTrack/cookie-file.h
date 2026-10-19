@@ -35,29 +35,34 @@ Please visit our Website: http://www.httrack.com
 #ifndef WHTT_COOKIE_FILE_H
 #define WHTT_COOKIE_FILE_H
 
-/* These caps are the engine's. Each is the smallest of three gates in src/htsbauth.c:
-   the buffer cookie_load() reads the field into, cookie_host()'s buffer for the domain,
-   and cookie_add()'s refusals. The engine drops a longer record with nothing but a
-   log line, so the writer refuses it first and the caller can say so.
-   tools/test-cookie-file.py recomputes all three from the engine's source. */
+/* These caps are the engine's. Each is the smallest of the gates in src/htsbauth.c: the
+   buffer cookie_load() reads the field into, cookie_host()'s buffer for the domain, and
+   cookie_set()'s refusals. The engine drops a longer record with nothing but a log line,
+   so the writer refuses it first and the caller can say so.
+   tools/test-cookie-file.py recomputes every one of them from the engine's source. It
+   proves these gates, not that the engine has grown no others. */
 #define COOKIE_DOMAIN_MAXLEN 255
-#define COOKIE_NAME_MAXLEN   256
-#define COOKIE_VALUE_MAXLEN  1024
+#define COOKIE_NAME_MAXLEN   4096
 #define COOKIE_PATH_MAXLEN   255
 
-/* cookie_load() skips a whole line this long or longer. The four caps above keep the
-   longest record well under it, and cookieFileCheckCases() is what keeps it that way. */
+/* cookie_set() charges the name and the value against one budget, so the value has no cap
+   of its own. The buffer cookie_load() reads a value into is looser than this, which is
+   why it never binds first. */
+#define COOKIE_PAIR_MAXLEN   4096
+
+/* cookie_load() skips a whole line this long or longer. The caps above keep the longest
+   record well under it, and cookieFileCheckCases() is what keeps it that way. */
 #define COOKIE_LINE_MAXLEN   8000
 
-/* The jar the engine loads into, and the headroom cookie_add() keeps free on every call.
+/* The jar the engine loads into, and the headroom cookie_set() keeps free on every call.
    cookie_load() just stops once the jar fills, logging nothing, so a file over this
    budget loses whichever cookies sit at its end and says nothing. */
 #define COOKIE_JAR_MAXLEN    30000
 #define COOKIE_JAR_RESERVE   256
-/* What the record cookie_add() stores spends on separators and fixed literals, on top of
-   the four fields. Our own line spells the flags and the expiry differently and comes out
-   shorter, so charging the jar our bytes would overrun it. */
-#define COOKIE_JAR_RECORD    26
+/* What the record cookie_set() stores spends beyond the four fields: its snprintf's
+   separators, the two flag words, and the latest expiry's digits. Our own line spends
+   fewer, so charging the jar our bytes would overrun it. */
+#define COOKIE_JAR_RECORD    30
 
 /* CookieRecord holds one browser cookie, every string in the engine's UTF-8. */
 struct CookieRecord {

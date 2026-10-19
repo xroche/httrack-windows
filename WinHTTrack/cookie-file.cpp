@@ -81,7 +81,7 @@ static BOOL plainHostName(const CString &domain) {
   return TRUE;
 }
 
-/* cookie_add() charges the jar the four fields as it stores them. Our own line spells the
+/* cookie_set() charges the jar the four fields as it stores them. Our own line spells the
    flags and the expiry more cheaply, so charging that would overrun the jar. */
 static int jarCost(const CookieRecord &c) {
   return c.domain.GetLength() + (c.path.IsEmpty() ? 1 : c.path.GetLength())
@@ -113,8 +113,11 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line) {
     return CookieUntrustedDomain;
   if (c.domain.GetLength() > COOKIE_DOMAIN_MAXLEN
       || c.name.GetLength() > COOKIE_NAME_MAXLEN
-      || c.value.GetLength() > COOKIE_VALUE_MAXLEN
       || c.path.GetLength() > COOKIE_PATH_MAXLEN)
+    return CookieFieldTooLong;
+  /* The pair against the room the name leaves, never their sum, and the name's own cap
+     above is what keeps this subtraction from going negative. */
+  if (c.value.GetLength() > COOKIE_PAIR_MAXLEN - c.name.GetLength())
     return CookieFieldTooLong;
 
   snprintf(middle, sizeof(middle), "\t%s\t%" PRId64 "\t",
@@ -137,7 +140,7 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line) {
 CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStats &stats) {
   /* cookie_load() stops reading once the jar fills and that loop exit logs nothing, so
      the writer stops first and counts the rest. The budget is the engine's own: every
-     record already stored, plus this record's fields, plus the reserve cookie_add() keeps
+     record already stored, plus this record's fields, plus the reserve cookie_set() keeps
      free on each call. */
   const int budget = COOKIE_JAR_MAXLEN - COOKIE_JAR_RESERVE;
   int stored = 0;
@@ -327,11 +330,10 @@ int cookieFileCheckCases(CString *err) {
   /* Each cap is where the engine starts refusing, so the longest allowed field has to go
      out and one byte more has to not. */
   {
-    static const char *const named[] = { "domain", "name", "value", "path" };
-    const int caps[] = { COOKIE_DOMAIN_MAXLEN, COOKIE_NAME_MAXLEN,
-                         COOKIE_VALUE_MAXLEN, COOKIE_PATH_MAXLEN };
+    static const char *const named[] = { "domain", "name", "path" };
+    const int caps[] = { COOKIE_DOMAIN_MAXLEN, COOKIE_NAME_MAXLEN, COOKIE_PATH_MAXLEN };
 
-    for(int f=0 ; f<4 ; f++) {
+    for(int f=0 ; f<3 ; f++) {
       for(int over=0 ; over<=1 ; over++) {
         const CString big('a', caps[f] + over);
         const CookieReject want = over != 0 ? CookieFieldTooLong : CookieWritable;
@@ -341,8 +343,9 @@ int cookieFileCheckCases(CString *err) {
 
         switch(f) {
           case 0: c.domain = big; break;
-          case 1: c.name = big; break;
-          case 2: c.value = big; break;
+          /* No value beside it, because the pair budget would refuse the baseline's
+             three bytes next to a name this long. */
+          case 1: c.name = big; c.value = ""; break;
           default: c.path = big; break;
         }
         got = cookieFileLine(c, line);
@@ -357,15 +360,46 @@ int cookieFileCheckCases(CString *err) {
     }
   }
 
-  /* The line gate in cookie_load() stays unreachable only while the four caps keep the
-     longest possible record under it. Raise one past this and the gate goes live. */
+  /* The name and the value share one budget in cookie_set(). The rows walk the budget,
+     one byte past it, and both sides of the split. The last row is the one no
+     single-field cap can refuse. */
+  {
+    static const struct { int name, value; CookieReject want; } pairs[] = {
+      { COOKIE_PAIR_MAXLEN, 0, CookieWritable },
+      { 1, COOKIE_PAIR_MAXLEN - 1, CookieWritable },
+      { 1, COOKIE_PAIR_MAXLEN, CookieFieldTooLong },
+      { COOKIE_PAIR_MAXLEN, 1, CookieFieldTooLong }
+    };
+
+    for(int k=0 ; k<(int) (sizeof(pairs) / sizeof(pairs[0])) ; k++) {
+      CookieRecord c = plainRecord();
+      CString line;
+      CookieReject got;
+
+      c.name = CString('n', pairs[k].name);
+      c.value = CString('v', pairs[k].value);
+      got = cookieFileLine(c, line);
+      if (got != pairs[k].want) {
+        snprintf(msg, sizeof(msg),
+                 "a %d-byte name with a %d-byte value came back %d, expected %d (budget %d)",
+                 pairs[k].name, pairs[k].value, (int) got, (int) pairs[k].want,
+                 COOKIE_PAIR_MAXLEN);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+
+  /* The line gate in cookie_load() stays unreachable only while the caps keep the longest
+     possible record under it. Raise one past this and the gate goes live. */
   {
     CookieRecord c = plainRecord();
     CString line;
 
     c.domain = CString('d', COOKIE_DOMAIN_MAXLEN);
     c.name = CString('n', COOKIE_NAME_MAXLEN);
-    c.value = CString('v', COOKIE_VALUE_MAXLEN);
+    c.value = CString('v', COOKIE_PAIR_MAXLEN - COOKIE_NAME_MAXLEN);
     c.path = CString('p', COOKIE_PATH_MAXLEN);
     c.expires = COOKIE_EXPIRY_MAX;
     if (cookieFileLine(c, line) != CookieWritable
@@ -424,7 +458,7 @@ int cookieFileCheckCases(CString *err) {
     bad[0].name = "";
     bad[1].value = "a\tb";
     bad[2].domain = "attacker.test@bank.test";
-    bad[3].value = CString('a', COOKIE_VALUE_MAXLEN + 1);
+    bad[3].value = CString('a', COOKIE_PAIR_MAXLEN);
     for(int k=0 ; k<4 ; k++) {
       if (cookieFileLine(plainRecord(), line) != CookieWritable || line.IsEmpty()) {
         *err = "the baseline cookie did not write a record";
@@ -465,7 +499,7 @@ int cookieFileCheckCases(CString *err) {
     c.domain = "attacker.test@bank.test";
     cookies.Add(c);                              /* CookieUntrustedDomain */
     c = plainRecord();
-    c.value = CString('a', COOKIE_VALUE_MAXLEN + 1);
+    c.value = CString('a', COOKIE_PAIR_MAXLEN);
     cookies.Add(c);                              /* CookieFieldTooLong */
     text = cookieFileText(cookies, stats);
     if (stats.written != 3 || stats.dropped[CookieEmptyField] != 1
@@ -495,7 +529,13 @@ int cookieFileCheckCases(CString *err) {
      first, says how many it left out, and still packs the jar as full as it will go. */
   {
     const int budget = COOKIE_JAR_MAXLEN - COOKIE_JAR_RESERVE;
-    const int fields = 11 + 1 + 3 + COOKIE_VALUE_MAXLEN;   /* domain, path, name, value */
+    const CookieRecord base = plainRecord();
+    /* The widest value the pair budget leaves this name, so the jar fills in the fewest
+       records. Every length comes off the record itself, because a hand-counted one
+       drifts the day the baseline changes. */
+    const int wide = COOKIE_PAIR_MAXLEN - base.name.GetLength();
+    const int fields = base.domain.GetLength() + base.path.GetLength()
+                       + base.name.GetLength() + wide;
     CSimpleArray<CookieRecord> cookies;
     CookieFileStats stats;
     CString text;
@@ -503,7 +543,7 @@ int cookieFileCheckCases(CString *err) {
     for(int k=0 ; k<64 ; k++) {
       CookieRecord c = plainRecord();
 
-      c.value = CString('v', COOKIE_VALUE_MAXLEN);
+      c.value = CString('v', wide);
       cookies.Add(c);
     }
     text = cookieFileText(cookies, stats);
@@ -515,8 +555,9 @@ int cookieFileCheckCases(CString *err) {
       return 0;
     }
     nchecks++;
-    /* The last record written has to be one cookie_add() would still have taken, which is
-       what a budget charged in our own cheaper bytes would get wrong. */
+    /* These two hold the writer to its own budget: it fills the jar as full as that
+       budget allows, and stops there. Whether the budget is the engine's is
+       tools/test-cookie-file.py's job, which derives every byte of it. */
     if ((stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields > budget) {
       snprintf(msg, sizeof(msg), "%d records charge the jar %d bytes, past its %d",
                stats.written, (stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields,
