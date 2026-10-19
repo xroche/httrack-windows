@@ -32,29 +32,31 @@ Please visit our Website: http://www.httrack.com
 /* Author: Xavier Roche                                         */
 /* ------------------------------------------------------------ */
 
-#ifndef WHTT_BROWSER_LOGIN_LOAD_H
-#define WHTT_BROWSER_LOGIN_LOAD_H
+#ifndef WHTT_BROWSER_LOGIN_LOADER_H
+#define WHTT_BROWSER_LOGIN_LOADER_H
 
+/* The entry points this loader resolves. A Whtt prefix marks what crosses into the DLL,
+   so everything named below stays inside the program. */
 #include "WhttBrowserLogin.h"
 
-/* Where loading WhttBrowserLogin.dll stopped. Windows 7 stops at WhttLoginNotLoadable,
-   which is the designed answer there and not a failure to report. */
-enum WhttLoginHelper {
-  WhttLoginReady,
-  WhttLoginNotInstalled, /* nothing of that name beside the program */
-  WhttLoginNotLoadable,  /* Windows 7, or a file we cannot run */
-  WhttLoginNoExport,
-  WhttLoginWrongAbi      /* a DLL from another build of the program */
+/* Windows 7 stops at BrowserLoginNotLoadable, which is the designed answer there. */
+enum BrowserLoginState {
+  BrowserLoginReady,
+  BrowserLoginMissing, /* nothing of that name beside the program */
+  BrowserLoginNotLoadable,  /* Windows 7, or a file we cannot run */
+  BrowserLoginNoExport,
+  BrowserLoginWrongAbi      /* a DLL from another build of the program */
 };
 
-/* Loads the helper on the first call and keeps the answer. The UI thread owns it. */
-WhttLoginHelper WhttLoginHelperLoad(void);
+/* Loads the helper on the first call and keeps the answer. Only the UI thread may call
+   it, which is also what keeps the cached answer safe. */
+BrowserLoginState browserLoginLoad(void);
 
-/* What to show a user, or --selftest, for a state. */
-const char *WhttLoginHelperWhy(WhttLoginHelper state);
+/* Returns a string literal naming STATE, for a user or for --selftest. */
+const char *browserLoginWhy(BrowserLoginState state);
 
 /* Is a WebView2 runtime installed? FALSE unless the helper is ready. VERSION, when
    given, takes the runtime's version and is never left empty on TRUE. */
-BOOL WhttLoginRuntimeAvailable(char *version, size_t version_size);
+BOOL browserLoginRuntime(char *version, size_t version_size);
 
 #endif

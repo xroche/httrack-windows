@@ -36,8 +36,8 @@ Please visit our Website: http://www.httrack.com
 #include <objbase.h>
 #include <string.h>
 
-/* WebView2LoaderStatic.lib defines what this declares, and linking the static loader is
-   what keeps Microsoft's loader DLL out of the package. */
+/* WebView2LoaderStatic.lib defines what this declares. WinHTTrack/triplets says why the
+   static loader is the one we link. */
 #include <WebView2.h>
 
 #include "WhttBrowserLogin.h"
@@ -47,18 +47,16 @@ unsigned __cdecl WhttBrowserLoginAbi(void) {
 }
 
 int __cdecl WhttBrowserLoginAvailable(char *version, size_t version_size) {
-  LPWSTR found = NULL;
   char utf8[WHTT_BROWSER_LOGIN_VERSION_MAX * 2];
-  HRESULT hr;
-  size_t len;
+  LPWSTR found = NULL;
 
   utf8[0] = '\0';
   if (version != NULL && version_size != 0) {
     version[0] = '\0';
   }
-  /* NULL: the Evergreen runtime, wherever it is installed. A failure is the answer "none
-     installed", not an error to report: there is nothing the user could fix. */
-  hr = GetAvailableCoreWebView2BrowserVersionString(NULL, &found);
+  /* NULL means the Evergreen runtime, wherever it sits. A failure says none is installed,
+     which is an answer rather than an error, because nothing here is the user's to fix. */
+  const HRESULT hr = GetAvailableCoreWebView2BrowserVersionString(NULL, &found);
   if (SUCCEEDED(hr) && found != NULL
       && WideCharToMultiByte(CP_UTF8, 0, found, -1, utf8, (int) sizeof(utf8), NULL, NULL) <= 0) {
     utf8[0] = '\0';
@@ -71,12 +69,7 @@ int __cdecl WhttBrowserLoginAvailable(char *version, size_t version_size) {
     return 0;
   }
   if (version != NULL && version_size != 0) {
-    len = strlen(utf8);
-    if (len > version_size - 1) {
-      len = version_size - 1;
-    }
-    memcpy(version, utf8, len);
-    version[len] = '\0';
+    strncpy_s(version, version_size, utf8, _TRUNCATE);
   }
   return 1;
 }

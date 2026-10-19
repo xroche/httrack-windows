@@ -37,11 +37,10 @@ Please visit our Website: http://www.httrack.com
 
 #include <stddef.h>
 
-/* WinHTTrack.exe loads this DLL with LoadLibrary and never links it: the WebView2 loader
-   inside hard-imports EventSetInformation, which Windows 7 does not export, so an import
-   of ours would stop the program starting there at all. */
+/* WinHTTrack.exe loads this DLL with LoadLibrary and never links it, because the WebView2
+   loader inside hard-imports EventSetInformation, which Windows 7 does not export. */
 
-/* Bump on any change to the exports below; the GUI refuses a DLL answering another number. */
+/* Bump on any change below, because the GUI refuses a DLL answering another number. */
 #define WHTT_BROWSER_LOGIN_ABI 1
 
 /* Fits any version WhttBrowserLoginAvailable() reports, with room to spare. */
@@ -51,18 +50,16 @@ Please visit our Website: http://www.httrack.com
 extern "C" {
 #endif
 
-/* The WHTT_BROWSER_LOGIN_ABI this DLL was built against. */
 unsigned __cdecl WhttBrowserLoginAbi(void);
 
-/* Is a WebView2 runtime installed? version, when given, takes its version as UTF-8 and
-   is never left empty on success. */
+/* Is a WebView2 runtime installed? version, when given, takes its version as UTF-8, cut
+   to fit. A WHTT_BROWSER_LOGIN_VERSION_MAX buffer always holds one whole. */
 int __cdecl WhttBrowserLoginAvailable(char *version, size_t version_size);
 
 #ifdef __cplusplus
 }
 #endif
 
-/* What the GUI casts each GetProcAddress result to. */
 typedef unsigned (__cdecl *WhttBrowserLoginAbiFn)(void);
 typedef int (__cdecl *WhttBrowserLoginAvailableFn)(char *version, size_t version_size);
 

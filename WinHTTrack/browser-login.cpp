@@ -38,80 +38,81 @@ Please visit our Website: http://www.httrack.com
 
 #include <shlwapi.h>
 
-/* Kept for the life of the process: the browser the helper opens owns threads of its own. */
+/* Kept for the life of the process, because the browser the helper opens owns threads of
+   its own. */
 static BOOL asked = FALSE;
-static WhttLoginHelper state = WhttLoginNotInstalled;
+static BrowserLoginState state = BrowserLoginMissing;
 static WhttBrowserLoginAvailableFn available = NULL;
 
-static WhttLoginHelper loadHelper(void) {
+/* Fills PROBE on BrowserLoginReady and leaves it alone otherwise. */
+static BrowserLoginState loadHelper(WhttBrowserLoginAvailableFn *probe) {
   char path[MAX_PATH];
   const DWORD n = GetModuleFileNameA(NULL, path, (DWORD) sizeof(path));
-  HMODULE dll;
-  DWORD mode = 0;
-  WhttBrowserLoginAbiFn abi;
-  WhttBrowserLoginAvailableFn avail;
 
   if (n == 0 || n >= sizeof(path)) {
-    return WhttLoginNotInstalled;
+    return BrowserLoginMissing;
   }
   if (!PathRemoveFileSpecA(path) || !PathAppendA(path, "WhttBrowserLogin.dll")) {
-    return WhttLoginNotInstalled;
+    return BrowserLoginMissing;
   }
   if (!PathFileExistsA(path)) {
-    return WhttLoginNotInstalled;
+    return BrowserLoginMissing;
   }
   /* By full path, so nothing on the search path can answer in its place, and with
      critical errors off, because on Windows 7 this load is meant to fail. */
+  DWORD mode = 0;
   SetThreadErrorMode(SEM_FAILCRITICALERRORS, &mode);
-  dll = LoadLibraryA(path);
+  HMODULE dll = LoadLibraryA(path);
   SetThreadErrorMode(mode, NULL);
   if (dll == NULL) {
-    return WhttLoginNotLoadable;
+    return BrowserLoginNotLoadable;
   }
-  abi = (WhttBrowserLoginAbiFn) GetProcAddress(dll, "WhttBrowserLoginAbi");
-  avail = (WhttBrowserLoginAvailableFn) GetProcAddress(dll, "WhttBrowserLoginAvailable");
+  const WhttBrowserLoginAbiFn abi =
+    (WhttBrowserLoginAbiFn) GetProcAddress(dll, "WhttBrowserLoginAbi");
+  const WhttBrowserLoginAvailableFn avail =
+    (WhttBrowserLoginAvailableFn) GetProcAddress(dll, "WhttBrowserLoginAvailable");
   if (abi == NULL || avail == NULL) {
     FreeLibrary(dll);
-    return WhttLoginNoExport;
+    return BrowserLoginNoExport;
   }
   /* A DLL and an exe from two builds would otherwise call through a signature that moved. */
   if (abi() != WHTT_BROWSER_LOGIN_ABI) {
     FreeLibrary(dll);
-    return WhttLoginWrongAbi;
+    return BrowserLoginWrongAbi;
   }
-  available = avail;
-  return WhttLoginReady;
+  *probe = avail;
+  return BrowserLoginReady;
 }
 
-WhttLoginHelper WhttLoginHelperLoad(void) {
+BrowserLoginState browserLoginLoad(void) {
   if (!asked) {
     asked = TRUE;
-    state = loadHelper();
+    state = loadHelper(&available);
   }
   return state;
 }
 
-const char *WhttLoginHelperWhy(WhttLoginHelper s) {
-  switch(s) {
-  case WhttLoginReady:
+const char *browserLoginWhy(BrowserLoginState state) {
+  switch(state) {
+  case BrowserLoginReady:
     return "ready";
-  case WhttLoginNotInstalled:
+  case BrowserLoginMissing:
     return "WhttBrowserLogin.dll is not beside the program";
-  case WhttLoginNotLoadable:
+  case BrowserLoginNotLoadable:
     return "WhttBrowserLogin.dll will not load, as it does not on Windows 7";
-  case WhttLoginNoExport:
+  case BrowserLoginNoExport:
     return "WhttBrowserLogin.dll has lost an entry point";
-  case WhttLoginWrongAbi:
+  case BrowserLoginWrongAbi:
     return "WhttBrowserLogin.dll comes from another build";
   }
   return "WhttBrowserLogin.dll is in a state this build has no name for";
 }
 
-BOOL WhttLoginRuntimeAvailable(char *version, size_t version_size) {
+BOOL browserLoginRuntime(char *version, size_t version_size) {
   if (version != NULL && version_size != 0) {
     version[0] = '\0';
   }
-  if (WhttLoginHelperLoad() != WhttLoginReady) {
+  if (browserLoginLoad() != BrowserLoginReady) {
     return FALSE;
   }
   return available(version, version_size) ? TRUE : FALSE;

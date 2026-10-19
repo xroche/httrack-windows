@@ -343,7 +343,7 @@ runs:
         }
         # The installer is what has to lay the helper DLL down beside the exe; the staged
         # tree says nothing about that.
-        if ("$so" -notmatch 'browser login ok on 3 checks') {
+        if ("$so" -notmatch 'browser login ok on 4 checks') {
           throw "the installed copy did not load WhttBrowserLogin.dll"
         }
         # A key the engine's catalog drops shows the wrong label, not a failure. The last

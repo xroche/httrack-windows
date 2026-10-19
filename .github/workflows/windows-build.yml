@@ -584,8 +584,8 @@ jobs:
             /p:VcpkgEnableManifest=true `
             /flp:LogFile=msbuild.log`;Verbosity=normal
 
-      # The browser-login helper. Its own DLL because the WebView2 loader it links cannot
-      # be part of the exe; the step below is what holds that line.
+      # The browser-login helper gets its own DLL, because the WebView2 loader it links
+      # cannot be part of the exe. The step below is what holds that line.
       - name: Build WhttBrowserLogin (browser login helper)
         working-directory: httrack-windows
         shell: pwsh
@@ -611,8 +611,13 @@ jobs:
           function Imports($path) { (& $env:DUMPBIN /imports $path) -join "`n" }
           $ei = Imports $exe
           $hi = Imports $helper
-          # An empty dump would let every assertion below pass for the wrong reason.
-          if (-not $ei -or -not $hi) { throw 'dumpbin returned no imports: this check would prove nothing' }
+          # dumpbin prints a banner whatever it parsed, so a named import is the only proof
+          # the dump has an import section to search.
+          foreach ($d in @(@{n='WinHTTrack.exe'; t=$ei}, @{n='WhttBrowserLogin.dll'; t=$hi})) {
+            if ($d.t -notmatch '(?i)KERNEL32\.dll') {
+              throw "the $($d.n) dump names no KERNEL32 import, so this check would prove nothing"
+            }
+          }
           # The hazard has to be real, or the two assertions after it are vacuous.
           if ($hi -notmatch 'EventSetInformation') {
             throw 'WhttBrowserLogin.dll no longer imports EventSetInformation, so nothing here says anything about the exe'
@@ -988,10 +993,13 @@ jobs:
           if (-not (Test-Path (Join-Path $bin 'WhttBrowserLogin.dll'))) {
             throw "package is missing WhttBrowserLogin.dll: the browser login would stay out of reach"
           }
-          # The static loader goes inside our DLL. A file of this name means the webview2
-          # port came out dynamic, and we would be shipping a binary of Microsoft's.
-          if (Test-Path (Join-Path $bin 'WebView2Loader.dll')) {
-            throw "package carries Microsoft's WebView2Loader.dll: webview2 is no longer taken statically"
+          # The static loader goes inside our DLL. Either of these means the webview2 port
+          # came out dynamic, and we would be shipping a binary of Microsoft's, signed with
+          # our certificate because runtime-vendored.txt would not name it.
+          foreach ($n in 'WebView2Loader.dll', 'Microsoft.Web.WebView2.Core.dll') {
+            if (Test-Path (Join-Path $bin $n)) {
+              throw "package carries Microsoft's $n, so webview2 is no longer taken statically"
+            }
           }
           # Staged, not installed: the check below needs them, and they make the artifact debuggable.
           if (-not (Test-Path (Join-Path $bin 'WinHTTrack.pdb'))) {
@@ -1307,9 +1315,29 @@ jobs:
           # The helper is loaded by hand from the program's own directory, so only a run
           # on a real Windows says whether the exports and the ABI still line up. Which
           # WebView2 runtime the runner carries is printed, not asserted.
-          if ("$so" -notmatch 'browser login ok on 3 checks') {
+          if ("$so" -notmatch 'browser login ok on 4 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'WhttBrowserLogin.dll did not load beside the staged binaries'
+          }
+          # That line reports what our own DLL found, so a probe that always answered "none"
+          # would agree with itself and pass. Ask Windows the same question through the
+          # registry value Microsoft documents for detecting the runtime.
+          $client = 'Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $pv = $null
+          foreach ($k in "HKLM:\SOFTWARE\WOW6432Node\$client", "HKLM:\SOFTWARE\$client",
+                         "HKCU:\SOFTWARE\$client") {
+            $v = (Get-ItemProperty -LiteralPath $k -Name pv -ErrorAction SilentlyContinue).pv
+            if ($v -and $v -ne '0.0.0.0') { $pv = $v; break }
+          }
+          $said = if ("$so" -match 'browser login ok on \d+ checks \(([^)]*)\)') { $Matches[1] } else { '' }
+          Write-Host "WebView2 runtime: the registry says '$pv', the helper says '$said'"
+          if ($pv -and $said -eq 'no WebView2 runtime') {
+            throw "the registry has WebView2 $pv, yet the helper reported none"
+          }
+          # The other way round only says our registry location went stale, which is
+          # Microsoft's to move, so it warns rather than reds.
+          if (-not $pv -and $said -ne 'no WebView2 runtime') {
+            Write-Host "::warning::the helper found WebView2 $said where the registry has nothing: $client has moved"
           }
           if (-not (Test-Path $report)) { throw 'no crash report written: the first-chance hook never ran' }
           $trace = Get-Content $report -Raw
@@ -1337,7 +1365,9 @@ jobs:
                    -RedirectStandardOutput "$PWD\nohelper.txt" -RedirectStandardError "$PWD\nohelper.err"
             $err = "$(Get-Content "$PWD\nohelper.err" -Raw -ErrorAction SilentlyContinue)"
             if ($p.ExitCode -eq 0) { throw 'the selftest passed with no WhttBrowserLogin.dll beside the exe' }
-            if ($err -notmatch 'browser login helper') {
+            # The exact state, not just a failure: every other reason has its own message,
+            # and matching all of them would let a wrong one through.
+            if ($err -notmatch 'is not beside the program') {
               throw "the selftest failed for another reason: $err"
             }
           } finally {

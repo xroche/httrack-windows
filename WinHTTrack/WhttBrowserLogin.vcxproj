@@ -67,7 +67,6 @@
     <ClCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -83,8 +82,8 @@
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
-      <!-- WebView2LoaderStatic.lib comes from the vcpkg port, which our overlay triplet
-           takes statically; version.lib is what it reads the browser version with. -->
+      <!-- WebView2LoaderStatic.lib comes from the vcpkg port our overlay triplet takes
+           statically. version.lib reads the browser version. -->
       <AdditionalDependencies>WebView2LoaderStatic.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <!-- The export set, so the GUI resolves undecorated names on all three platforms. -->
       <ModuleDefinitionFile>WhttBrowserLogin.def</ModuleDefinitionFile>
