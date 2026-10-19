@@ -10,7 +10,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WinHTTrack", "WinHTTrack.vc
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libhttrack", "..\..\httrack\src\libhttrack.vcxproj", "{E76AD871-54C1-45E8-A657-6117ADEFFB46}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WhttBrowserLogin", "WhttBrowserLogin.vcxproj", "{52F7353A-9701-419A-BDB9-35E85780E572}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WhttBrowserLogin", "..\BrowserLogin\WhttBrowserLogin.vcxproj", "{52F7353A-9701-419A-BDB9-35E85780E572}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

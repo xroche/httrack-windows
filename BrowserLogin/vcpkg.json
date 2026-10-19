@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "whtt-browser-login",
+  "version-string": "3.50",
+  "builtin-baseline": "e182cb4dd2df2ab02f66a1aabd5f35bbdc9522c7",
+  "dependencies": [
+    "webview2"
+  ]
+}

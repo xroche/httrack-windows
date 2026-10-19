@@ -138,9 +138,11 @@ jobs:
             exit 0
           fi
           git fetch --depth 1 origin "$GITHUB_BASE_REF"
-          git show "FETCH_HEAD:WinHTTrack/vcpkg.json" > "$RUNNER_TEMP/base-vcpkg.json"
-          python3 tools/check-baseline-forward.py \
-            --old "$RUNNER_TEMP/base-vcpkg.json" --new WinHTTrack/vcpkg.json
+          for m in WinHTTrack BrowserLogin; do
+            git show "FETCH_HEAD:$m/vcpkg.json" > "$RUNNER_TEMP/base-$m.json"
+            python3 tools/check-baseline-forward.py \
+              --old "$RUNNER_TEMP/base-$m.json" --new "$m/vcpkg.json"
+          done
       # Cheap companion to the walk's runtime check: started after that dialog, the check can
       # never give it a verdict (#152), and nothing in the build can see that.
       - name: The signature check starts before the first-run About
@@ -228,9 +230,8 @@ jobs:
               sys.exit(f'only {len(text)} files carry an eol rule: this check would prove nothing')
 
           # Asserts .gitattributes' eol mapping, so a dropped path fails instead of going unchecked.
-          WANT = dict.fromkeys(['.c', '.cmake', '.cpp', '.def', '.h', '.htm', '.iss',
-                                '.manifest', '.props', '.rc', '.rc2', '.sln', '.vcxproj',
-                                '.xml'], 'lf')
+          WANT = dict.fromkeys(['.c', '.cpp', '.def', '.h', '.htm', '.iss', '.manifest',
+                                '.props', '.rc', '.rc2', '.sln', '.vcxproj', '.xml'], 'lf')
           WANT['.txt'] = 'crlf'
           for p in paths:
               want = WANT.get(os.path.splitext(p)[1].lower())
@@ -518,8 +519,9 @@ jobs:
           # fetches, so every pinned baseline we build against has to be pulled in first.
           # Both manifests are pinned now (the engine got its own in xroche/httrack#643).
           $manifests = [ordered]@{
-            ENGINE = 'httrack/src/vcpkg.json'
-            GUI    = 'httrack-windows/WinHTTrack/vcpkg.json'
+            ENGINE  = 'httrack/src/vcpkg.json'
+            GUI     = 'httrack-windows/WinHTTrack/vcpkg.json'
+            BROWSER = 'httrack-windows/BrowserLogin/vcpkg.json'
           }
           foreach ($name in $manifests.Keys) {
             $m = $manifests[$name]
@@ -584,13 +586,22 @@ jobs:
             /p:VcpkgEnableManifest=true `
             /flp:LogFile=msbuild.log`;Verbosity=normal
 
+      - name: Point the vcpkg version database at the browser-login baseline
+        shell: pwsh
+        run: |
+          if (-not $env:VCPKG_BASELINE_BROWSER) { Write-Host 'browser-login manifest unpinned; versions/ left alone'; exit 0 }
+          git -C C:\vcpkg checkout $env:VCPKG_BASELINE_BROWSER -- versions
+          if ($LASTEXITCODE -ne 0) { throw "vcpkg version database checkout at $env:VCPKG_BASELINE_BROWSER failed" }
+
       # The browser-login helper gets its own DLL, because the WebView2 loader it links
-      # cannot be part of the exe. The step below is what holds that line.
+      # cannot be part of the exe. The step below is what holds that line. Its own manifest
+      # too, so the webview2 port comes out static without moving the GUI's triplet, which
+      # would cost that tree the engine tree's OpenSSL build.
       - name: Build WhttBrowserLogin (browser login helper)
         working-directory: httrack-windows
         shell: pwsh
         run: |
-          msbuild WinHTTrack\WhttBrowserLogin.vcxproj `
+          msbuild BrowserLogin\WhttBrowserLogin.vcxproj `
             /m `
             /p:Configuration=${{ matrix.configuration }} `
             /p:Platform=${{ matrix.platform }} `
@@ -625,8 +636,8 @@ jobs:
           $fail = @()
           if ($ei -match 'WhttBrowserLogin') { $fail += 'WinHTTrack.exe links the helper, so Windows 7 would refuse to start it' }
           if ($ei -match 'EventSetInformation') { $fail += 'WinHTTrack.exe imports EventSetInformation, which Windows 7 does not export' }
-          # Microsoft's loader DLL is Microsoft's to sign, so our overlay triplet takes the
-          # webview2 port statically. An import of it means that stopped working.
+          # Microsoft's loader DLL is Microsoft's to sign, so the helper's own manifest
+          # takes the webview2 port statically. An import of it means that stopped working.
           if ($hi -match 'WebView2Loader') { $fail += 'WhttBrowserLogin.dll imports WebView2Loader.dll instead of linking the static loader' }
           if ($fail) { $fail | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
           Write-Host 'Windows 7 floor held: the helper carries EventSetInformation and the exe imports neither it nor the helper'
@@ -994,8 +1005,8 @@ jobs:
             throw "package is missing WhttBrowserLogin.dll: the browser login would stay out of reach"
           }
           # The static loader goes inside our DLL. Either of these means the webview2 port
-          # came out dynamic, and we would be shipping a binary of Microsoft's, signed with
-          # our certificate because runtime-vendored.txt would not name it.
+          # came out dynamic, and we would ship a binary of Microsoft's, signed with our
+          # certificate because runtime-vendored.txt would not name it.
           foreach ($n in 'WebView2Loader.dll', 'Microsoft.Web.WebView2.Core.dll') {
             if (Test-Path (Join-Path $bin $n)) {
               throw "package carries Microsoft's $n, so webview2 is no longer taken statically"
@@ -1128,6 +1139,7 @@ jobs:
           # Engine tree first: its DLLs are the ones the installer ships.
           python httrack-windows/tools/check-native-deps.py `
             --installed httrack/src/vcpkg_installed httrack-windows/WinHTTrack/vcpkg_installed `
+            httrack-windows/BrowserLogin/vcpkg_installed `
             --min-severity moderate --accept "$env:ACCEPTED" @expectArg
           if ($LASTEXITCODE -ne 0) { throw 'native dependency check failed' }
 

@@ -30,6 +30,12 @@
 
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
+    <!-- Overrides the triplet Directory.Build.props picks. -static-md is static libraries
+         with the dynamic CRT, which is the only linkage the webview2 port ships a
+         WebView2LoaderStatic.lib under, and the CRT the exe shares. -->
+    <VcpkgTriplet Condition="'$(Platform)'=='Win32'">x86-windows-static-md</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows-static-md</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(Platform)'=='ARM64'">arm64-windows-static-md</VcpkgTriplet>
     <ProjectGuid>{52F7353A-9701-419A-BDB9-35E85780E572}</ProjectGuid>
     <RootNamespace>WhttBrowserLogin</RootNamespace>
   </PropertyGroup>
@@ -55,8 +61,8 @@
   <!-- Beside WinHTTrack.exe, where the loader looks for it; the staged package and the
        installer then need no rule of their own. -->
   <PropertyGroup>
-    <OutDir>$(MSBuildThisFileDirectory)bin\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\WhttBrowserLogin\</IntDir>
+    <OutDir>$(MSBuildThisFileDirectory)..\WinHTTrack\bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <!-- Nothing links this DLL, so its import library belongs out of the package. -->
     <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
     <LinkIncremental Condition="'$(Configuration)'=='Debug'">true</LinkIncremental>
@@ -77,13 +83,15 @@
     <ResourceCompile>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Release'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- version.h is the GUI's, and CI holds every shipped binary to what it says. -->
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\WinHTTrack;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
       <DataExecutionPrevention>true</DataExecutionPrevention>
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <SubSystem>Windows</SubSystem>
-      <!-- WebView2LoaderStatic.lib comes from the vcpkg port our overlay triplet takes
-           statically. version.lib reads the browser version. -->
+      <!-- WebView2LoaderStatic.lib is what the webview2 port installs under a static
+           triplet. version.lib reads the browser version. -->
       <AdditionalDependencies>WebView2LoaderStatic.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <!-- The export set, so the GUI resolves undecorated names on all three platforms. -->
       <ModuleDefinitionFile>WhttBrowserLogin.def</ModuleDefinitionFile>
@@ -133,7 +141,6 @@
 
   <ItemGroup>
     <ClInclude Include="WhttBrowserLogin.h" />
-    <ClInclude Include="version.h" />
   </ItemGroup>
 
   <ItemGroup>

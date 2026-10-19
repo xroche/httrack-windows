@@ -73,6 +73,8 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- The helper DLL's ABI header, which it owns and we only read. -->
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\BrowserLogin;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>StdAfx.h</PrecompiledHeaderFile>
@@ -282,7 +284,6 @@
     <ClInclude Include="trans.h" />
     <ClInclude Include="TreeViewToolTip.h" />
     <ClInclude Include="version.h" />
-    <ClInclude Include="WhttBrowserLogin.h" />
     <ClInclude Include="Wid1.h" />
     <ClInclude Include="WinHTTrack.h" />
     <ClInclude Include="WinHTTrackDoc.h" />
