@@ -30,12 +30,6 @@
 
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
-    <!-- Overrides the triplet Directory.Build.props picks. -static-md is static libraries
-         with the dynamic CRT, which is the only linkage the webview2 port ships a
-         WebView2LoaderStatic.lib under, and the CRT the exe shares. -->
-    <VcpkgTriplet Condition="'$(Platform)'=='Win32'">x86-windows-static-md</VcpkgTriplet>
-    <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows-static-md</VcpkgTriplet>
-    <VcpkgTriplet Condition="'$(Platform)'=='ARM64'">arm64-windows-static-md</VcpkgTriplet>
     <ProjectGuid>{52F7353A-9701-419A-BDB9-35E85780E572}</ProjectGuid>
     <RootNamespace>WhttBrowserLogin</RootNamespace>
   </PropertyGroup>
@@ -60,7 +54,14 @@
 
   <!-- Beside WinHTTrack.exe, where the loader looks for it; the staged package and the
        installer then need no rule of their own. -->
+  <!-- After Microsoft.Cpp.props, because Directory.Build.props rides in with
+       Microsoft.Cpp.Default.props above and sets this per platform. -static-md is static
+       libraries with the dynamic CRT, which is the only linkage the webview2 port ships a
+       WebView2LoaderStatic.lib under, and the CRT the exe shares. -->
   <PropertyGroup>
+    <VcpkgTriplet Condition="'$(Platform)'=='Win32'">x86-windows-static-md</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(Platform)'=='x64'">x64-windows-static-md</VcpkgTriplet>
+    <VcpkgTriplet Condition="'$(Platform)'=='ARM64'">arm64-windows-static-md</VcpkgTriplet>
     <OutDir>$(MSBuildThisFileDirectory)..\WinHTTrack\bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
     <!-- Nothing links this DLL, so its import library belongs out of the package. -->
@@ -71,7 +72,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>WIN32;_WINDOWS;_WINDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <ConformanceMode>true</ConformanceMode>
