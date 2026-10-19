@@ -19,25 +19,21 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "cookie file ok on 97 checks"
+EXPECTED_LINE = "cookie file ok on 99 checks"
 SWEEP_LINE = "cookie file properties ok on"
 
-# Each cap is the smallest of the gates below, so each is read from the engine rather than
-# kept here. "add" is cookie_add()'s own refusal, "buffer" the array cookie_load() reads
-# the field into, which refuses at len >= sizeof and so caps one byte lower.
-FIELD_GATES = {
-    "domain": (r"strlen\(domain\)\s*>\s*(\d+)", r"char domain\[(\d+)\];"),
-    "name": (r"strlen\(cook_name\)\s*>\s*(\d+)", r"char cook_name\[(\d+)\];"),
-    "value": (r"strlen\(cook_value\)\s*>\s*(\d+)", r"char BIGSTK cook_value\[(\d+)\];"),
-    "path": (r"strlen\(path\)\s*>\s*(\d+)", r"char path\[(\d+)\];"),
+# The buffer cookie_load() reads each field into. cookie_load_field() refuses at
+# len >= sizeof, so each buffer caps one byte lower than it looks.
+LOAD_BUFFERS = {
+    "domain": r"char domain\[(\d+)\];",
+    "value": r"char BIGSTK cook_value\[(\d+)\];",
+    "path": r"char path\[(\d+)\];",
 }
-
-LITERALS = r'strcatbuff\(cook,\s*"((?:[^"\\]|\\.)*)"\)'
 
 MACROS = {
     "domain": "COOKIE_DOMAIN_MAXLEN",
     "name": "COOKIE_NAME_MAXLEN",
-    "value": "COOKIE_VALUE_MAXLEN",
+    "pair": "COOKIE_PAIR_MAXLEN",
     "path": "COOKIE_PATH_MAXLEN",
     "line": "COOKIE_LINE_MAXLEN",
     "jar": "COOKIE_JAR_MAXLEN",
@@ -73,20 +69,51 @@ def region(text, opening, closing, what):
     return rest[: end.start()]
 
 
-def engine_caps(bauth_c, core_c):
-    """The longest each field may be before the engine drops the cookie, and the budget
-    its jar leaves for the whole file."""
-    adding = region(bauth_c, r"\bint cookie_add\(", r"\n\}", "cookie_add()")
-    loading = region(bauth_c, r"// then cookies\.txt", r"fclose\(fp\)", "cookie_load()")
+def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
+    """The longest each field may be before the engine drops the cookie, the budget it
+    charges the name and the value to together, and what its jar leaves for the file."""
+    # cookie_add() is a wrapper now, so the refusals and the record live in cookie_set().
+    adding = region(bauth_c, r"\bint cookie_set\(", r"\n\}", "cookie_set()")
+    # To the end of the function, not to its first fclose(): the per-record buffers sit
+    # past the point where the file is opened, and each one matches exactly once in here.
+    loading = region(bauth_c, r"// then cookies\.txt", r"\n\}", "cookie_load()")
     caps = {}
-    for field, (add, buf) in FIELD_GATES.items():
-        caps[field] = min(
-            one(add, adding, "cookie_add()"), one(buf, loading, "cookie_load()") - 1
+    buffers = {
+        field: one(buf, loading, "cookie_load()") - 1
+        for field, buf in LOAD_BUFFERS.items()
+    }
+
+    # The name and the value are charged to one budget, so neither has a cap of its own.
+    # Both halves of that gate are read, because the first is what keeps the subtraction
+    # in the second from wrapping.
+    pair = one(r"#\s*define\s+COOKIE_MAX_PAIR\s+(\d+)", bauth_h, "htsbauth.h")
+    if not re.search(r"strlen\(cook_name\)\s*>\s*COOKIE_MAX_PAIR", adding):
+        sys.exit("cookie_set() no longer holds the name to COOKIE_MAX_PAIR")
+    if not re.search(
+        r"strlen\(cook_value\)\s*>\s*COOKIE_MAX_PAIR\s*-\s*strlen\(cook_name\)", adding
+    ):
+        sys.exit("cookie_set() no longer charges the name and the value to one budget")
+    caps["pair"] = pair
+    # The value's own buffer binds only if it ever drops under that budget.
+    if pair > buffers["value"]:
+        sys.exit(
+            "cookie_load()'s value buffer caps at %d, under the %d budget, so a value "
+            "the budget allows would now be refused by the buffer instead"
+            % (buffers["value"], pair)
         )
-    # cookie_add() normalises the domain through cookie_host() first, which refuses a host
-    # that does not fit its buffer rather than truncating it.
+    # The name's buffer is written in terms of the same budget.
+    plus = one(
+        r"char BIGSTK cook_name\[COOKIE_MAX_PAIR \+ (\d+)\];", loading, "cookie_load()"
+    )
+    caps["name"] = min(pair, pair + plus - 1)
+    caps["path"] = min(
+        buffers["path"], one(r"strlen\(path\)\s*>\s*(\d+)", adding, "cookie_set()")
+    )
+    # cookie_set() normalises the domain through cookie_host() first, which refuses a host
+    # that does not fit its buffer rather than truncating it. No refusal of its own is
+    # left in cookie_set(), so these two buffers are the whole gate.
     caps["domain"] = min(
-        caps["domain"], one(r"char host\[(\d+)\];", adding, "cookie_add()") - 1
+        buffers["domain"], one(r"char host\[(\d+)\];", adding, "cookie_set()") - 1
     )
     caps["line"] = one(r"const size_t line_max\s*=\s*(\d+);", loading, "cookie_load()")
     caps["jar"] = one(r"cookie\.max_len\s*=\s*(\d+);", core_c, "the engine's htscore.c")
@@ -94,14 +121,23 @@ def engine_caps(bauth_c, core_c):
     caps["reserve"] = one(
         r"const size_t parts\[\][^;]*?(\d+)\};",
         adding.replace("\n", " "),
-        "cookie_add()",
+        "cookie_set()",
     )
-    # What the stored record spends beyond the four fields, summed from the literals
-    # cookie_add() concatenates. Charging our own shorter line would overrun the jar.
-    literals = re.findall(LITERALS, adding)
-    if len(literals) < 6:
-        sys.exit("cookie_add() no longer builds its record with strcatbuff(cook, ...)")
-    caps["record"] = sum(len(lit.encode().decode("unicode_escape")) for lit in literals)
+    # What the stored record spends beyond the four fields. cookie_set() assembles it in
+    # one snprintf, so the cost is that call's separators, the widest word each of its two
+    # flag fields can take, and the digits of the latest expiry this writer emits. The
+    # separators include the tab of the HttpOnly field our writer never sets, which
+    # charges the jar one byte more than the record costs.
+    record = region(adding, r"snprintf\(cook,", r"\);", "cookie_set()'s record")
+    seps = len(re.findall(r"\\[tn]", record))
+    if seps < 7:
+        sys.exit(
+            "cookie_set()'s record carries %d separators, so its shape moved" % seps
+        )
+    flags = re.findall(r'"(TRUE|FALSE)"', record)
+    if set(flags) != {"TRUE", "FALSE"}:
+        sys.exit("cookie_set() no longer spells its flag fields TRUE and FALSE")
+    caps["record"] = seps + 2 * max(len(f) for f in flags) + len(str(expiry_max))
     return caps
 
 
@@ -123,7 +159,10 @@ def main():
     ap.add_argument("--cxx", default=os.environ.get("CXX", "g++"))
     args = ap.parse_args()
 
-    sources = [os.path.join(args.engine, "src", n) for n in ("htsbauth.c", "htscore.c")]
+    sources = [
+        os.path.join(args.engine, "src", n)
+        for n in ("htsbauth.c", "htsbauth.h", "htscore.c")
+    ]
     for path in sources:
         if not os.path.exists(path):
             sys.exit(
@@ -132,11 +171,18 @@ def main():
             )
 
     checked = 0
-    bauth_c, core_c = (read(p) for p in sources)
+    bauth_c, bauth_h, core_c = (read(p) for p in sources)
     header = read(os.path.join(ROOT, "WinHTTrack", "cookie-file.h"))
+    cases = read(os.path.join(ROOT, "WinHTTrack", "cookie-file.cpp"))
+    # The record cost below counts the digits of the latest expiry this writer can emit,
+    # so that cap is read from the writer rather than assumed.
+    stamped = re.search(r"#\s*define\s+COOKIE_EXPIRY_MAX\s+([\d.]+)", cases)
+    if stamped is None:
+        sys.exit("cookie-file.cpp no longer defines COOKIE_EXPIRY_MAX")
+    expiry = int(float(stamped.group(1)))
 
     # 1. Every cap the writer enforces is the engine's own refusal point.
-    engine = engine_caps(bauth_c, core_c)
+    engine = engine_caps(bauth_c, bauth_h, core_c, expiry)
     ours = header_caps(header)
     if engine != ours:
         sys.exit(
@@ -149,14 +195,31 @@ def main():
     # 2. The comparison above has to be able to fail, on both kinds of gate. Doctoring the
     #    real source and re-running the real parse is the control; comparing two literals
     #    would not be one.
-    for what, pattern, replacement in (
-        ("cookie_add()'s refusal", FIELD_GATES["value"][0], "strlen(cook_value) > 77"),
-        ("cookie_load()'s buffer", FIELD_GATES["path"][1], "char path[77];"),
+    for what, header_side, pattern, replacement in (
+        (
+            "cookie_set()'s path refusal",
+            False,
+            r"strlen\(path\)\s*>\s*(\d+)",
+            "strlen(path) > 77",
+        ),
+        ("cookie_load()'s buffer", False, r"char path\[(\d+)\];", "char path[77];"),
+        (
+            "the COOKIE_MAX_PAIR budget",
+            True,
+            r"#\s*define\s+COOKIE_MAX_PAIR\s+(\d+)",
+            "#define COOKIE_MAX_PAIR 77",
+        ),
     ):
-        doctored = re.sub(pattern, replacement, bauth_c, count=1)
-        if doctored == bauth_c:
+        source = bauth_h if header_side else bauth_c
+        doctored = re.sub(pattern, replacement, source, count=1)
+        if doctored == source:
             sys.exit("%s could not be doctored, so check 1 proves nothing" % what)
-        if engine_caps(doctored, core_c) == ours:
+        got = (
+            engine_caps(bauth_c, doctored, core_c, expiry)
+            if header_side
+            else engine_caps(doctored, bauth_h, core_c, expiry)
+        )
+        if got == ours:
             sys.exit(
                 "a doctored %s still compared equal, so check 1 proves nothing" % what
             )
@@ -200,7 +263,6 @@ def main():
 
     # 5. The count has to be the accumulator. A literal returned there would satisfy every
     #    pin with each case deleted, and no run of the C could tell the difference.
-    cases = read(os.path.join(ROOT, "WinHTTrack", "cookie-file.cpp"))
     if "\n  return nchecks;\n}\n" not in cases:
         sys.exit(
             "cookieFileCheckCases() no longer ends by returning nchecks: the printed "
