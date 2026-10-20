@@ -169,15 +169,19 @@ CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStat
 }
 
 // see cookie-file.h
-CString cookieFileInProject(const CString &projectPath) {
-  CString path = projectPath;
+CString pathUnder(const CString &base, const CString &tail) {
+  CString path = base;
 
   if (path.IsEmpty())
     return path;
   if (path.Right(1) != "\\" && path.Right(1) != "/")
     path += "\\";
-  path += "hts-cache\\cookies.txt";
-  return path;
+  return path + tail;
+}
+
+// see cookie-file.h
+CString cookieFileInProject(const CString &projectPath) {
+  return pathUnder(projectPath, "hts-cache\\cookies.txt");
 }
 
 /* The baseline the reject, length and expiry cases vary one field of. */

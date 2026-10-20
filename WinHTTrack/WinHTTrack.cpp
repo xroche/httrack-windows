@@ -819,6 +819,24 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("browser login ok on %d checks (%s)\n", nchecks,
              have ? runtime : "no WebView2 runtime");
     }
+    /* Which page the browser opens, and whose jar it opens it with. Neither needs the
+       helper, so they are checked apart from the block above. */
+    {
+      CString err;
+      const int nchecks = browserLoginCheckCases(&err);
+
+      if (nchecks == 0) {
+        fprintf(stderr, "FATAL: browser login helpers: %s\n", (LPCSTR) err);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      if (nchecks != 17) {
+        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 17\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("browser login helpers ok on %d checks\n", nchecks);
+    }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
     {

@@ -83,6 +83,7 @@ protected:
 	//{{AFX_MSG(COptionTab8)
 	virtual BOOL OnInitDialog();
 	afx_msg void OnCookiesFileBrowse();
+	afx_msg void OnBrowserLogin();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG

@@ -28,7 +28,7 @@ Please visit our Website: http://www.httrack.com
 
 /* ------------------------------------------------------------ */
 /* File: WinHTTrack subroutines:                                */
-/*       loading the browser-login helper DLL                   */
+/*       the browser-login helper DLL, and the login it runs    */
 /* Author: Xavier Roche                                         */
 /* ------------------------------------------------------------ */
 
@@ -38,6 +38,9 @@ Please visit our Website: http://www.httrack.com
 /* The entry points this loader resolves. A Whtt prefix marks what crosses into the DLL,
    so everything named below stays inside the program. */
 #include "WhttBrowserLogin.h"
+
+/* CookieRecord, which is what a harvested cookie becomes on this side. */
+#include "cookie-file.h"
 
 /* Windows 7 stops at BrowserLoginNotLoadable, which is the designed answer there. */
 enum BrowserLoginState {
@@ -58,5 +61,50 @@ const char *browserLoginWhy(BrowserLoginState state);
 /* Is a WebView2 runtime installed? FALSE unless the helper is ready. VERSION, when
    given, takes the runtime's version and is never left empty on TRUE. */
 BOOL browserLoginRuntime(char *version, size_t version_size);
+
+/* What one browser login brought back. The cookies are the whole profile, not one
+   site's, because a login that crosses two hosts leaves the cookie that matters on the
+   host nobody asked about. */
+struct BrowserLoginHarvest {
+  CSimpleArray<CookieRecord> cookies;
+  CString userAgent;
+};
+
+/* Opens the browser on URL with PARENT greyed out under it, and fills HARVEST once the
+   user closes it. PROFILE is the folder the browser keeps its login in. Returns
+   WhttBrowserLoginDone, or the WhttBrowserLoginResult that stopped it. */
+int browserLoginRun(HWND parent, const CString &url, const CString &profile,
+                    BrowserLoginHarvest &harvest);
+
+/* Returns a string literal naming RESULT, for a user or for --selftest. */
+const char *browserLoginRunWhy(int result);
+
+/* The page the browser opens first: the first address of URLS, given the scheme the
+   crawl would give it. Empty when URLS holds no address. */
+CString browserLoginStartUrl(const CString &urls);
+
+/* The folder the browser keeps its profile in. The project's own when PROJECTPATH names
+   one, so one project's jar never fills up with another's cookies, and LOCALAPPDATA when
+   there is no project yet. Empty when neither is given. */
+CString browserLoginProfileDir(const CString &projectPath, const CString &localAppData);
+
+/* Where the harvest is written. The project's own cookies.txt when there is a project,
+   so the engine refreshes it at the end of every mirror; a file of the user's own while
+   there is no project, which the shell then copies into one. */
+CString browserLoginCookieFile(const CString &projectPath, const CString &localAppData);
+
+/* The user's own data folder, which is where a login made before there is a project
+   goes. Empty when the shell will not say. */
+CString browserLoginUserDir(void);
+
+/* Writes HARVEST over PATH as one Netscape cookies.txt, making the folder first, and
+   fills STATS with what went in and what was dropped. FALSE when nothing was written,
+   which STATS tells apart: a zero written count is a harvest the engine would refuse
+   whole, and anything else is the file itself. */
+BOOL browserLoginSaveCookies(const BrowserLoginHarvest &harvest, const CString &path,
+                             CookieFileStats &stats);
+
+/* Shared with --selftest. Returns the number of checks run, or zero with ERR set. */
+int browserLoginCheckCases(CString *err);
 
 #endif

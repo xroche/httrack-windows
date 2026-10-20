@@ -85,6 +85,9 @@ jobs:
       # Same reason, and the lengths a cookie is held against are cookie_add()'s.
       - name: The login cookies.txt the engine preloads
         run: python3 tools/test-cookie-file.py --engine engine
+      # Same reason, and hts_scan_token() picks the address the browser opens.
+      - name: Which page a browser login opens, and whose jar
+        run: python3 tools/test-browser-login-paths.py --engine engine
       # Resolves all 30 catalogs through the shipped loader, which --selftest cannot, then
       # breaks one of its ordering rules at a time to prove the run notices.
       - name: Every catalog string resolves, and a broken loader rule reds
@@ -1341,6 +1344,10 @@ jobs:
           if ("$so" -notmatch 'browser login ok on 4 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'WhttBrowserLogin.dll did not load beside the staged binaries'
+          }
+          if ("$so" -notmatch 'browser login helpers ok on 17 checks') {
+            Write-Host "--- selftest stdout ---`n$so"
+            throw 'the browser-login path checks did not run every case'
           }
           # That line reports what our own DLL found, so a probe that always answered "none"
           # would agree with itself and pass. Ask Windows the same question through the
