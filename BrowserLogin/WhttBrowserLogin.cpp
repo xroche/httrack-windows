@@ -118,6 +118,7 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   ComPtr<ICoreWebView2> webview;
   bool harvesting = false;
   bool gaveUp = false;      /* stopped waiting for the browser, which may still answer */
+  bool answered = false;    /* the browser handed its cookies over, even if it had none */
   bool finished = false;
   int result = WhttBrowserLoginDone;
   std::string userAgent;
@@ -265,8 +266,10 @@ static void beginHarvest(const std::shared_ptr<LoginWindow> &s) {
   const HRESULT hr = jar->GetCookies(NULL,
     Callback<ICoreWebView2GetCookiesCompletedHandler>(
       [s](HRESULT result, ICoreWebView2CookieList *list) -> HRESULT {
-        if (SUCCEEDED(result))
+        if (SUCCEEDED(result)) {
+          s->answered = true;
           collectCookies(s.get(), list);
+        }
         finishWindow(s.get());
         return S_OK;
       }).Get());
@@ -462,6 +465,10 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                     COREWEBVIEW2_MOVE_FOCUS_REASON reason =
                       COREWEBVIEW2_MOVE_FOCUS_REASON_NEXT;
 
+                    /* The window is already going, so there is nothing to focus and
+                       the frame fallback below would be SetFocus(NULL). */
+                    if (state->frame == NULL)
+                      return S_OK;
                     if (FAILED(args->get_Reason(&reason))
                         || (reason != COREWEBVIEW2_MOVE_FOCUS_REASON_NEXT
                             && reason != COREWEBVIEW2_MOVE_FOCUS_REASON_PREVIOUS))
@@ -664,8 +671,9 @@ static int runLoginWindow(const std::shared_ptr<LoginWindow> &state) {
   if (s->font != NULL)
     DeleteObject(s->font);
   /* Decided here rather than where we gave up, because closing the browser can deliver
-     the answer we had stopped waiting for, and those cookies are still the user's. */
-  if (s->result == WhttBrowserLoginDone && s->gaveUp && s->cookies.empty())
+     the answer we had stopped waiting for. Whether the answer came, not whether it
+     carried anything: an empty jar is still the browser having answered. */
+  if (s->result == WhttBrowserLoginDone && s->gaveUp && !s->answered)
     s->result = WhttBrowserLoginBrowserGone;
   return s->result;
 }
