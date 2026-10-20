@@ -138,6 +138,7 @@ jobs:
             exit 0
           fi
           git fetch --depth 1 origin "$GITHUB_BASE_REF"
+          compared=0
           for m in WinHTTrack BrowserLogin; do
             # A manifest the PR introduces has no older pin to move backwards from.
             if ! git show "FETCH_HEAD:$m/vcpkg.json" > "$RUNNER_TEMP/base-$m.json" 2>/dev/null; then
@@ -146,7 +147,13 @@ jobs:
             fi
             python3 tools/check-baseline-forward.py \
               --old "$RUNNER_TEMP/base-$m.json" --new "$m/vcpkg.json"
+            compared=$((compared + 1))
           done
+          # Skipping every manifest would otherwise read as a pass, which a rename would do.
+          if [ "$compared" -eq 0 ]; then
+            echo "no manifest was compared, so this check proved nothing"
+            exit 1
+          fi
       # Cheap companion to the walk's runtime check: started after that dialog, the check can
       # never give it a verdict (#152), and nothing in the build can see that.
       - name: The signature check starts before the first-run About

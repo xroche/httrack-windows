@@ -36,8 +36,8 @@ Please visit our Website: http://www.httrack.com
 #include <objbase.h>
 #include <string.h>
 
-/* WebView2LoaderStatic.lib defines what this declares. WinHTTrack/triplets says why the
-   static loader is the one we link. */
+/* WebView2LoaderStatic.lib defines what this declares, and vcpkg.json beside this file
+   says why the static loader is the one we link. */
 #include <WebView2.h>
 
 #include "WhttBrowserLogin.h"
