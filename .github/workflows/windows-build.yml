@@ -1165,14 +1165,14 @@ jobs:
           out-dir: ${{ github.workspace }}\installer
 
       - name: Upload the installer
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: httrack-setup-${{ matrix.platform }}
           path: installer/*.exe
           if-no-files-found: error
 
       - name: Upload the runnable build
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: WinHTTrack-${{ matrix.platform }}-${{ matrix.configuration }}
           path: |
@@ -1183,7 +1183,7 @@ jobs:
 
       - name: Upload MSBuild log
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: msbuild-${{ matrix.platform }}-${{ matrix.configuration }}
           path: |
@@ -1615,7 +1615,7 @@ jobs:
       # says an installer is fit to release.
       - name: Upload the signed installers
         id: installers
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: httrack-setup-signed
           path: installer/*.exe
@@ -1623,7 +1623,7 @@ jobs:
 
       - name: Upload the signed binaries
         id: binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: httrack-signed-binaries
           path: payload/**
