@@ -168,6 +168,18 @@ CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStat
   return text;
 }
 
+// see cookie-file.h
+CString cookieFileInProject(const CString &projectPath) {
+  CString path = projectPath;
+
+  if (path.IsEmpty())
+    return path;
+  if (path.Right(1) != "\\" && path.Right(1) != "/")
+    path += "\\";
+  path += "cookies.txt";
+  return path;
+}
+
 /* The baseline the reject, length and expiry cases vary one field of. */
 static CookieRecord plainRecord(void) {
   CookieRecord c;
@@ -576,6 +588,29 @@ int cookieFileCheckCases(CString *err) {
       return 0;
     }
     nchecks++;
+  }
+
+  /* The engine rewrites whatever --cookies-file names when the mirror ends, so the GUI
+     hands it a copy in the project. These are the paths that copy goes to. */
+  {
+    static const struct { const char *project, *want; } homes[] = {
+      { "C:\\web\\proj", "C:\\web\\proj\\cookies.txt" },
+      { "C:\\web\\proj\\", "C:\\web\\proj\\cookies.txt" },
+      { "C:/web/proj/", "C:/web/proj/cookies.txt" },
+      { "", "" }
+    };
+
+    for(int k=0 ; k<(int) (sizeof(homes) / sizeof(homes[0])) ; k++) {
+      const CString got = cookieFileInProject(homes[k].project);
+
+      if (got != homes[k].want) {
+        snprintf(msg, sizeof(msg), "project '%s' gave '%s', expected '%s'",
+                 homes[k].project, (LPCSTR) got, homes[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
   }
 
   return nchecks;

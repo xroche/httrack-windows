@@ -103,6 +103,11 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line);
    would overflow, and fills STATS. */
 CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStats &stats);
 
+/* Where this mirror keeps its cookies.txt, which is both the file the engine loads
+   without being asked and the one it rewrites when the mirror ends. Empty when
+   PROJECTPATH is, because then there is nowhere of ours to put it. */
+CString cookieFileInProject(const CString &projectPath);
+
 /* Shared with --selftest. See tools/cookie-file-test.cpp. Returns the number of checks
    run, or zero with ERR set. */
 int cookieFileCheckCases(CString *err);
