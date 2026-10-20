@@ -116,7 +116,6 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   int dpi = 96;
   ComPtr<ICoreWebView2Controller> controller;
   ComPtr<ICoreWebView2> webview;
-  bool browserHasFocus = false; /* the dialog manager must not eat Tab and Enter in a form */
   bool harvesting = false;
   bool finished = false;
   int result = WhttBrowserLoginDone;
@@ -196,6 +195,10 @@ static void layoutWindow(LoginWindow *s) {
   }
 }
 
+static bool ourControl(const LoginWindow *s, HWND window) {
+  return window == s->address || window == s->go || window == s->done;
+}
+
 /* Puts the owner back before the frame dies, so Windows activates it rather than
    whatever application happens to be behind us. */
 static void finishWindow(LoginWindow *s) {
@@ -203,10 +206,10 @@ static void finishWindow(LoginWindow *s) {
     EnableWindow(s->disabledParent, TRUE);
     s->disabledParent = NULL;
   }
+  /* The frame is gone when a second close gave up on a harvest and its answer then
+     arrived anyway. */
   if (s->frame != NULL)
     DestroyWindow(s->frame);
-  else
-    s->finished = true;
 }
 
 static void collectCookies(LoginWindow *s, ICoreWebView2CookieList *list) {
@@ -252,8 +255,8 @@ static void beginHarvest(const std::shared_ptr<LoginWindow> &s) {
     finishWindow(s.get());
     return;
   }
-  /* No URI, so this is the whole profile rather than one site: a login that crosses two
-     hosts leaves the cookie that matters on the one we did not ask about. */
+  /* No URI, so this takes the whole profile and not one site. BrowserLoginHarvest in
+     WinHTTrack/browser-login.h says why. */
   const HRESULT hr = jar->GetCookies(NULL,
     Callback<ICoreWebView2GetCookiesCompletedHandler>(
       [s](HRESULT result, ICoreWebView2CookieList *list) -> HRESULT {
@@ -315,8 +318,12 @@ static LRESULT CALLBACK loginWindowProc(HWND window, UINT message, WPARAM wparam
     return 0;
   case WM_CLOSE:
     if (s != NULL) {
-      /* the window goes once the cookies are out of the browser */
-      beginHarvest(s->shared_from_this());
+      /* The window goes once the cookies are out of the browser. Closing it again
+         gives up on them, because a browser that died still owes the answer. */
+      if (s->harvesting)
+        finishWindow(s);
+      else
+        beginHarvest(s->shared_from_this());
       return 0;
     }
     break;
@@ -405,17 +412,22 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
         const HRESULT hr = environment->CreateCoreWebView2Controller(s->frame,
           Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
             [state, url](HRESULT ready, ICoreWebView2Controller *controller) -> HRESULT {
-              LoginWindow *const s = state.get();
+              LoginWindow *const win = state.get();
 
-              if (s->frame == NULL)
-                return S_OK;
-              if (FAILED(ready) || controller == NULL
-                  || FAILED(controller->get_CoreWebView2(&s->webview)) || !s->webview) {
-                s->result = WhttBrowserLoginNoBrowser;
-                finishWindow(s);
+              /* The window went while the browser was still starting, so close the
+                 controller it did manage to build rather than orphan it. */
+              if (win->frame == NULL) {
+                if (controller != NULL)
+                  controller->Close();
                 return S_OK;
               }
-              s->controller = controller;
+              if (FAILED(ready) || controller == NULL
+                  || FAILED(controller->get_CoreWebView2(&win->webview)) || !win->webview) {
+                win->result = WhttBrowserLoginNoBrowser;
+                finishWindow(win);
+                return S_OK;
+              }
+              win->controller = controller;
 
               ComPtr<ICoreWebView2Settings> settings;
               ComPtr<ICoreWebView2Settings2> settings2;
@@ -423,26 +435,40 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
 
               /* The crawl has to send what the login was granted to, so the caller takes
                  the browser's own string rather than guessing at it. */
-              if (SUCCEEDED(s->webview->get_Settings(&settings)) && settings
+              if (SUCCEEDED(win->webview->get_Settings(&settings)) && settings
                   && SUCCEEDED(settings.As(&settings2))) {
                 LPWSTR agent = NULL;
 
                 if (SUCCEEDED(settings2->get_UserAgent(&agent)))
-                  s->userAgent = takeString(agent);
+                  win->userAgent = takeString(agent);
               }
-              /* Tab and Enter belong to the page whenever the page holds the focus, so
-                 the loop has to know where the focus went. */
-              controller->add_GotFocus(Callback<ICoreWebView2FocusChangedEventHandler>(
-                [state](ICoreWebView2Controller *, IUnknown *) -> HRESULT {
-                  state->browserHasFocus = true;
-                  return S_OK;
-                }).Get(), &token);
-              controller->add_LostFocus(Callback<ICoreWebView2FocusChangedEventHandler>(
-                [state](ICoreWebView2Controller *, IUnknown *) -> HRESULT {
-                  state->browserHasFocus = false;
-                  return S_OK;
-                }).Get(), &token);
-              s->webview->add_SourceChanged(Callback<ICoreWebView2SourceChangedEventHandler>(
+              /* The other half of the Tab bridge in the message loop: without this the
+                 focus goes into the page and never comes back out. */
+              controller->add_MoveFocusRequested(
+                Callback<ICoreWebView2MoveFocusRequestedEventHandler>(
+                  [state](ICoreWebView2Controller *,
+                          ICoreWebView2MoveFocusRequestedEventArgs *args) -> HRESULT {
+                    COREWEBVIEW2_MOVE_FOCUS_REASON reason =
+                      COREWEBVIEW2_MOVE_FOCUS_REASON_NEXT;
+
+                    args->get_Reason(&reason);
+                    args->put_Handled(TRUE);
+                    SetFocus(reason == COREWEBVIEW2_MOVE_FOCUS_REASON_PREVIOUS
+                             ? state->done : state->address);
+                    return S_OK;
+                  }).Get(), &token);
+              /* A browser that dies owes an answer nobody will deliver, and the window
+                 waits for one, so this is what keeps the program from freezing. */
+              win->webview->add_ProcessFailed(
+                Callback<ICoreWebView2ProcessFailedEventHandler>(
+                  [state](ICoreWebView2 *, ICoreWebView2ProcessFailedEventArgs *) -> HRESULT {
+                    if (state->frame == NULL)
+                      return S_OK;
+                    state->result = WhttBrowserLoginBrowserGone;
+                    finishWindow(state.get());
+                    return S_OK;
+                  }).Get(), &token);
+              win->webview->add_SourceChanged(Callback<ICoreWebView2SourceChangedEventHandler>(
                 [state](ICoreWebView2 *sender, ICoreWebView2SourceChangedEventArgs *) -> HRESULT {
                   LPWSTR uri = NULL;
 
@@ -454,7 +480,7 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                 }).Get(), &token);
               /* A popup would be a second top-level window over a disabled owner, and
                  nothing of ours would close it, so the login runs in this one. */
-              s->webview->add_NewWindowRequested(Callback<ICoreWebView2NewWindowRequestedEventHandler>(
+              win->webview->add_NewWindowRequested(Callback<ICoreWebView2NewWindowRequestedEventHandler>(
                 [](ICoreWebView2 *sender, ICoreWebView2NewWindowRequestedEventArgs *args) -> HRESULT {
                   LPWSTR uri = NULL;
 
@@ -466,10 +492,10 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                   return S_OK;
                 }).Get(), &token);
 
-              layoutWindow(s);
+              layoutWindow(win);
               controller->put_IsVisible(TRUE);
               if (!url.empty())
-                s->webview->Navigate(url.c_str());
+                win->webview->Navigate(url.c_str());
               controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
               return S_OK;
             }).Get());
@@ -491,8 +517,14 @@ static void reportHarvest(LoginWindow *s) {
     strncpy_s(request->userAgent, request->userAgentSize, s->userAgent.c_str(), _TRUNCATE);
   if (request->onCookie == NULL)
     return;
-  for(size_t i = 0 ; i < s->cookies.size() ; i++) {
-    const HarvestedCookie &taken = s->cookies[i];
+
+  /* Taken away first, because a second answer from the browser would grow the vector
+     under the loop and move every string the caller is reading. */
+  std::vector<HarvestedCookie> harvested;
+
+  harvested.swap(s->cookies);
+  for(size_t i = 0 ; i < harvested.size() ; i++) {
+    const HarvestedCookie &taken = harvested[i];
     WhttBrowserLoginCookie one;
 
     one.name = taken.name.c_str();
@@ -577,8 +609,23 @@ static int runLoginWindow(const std::shared_ptr<LoginWindow> &state) {
     }
     if (got < 0)
       break;
-    /* Tab and Enter belong to the page whenever the page holds the focus. */
-    if (!s->browserHasFocus && s->frame != NULL && IsDialogMessageW(s->frame, &message))
+    /* Tab off the end of our own controls is what puts the focus in the page, because
+       the dialog manager only ever cycles the three of them. */
+    if (s->controller && message.message == WM_KEYDOWN && message.wParam == VK_TAB) {
+      const BOOL back = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+      const HWND focus = GetFocus();
+
+      if ((!back && focus == s->done) || (back && focus == s->address)) {
+        s->controller->MoveFocus(back ? COREWEBVIEW2_MOVE_FOCUS_REASON_PREVIOUS
+                                      : COREWEBVIEW2_MOVE_FOCUS_REASON_NEXT);
+        continue;
+      }
+    }
+    /* Tab and Enter belong to the page whenever the page holds the focus. Asking for
+       the focused window beats tracking it, because the browser reports a focus change
+       from another process and the answer would arrive a keystroke late. */
+    if (s->frame != NULL && ourControl(s, GetFocus())
+        && IsDialogMessageW(s->frame, &message))
       continue;
     TranslateMessage(&message);
     DispatchMessageW(&message);

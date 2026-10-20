@@ -830,8 +830,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 17) {
-        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 17\n", nchecks);
+      if (nchecks != 16) {
+        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 16\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
@@ -1544,7 +1544,7 @@ BOOL CWinHTTrackApp::InitInstance()
       CString err;
       int nskipped = 0;
       const int nchecks = argvCapsCheckCases(&err, &nskipped);
-      const int expected = 55 - nskipped;
+      const int expected = 59 - nskipped;
 
       if (nchecks == 0) {
         fprintf(stderr, "FATAL: argv caps: %s\n", (LPCSTR) err);

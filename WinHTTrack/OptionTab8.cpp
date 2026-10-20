@@ -157,37 +157,31 @@ void COptionTab8::OnBrowserLogin()
     return;
   }
 
-  const int why = browserLoginRun(owner->m_hWnd, url,
-                                  browserLoginProfileDir(project, home), harvest);
+  const WhttBrowserLoginResult result =
+    browserLoginRun(owner->m_hWnd, url, browserLoginProfileDir(project, home), harvest);
 
-  if (why != WhttBrowserLoginDone) {
-    said.Format("The browser did not open: %s.", browserLoginRunWhy(why));
+  if (result != WhttBrowserLoginDone) {
+    said.Format("The browser did not open: %s.", browserLoginRunWhy(result));
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
-  if (harvest.cookies.GetSize() == 0) {
-    AfxMessageBox("The browser came back with no cookies, so nothing was changed here.",
-                  MB_OK | MB_ICONINFORMATION);
+  switch(browserLoginSaveCookies(harvest, file, stats)) {
+  case CookieSaveNothingToWrite:
+    AfxMessageBox("The browser gave no cookies the engine can use, so nothing was "
+                  "changed here.", MB_OK | MB_ICONINFORMATION);
     return;
-  }
-  if (!browserLoginSaveCookies(harvest, file, stats)) {
-    if (stats.written == 0)
-      said = "None of the browser's cookies can be used, so nothing was changed here.";
-    else
-      said.Format("The cookies could not be written to %s, so nothing was changed here.",
-                  (LPCSTR) file);
+  case CookieSaveNoFile:
+    said.Format("The cookies could not be written to %s, so nothing was changed here.",
+                (LPCSTR) file);
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
+  case CookieSaveWritten:
+    break;
   }
   SetDlgItemTextCP(this, IDC_cookiesfile, file);
-  /* The crawl has to send what the login was granted to. The browser identity sits on
-     another page, which may not be built yet, so set the value it will show and the
-     control it already shows. */
-  if (!harvest.userAgent.IsEmpty() && maintab != NULL) {
-    maintab->m_option6.m_user = harvest.userAgent;
-    if (maintab->m_option6.m_hWnd != NULL)
-      SetDlgItemTextCP(&maintab->m_option6, IDC_user, harvest.userAgent);
-  }
+  /* The browser identity lives on another page, which may not be built yet. */
+  if (!harvest.userAgent.IsEmpty() && maintab != NULL)
+    maintab->m_option6.SetBrowserIdentity(harvest.userAgent);
 
   const int dropped = harvest.cookies.GetSize() - stats.written;
 
@@ -199,6 +193,11 @@ void COptionTab8::OnBrowserLogin()
                 dropped);
     said += rest;
   }
+  /* A value the shell would refuse never reaches argv, and the mirror would then go out
+     under the engine's own identity rather than the one that logged in. */
+  if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
+    said += "\n\nThe browser identity it reported cannot be used, so the mirror will "
+            "send the default one.";
   AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }
 
@@ -263,7 +262,7 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_STATIC_hostalias) ->ModifyStyle(WS_DISABLED,0);
     /* Windows 7 has no WebView2, and neither has a machine where nobody installed one.
        GetTip() says which, because a greyed button explains nothing by itself. */
-    if (browserLoginRuntime(NULL, 0))
+    if (browserLoginRuntime(NULL /* the version is not wanted here */, 0))
       GetDlgItem(IDC_browserlogin)   ->ModifyStyle(WS_DISABLED,0);
     else
       GetDlgItem(IDC_browserlogin)   ->ModifyStyle(0,WS_DISABLED);
@@ -347,7 +346,7 @@ const char* COptionTab8::GetTip(int ID)
     case IDC_browserlogin:
       if (browserLoginLoad() != BrowserLoginReady)
         return browserLoginWhy(browserLoginLoad());
-      if (!browserLoginRuntime(NULL, 0))
+      if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
         return "No Microsoft Edge WebView2 runtime is installed on this computer";
       return "Log in to the site in a browser, and use the cookies and the browser "
              "identity it was given";

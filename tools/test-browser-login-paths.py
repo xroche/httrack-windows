@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Compile and run tools/browser-login-paths-test.cpp, then check what no C code here can
-check about itself: that --selftest still runs the same cases, and that every caller pins
-the same count.
+check about itself: that --selftest still runs the same cases and still fails on one, that
+every caller pins the same count, that nothing defines these functions twice, and that the
+Log in button reaches them.
 
 The GUI only builds under MSVC, so the --selftest run cannot be rerun in review and cannot
 be mutated in a pull request. This is the half that runs on ubuntu.
@@ -11,6 +12,7 @@ out. --engine says where, and defaults to the sibling directory CI uses.
 """
 
 import argparse
+import glob
 import os
 import re
 import subprocess
@@ -19,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 17 checks"
+EXPECTED_LINE = "browser login helpers ok on 16 checks"
 
 
 def read(path):
@@ -80,12 +82,20 @@ def main():
 
     checked = 0
 
-    # 1. --selftest has to still run these cases, or the Windows half stopped checking.
+    # 1. --selftest has to still run these cases, and still stop the run when one of
+    #    them fails. A call whose verdict is dropped reports coverage nobody has.
     selftest = read(os.path.join(ROOT, "WinHTTrack", "WinHTTrack.cpp"))
-    if "browserLoginCheckCases(&err)" not in selftest:
+    block = re.search(r"browserLoginCheckCases\(&err\);(.*?)\n    \}", selftest, re.S)
+    if block is None:
         sys.exit(
             "WinHTTrack.cpp no longer calls browserLoginCheckCases(): --selftest "
             "stopped running the browser-login path cases"
+        )
+    checked += 1
+    if block.group(1).count("ExitProcess(3)") != 2:
+        sys.exit(
+            "the --selftest block does not stop the run on both a failed case and a "
+            "wrong count, so a red case would go unnoticed"
         )
     checked += 1
 
@@ -97,7 +107,8 @@ def main():
     )
     if want is None or mine is None:
         sys.exit("cannot read the expected check count from both callers")
-    if want.group(1) != mine.group(1) or mine.group(1) not in EXPECTED_LINE:
+    line = re.search(r"ok on (\d+) checks", EXPECTED_LINE)
+    if want.group(1) != mine.group(1) or mine.group(1) != line.group(1):
         sys.exit(
             "the expected check count differs between --selftest (%s), this harness "
             "(%s) and the line CI matches (%s)"
@@ -117,35 +128,53 @@ def main():
     checked += 1
 
     # 3. One definition only: a copy left behind would mean the Windows build and this
-    #    run test different code.
+    #    run test different code. Every unit, because a fixed file list cannot see a
+    #    copy that lands in the next one.
     unit = os.path.join(ROOT, "WinHTTrack", "browser-login-paths.cpp")
+    others = [
+        other
+        for other in sorted(glob.glob(os.path.join(ROOT, "WinHTTrack", "*.cpp")))
+        if os.path.basename(other) != "browser-login-paths.cpp"
+    ]
+    if len(others) < 20:
+        sys.exit("found %d other units: this check would prove nothing" % len(others))
     for name in (
         "browserLoginStartUrl",
         "browserLoginProfileDir",
         "browserLoginCookieFile",
     ):
-        for rel in ("browser-login.cpp", "Shell.cpp", "OptionTab8.cpp"):
-            other = read(os.path.join(ROOT, "WinHTTrack", rel))
-            if re.search(r"^\w[^;()\n]*\b%s\s*\(" % name, other, re.M):
+        for other in others:
+            if re.search(r"^\w[^;()\n]*\b%s\s*\(" % name, read(other), re.M):
                 sys.exit(
                     "%s is defined in %s as well as browser-login-paths.cpp"
-                    % (name, rel)
+                    % (name, os.path.basename(other))
                 )
         if re.search(r"^CString %s\(" % name, read(unit), re.M) is None:
             sys.exit("browser-login-paths.cpp no longer defines %s()" % name)
         checked += 1
 
-    # 4. The button has to call them, or the cases hold for code nothing reaches.
+    # 4. The button has to reach them, so the calls have to sit inside the handler the
+    #    message map names. Naming them anywhere in the file proves nothing.
     tab8 = read(os.path.join(ROOT, "WinHTTrack", "OptionTab8.cpp"))
+    if "ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)" not in tab8:
+        sys.exit("the Log in button no longer calls OnBrowserLogin()")
+    checked += 1
+    handler = re.search(
+        r"^void COptionTab8::OnBrowserLogin\(\)\n\{(.*?)^\}", tab8, re.M | re.S
+    )
+    if handler is None:
+        sys.exit("OptionTab8.cpp no longer defines OnBrowserLogin()")
+    checked += 1
     for name in (
         "browserLoginStartUrl",
         "browserLoginProfileDir",
         "browserLoginCookieFile",
         "browserLoginRun",
     ):
-        if name + "(" not in tab8:
+        if name + "(" not in handler.group(1):
             sys.exit(
-                "OptionTab8.cpp no longer calls %s(), so the button bypasses it" % name
+                "OnBrowserLogin() no longer calls %s(), so the button bypasses it"
+                % name
             )
         checked += 1
 
@@ -171,7 +200,8 @@ def main():
                 )
             )
         # Built and run twice: once as the Windows build sees it, once with the
-        # sanitizers, because a walk that reads one byte past a field passes every case.
+        # sanitizers, because the engine tokenizer this links walks a token buffer by
+        # hand and a one-byte overrun there passes every case.
         for label, extra in (
             ("plain", []),
             ("sanitized", ["-fsanitize=address,undefined"]),

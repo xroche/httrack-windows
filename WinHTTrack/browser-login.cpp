@@ -154,8 +154,9 @@ static CString utf8Of(const CString &text) {
 }
 
 // see browser-login.h
-int browserLoginRun(HWND parent, const CString &url, const CString &profile,
-                    BrowserLoginHarvest &harvest) {
+WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
+                                       const CString &profile,
+                                       BrowserLoginHarvest &harvest) {
   /* -F takes whatever this holds, and the engine refuses an argument at HTS_CDLMAXSIZE,
      so a longer agent would lose the mirror rather than the field. */
   char agent[HTS_CDLMAXSIZE];
@@ -176,9 +177,10 @@ int browserLoginRun(HWND parent, const CString &url, const CString &profile,
   request.onCookieCtx = &harvest;
   request.userAgent = agent;
   request.userAgentSize = sizeof(agent);
-  agent[0] = '\0';
 
-  const int result = runner(&request);
+  /* The DLL empties the buffer before it does anything else, so a run that stops early
+     leaves no stale agent behind. */
+  const WhttBrowserLoginResult result = (WhttBrowserLoginResult) runner(&request);
 
   if (result == WhttBrowserLoginDone) {
     CopyTextUTF8ToCP(ansi, sizeof(ansi), agent);
@@ -188,7 +190,7 @@ int browserLoginRun(HWND parent, const CString &url, const CString &profile,
 }
 
 // see browser-login.h
-const char *browserLoginRunWhy(int result) {
+const char *browserLoginRunWhy(WhttBrowserLoginResult result) {
   switch(result) {
   case WhttBrowserLoginDone:
     return "done";
@@ -202,6 +204,8 @@ const char *browserLoginRunWhy(int result) {
     return "the browser window would not open";
   case WhttBrowserLoginNoBrowser:
     return "the WebView2 runtime would not start";
+  case WhttBrowserLoginBrowserGone:
+    return "the browser stopped while the window was open";
   }
   return "the browser stopped for a reason this build has no name for";
 }
@@ -217,13 +221,15 @@ CString browserLoginUserDir(void) {
 }
 
 // see browser-login.h
-BOOL browserLoginSaveCookies(const BrowserLoginHarvest &harvest, const CString &path,
-                             CookieFileStats &stats) {
+CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
+                                         const CString &path, CookieFileStats &stats) {
   const CString text = cookieFileText(harvest.cookies, stats);
 
   /* An empty write would lose a login that worked, so the file keeps what it had. */
-  if (path.IsEmpty() || stats.written == 0)
-    return FALSE;
+  if (stats.written == 0)
+    return CookieSaveNothingToWrite;
+  if (path.IsEmpty())
+    return CookieSaveNoFile;
   structcheck(path);
 
   /* Binary, because the engine reads the file as bytes and a CR of ours would end up
@@ -231,10 +237,10 @@ BOOL browserLoginSaveCookies(const BrowserLoginHarvest &harvest, const CString &
   FILE *const fp = fopen(path, "wb");
 
   if (fp == NULL)
-    return FALSE;
+    return CookieSaveNoFile;
 
   const size_t len = (size_t) text.GetLength();
   const BOOL written = fwrite((LPCSTR) text, 1, len, fp) == len;
 
-  return fclose(fp) == 0 && written;
+  return fclose(fp) == 0 && written ? CookieSaveWritten : CookieSaveNoFile;
 }

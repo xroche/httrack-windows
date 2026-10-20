@@ -71,13 +71,13 @@ struct BrowserLoginHarvest {
 };
 
 /* Opens the browser on URL with PARENT greyed out under it, and fills HARVEST once the
-   user closes it. PROFILE is the folder the browser keeps its login in. Returns
-   WhttBrowserLoginDone, or the WhttBrowserLoginResult that stopped it. */
-int browserLoginRun(HWND parent, const CString &url, const CString &profile,
-                    BrowserLoginHarvest &harvest);
+   user closes it. PROFILE is the folder the browser keeps its login in. */
+WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
+                                       const CString &profile,
+                                       BrowserLoginHarvest &harvest);
 
 /* Returns a string literal naming RESULT, for a user or for --selftest. */
-const char *browserLoginRunWhy(int result);
+const char *browserLoginRunWhy(WhttBrowserLoginResult result);
 
 /* The page the browser opens first: the first address of URLS, given the scheme the
    crawl would give it. Empty when URLS holds no address. */
@@ -97,12 +97,17 @@ CString browserLoginCookieFile(const CString &projectPath, const CString &localA
    goes. Empty when the shell will not say. */
 CString browserLoginUserDir(void);
 
+/* What browserLoginSaveCookies() did. */
+enum CookieSaveResult {
+  CookieSaveWritten,
+  CookieSaveNothingToWrite,  /* the engine would refuse every cookie the browser gave */
+  CookieSaveNoFile           /* the folder or the file would not take it */
+};
+
 /* Writes HARVEST over PATH as one Netscape cookies.txt, making the folder first, and
-   fills STATS with what went in and what was dropped. FALSE when nothing was written,
-   which STATS tells apart: a zero written count is a harvest the engine would refuse
-   whole, and anything else is the file itself. */
-BOOL browserLoginSaveCookies(const BrowserLoginHarvest &harvest, const CString &path,
-                             CookieFileStats &stats);
+   fills STATS with what went in and what was dropped. */
+CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
+                                         const CString &path, CookieFileStats &stats);
 
 /* Shared with --selftest. Returns the number of checks run, or zero with ERR set. */
 int browserLoginCheckCases(CString *err);

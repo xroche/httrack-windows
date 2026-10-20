@@ -53,11 +53,12 @@ extern "C" {
 
 unsigned __cdecl WhttBrowserLoginAbi(void);
 
-/* Is a WebView2 runtime installed? version, when given, takes its version as UTF-8, cut
-   to fit. A WHTT_BROWSER_LOGIN_VERSION_MAX buffer always holds one whole. */
+/* Is a WebView2 runtime installed? version, when given, takes the runtime's version as
+   UTF-8, cut to fit. A WHTT_BROWSER_LOGIN_VERSION_MAX buffer always holds one whole. */
 int __cdecl WhttBrowserLoginAvailable(char *version, size_t version_size);
 
-/* One cookie as the browser holds it. Every string is UTF-8 and belongs to the DLL. */
+/* One cookie as the browser holds it. Every string is UTF-8, belongs to the DLL, and
+   lives only for the one WhttBrowserLoginCookieFn call that is given it. */
 typedef struct WhttBrowserLoginCookie {
   const char *name;
   const char *value;
@@ -94,7 +95,8 @@ enum WhttBrowserLoginResult {
   WhttBrowserLoginNoRuntime,    /* no WebView2 runtime is installed */
   WhttBrowserLoginNoApartment,  /* the calling thread is not in a single-threaded apartment */
   WhttBrowserLoginNoWindow,     /* our own window would not open */
-  WhttBrowserLoginNoBrowser     /* a runtime is installed, and it would not start */
+  WhttBrowserLoginNoBrowser,    /* a runtime is installed, and it would not start */
+  WhttBrowserLoginBrowserGone   /* the browser stopped while the window was open */
 };
 
 /* Opens a browser window on REQUEST->url and returns once the user closes it, having

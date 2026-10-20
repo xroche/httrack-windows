@@ -665,8 +665,8 @@ STYLE DS_SETFONT | WS_CHILD | WS_DISABLED | WS_CAPTION | WS_SYSMENU
 CAPTION "Spider"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    CONTROL         "Accept cookies",IDC_cookies,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,16,150,9
-    PUSHBUTTON      "Log in with a browser...",IDC_browserlogin,172,13,88,14
+    CONTROL         "Accept cookies",IDC_cookies,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,16,140,9
+    PUSHBUTTON      "Log in with a browser...",IDC_browserlogin,164,13,96,14
     LTEXT           "Check document type",IDC_STATIC_checktype,16,32,117,8
     COMBOBOX        IDC_checktype,144,32,116,56,CBS_DROPDOWNLIST | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
     CONTROL         "Parse java files",IDC_parsejava,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,16,48,235,9

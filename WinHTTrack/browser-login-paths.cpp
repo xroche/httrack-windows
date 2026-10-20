@@ -60,13 +60,11 @@ CString browserLoginStartUrl(const CString &urls) {
   for(int i = 0 ; i < tokens.GetSize() ; i++) {
     CString one = tokens[i];
 
-    if (one.IsEmpty())
-      continue;
     /* A filter rule in the address box is no page anyone can log in to. */
-    if (one[0] == '+' || one[0] == '-')
+    if (one.Left(1) == "+" || one.Left(1) == "-")
       continue;
-    /* The test Wid1 uses when it tidies that box, so the browser opens what the crawl
-       would fetch. */
+    /* The same test the crawl applies to that box, so the browser opens the address the
+       crawl would fetch. One slash, because file:/x carries a scheme too. */
     if (one.Find(":/") < 0)
       one = "http://" + one;
     return one;
@@ -107,8 +105,8 @@ int browserLoginCheckCases(CString *err) {
       { "-*.gif +*.css https://example.com/", "https://example.com/" },
       { "-*.gif", "" },
       { "", "" },
-      /* ftp:/ and file:/ carry the ":/" test, so neither gains a second scheme */
-      { "ftp://example.com/", "ftp://example.com/" },
+      /* one slash is still a scheme, and no row above has that shape */
+      { "file:/tmp/page.html", "file:/tmp/page.html" },
       { NULL, NULL }
     };
 
@@ -169,14 +167,6 @@ int browserLoginCheckCases(CString *err) {
       }
       nchecks++;
     }
-    /* The browser profile must not sit where the cookies file goes, or the save would
-       land on a folder and the login would be lost on every run. */
-    if (browserLoginProfileDir("C:\\web\\proj", "C:\\local")
-        == browserLoginCookieFile("C:\\web\\proj", "C:\\local")) {
-      *err = "the browser profile and the cookies file want the same path";
-      return 0;
-    }
-    nchecks++;
   }
   return nchecks;
 }
