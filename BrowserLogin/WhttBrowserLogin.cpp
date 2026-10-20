@@ -117,6 +117,7 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   ComPtr<ICoreWebView2Controller> controller;
   ComPtr<ICoreWebView2> webview;
   bool harvesting = false;
+  bool gaveUp = false;      /* stopped waiting for the browser, which may still answer */
   bool finished = false;
   int result = WhttBrowserLoginDone;
   std::string userAgent;
@@ -327,7 +328,7 @@ static LRESULT CALLBACK loginWindowProc(HWND window, UINT message, WPARAM wparam
       /* The window goes once the cookies are out of the browser. Closing it again
          gives up on them, because a browser that died still owes the answer. */
       if (s->harvesting) {
-        s->result = WhttBrowserLoginBrowserGone;
+        s->gaveUp = true;
         finishWindow(s);
       } else
         beginHarvest(s->shared_from_this());
@@ -470,9 +471,10 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                     const HWND next = reason == COREWEBVIEW2_MOVE_FOCUS_REASON_PREVIOUS
                                       ? state->done : state->address;
 
-                    /* A control that would not be created must not take the focus away
-                       for good, because SetFocus(NULL) leaves the thread with none. */
-                    SetFocus(next != NULL ? next : state->frame);
+                    /* A control that was never created, or that the harvest greyed
+                       out, must not take the focus away for good: SetFocus would leave
+                       the thread with none. */
+                    SetFocus(next != NULL && IsWindowEnabled(next) ? next : state->frame);
                     return S_OK;
                   }).Get(), &token);
               /* A browser that dies owes an answer nobody will deliver, and the window
@@ -482,7 +484,7 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                   [state](ICoreWebView2 *, ICoreWebView2ProcessFailedEventArgs *) -> HRESULT {
                     if (state->frame == NULL)
                       return S_OK;
-                    state->result = WhttBrowserLoginBrowserGone;
+                    state->gaveUp = true;
                     finishWindow(state.get());
                     return S_OK;
                   }).Get(), &token);
@@ -661,6 +663,10 @@ static int runLoginWindow(const std::shared_ptr<LoginWindow> &state) {
     SetActiveWindow(owner);
   if (s->font != NULL)
     DeleteObject(s->font);
+  /* Decided here rather than where we gave up, because closing the browser can deliver
+     the answer we had stopped waiting for, and those cookies are still the user's. */
+  if (s->result == WhttBrowserLoginDone && s->gaveUp && s->cookies.empty())
+    s->result = WhttBrowserLoginBrowserGone;
   return s->result;
 }
 
