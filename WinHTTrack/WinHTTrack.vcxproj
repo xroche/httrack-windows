@@ -73,6 +73,8 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- The helper DLL's ABI header, which it owns and we only read. -->
+      <AdditionalIncludeDirectories>$(MSBuildThisFileDirectory)..\BrowserLogin;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>StdAfx.h</PrecompiledHeaderFile>
@@ -146,6 +148,7 @@
     <ClCompile Include="AddFilter.cpp" />
     <ClCompile Include="BatchUpdate.cpp" />
     <ClCompile Include="BuildOptions.cpp" />
+    <ClCompile Include="browser-login.cpp" />
     <ClCompile Include="CatchUrl.cpp" />
     <ClCompile Include="CrashReport.cpp" />
     <ClCompile Include="DarkMode.cpp" />
@@ -234,6 +237,7 @@
     <ClInclude Include="AddFilter.h" />
     <ClInclude Include="BatchUpdate.h" />
     <ClInclude Include="BuildOptions.h" />
+    <ClInclude Include="browser-login.h" />
     <ClInclude Include="CatchUrl.h" />
     <ClInclude Include="cookie-file.h" />
     <ClInclude Include="cpp_lang.h" />

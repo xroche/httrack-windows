@@ -18,3 +18,13 @@ updates:
       interval: monthly
     commit-message:
       prefix: deps
+
+  # The browser-login helper pins webview2 from its own manifest, so without this the
+  # loader it links would freeze at whatever baseline it was added on. A bump here waits
+  # for a human: dependabot-automerge.yml arms only for WinHTTrack/vcpkg.json.
+  - package-ecosystem: vcpkg
+    directory: /BrowserLogin
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: deps

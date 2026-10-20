@@ -5,8 +5,9 @@ Reads the resolved versions out of vcpkg's SPDX SBOMs, then checks OpenSSL's own
 CVE-5.x feed. Exits non-zero on an advisory at or above --min-severity.
 
 Only OpenSSL is checked against a CVE feed: no equivalent per-version machine-
-readable feed exists for zlib, brotli or zstd (see findings/vcpkg-staleness-guard.md).
-Those are reported for human review, never gated.
+readable feed exists for zlib, brotli, zstd or webview2 (see
+findings/vcpkg-staleness-guard.md). Those are reported for human review,
+never gated.
 """
 import argparse
 import json
@@ -18,7 +19,7 @@ from pathlib import Path
 
 FEED = "https://openssl-library.org/news/secjson/"
 RANK = {"low": 1, "moderate": 2, "high": 3, "critical": 4}
-UNGATED = ("zlib", "brotli", "zstd")
+UNGATED = ("zlib", "brotli", "zstd", "webview2")
 
 
 def get(url):

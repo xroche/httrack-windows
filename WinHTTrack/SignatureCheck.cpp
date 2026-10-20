@@ -58,7 +58,7 @@ static const char *const WhttSigOurNames[] = {
 /* Checked beside us when present -- a ZIP install is whatever the user unpacked. The
    app-local Visual C++ runtime is left out: it stays signed by Microsoft, not by us. */
 static const char *const WhttSigSiblings[] = {
-  "libhttrack.dll", "httrack.exe"
+  "libhttrack.dll", "httrack.exe", "WhttBrowserLogin.dll"
 };
 
 static volatile LONG WhttSigDone = 0;

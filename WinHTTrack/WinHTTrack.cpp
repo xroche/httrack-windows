@@ -49,6 +49,7 @@ Please visit our Website: http://www.httrack.com
 #include "DarkMode.h"
 #include "SignatureCheck.h"
 #include "Unofficial.h"
+#include "browser-login.h"
 #include "cookie-file.h"
 #include "version.h"
 
@@ -773,6 +774,50 @@ BOOL CWinHTTrackApp::InitInstance()
         ExitProcess(3);
       }
       printf("cookie file ok on %d checks\n", nchecks);
+    }
+    /* Nothing but a run on a real Windows sees a lost export or a stale copy beside the
+       exe. Whether a WebView2 runtime is installed is printed rather than required, so
+       the CI step that runs this compares it against the registry itself. */
+    {
+      const BrowserLoginState st = browserLoginLoad();
+      char runtime[WHTT_BROWSER_LOGIN_VERSION_MAX] = "";
+      int nchecks = 0;
+      BOOL have;
+
+      /* Fatal even for the Windows 7 answer, because --selftest reports whether this
+         installation is complete, and on Windows 7 nothing runs it. */
+      if (st != BrowserLoginReady) {
+        fprintf(stderr, "FATAL: browser login helper: %s\n", browserLoginWhy(st));
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      have = browserLoginRuntime(runtime, sizeof(runtime));
+      /* Either answer is fine, but it has to agree with the version it reported. */
+      if (have && runtime[0] == '\0') {
+        fprintf(stderr, "FATAL: browser login: a runtime was found with no version\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      if (!have && runtime[0] != '\0') {
+        fprintf(stderr, "FATAL: browser login: no runtime, yet version '%s'\n", runtime);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      /* The DLL comes from another build than this exe often enough to check: an
+         unterminated buffer would be read past its end by the printf below. */
+      if (have && strnlen(runtime, sizeof(runtime)) >= sizeof(runtime)) {
+        fprintf(stderr, "FATAL: browser login: the version came back unterminated\n");
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      nchecks++;
+      /* No count pinned here, unlike the blocks above: these four are counted one by one,
+         so the workflow matcher is what notices one going missing. */
+      printf("browser login ok on %d checks (%s)\n", nchecks,
+             have ? runtime : "no WebView2 runtime");
     }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
