@@ -103,6 +103,12 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line);
    would overflow, and fills STATS. */
 CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStats &stats);
 
+/* Returns the copy the GUI gives --cookies-file, inside the project's own cache. The
+   engine loads a cookies.txt sitting in the project itself whether asked to or not, so a
+   copy there would go on being preloaded after the user cleared the field. Empty when
+   PROJECTPATH is, because there is then nowhere of ours to put it. */
+CString cookieFileInProject(const CString &projectPath);
+
 /* Shared with --selftest. See tools/cookie-file-test.cpp. Returns the number of checks
    run, or zero with ERR set. */
 int cookieFileCheckCases(CString *err);

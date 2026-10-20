@@ -63,6 +63,7 @@ static char THIS_FILE[] = __FILE__;
 // PATCH-->
 // PATCH-->
 #include "about.h"
+#include "cookie-file.h"
 #include "infoend.h"
 
 // flag de termination
@@ -517,6 +518,13 @@ void CShellApp::OptPannel() {
   } \
 } while(0)
   
+/* structcheck() makes the project's directory first, which a mirror started before
+   anything created it needs. Its own failure shows up as the copy failing. */
+static BOOL copyCookieFileIntoProject(const CString &chosen, const CString &mine) {
+  structcheck(mine);
+  return CopyFileA(chosen, mine, FALSE);
+}
+
 // parser maintab et calculer options
 void compute_options() { 
   CWaitCursor wait;
@@ -673,7 +681,29 @@ void compute_options() {
   if (maintab->m_option8.m_updhack)  ShellOptions->updhack = "%s";    // update hack
   if (maintab->m_option8.m_urlhack)  ShellOptions->urlhack = "%u";    // URL hack
   else                               ShellOptions->urlhack = "%u0";
+  /* The engine rewrites whatever --cookies-file names when the mirror ends, so it never
+     gets the user's own file. Each mirror copies afresh, so theirs stays the one that
+     decides what is preloaded. */
   ShellOptions->cookiesfile = maintab->m_option8.m_cookiesfile;
+  if (ShellOptions->cookiesfile.GetLength() != 0) {
+    const CString mine = cookieFileInProject(ShellOptions->path);
+
+    if (mine.CompareNoCase(ShellOptions->cookiesfile) == 0) {
+      /* The user picked the project's own copy, so there is nothing to copy. */
+    } else if (!mine.IsEmpty()
+               && copyCookieFileIntoProject(ShellOptions->cookiesfile, mine)) {
+      ShellOptions->cookiesfile = mine;
+    } else {
+      /* Handing over their file instead is what the copy exists to prevent, so this
+         mirror preloads nothing and says so. */
+      /* Not "nothing is preloaded": with no --cookies-file the engine loads a cookies.txt
+         of its own from the project and the current directory. */
+      AfxMessageBox("The cookies file could not be copied into the project, so the cookies "
+                    "you chose were not used.",
+                    MB_OK | MB_ICONWARNING);
+      ShellOptions->cookiesfile = "";
+    }
+  }
   ShellOptions->pausefiles = maintab->m_option4.m_pausefiles;
   ShellOptions->maxretryafter = maintab->m_option4.m_maxretryafter;
   
@@ -2294,7 +2324,7 @@ void lance(void) {
     args.Add(ShellOptions->proxyscheme + ShellOptions->proxy + ":" + ShellOptions->port);
   }
 
-  // preload extra cookies from a Netscape cookies.txt (--cookies-file)
+  // preload cookies from the project's own copy of the file the user chose, not theirs
   if (ShellOptions->cookiesfile.GetLength() != 0) {
     args.Add("--cookies-file");
     args.Add(ShellOptions->cookiesfile);
