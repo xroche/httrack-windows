@@ -38,7 +38,8 @@ Please visit our Website: http://www.httrack.com
 #include <stddef.h>
 
 /* WinHTTrack.exe loads this DLL with LoadLibrary and never links it, because the WebView2
-   loader inside hard-imports EventSetInformation, which Windows 7 does not export. */
+   loader inside hard-imports EventSetInformation, which Windows 7 does not export. The
+   loader that does it is WinHTTrack/browser-login.cpp. */
 
 /* Bump on any change below, because the GUI refuses a DLL answering another number. */
 #define WHTT_BROWSER_LOGIN_ABI 1
