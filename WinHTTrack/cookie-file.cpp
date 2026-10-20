@@ -176,7 +176,7 @@ CString cookieFileInProject(const CString &projectPath) {
     return path;
   if (path.Right(1) != "\\" && path.Right(1) != "/")
     path += "\\";
-  path += "cookies.txt";
+  path += "hts-cache\\cookies.txt";
   return path;
 }
 
@@ -590,13 +590,13 @@ int cookieFileCheckCases(CString *err) {
     nchecks++;
   }
 
-  /* The engine rewrites whatever --cookies-file names when the mirror ends, so the GUI
-     hands it a copy in the project. These are the paths that copy goes to. */
+  /* These are the paths the copy must land on, so the engine overwrites ours and never
+     the user's own file. */
   {
     static const struct { const char *project, *want; } homes[] = {
-      { "C:\\web\\proj", "C:\\web\\proj\\cookies.txt" },
-      { "C:\\web\\proj\\", "C:\\web\\proj\\cookies.txt" },
-      { "C:/web/proj/", "C:/web/proj/cookies.txt" },
+      { "C:\\web\\proj", "C:\\web\\proj\\hts-cache\\cookies.txt" },
+      { "C:\\web\\proj\\", "C:\\web\\proj\\hts-cache\\cookies.txt" },
+      { "C:/web/proj/", "C:/web/proj/hts-cache\\cookies.txt" },
       { "", "" }
     };
 
@@ -606,6 +606,20 @@ int cookieFileCheckCases(CString *err) {
       if (got != homes[k].want) {
         snprintf(msg, sizeof(msg), "project '%s' gave '%s', expected '%s'",
                  homes[k].project, (LPCSTR) got, homes[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* A length cap anywhere in there would pass every row above, and silently drop the
+       cookies of any project filed deep enough. */
+    {
+      const CString deep('d', 400);
+      const CString got = cookieFileInProject(deep);
+
+      if (got != deep + "\\hts-cache\\cookies.txt") {
+        snprintf(msg, sizeof(msg), "a %d-byte project path gave %d bytes",
+                 deep.GetLength(), got.GetLength());
         *err = msg;
         return 0;
       }

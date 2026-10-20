@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "cookie file ok on 103 checks"
+EXPECTED_LINE = "cookie file ok on 104 checks"
 SWEEP_LINE = "cookie file properties ok on"
 
 # The buffer cookie_load() reads each field into. cookie_load_field() refuses at
