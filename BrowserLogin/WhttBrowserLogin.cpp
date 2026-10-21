@@ -120,6 +120,7 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   ComPtr<ICoreWebView2Controller> controller;
   ComPtr<ICoreWebView2> webview;
   bool harvesting = false;
+  bool closing = false;     /* the teardown has begun, and it must not be re-entered */
   bool gaveUp = false;      /* stopped waiting for the browser, which may still answer */
   bool answered = false;    /* the browser handed its cookies over, even if it had none */
   bool finished = false;
@@ -209,6 +210,11 @@ static bool ourControl(const LoginWindow *s, HWND window) {
 
    ONLY the message loop may call this, never a browser callback: see requestFinish(). */
 static void finishWindow(LoginWindow *s) {
+  /* Close() below can pump, which would deliver a finish already posted and bring us
+     straight back in here on a controller we are in the middle of closing. */
+  if (s->closing)
+    return;
+  s->closing = true;
   /* Before the window that hosts it, which is the order Microsoft's own Win32 sample
      uses. Closing it from inside DestroyWindow tears down its child windows while
      Windows is already destroying their parent. */
@@ -682,12 +688,10 @@ static int runLoginWindow(const std::shared_ptr<LoginWindow> &state) {
     DispatchMessageW(&message);
   }
 
-  if (s->disabledParent != NULL) {
-    EnableWindow(s->disabledParent, TRUE);
-    s->disabledParent = NULL;
-  }
-  if (s->frame != NULL)
-    DestroyWindow(s->frame);
+  /* The loop can break without having torn anything down, when the application posts
+     WM_QUIT or GetMessage fails, and the browser must not outlive the window it is
+     parented to. finishWindow() does nothing when the teardown already ran. */
+  finishWindow(s);
   if (owner != NULL)
     SetActiveWindow(owner);
   if (s->font != NULL)
