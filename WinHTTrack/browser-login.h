@@ -91,10 +91,26 @@ CString browserLoginStartUrl(const CString &urls);
    empty when the address must not be kept at all. */
 CString browserLoginSafeUrl(const CString &landed);
 
-/* The folder the browser keeps its profile in. The project's own when PROJECTPATH names
-   one, so one project's jar never fills up with another's cookies, and LOCALAPPDATA when
-   there is no project yet. Empty when neither is given. */
-CString browserLoginProfileDir(const CString &projectPath, const CString &localAppData);
+/* The folder one run's browser keeps its profile in. It holds a live signed-in session,
+   so it lives outside any project, under LOCALAPPDATA, and is deleted when the program
+   closes. RUN is the process id, which is what lets a sweep tell an abandoned profile
+   from one another copy of the program is using. Empty when LOCALAPPDATA is. */
+CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
+
+/* The folder those sit in, which is what the sweep walks. */
+CString browserLoginProfileRoot(const CString &localAppData);
+
+/* Is NAME a profile folder of ours, and which run left it? FALSE for anything else, so
+   a sweep never removes a folder it did not create. */
+BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
+
+/* Removes a profile folder, best effort. The browser process outlives the window it
+   drew, so this often fails and browserLoginSweepProfiles() is what finally gets it. */
+void browserLoginForgetProfile(const CString &dir);
+
+/* Removes every profile left by a run that is no longer going. Call it at startup: a
+   profile holds a signed-in session, and a crash would otherwise leave one for ever. */
+void browserLoginSweepProfiles(void);
 
 /* Where the harvest is written. The project's own cookies.txt when there is a project,
    so the engine refreshes it at the end of every mirror; a file of the user's own while

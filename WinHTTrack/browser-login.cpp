@@ -244,6 +244,78 @@ CString browserLoginUserDir(void) {
   return CString(path);
 }
 
+/* A silent recursive delete. CWinHTTrackApp::RmDir does the same walk, but it raises a
+   message box on every failure, and a profile the browser still holds open fails often,
+   so a sweep using it would greet the user with a stack of dialogs. */
+static void removeTree(const CString &dir) {
+  WIN32_FIND_DATAA found;
+  const HANDLE walk = FindFirstFileA(pathUnder(dir, "*"), &found);
+
+  if (walk != INVALID_HANDLE_VALUE) {
+    do {
+      if (strcmp(found.cFileName, ".") == 0 || strcmp(found.cFileName, "..") == 0)
+        continue;
+
+      const CString here = pathUnder(dir, found.cFileName);
+
+      /* Never descend a reparse point: its target is outside the folder we chose. */
+      if ((found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+          && !(found.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+        removeTree(here);
+      else if (found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        RemoveDirectoryA(here);
+      else {
+        SetFileAttributesA(here, FILE_ATTRIBUTE_NORMAL);
+        DeleteFileA(here);
+      }
+    } while (FindNextFileA(walk, &found));
+    FindClose(walk);
+  }
+  RemoveDirectoryA(dir);
+}
+
+// see browser-login.h
+void browserLoginForgetProfile(const CString &dir) {
+  if (!dir.IsEmpty())
+    removeTree(dir);
+}
+
+// see browser-login.h
+void browserLoginSweepProfiles(void) {
+  const CString root = browserLoginProfileRoot(browserLoginUserDir());
+
+  if (root.IsEmpty())
+    return;
+
+  WIN32_FIND_DATAA found;
+  const HANDLE walk = FindFirstFileA(pathUnder(root, "*"), &found);
+
+  if (walk == INVALID_HANDLE_VALUE)
+    return;
+  do {
+    unsigned long run = 0;
+
+    if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        || !browserLoginStaleProfile(found.cFileName, &run))
+      continue;
+
+    /* Another copy of the program may be signed in right now, so a profile whose run
+       is still going is left alone. Skipping is the safe direction, because the next
+       startup sweeps it, where deleting it would sign that copy out mid-login. */
+    const HANDLE live = OpenProcess(SYNCHRONIZE, FALSE, (DWORD) run);
+
+    if (live != NULL) {
+      CloseHandle(live);
+      continue;
+    }
+    /* Owned by another user, so it is running and simply not ours to open. */
+    if (GetLastError() == ERROR_ACCESS_DENIED)
+      continue;
+    removeTree(pathUnder(root, found.cFileName));
+  } while (FindNextFileA(walk, &found));
+  FindClose(walk);
+}
+
 // see browser-login.h
 CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
                                          const CString &path, CookieFileStats &stats) {

@@ -593,6 +593,10 @@ BOOL CWinHTTrackApp::InitInstance()
 
   /* See <https://msdn.microsoft.com/library/ff919712> */
 #if (defined(_WIN32) && (!defined(_DEBUG)))
+  /* Before anything opens a browser: a crash or a kill leaves a signed-in profile
+     behind, and this is the only thing that ever removes one. */
+  browserLoginSweepProfiles();
+
   {
     /* Narrow the search to the application directory and System32; it matters most to
        the ZIP package, which people unpack into Downloads. Resolved and not imported: a
@@ -830,8 +834,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 27) {
-        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 27\n", nchecks);
+      if (nchecks != 38) {
+        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 38\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
@@ -2403,8 +2407,8 @@ BOOL CWinHTTrackApp::InitInstance()
       CloseHandle(selftestLateResults);
       selftestLateResults = NULL;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 27) {
-        fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 27\n", nchecks);
+      if (nchecks != 38) {
+        fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 38\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
@@ -3248,6 +3252,11 @@ LRESULT CWinHTTrackApp::ProcessWndProcException(CException* e, const MSG* pMsg) 
 
 int CWinHTTrackApp::ExitInstance() 
 {
+  /* A browser profile holds a signed-in session, so it goes with the program. The
+     browser outlives the window it drew, so this often fails and the sweep at the next
+     startup is what finally gets it. */
+  browserLoginForgetProfile(browserLoginProfileDir(browserLoginUserDir(),
+                                                   GetCurrentProcessId()));
   LANG_DELETE();
 
   /* Uninitialize */

@@ -42,7 +42,9 @@ Please visit our Website: http://www.httrack.com
 void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
-CString browserLoginProfileDir(const CString &projectPath, const CString &localAppData);
+CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
+CString browserLoginProfileRoot(const CString &localAppData);
+BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
 CString browserLoginCookieFile(const CString &projectPath, const CString &localAppData);
 int browserLoginCheckCases(CString *err);
 #else
@@ -102,11 +104,43 @@ CString browserLoginSafeUrl(const CString &landed) {
   return kept;
 }
 
+/* What a profile folder is called. The sweep reads the run back out of it. */
+#define BROWSER_PROFILE_PREFIX "profile-"
+
 // see browser-login.h
-CString browserLoginProfileDir(const CString &projectPath, const CString &localAppData) {
-  if (!projectPath.IsEmpty())
-    return pathUnder(projectPath, "hts-cache\\browser-profile");
-  return pathUnder(localAppData, "HTTrack\\browser-profile");
+CString browserLoginProfileRoot(const CString &localAppData) {
+  return pathUnder(localAppData, "HTTrack\\browser-profiles");
+}
+
+// see browser-login.h
+CString browserLoginProfileDir(const CString &localAppData, unsigned long run) {
+  const CString root = browserLoginProfileRoot(localAppData);
+  char name[32];
+
+  if (root.IsEmpty())
+    return root;
+  snprintf(name, sizeof(name), BROWSER_PROFILE_PREFIX "%lu", run);
+  return pathUnder(root, name);
+}
+
+// see browser-login.h
+BOOL browserLoginStaleProfile(const CString &name, unsigned long *run) {
+  static const char prefix[] = BROWSER_PROFILE_PREFIX;
+  const int skip = (int) sizeof(prefix) - 1;
+  unsigned long got = 0;
+
+  /* Ten digits is every process id there can be, and refusing a longer one keeps the
+     multiply below from wrapping into a run that is alive. */
+  if (name.Left(skip) != prefix || name.GetLength() <= skip
+      || name.GetLength() > skip + 10)
+    return FALSE;
+  for(int i = skip ; i < name.GetLength() ; i++) {
+    if (name[i] < '0' || name[i] > '9')
+      return FALSE;
+    got = got * 10 + (unsigned long) (name[i] - '0');
+  }
+  *run = got;
+  return TRUE;
 }
 
 // see browser-login.h
@@ -153,25 +187,74 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    static const struct { const char *project, *local, *want; } homes[] = {
-      { "C:\\web\\proj", "C:\\users\\me\\AppData\\Local",
-        "C:\\web\\proj\\hts-cache\\browser-profile" },
-      { "C:\\web\\proj\\", "C:\\users\\me\\AppData\\Local",
-        "C:\\web\\proj\\hts-cache\\browser-profile" },
-      /* no project yet, so the login lives with the user rather than nowhere */
-      { "", "C:\\users\\me\\AppData\\Local",
-        "C:\\users\\me\\AppData\\Local\\HTTrack\\browser-profile" },
-      { "", "", "" },
-      { NULL, NULL, NULL }
+    static const struct { const char *local; unsigned long run; const char *want; } homes[] = {
+      { "C:\\users\\me\\AppData\\Local", 4321,
+        "C:\\users\\me\\AppData\\Local\\HTTrack\\browser-profiles\\profile-4321" },
+      { "C:\\users\\me\\AppData\\Local\\", 7,
+        "C:\\users\\me\\AppData\\Local\\HTTrack\\browser-profiles\\profile-7" },
+      /* nowhere of ours to put it, so the caller gets nothing rather than a relative
+         path next to whatever directory the program happens to be in */
+      { "", 4321, "" },
+      { NULL, 0, NULL }
     };
 
-    for(int k=0 ; homes[k].project != NULL ; k++) {
-      const CString got = browserLoginProfileDir(homes[k].project, homes[k].local);
+    for(int k=0 ; homes[k].local != NULL ; k++) {
+      const CString got = browserLoginProfileDir(homes[k].local, homes[k].run);
 
       if (got != homes[k].want) {
-        snprintf(msg, sizeof(msg), "project '%s' keeps its login in '%s', expected '%s'",
-                 homes[k].project, (LPCSTR) got, homes[k].want);
+        snprintf(msg, sizeof(msg), "run %lu under '%s' gave '%s', expected '%s'",
+                 homes[k].run, homes[k].local, (LPCSTR) got, homes[k].want);
         *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* A profile must never land where the cookies file goes, nor inside a project. */
+    if (browserLoginProfileDir("C:\\local", 1).Find("hts-cache") >= 0) {
+      *err = "the browser profile is inside a project again";
+      return 0;
+    }
+    nchecks++;
+  }
+  {
+    /* The sweep deletes what this says is ours, so a wrong TRUE removes a stranger's
+       folder and a wrong FALSE leaves a signed-in session on disk for ever. */
+    static const struct { const char *name; BOOL ours; unsigned long run; } stale[] = {
+      { "profile-1234", TRUE, 1234 },
+      { "profile-7", TRUE, 7 },
+      { "profile-0000000012", TRUE, 12 },
+      { "profile-", FALSE, 0 },
+      { "profile-12a", FALSE, 0 },
+      { "profile-1 2", FALSE, 0 },
+      { "profile--1", FALSE, 0 },
+      { "Default", FALSE, 0 },
+      { "", FALSE, 0 },
+      /* longer than any process id, so the digits cannot wrap onto a live run */
+      { "profile-99999999999", FALSE, 0 },
+      { NULL, FALSE, 0 }
+    };
+
+    for(int k=0 ; stale[k].name != NULL ; k++) {
+      unsigned long run = 0;
+      const BOOL got = browserLoginStaleProfile(stale[k].name, &run);
+
+      if (got != stale[k].ours || (got && run != stale[k].run)) {
+        snprintf(msg, sizeof(msg), "'%s' read as ours=%d run=%lu, expected ours=%d run=%lu",
+                 stale[k].name, (int) got, run, (int) stale[k].ours, stale[k].run);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* The name a real run makes has to be one the sweep recognises, or nothing is ever
+       cleaned up and no case above would notice. */
+    {
+      const CString dir = browserLoginProfileDir("C:\\local", 24680);
+      const int cut = dir.ReverseFind('\\');
+      unsigned long run = 0;
+
+      if (cut < 0 || !browserLoginStaleProfile(dir.Mid(cut + 1), &run) || run != 24680) {
+        *err = "the sweep does not recognise the folder a run actually makes";
         return 0;
       }
       nchecks++;

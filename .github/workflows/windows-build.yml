@@ -1345,7 +1345,7 @@ jobs:
             Write-Host "--- selftest stdout ---`n$so"
             throw 'WhttBrowserLogin.dll did not load beside the staged binaries'
           }
-          if ("$so" -notmatch 'browser login helpers ok on 27 checks') {
+          if ("$so" -notmatch 'browser login helpers ok on 38 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the browser-login path checks did not run every case'
           }

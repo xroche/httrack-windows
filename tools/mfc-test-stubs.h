@@ -64,6 +64,10 @@ public:
     const size_t i = s.find(p != NULL ? p : "");
     return (i == std::string::npos) ? -1 : (int) i;
   }
+  int ReverseFind(char c) const {
+    const size_t i = s.rfind(c);
+    return (i == std::string::npos) ? -1 : (int) i;
+  }
   CString Left(int n) const { return CString(s.substr(0, n).c_str()); }
   CString Mid(int n) const { return CString(s.substr(n).c_str()); }
   CString Mid(int n, int len) const { return CString(s.substr(n, len).c_str()); }

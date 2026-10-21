@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 27 checks"
+EXPECTED_LINE = "browser login helpers ok on 38 checks"
 
 
 def read(path):
@@ -141,6 +141,9 @@ def main():
     for name in (
         "browserLoginStartUrl",
         "browserLoginProfileDir",
+        "browserLoginProfileRoot",
+        "browserLoginStaleProfile",
+        "browserLoginSafeUrl",
         "browserLoginCookieFile",
     ):
         for other in others:
@@ -149,9 +152,28 @@ def main():
                     "%s is defined in %s as well as browser-login-paths.cpp"
                     % (name, os.path.basename(other))
                 )
-        if re.search(r"^CString %s\(" % name, read(unit), re.M) is None:
+        if re.search(r"^(CString|BOOL) %s\(" % name, read(unit), re.M) is None:
             sys.exit("browser-login-paths.cpp no longer defines %s()" % name)
         checked += 1
+
+    # A profile holds a signed-in session, so the only two things that ever remove one
+    # have to stay wired: the sweep at startup and the delete at exit.
+    main = read(os.path.join(ROOT, "WinHTTrack", "WinHTTrack.cpp"))
+    init = re.search(
+        r"^BOOL CWinHTTrackApp::InitInstance\(\)(.*?)^\}", main, re.M | re.S
+    )
+    exit_ = re.search(
+        r"^int CWinHTTrackApp::ExitInstance\(\)(.*?)^\}", main, re.M | re.S
+    )
+    if init is None or "browserLoginSweepProfiles()" not in init.group(1):
+        sys.exit(
+            "InitInstance() no longer sweeps abandoned browser profiles, so a crash "
+            "would leave a signed-in session on disk for ever"
+        )
+    checked += 1
+    if exit_ is None or "browserLoginForgetProfile(" not in exit_.group(1):
+        sys.exit("ExitInstance() no longer removes this run's browser profile")
+    checked += 1
 
     # 4. The button has to reach them, so the calls have to sit inside the handler the
     #    message map names, and the harvest has to be applied when the box is accepted.

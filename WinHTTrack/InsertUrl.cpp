@@ -283,9 +283,11 @@ void CInsertUrl::OnBrowserLogin()
   GetDlgItemText(IDC_urladr, typed);
 
   const CString home = browserLoginUserDir();
+  /* One profile per run of the program, so a second login in this session finds the
+     user still signed in, and nothing of it survives the program closing. */
   const WhttBrowserLoginResult result =
     browserLoginRun(m_hWnd, browserLoginStartUrl(typed),
-                    browserLoginProfileDir(dest_path, home), harvest);
+                    browserLoginProfileDir(home, GetCurrentProcessId()), harvest);
 
   if (result != WhttBrowserLoginDone) {
     said.Format(browserLoginText(LANG(LANG_BROWSERLOGINFAILED),
