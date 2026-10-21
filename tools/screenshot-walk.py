@@ -38,7 +38,7 @@ PROJECT = "Demo Project"
 NEEDED = ("IDC_lang", "IDC_SIGSTATUS", "IDC_STATIC_welcome", "IDC_projname", "IDC_projpath",
           "IDC_URL", "ID_setopt", "IDC_select_start", "IDC_inforun", "IDC_infoend", "IDC_i6",
           "IDC_connexion", "IDC_maxrate", "IDC_acceptopt", "IDC_accept_default",
-          "IDC_accept_embed")
+          "IDC_accept_embed", "IDC_login2", "IDC_urladr", "IDC_browserlogin")
 
 # The rows of the Accept headers box, in the order the .rc lays them out.
 ACCEPT_ROWS = ("default", "document", "iframe", "frame", "image", "style", "script",
@@ -368,6 +368,34 @@ def accept_box(sheet, pid, ids, shots, page):
     print(f"  the Accept headers box carries {len(ACCEPT_ROWS)} rows")
 
 
+def insert_url_box(main, pid, ids, shots):
+    """The Insert URL box the URL pane opens, where the browser-login button lives. It is
+    found by the address field rather than by its caption, because the caption translates."""
+    before = set(top_level_windows(pid))
+    # resource.h gives the progress pane's SKIP button the same 1099, and the wizard keeps
+    # every pane alive, so visibility is what tells the two apart.
+    click(find(main, control_id=ids["IDC_login2"], class_name="Button"))
+    box = wait(lambda: next((h for h in top_level_windows(pid) if h not in before
+                             and find(h, control_id=ids["IDC_urladr"]) is not None), None),
+               "the Insert URL box", 30)
+    login = find(box, control_id=ids["IDC_browserlogin"], class_name="Button")
+    if login is None:
+        raise RuntimeError("the Insert URL box has no browser-login button")
+    # It went into the gap above OK and Cancel, so hit-test it: a point that resolves to
+    # the box itself means the button hangs off the client area, and one that resolves to
+    # a sibling means something covers it.
+    left, top, right, bottom = win32gui.GetWindowRect(login)
+    middle = win32gui.ScreenToClient(box, ((left + right) // 2, (top + bottom) // 2))
+    hit = win32gui.ChildWindowFromPointEx(box, middle, CWP_SKIPINVISIBLE)
+    if hit != login:
+        raise RuntimeError(f"the browser-login button is covered by {hit:#x}")
+    state = "available" if win32gui.IsWindowEnabled(login) else "greyed, no WebView2 runtime"
+    print(f"  browser login: {win32gui.GetWindowText(login)!r}, {state}")
+    shots.take(box, "03b_insert_url")
+    click(find(box, control_id=IDCANCEL, class_name="Button"))
+    wait(lambda: box not in top_level_windows(pid), "the Insert URL box to close", 15)
+
+
 def options(main, pid, ids, shots, connections=8, rate=2_000_000):
     """The eleven option tabs, switched through the sheet rather than by clicking the tab
     control, so a two-row tab layout cannot put a tab under the mouse of another."""
@@ -449,6 +477,7 @@ def run(pid, ids, shots, url, base_path, language):
     pane(main, ids["IDC_URL"], "the URL pane")
     set_text(find(main, control_id=ids["IDC_URL"]), url)
     shots.take(main, "03_project_setup")
+    insert_url_box(main, pid, ids, shots)
 
     options(main, pid, ids, shots)
 
