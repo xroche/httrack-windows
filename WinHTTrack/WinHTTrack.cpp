@@ -847,6 +847,10 @@ BOOL CWinHTTrackApp::InitInstance()
            still increments. */
         { "LANG_J9", LANG(LANG_J9) },
         { "LANG_J13", LANG(LANG_J13) },
+        /* The catalogs join on the ENGLISH TEXT, so rewording this one in lang.def
+           without rewording the key line in all 30 drops the tooltip everywhere, in
+           silence. The engine is rewording it, hence the pin. */
+        { "LANG_COOKIEFILETIP", LANG(LANG_COOKIEFILETIP) },
         { NULL, NULL }
       };
       int nchecks = 0;

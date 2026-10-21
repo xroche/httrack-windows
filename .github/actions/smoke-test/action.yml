@@ -348,7 +348,7 @@ runs:
         }
         # A key the engine's catalog drops shows the wrong label, not a failure. The last
         # two are the copies of "Start", so this is also where a lost increment shows.
-        if ("$so" -notmatch 'catalog keys ok on 4 checks') {
+        if ("$so" -notmatch 'catalog keys ok on 5 checks') {
           throw "selftest did not check the catalog keys"
         }
         # A malformed rule must not reach a running mirror, and the page is what stops it.
