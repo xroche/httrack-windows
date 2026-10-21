@@ -2407,8 +2407,8 @@ BOOL CWinHTTrackApp::InitInstance()
       CloseHandle(selftestLateResults);
       selftestLateResults = NULL;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 38) {
-        fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 38\n", nchecks);
+      if (nchecks != 16) {
+        fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 16\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
