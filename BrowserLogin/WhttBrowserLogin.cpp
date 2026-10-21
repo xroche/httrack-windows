@@ -87,6 +87,9 @@ int __cdecl WhttBrowserLoginAvailable(char *version, size_t version_size) {
 /* The browser window                                            */
 /* ------------------------------------------------------------ */
 
+/* Asks the window to tear itself down from the message loop. See requestFinish(). */
+#define WHTT_WM_FINISH  (WM_APP + 1)
+
 #define WHTT_ID_ADDRESS 100
 #define WHTT_ID_GO      101
 #define WHTT_ID_DONE    102
@@ -201,17 +204,38 @@ static bool ourControl(const LoginWindow *s, HWND window) {
   return window == s->address || window == s->go || window == s->done;
 }
 
-/* Puts the owner back before the frame dies, so Windows activates it rather than
-   whatever application happens to be behind us. */
+/* Closes the browser and the window, in that order, and puts the owner back first so
+   Windows activates it rather than whatever application sits behind us.
+
+   ONLY the message loop may call this, never a browser callback: see requestFinish(). */
 static void finishWindow(LoginWindow *s) {
+  /* Before the window that hosts it, which is the order Microsoft's own Win32 sample
+     uses. Closing it from inside DestroyWindow tears down its child windows while
+     Windows is already destroying their parent. */
+  if (s->controller) {
+    s->controller->Close();
+    s->controller.Reset();
+    s->webview.Reset();
+  }
   if (s->disabledParent != NULL) {
     EnableWindow(s->disabledParent, TRUE);
     s->disabledParent = NULL;
   }
-  /* The frame is gone when a second close gave up on a harvest and its answer then
-     arrived anyway. */
   if (s->frame != NULL)
     DestroyWindow(s->frame);
+  else
+    s->finished = true;   /* nothing left to end the loop, so end it here */
+}
+
+/* Asks for the teardown rather than doing it, for a caller that is a browser callback.
+   The browser resumes its own dispatch after such a callback returns, so closing it from
+   inside one leaves it running on an object we already destroyed. That crashed a real
+   build: the window shut, and the fault came afterwards, inside the browser's code. */
+static void requestFinish(LoginWindow *s) {
+  if (s->frame != NULL)
+    PostMessageW(s->frame, WHTT_WM_FINISH, 0, 0);
+  else
+    s->finished = true;
 }
 
 static void collectCookies(LoginWindow *s, ICoreWebView2CookieList *list) {
@@ -270,7 +294,7 @@ static void beginHarvest(const std::shared_ptr<LoginWindow> &s) {
           s->answered = true;
           collectCookies(s.get(), list);
         }
-        finishWindow(s.get());
+        requestFinish(s.get());
         return S_OK;
       }).Get());
 
@@ -301,6 +325,10 @@ static LRESULT CALLBACK loginWindowProc(HWND window, UINT message, WPARAM wparam
     SetWindowLongPtrW(window, GWLP_USERDATA,
                       (LONG_PTR) ((CREATESTRUCTW *) lparam)->lpCreateParams);
     break;
+  case WHTT_WM_FINISH:
+    if (s != NULL)
+      finishWindow(s);
+    return 0;
   case WM_SIZE:
     if (s != NULL)
       layoutWindow(s);
@@ -339,16 +367,10 @@ static LRESULT CALLBACK loginWindowProc(HWND window, UINT message, WPARAM wparam
     }
     break;
   case WM_DESTROY:
-    if (s != NULL) {
-      /* Cleared before Close(), not at WM_NCDESTROY: should Close() pump, the cookie
-         answer it delivers must not call DestroyWindow on the window we are in. */
+    /* No browser work here. finishWindow() has already closed it, which is what keeps
+       the close out of the middle of DestroyWindow. */
+    if (s != NULL)
       s->frame = NULL;
-      if (s->controller) {
-        s->controller->Close();
-        s->controller.Reset();
-        s->webview.Reset();
-      }
-    }
     return 0;
   case WM_NCDESTROY:
     if (s != NULL)
@@ -420,7 +442,7 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
           return S_OK;
         if (FAILED(made) || environment == NULL) {
           s->result = WhttBrowserLoginNoBrowser;
-          finishWindow(s);
+          requestFinish(s);
           return S_OK;
         }
         const HRESULT hr = environment->CreateCoreWebView2Controller(s->frame,
@@ -438,7 +460,7 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
               if (FAILED(ready) || controller == NULL
                   || FAILED(controller->get_CoreWebView2(&win->webview)) || !win->webview) {
                 win->result = WhttBrowserLoginNoBrowser;
-                finishWindow(win);
+                requestFinish(win);
                 return S_OK;
               }
               win->controller = controller;
@@ -492,7 +514,7 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                     if (state->frame == NULL)
                       return S_OK;
                     state->gaveUp = true;
-                    finishWindow(state.get());
+                    requestFinish(state.get());
                     return S_OK;
                   }).Get(), &token);
               win->webview->add_SourceChanged(Callback<ICoreWebView2SourceChangedEventHandler>(
@@ -529,7 +551,7 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
 
         if (FAILED(hr)) {
           s->result = WhttBrowserLoginNoBrowser;
-          finishWindow(s);
+          requestFinish(s);
         }
         return S_OK;
       }).Get());
