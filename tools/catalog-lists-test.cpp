@@ -19,6 +19,14 @@
 #define CATALOG_LINE_MAX 8000
 #define CATALOG_FLAGS (HTS_LINE_DROP_TAB | HTS_LINE_DROP_FF | HTS_LINE_DROP_NUL)
 
+/* htslines.c calls fconv() on the paths that open a file by name, and this harness takes
+   none of them: it opens the catalogs itself. The real one is in the engine's htsconcat.c,
+   which reaches htscore.h and the coucal submodule CI does not check out. */
+extern "C" char *fconv(char *catbuff, size_t size, const char *a) {
+  snprintf(catbuff, size, "%s", a);
+  return catbuff;
+}
+
 typedef std::map<std::string, std::string> Catalog;
 
 /* LANGINTKEY() and LANGSEL() both answer "" for a key they do not hold. */
