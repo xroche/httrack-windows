@@ -86,6 +86,11 @@ const char *browserLoginRunWhy(WhttBrowserLoginResult result);
    crawl would give it. Empty when URLS holds no address. */
 CString browserLoginStartUrl(const CString &urls);
 
+/* What of a landed address may be kept. The browser can finish holding a secret in the
+   URL, and the address box is saved into the project's winprofile.ini in clear. Returns
+   empty when the address must not be kept at all. */
+CString browserLoginSafeUrl(const CString &landed);
+
 /* The folder the browser keeps its profile in. The project's own when PROJECTPATH names
    one, so one project's jar never fills up with another's cookies, and LOCALAPPDATA when
    there is no project yet. Empty when neither is given. */

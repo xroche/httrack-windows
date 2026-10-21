@@ -830,8 +830,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 16) {
-        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 16\n", nchecks);
+      if (nchecks != 27) {
+        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 27\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
@@ -2403,8 +2403,8 @@ BOOL CWinHTTrackApp::InitInstance()
       CloseHandle(selftestLateResults);
       selftestLateResults = NULL;
       /* Pinned where the count is produced: a truncated list runs nothing and still prints. */
-      if (nchecks != 16) {
-        fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 16\n", nchecks);
+      if (nchecks != 27) {
+        fprintf(stderr, "FATAL: engine results wait ran %d checks, expected 27\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

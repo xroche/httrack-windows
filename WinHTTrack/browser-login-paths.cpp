@@ -41,6 +41,7 @@ Please visit our Website: http://www.httrack.com
    header and every Windows type that comes with it. */
 void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
+CString browserLoginSafeUrl(const CString &landed);
 CString browserLoginProfileDir(const CString &projectPath, const CString &localAppData);
 CString browserLoginCookieFile(const CString &projectPath, const CString &localAppData);
 int browserLoginCheckCases(CString *err);
@@ -70,6 +71,35 @@ CString browserLoginStartUrl(const CString &urls) {
     return one;
   }
   return CString();
+}
+
+// see browser-login.h
+CString browserLoginSafeUrl(const CString &landed) {
+  const int scheme = landed.Find("://");
+
+  if (scheme < 0)
+    return CString();
+  /* Only what the crawler can fetch. A browser can end up on about: or edge:, and
+     WebView2 hands back a normalised address, so the scheme is already lower case. */
+  if (landed.Left(scheme) != "http" && landed.Left(scheme) != "https")
+    return CString();
+
+  CString kept = landed;
+  const int hash = kept.Find('#');
+
+  /* A fragment never goes on the wire, so dropping it costs the crawl nothing. It is
+     also where a sign-in hands an access token back. */
+  if (hash >= 0)
+    kept = kept.Left(hash);
+
+  const CString rest = kept.Mid(scheme + 3);
+  const int slash = rest.Find('/');
+
+  /* Refused whole rather than stripped, because the engine would authenticate with it,
+     and the box above this one has its own fields for a login. */
+  if ((slash < 0 ? rest : rest.Left(slash)).Find('@') >= 0)
+    return CString();
+  return kept;
 }
 
 // see browser-login.h
@@ -141,6 +171,39 @@ int browserLoginCheckCases(CString *err) {
       if (got != homes[k].want) {
         snprintf(msg, sizeof(msg), "project '%s' keeps its login in '%s', expected '%s'",
                  homes[k].project, (LPCSTR) got, homes[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    static const struct { const char *landed, *want; } safe[] = {
+      { "https://example.com/members/", "https://example.com/members/" },
+      /* a fragment is never sent, and a sign-in returns its token in one */
+      { "https://example.com/cb#access_token=secret", "https://example.com/cb" },
+      { "https://example.com/members/#", "https://example.com/members/" },
+      /* userinfo is a credential, and the engine would authenticate with it */
+      { "https://user:pass@example.com/", "" },
+      { "https://user@example.com/", "" },
+      /* an @ past the authority is an ordinary path byte */
+      { "https://example.com/a@b/c", "https://example.com/a@b/c" },
+      { "https://example.com/a@b/c#x", "https://example.com/a@b/c" },
+      /* nothing the crawler could fetch */
+      { "about:blank", "" },
+      { "edge://settings/profiles", "" },
+      { "", "" },
+      /* the query is kept: a crawl start legitimately carries one */
+      { "https://example.com/s?q=1", "https://example.com/s?q=1" },
+      { NULL, NULL }
+    };
+
+    for(int k=0 ; safe[k].landed != NULL ; k++) {
+      const CString got = browserLoginSafeUrl(safe[k].landed);
+
+      if (got != safe[k].want) {
+        snprintf(msg, sizeof(msg), "landing on '%s' keeps '%s', expected '%s'",
+                 safe[k].landed, (LPCSTR) got, safe[k].want);
         *err = msg;
         return 0;
       }

@@ -304,9 +304,12 @@ void CInsertUrl::OnBrowserLogin()
   haveHarvest = TRUE;
   /* The address the user navigated to is the one they want crawled, and leaving the
      field empty is what made the first version of this unusable: the wizard had no URL
-     to go on. It stays editable, so an unwanted query string can still be trimmed. */
-  if (!harvest.finalUrl.IsEmpty())
-    SetDlgItemTextCP(this, IDC_urladr, harvest.finalUrl);
+     to go on. It stays editable, so an unwanted query string can still be trimmed.
+     Sanitised first, because this field is saved into winprofile.ini in clear. */
+  const CString landed = browserLoginSafeUrl(harvest.finalUrl);
+
+  if (!landed.IsEmpty())
+    SetDlgItemTextCP(this, IDC_urladr, landed);
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are used when you "
                                "press OK."),

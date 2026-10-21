@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 16 checks"
+EXPECTED_LINE = "browser login helpers ok on 27 checks"
 
 
 def read(path):
@@ -176,12 +176,14 @@ def main():
     # The address the user landed on has to reach the field, or the wizard has no URL
     # to go on and the login leads nowhere. That shipped once and Xavier hit it.
     if not re.search(
-        r"harvest\.finalUrl[\s\S]{0,200}?SetDlgItemTextCP\([^)]*IDC_urladr",
+        r"browserLoginSafeUrl\(harvest\.finalUrl\)"
+        r"[\s\S]{0,200}?SetDlgItemTextCP\([^)]*IDC_urladr",
         handler.group(1),
     ):
         sys.exit(
-            "OnBrowserLogin() no longer puts harvest.finalUrl in IDC_urladr, so a "
-            "login would leave the address box empty and Next disabled"
+            "OnBrowserLogin() no longer puts a sanitised harvest.finalUrl in "
+            "IDC_urladr, so a login either leaves the address box empty or writes a "
+            "token from the URL into winprofile.ini"
         )
     checked += 1
 
