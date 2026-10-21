@@ -161,7 +161,15 @@ WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
      so a longer agent would lose the mirror rather than the field. */
   char agent[HTS_CDLMAXSIZE];
   char ansi[HTS_CDLMAXSIZE];
+  /* The engine refuses a longer address anyway, and the field caps shorter still. */
+  char landed[HTS_URLMAXSIZE * 2];
   const CString wantUrl = utf8Of(url), wantProfile = utf8Of(profile);
+  /* The DLL reaches no catalog, so its window carries whatever we hand it, and an empty
+     field there means it falls back to its own English. */
+  const CString wantTitle = utf8Of(LANG(LANG_BROWSERLOGINTITLE));
+  const CString wantGo = utf8Of(LANG(LANG_BROWSERLOGINGO));
+  const CString wantDone = utf8Of(LANG(LANG_BROWSERLOGINDONE));
+  const CString wantClear = utf8Of(LANG(LANG_BROWSERLOGINCLEAR));
   WhttBrowserLoginRequest request;
 
   if (browserLoginLoad() != BrowserLoginReady)
@@ -172,11 +180,17 @@ WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
   request.parent = parent;
   request.url = wantUrl.IsEmpty() ? NULL : (LPCSTR) wantUrl;
   request.profile = wantProfile.IsEmpty() ? NULL : (LPCSTR) wantProfile;
-  request.title = "WinHTTrack - log in with a browser";
+  request.title = wantTitle.IsEmpty() ? "WinHTTrack - log in with a browser"
+                                     : (LPCSTR) wantTitle;
+  request.goText = wantGo.IsEmpty() ? NULL : (LPCSTR) wantGo;
+  request.doneText = wantDone.IsEmpty() ? NULL : (LPCSTR) wantDone;
+  request.clearText = wantClear.IsEmpty() ? NULL : (LPCSTR) wantClear;
   request.onCookie = takeCookie;
   request.onCookieCtx = &harvest;
   request.userAgent = agent;
   request.userAgentSize = sizeof(agent);
+  request.finalUrl = landed;
+  request.finalUrlSize = sizeof(landed);
 
   /* The DLL empties the buffer before it does anything else, so a run that stops early
      leaves no stale agent behind. */
@@ -185,6 +199,11 @@ WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
   if (result == WhttBrowserLoginDone) {
     CopyTextUTF8ToCP(ansi, sizeof(ansi), agent);
     harvest.userAgent = ansi;
+
+    char here[HTS_URLMAXSIZE * 2];
+
+    CopyTextUTF8ToCP(here, sizeof(here), landed);
+    harvest.finalUrl = here;
   }
   return result;
 }
@@ -208,6 +227,11 @@ const char *browserLoginRunWhy(WhttBrowserLoginResult result) {
     return "the browser stopped while the window was open";
   }
   return "the browser stopped for a reason this build has no name for";
+}
+
+// see browser-login.h
+const char *browserLoginText(const char *translated, const char *english) {
+  return translated != NULL && *translated != '\0' ? translated : english;
 }
 
 // see browser-login.h

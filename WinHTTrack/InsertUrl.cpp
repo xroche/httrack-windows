@@ -122,6 +122,8 @@ BOOL CInsertUrl::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_pass,LANG(LANG_T6));
     SetDlgItemTextCP(this, IDC_STATIC_capt,LANG(LANG_T7));
     SetDlgItemTextCP(this, ID_capt,LANG(LANG_T8));
+    /* Lang, not CP: an empty key keeps the English caption the .rc already carries. */
+    SetDlgItemTextLang(this, IDC_browserlogin,LANG(LANG_BROWSERLOGIN));
     SetDlgItemTextCP(this, IDOK,LANG(LANG_OK));
     SetDlgItemTextCP(this, IDCANCEL,LANG(LANG_CANCEL));
   }
@@ -176,9 +178,12 @@ const char* CInsertUrl::GetTip(int ID)
       if (browserLoginLoad() != BrowserLoginReady)
         return browserLoginWhy(browserLoginLoad());
       if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
-        return "No Microsoft Edge WebView2 runtime is installed on this computer";
-      return "Log in to the site in a browser, and crawl with the cookies and the "
-             "browser identity it was given";
+        return browserLoginText(LANG(LANG_BROWSERLOGINNORUNTIME),
+                                "No Microsoft Edge WebView2 runtime is installed on "
+                                "this computer");
+      return browserLoginText(LANG(LANG_BROWSERLOGINTIP),
+                              "Log in to the site in a browser, and crawl with the "
+                              "cookies and the browser identity it was given");
     case IDOK:           return LANG(LANG_TIPOK); break;      
     case IDCANCEL:       return LANG(LANG_TIPCANCEL); break;
     //case : return ""; break;
@@ -283,17 +288,28 @@ void CInsertUrl::OnBrowserLogin()
                     browserLoginProfileDir(dest_path, home), harvest);
 
   if (result != WhttBrowserLoginDone) {
-    said.Format("The browser did not open: %s.", browserLoginRunWhy(result));
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINFAILED),
+                                 "The browser did not open: %s."),
+                browserLoginRunWhy(result));
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
   if (harvest.cookies.GetSize() == 0) {
-    AfxMessageBox("The browser came back with no cookies, so nothing was kept.",
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
+                                   "The browser came back with no cookies, so nothing "
+                                   "was kept."),
                   MB_OK | MB_ICONINFORMATION);
     return;
   }
   haveHarvest = TRUE;
-  said.Format("%d cookies were collected. They are used when you press OK.",
+  /* The address the user navigated to is the one they want crawled, and leaving the
+     field empty is what made the first version of this unusable: the wizard had no URL
+     to go on. It stays editable, so an unwanted query string can still be trimmed. */
+  if (!harvest.finalUrl.IsEmpty())
+    SetDlgItemTextCP(this, IDC_urladr, harvest.finalUrl);
+  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
+                               "%d cookies were collected. They are used when you "
+                               "press OK."),
               harvest.cookies.GetSize());
   AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }

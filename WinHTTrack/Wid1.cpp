@@ -818,11 +818,15 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
     return;
   switch(browserLoginSaveCookies(harvest, file, stats)) {
   case CookieSaveNothingToWrite:
-    AfxMessageBox("The browser gave no cookies the engine can use, so nothing was "
-                  "changed.", MB_OK | MB_ICONWARNING);
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINUNUSABLE),
+                                   "The browser gave no cookies the engine can use, so "
+                                   "nothing was changed."),
+                  MB_OK | MB_ICONWARNING);
     return;
   case CookieSaveNoFile:
-    said.Format("The cookies could not be written to %s, so nothing was changed.",
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
+                                 "The cookies could not be written to %s, so nothing "
+                                 "was changed."),
                 (LPCSTR) file);
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
@@ -836,15 +840,19 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
   const int dropped = harvest.cookies.GetSize() - stats.written;
 
   if (dropped > 0) {
-    said.Format("%d of the browser's cookies were left out, because the engine would "
-                "not read them.", dropped);
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
+                                 "%d of the browser's cookies were left out, because "
+                                 "the engine would not read them."),
+                dropped);
     AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
   }
   /* A value the shell would refuse never reaches argv, and the mirror would then go out
      under the engine's own identity rather than the one that logged in. */
   if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
-    AfxMessageBox("The browser identity it reported cannot be used, so the mirror will "
-                  "send the default one.", MB_OK | MB_ICONWARNING);
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINBADAGENT),
+                                   "The browser identity it reported cannot be used, "
+                                   "so the mirror will send the default one."),
+                  MB_OK | MB_ICONWARNING);
 }
 
 void Wid1::Onlogin2() 

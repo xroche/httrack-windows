@@ -93,6 +93,7 @@ int __cdecl WhttBrowserLoginAvailable(char *version, size_t version_size) {
 #define WHTT_ID_ADDRESS 100
 #define WHTT_ID_GO      101
 #define WHTT_ID_DONE    102
+#define WHTT_ID_CLEAR   103
 
 static const wchar_t WHTT_WINDOW_CLASS[] = L"WhttBrowserLoginWindow";
 
@@ -113,7 +114,7 @@ struct HarvestedCookie {
    closed the window and would otherwise write into a stack frame that is gone. */
 struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   const WhttBrowserLoginRequest *request = NULL;
-  HWND frame = NULL, address = NULL, go = NULL, done = NULL;
+  HWND frame = NULL, address = NULL, go = NULL, done = NULL, clear = NULL;
   HWND disabledParent = NULL;   /* the owner we greyed out, put back before the frame dies */
   HFONT font = NULL;
   int dpi = 96;
@@ -126,6 +127,7 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   bool finished = false;
   int result = WhttBrowserLoginDone;
   std::string userAgent;
+  std::string finalUrl;
   std::vector<HarvestedCookie> cookies;
 };
 
@@ -168,6 +170,14 @@ static std::string takeString(LPWSTR owned) {
   return out;
 }
 
+/* The caller's caption, or ours when it gave none. Call .c_str() on it at the call site:
+   the temporary outlives the CreateWindowExW() that copies the text. */
+static std::wstring caption(const char *utf8, const wchar_t *fallback) {
+  const std::wstring given = wideOf(utf8);
+
+  return given.empty() ? std::wstring(fallback) : given;
+}
+
 static int scaled(const LoginWindow *s, int px) {
   return MulDiv(px, s->dpi, 96);
 }
@@ -183,12 +193,14 @@ static void layoutWindow(LoginWindow *s) {
   const int button = scaled(s, 72);
   const int width = rc.right - rc.left;
   const int doneX = width - pad - button;
-  const int goX = doneX - pad - button;
+  const int clearX = doneX - pad - button;
+  const int goX = clearX - pad - button;
   const int editW = goX - pad - pad;
 
   if (editW > 0)
     MoveWindow(s->address, pad, pad, editW, row, TRUE);
   MoveWindow(s->go, goX, pad, button, row, TRUE);
+  MoveWindow(s->clear, clearX, pad, button, row, TRUE);
   MoveWindow(s->done, doneX, pad, button, row, TRUE);
 
   if (s->controller) {
@@ -202,7 +214,21 @@ static void layoutWindow(LoginWindow *s) {
 }
 
 static bool ourControl(const LoginWindow *s, HWND window) {
-  return window == s->address || window == s->go || window == s->done;
+  return window == s->address || window == s->go || window == s->clear
+         || window == s->done;
+}
+
+/* Forgets every cookie the profile holds, which is how the user logs out or logs in as
+   somebody else. The profile keeps everything else, so the next login is still quick. */
+static void clearLogin(LoginWindow *s) {
+  ComPtr<ICoreWebView2_2> webview2;
+  ComPtr<ICoreWebView2CookieManager> jar;
+
+  if (s->harvesting || !s->webview || FAILED(s->webview.As(&webview2))
+      || FAILED(webview2->get_CookieManager(&jar)) || !jar)
+    return;
+  jar->DeleteAllCookies();
+  s->webview->Reload();
 }
 
 /* Closes the browser and the window, in that order, and puts the owner back first so
@@ -285,12 +311,20 @@ static void beginHarvest(const std::shared_ptr<LoginWindow> &s) {
   /* Nothing more to ask of the window while the browser answers. */
   EnableWindow(s->address, FALSE);
   EnableWindow(s->go, FALSE);
+  EnableWindow(s->clear, FALSE);
   EnableWindow(s->done, FALSE);
   if (!s->webview || FAILED(s->webview.As(&webview2))
       || FAILED(webview2->get_CookieManager(&jar)) || !jar) {
     finishWindow(s.get());
     return;
   }
+  /* Read before the cookies, while the browser is certainly still up. Where the user
+     navigated to is what the caller crawls. */
+  LPWSTR here = NULL;
+
+  if (SUCCEEDED(s->webview->get_Source(&here)))
+    s->finalUrl = takeString(here);
+
   /* No URI, so this takes the whole profile and not one site. BrowserLoginHarvest in
      WinHTTrack/browser-login.h says why. */
   const HRESULT hr = jar->GetCookies(NULL,
@@ -352,6 +386,10 @@ static LRESULT CALLBACK loginWindowProc(HWND window, UINT message, WPARAM wparam
       }
       if (LOWORD(wparam) == WHTT_ID_GO) {
         navigateFromAddress(s);
+        return 0;
+      }
+      if (LOWORD(wparam) == WHTT_ID_CLEAR) {
+        clearLogin(s);
         return 0;
       }
     }
@@ -570,6 +608,8 @@ static void reportHarvest(LoginWindow *s) {
 
   if (request->userAgent != NULL && request->userAgentSize != 0)
     strncpy_s(request->userAgent, request->userAgentSize, s->userAgent.c_str(), _TRUNCATE);
+  if (request->finalUrl != NULL && request->finalUrlSize != 0)
+    strncpy_s(request->finalUrl, request->finalUrlSize, s->finalUrl.c_str(), _TRUNCATE);
   if (request->onCookie == NULL)
     return;
 
@@ -639,8 +679,13 @@ static int runLoginWindow(const std::shared_ptr<LoginWindow> &state) {
   }
   s->address = makeChild(s, L"EDIT", wideOf(s->request->url).c_str(),
                          WS_BORDER | ES_AUTOHSCROLL, WHTT_ID_ADDRESS);
-  s->go = makeChild(s, L"BUTTON", L"Go", BS_PUSHBUTTON, WHTT_ID_GO);
-  s->done = makeChild(s, L"BUTTON", L"Done", BS_PUSHBUTTON, WHTT_ID_DONE);
+  s->go = makeChild(s, L"BUTTON", caption(s->request->goText, L"Go").c_str(),
+                    BS_PUSHBUTTON, WHTT_ID_GO);
+  s->clear = makeChild(s, L"BUTTON",
+                       caption(s->request->clearText, L"Clear login").c_str(),
+                       BS_PUSHBUTTON, WHTT_ID_CLEAR);
+  s->done = makeChild(s, L"BUTTON", caption(s->request->doneText, L"Done").c_str(),
+                      BS_PUSHBUTTON, WHTT_ID_DONE);
   layoutWindow(s);
 
   /* Modal by hand, because the owner's own message loop is the one we are standing in. */
@@ -709,6 +754,8 @@ int __cdecl WhttBrowserLoginRun(const WhttBrowserLoginRequest *request) {
     return WhttBrowserLoginBadRequest;
   if (request->userAgent != NULL && request->userAgentSize != 0)
     request->userAgent[0] = '\0';
+  if (request->finalUrl != NULL && request->finalUrlSize != 0)
+    request->finalUrl[0] = '\0';
   if (!WhttBrowserLoginAvailable(NULL, 0))
     return WhttBrowserLoginNoRuntime;
 

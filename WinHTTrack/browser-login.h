@@ -68,6 +68,9 @@ BOOL browserLoginRuntime(char *version, size_t version_size);
 struct BrowserLoginHarvest {
   CSimpleArray<CookieRecord> cookies;
   CString userAgent;
+  /* Where the user ended up. This is the address to crawl, because navigating to it by
+     hand is what the browser was opened for. */
+  CString finalUrl;
 };
 
 /* Opens the browser on URL with PARENT greyed out under it, and fills HARVEST once the
@@ -108,6 +111,11 @@ enum CookieSaveResult {
    fills STATS with what went in and what was dropped. */
 CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
                                          const CString &path, CookieFileStats &stats);
+
+/* TRANSLATED, or ENGLISH when the catalog does not carry the key. LANGSEL() answers an
+   empty string for a key it does not know, and an empty message box tells nobody
+   anything, so every call site that cannot keep its own text goes through this. */
+const char *browserLoginText(const char *translated, const char *english);
 
 /* Shared with --selftest. Returns the number of checks run, or zero with ERR set. */
 int browserLoginCheckCases(CString *err);

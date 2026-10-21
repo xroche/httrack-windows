@@ -173,6 +173,17 @@ def main():
                 % name
             )
         checked += 1
+    # The address the user landed on has to reach the field, or the wizard has no URL
+    # to go on and the login leads nowhere. That shipped once and Xavier hit it.
+    if not re.search(
+        r"harvest\.finalUrl[\s\S]{0,200}?SetDlgItemTextCP\([^)]*IDC_urladr",
+        handler.group(1),
+    ):
+        sys.exit(
+            "OnBrowserLogin() no longer puts harvest.finalUrl in IDC_urladr, so a "
+            "login would leave the address box empty and Next disabled"
+        )
+    checked += 1
 
     # The harvest is deliberately not written until the box is accepted, so the apply
     # has to be on the OK path. Without this the login would silently do nothing.

@@ -42,7 +42,7 @@ Please visit our Website: http://www.httrack.com
    loader that does it is WinHTTrack/browser-login.cpp. */
 
 /* Bump on any change below, because the GUI refuses a DLL answering another number. */
-#define WHTT_BROWSER_LOGIN_ABI 2
+#define WHTT_BROWSER_LOGIN_ABI 3
 
 /* Fits any version WhttBrowserLoginAvailable() reports, with room to spare. */
 #define WHTT_BROWSER_LOGIN_VERSION_MAX 64
@@ -81,10 +81,19 @@ typedef struct WhttBrowserLoginRequest {
   const char *url;      /* UTF-8 page to open first, or NULL for a blank one */
   const char *profile;  /* UTF-8 folder the browser keeps its profile in, or NULL */
   const char *title;    /* UTF-8 window caption, or NULL for the DLL's own */
+  /* UTF-8 captions for the three buttons, each NULL for the DLL's own English. The
+     DLL reaches no language catalog, so the caller is what translates them. */
+  const char *goText;
+  const char *doneText;
+  const char *clearText;
   WhttBrowserLoginCookieFn onCookie;  /* may be NULL, which harvests nothing */
   void *onCookieCtx;
   char *userAgent;      /* takes the browser's own User-Agent, UTF-8, may be NULL */
   size_t userAgentSize;
+  /* Takes the address the user ended up on, UTF-8, may be NULL. This is what the caller
+     crawls: the user navigated here by hand, which is the point of opening a browser. */
+  char *finalUrl;
+  size_t finalUrlSize;
 } WhttBrowserLoginRequest;
 
 /* What WhttBrowserLoginRun() answers. Everything but WhttBrowserLoginDone means the user
