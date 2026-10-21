@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 38 checks"
+EXPECTED_LINE = "browser login helpers ok on 55 checks"
 
 
 def read(path):
@@ -101,6 +101,16 @@ def main():
 
     # 2. Every count has to agree, or one of them stops being a pin.
     want = re.search(r"browser login helpers ran %d checks, expected (\d+)", selftest)
+    # The comparison as well as the message, because only the comparison stops the run
+    # and the two drifted apart once.
+    guard = re.search(r"if \(nchecks != (\d+)\) \{\n\s*fprintf\(stderr,\n?\s*"
+                      r'"FATAL: browser login helpers ran', selftest)
+    if guard is None or (want is not None and guard.group(1) != want.group(1)):
+        sys.exit(
+            "the --selftest count it compares against and the count it reports differ, "
+            "so the message can read right while the guard lets a lost case through"
+        )
+    checked += 1
     mine = re.search(
         r"define BL_EXPECTED_CHECKS (\d+)",
         read(os.path.join(ROOT, "tools", "browser-login-paths-test.cpp")),
@@ -144,6 +154,7 @@ def main():
         "browserLoginProfileRoot",
         "browserLoginStaleProfile",
         "browserLoginSafeUrl",
+        "browserLoginMovedHost",
         "browserLoginCookieFile",
     ):
         for other in others:
@@ -188,7 +199,12 @@ def main():
     if handler is None:
         sys.exit("InsertUrl.cpp no longer defines OnBrowserLogin()")
     checked += 1
-    for name in ("browserLoginStartUrl", "browserLoginProfileDir", "browserLoginRun"):
+    for name in (
+        "browserLoginStartUrl",
+        "browserLoginProfileDir",
+        "browserLoginRun",
+        "browserLoginMovedHost",
+    ):
         if name + "(" not in handler.group(1):
             sys.exit(
                 "OnBrowserLogin() no longer calls %s(), so the button bypasses it"
@@ -198,14 +214,26 @@ def main():
     # The address the user landed on has to reach the field, or the wizard has no URL
     # to go on and the login leads nowhere. That shipped once and Xavier hit it.
     if not re.search(
-        r"browserLoginSafeUrl\(harvest\.finalUrl\)"
-        r"[\s\S]{0,200}?SetDlgItemTextCP\([^)]*IDC_urladr",
-        handler.group(1),
+        r"CString landed = browserLoginSafeUrl\(harvest\.finalUrl\)", handler.group(1)
+    ) or not re.search(
+        r"SetDlgItemTextCP\([^)]*IDC_urladr, landed\)", handler.group(1)
     ):
         sys.exit(
             "OnBrowserLogin() no longer puts a sanitised harvest.finalUrl in "
             "IDC_urladr, so a login either leaves the address box empty or writes a "
             "token from the URL into winprofile.ini"
+        )
+    checked += 1
+
+    # Reading the verdict is not telling the user: the warning has to be what the test
+    # guards, or a login that wandered off would fill the box in silence.
+    if not re.search(
+        r"if \(browserLoginMovedHost\([\s\S]{0,400}?AfxMessageBox\(",
+        handler.group(1),
+    ):
+        sys.exit(
+            "OnBrowserLogin() asks browserLoginMovedHost() without putting a box up, "
+            "so a landed address on another host reaches winprofile.ini unannounced"
         )
     checked += 1
 

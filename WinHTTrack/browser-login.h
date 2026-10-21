@@ -91,6 +91,11 @@ CString browserLoginStartUrl(const CString &urls);
    empty when the address must not be kept at all. */
 CString browserLoginSafeUrl(const CString &landed);
 
+/* Did the browser end up on another host than the one the login started from? A
+   leading "www." is not a difference. FALSE when either address carries no host, because
+   an empty address box asked for no particular site. */
+BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
+
 /* The folder one run's browser keeps its profile in. It holds a live signed-in session,
    so it lives outside any project, under LOCALAPPDATA, and is deleted when the program
    closes. RUN is the process id, which is what lets a sweep tell an abandoned profile

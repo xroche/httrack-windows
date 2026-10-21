@@ -310,6 +310,14 @@ void CInsertUrl::OnBrowserLogin()
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(harvest.finalUrl);
 
+  /* Warned, not refused: an empty box leaves the wizard with no URL at all. */
+  if (browserLoginMovedHost(browserLoginStartUrl(typed), landed)) {
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINMOVED),
+                                 "The browser finished on %s, not on the site you "
+                                 "started from. Check the address before you go on."),
+                (LPCSTR) landed);
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+  }
   if (!landed.IsEmpty())
     SetDlgItemTextCP(this, IDC_urladr, landed);
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),

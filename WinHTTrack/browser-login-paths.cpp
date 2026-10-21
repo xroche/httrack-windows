@@ -42,6 +42,7 @@ Please visit our Website: http://www.httrack.com
 void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
+BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
 BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
@@ -102,6 +103,67 @@ CString browserLoginSafeUrl(const CString &landed) {
   if ((slash < 0 ? rest : rest.Left(slash)).Find('@') >= 0)
     return CString();
   return kept;
+}
+
+/* The host of URL, lowercase, with no userinfo, no port, no trailing dot and no leading
+   "www.". Empty when URL carries no host. Lowercased by hand because MakeLower() folds
+   the wrong letters under a Turkish locale. */
+static CString comparableHost(const CString &url) {
+  const int scheme = url.Find("://");
+
+  if (scheme < 0)
+    return CString();
+
+  CString host = url.Mid(scheme + 3);
+  int end = host.GetLength();
+
+  for(int i = 0 ; i < host.GetLength() ; i++) {
+    const char c = host[i];
+
+    if (c == '/' || c == '?' || c == '#') {
+      end = i;
+      break;
+    }
+  }
+  host = host.Left(end);
+  /* The LAST one, because that is the host the crawl would really fetch. */
+  const int at = host.ReverseFind('@');
+
+  if (at >= 0)
+    host = host.Mid(at + 1);
+  if (host.Left(1) == "[") {
+    const int close = host.Find(']');
+
+    host = (close < 0) ? CString() : host.Left(close + 1);
+  } else {
+    const int colon = host.Find(':');
+
+    if (colon >= 0)
+      host = host.Left(colon);
+  }
+
+  CString plain;
+
+  for(int i = 0 ; i < host.GetLength() ; i++) {
+    const char c = host[i];
+
+    plain += (char) ((c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : c);
+  }
+  while (plain.GetLength() > 0 && plain[plain.GetLength() - 1] == '.')
+    plain = plain.Left(plain.GetLength() - 1);
+  if (plain.Left(4) == "www.")
+    plain = plain.Mid(4);
+  return plain;
+}
+
+// see browser-login.h
+BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
+  const CString start = comparableHost(startUrl);
+  const CString landed = comparableHost(landedUrl);
+
+  if (start.IsEmpty() || landed.IsEmpty())
+    return FALSE;
+  return start != landed;
 }
 
 /* What a profile folder is called. The sweep reads the run back out of it. */
@@ -287,6 +349,49 @@ int browserLoginCheckCases(CString *err) {
       if (got != safe[k].want) {
         snprintf(msg, sizeof(msg), "landing on '%s' keeps '%s', expected '%s'",
                  safe[k].landed, (LPCSTR) got, safe[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    /* A wrong FALSE is the costly one: it crawls a host the user never named. */
+    static const struct { const char *start, *landed; BOOL moved; } away[] = {
+      { "http://example.com", "https://example.com/members/", FALSE },
+      { "http://example.com/in", "https://idp.test/u/login", TRUE },
+      /* "www." is the same site, in both directions */
+      { "http://www.example.com", "https://example.com/", FALSE },
+      { "http://example.com", "https://www.example.com/", FALSE },
+      /* but a longer label starting with the same bytes is not */
+      { "http://example.com", "https://wwwexample.com/", TRUE },
+      /* another host of the same company still moves the crawl start */
+      { "http://example.com", "https://login.example.com/", TRUE },
+      /* the host is case-insensitive, and a root label may be written out */
+      { "http://EXAMPLE.com", "https://example.com/", FALSE },
+      { "http://example.com.", "https://example.com/", FALSE },
+      /* a port is not the host, and neither is a credential before it */
+      { "http://example.com:8080", "https://example.com/", FALSE },
+      { "http://me:pw@example.com", "https://example.com/", FALSE },
+      /* an @ in the authority names the real host, as the crawl would read it */
+      { "http://example.com@evil.test", "https://evil.test/", FALSE },
+      { "http://example.com", "https://example.com@evil.test/", TRUE },
+      /* an IPv6 literal keeps its colons rather than ending at the first one */
+      { "http://[::1]:8080", "http://[::1]/", FALSE },
+      { "http://[::1]", "http://[::2]/", TRUE },
+      /* nothing to compare is not a warning: an empty box asked for no site */
+      { "", "https://example.com/", FALSE },
+      { "http://example.com", "", FALSE },
+      { "http://example.com", "about:blank", FALSE },
+      { NULL, NULL, FALSE }
+    };
+
+    for(int k=0 ; away[k].start != NULL ; k++) {
+      const BOOL got = browserLoginMovedHost(away[k].start, away[k].landed);
+
+      if (got != away[k].moved) {
+        snprintf(msg, sizeof(msg), "'%s' landing on '%s' read as moved=%d, expected %d",
+                 away[k].start, away[k].landed, (int) got, (int) away[k].moved);
         *err = msg;
         return 0;
       }
