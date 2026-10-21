@@ -31,14 +31,7 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "OptionTab8.h"
 #include "DarkMode.h"
-#include "MainTab.h"
-#include "NewProj.h"
-#include "Wid1.h"
 #include "browser-login.h"
-
-extern CNewProj* dialog0;
-extern Wid1* dialog1;
-extern CMainTab* maintab;
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -116,7 +109,6 @@ void COptionTab8::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(COptionTab8, CPropertyPage)
 	//{{AFX_MSG_MAP(COptionTab8)
 	ON_BN_CLICKED(IDC_cookiesfilebrowse, OnCookiesFileBrowse)
-	ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)
 	ON_WM_SIZE()
 	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
@@ -136,69 +128,12 @@ void COptionTab8::OnCookiesFileBrowse()
     SetDlgItemTextCP(this, IDC_cookiesfile, dial.GetPathName());
 }
 
-/* Opens a browser, lets the user log in there, and keeps the two things the site then
-   answers to: the cookies, as the file the engine preloads, and the browser's own
-   User-Agent. */
-void COptionTab8::OnBrowserLogin()
+// see OptionTab8.h
+void COptionTab8::SetCookiesFile(const CString &path)
 {
-  const CString home = browserLoginUserDir();
-  const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
-  const CString url = dialog1 != NULL ? browserLoginStartUrl(dialog1->m_urls) : CString();
-  const CString file = browserLoginCookieFile(project, home);
-  CWnd *const owner = GetParent() != NULL ? GetParent() : this;
-  const BrowserLoginState ready = browserLoginLoad();
-  BrowserLoginHarvest harvest;
-  CookieFileStats stats;
-  CString said;
-
-  /* The button is greyed out when this is the answer, so only a race gets here. */
-  if (ready != BrowserLoginReady) {
-    AfxMessageBox(browserLoginWhy(ready), MB_OK | MB_ICONWARNING);
-    return;
-  }
-
-  const WhttBrowserLoginResult result =
-    browserLoginRun(owner->m_hWnd, url, browserLoginProfileDir(project, home), harvest);
-
-  if (result != WhttBrowserLoginDone) {
-    said.Format("The browser did not open: %s.", browserLoginRunWhy(result));
-    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
-    return;
-  }
-  switch(browserLoginSaveCookies(harvest, file, stats)) {
-  case CookieSaveNothingToWrite:
-    AfxMessageBox("The browser gave no cookies the engine can use, so nothing was "
-                  "changed here.", MB_OK | MB_ICONINFORMATION);
-    return;
-  case CookieSaveNoFile:
-    said.Format("The cookies could not be written to %s, so nothing was changed here.",
-                (LPCSTR) file);
-    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
-    return;
-  case CookieSaveWritten:
-    break;
-  }
-  SetDlgItemTextCP(this, IDC_cookiesfile, file);
-  /* The browser identity lives on another page, which may not be built yet. */
-  if (!harvest.userAgent.IsEmpty() && maintab != NULL)
-    maintab->m_option6.SetBrowserIdentity(harvest.userAgent);
-
-  const int dropped = harvest.cookies.GetSize() - stats.written;
-
-  said.Format("%d cookies were saved to\n%s", stats.written, (LPCSTR) file);
-  if (dropped > 0) {
-    CString rest;
-
-    rest.Format("\n\n%d more were left out, because the engine would not read them.",
-                dropped);
-    said += rest;
-  }
-  /* A value the shell would refuse never reaches argv, and the mirror would then go out
-     under the engine's own identity rather than the one that logged in. */
-  if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
-    said += "\n\nThe browser identity it reported cannot be used, so the mirror will "
-            "send the default one.";
-  AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
+  m_cookiesfile = path;
+  if (m_hWnd != NULL)
+    SetDlgItemTextCP(this, IDC_cookiesfile, path);
 }
 
 void COptionTab8::OnGateClicked() 
@@ -243,7 +178,6 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_STATIC_sitemapurl)->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_hostalias)        ->ModifyStyle(0,WS_DISABLED);
     GetDlgItem(IDC_STATIC_hostalias) ->ModifyStyle(0,WS_DISABLED);
-    GetDlgItem(IDC_browserlogin)     ->ModifyStyle(0,WS_DISABLED);
   } else {
     GetDlgItem(IDC_cookies)          ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_checktype)        ->ModifyStyle(WS_DISABLED,0);
@@ -260,12 +194,6 @@ BOOL COptionTab8::OnInitDialog()
     GetDlgItem(IDC_STATIC_sitemapurl)->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_hostalias)        ->ModifyStyle(WS_DISABLED,0);
     GetDlgItem(IDC_STATIC_hostalias) ->ModifyStyle(WS_DISABLED,0);
-    /* Windows 7 has no WebView2, and neither has a machine where nobody installed one.
-       GetTip() says which, because a greyed button explains nothing by itself. */
-    if (browserLoginRuntime(NULL /* the version is not wanted here */, 0))
-      GetDlgItem(IDC_browserlogin)   ->ModifyStyle(WS_DISABLED,0);
-    else
-      GetDlgItem(IDC_browserlogin)   ->ModifyStyle(0,WS_DISABLED);
   }
 
   if (LANG_T(-1)) {    // Patcher en français
@@ -343,13 +271,6 @@ const char* COptionTab8::GetTip(int ID)
     case IDC_sitemap:   return LANG(LANG_SITEMAPTIP); break;
     case IDC_sitemapurl: return LANG(LANG_SITEMAPURLTIP); break;
     case IDC_hostalias: return LANG(LANG_HOSTALIASTIP); break;
-    case IDC_browserlogin:
-      if (browserLoginLoad() != BrowserLoginReady)
-        return browserLoginWhy(browserLoginLoad());
-      if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
-        return "No Microsoft Edge WebView2 runtime is installed on this computer";
-      return "Log in to the site in a browser, and use the cookies and the browser "
-             "identity it was given";
   }
   return "";
 }
@@ -365,7 +286,6 @@ void COptionTab8::BuildLayout()
   m_layout.AddId(this, IDC_robots, 0, 100);
   m_layout.AddId(this, IDC_cookiesfile, 0, 100);
   m_layout.AddId(this, IDC_cookiesfilebrowse, 100, 0);
-  m_layout.AddId(this, IDC_browserlogin, 100, 0);
   m_layout.AddId(this, IDC_sitemapurl, 0, 100);
   m_layout.AddId(this, IDC_hostalias, 0, 100);
 }

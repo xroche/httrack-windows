@@ -154,29 +154,46 @@ def main():
         checked += 1
 
     # 4. The button has to reach them, so the calls have to sit inside the handler the
-    #    message map names. Naming them anywhere in the file proves nothing.
-    tab8 = read(os.path.join(ROOT, "WinHTTrack", "OptionTab8.cpp"))
-    if "ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)" not in tab8:
+    #    message map names, and the harvest has to be applied when the box is accepted.
+    #    Naming a function anywhere in a file proves neither.
+    insert = read(os.path.join(ROOT, "WinHTTrack", "InsertUrl.cpp"))
+    if "ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)" not in insert:
         sys.exit("the Log in button no longer calls OnBrowserLogin()")
     checked += 1
     handler = re.search(
-        r"^void COptionTab8::OnBrowserLogin\(\)\n\{(.*?)^\}", tab8, re.M | re.S
+        r"^void CInsertUrl::OnBrowserLogin\(\)\n\{(.*?)^\}", insert, re.M | re.S
     )
     if handler is None:
-        sys.exit("OptionTab8.cpp no longer defines OnBrowserLogin()")
+        sys.exit("InsertUrl.cpp no longer defines OnBrowserLogin()")
     checked += 1
-    for name in (
-        "browserLoginStartUrl",
-        "browserLoginProfileDir",
-        "browserLoginCookieFile",
-        "browserLoginRun",
-    ):
+    for name in ("browserLoginStartUrl", "browserLoginProfileDir", "browserLoginRun"):
         if name + "(" not in handler.group(1):
             sys.exit(
                 "OnBrowserLogin() no longer calls %s(), so the button bypasses it"
                 % name
             )
         checked += 1
+
+    # The harvest is deliberately not written until the box is accepted, so the apply
+    # has to be on the OK path. Without this the login would silently do nothing.
+    wid1 = read(os.path.join(ROOT, "WinHTTrack", "Wid1.cpp"))
+    apply = re.search(
+        r"^static void applyBrowserLogin\(.*?\)\n\{(.*?)^\}", wid1, re.M | re.S
+    )
+    if apply is None:
+        sys.exit("Wid1.cpp no longer defines applyBrowserLogin()")
+    checked += 1
+    for name in ("browserLoginCookieFile", "browserLoginSaveCookies"):
+        if name + "(" not in apply.group(1):
+            sys.exit("applyBrowserLogin() no longer calls %s()" % name)
+        checked += 1
+    accepted = re.search(r"^void Wid1::Onlogin2\(\).*?^\}", wid1, re.M | re.S)
+    if accepted is None or "applyBrowserLogin(" not in accepted.group(0):
+        sys.exit(
+            "Onlogin2() no longer applies the harvest, so a browser login would be "
+            "collected and then dropped"
+        )
+    checked += 1
 
     print("%d source checks pass" % checked)
 

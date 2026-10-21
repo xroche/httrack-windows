@@ -45,6 +45,9 @@ class COptionTab8 : public CPropertyPage
 // Construction
 public:
   void SetLangTitle(void);
+  /* Points the cookies-file field at PATH. Safe before the page is built, which it is
+     until the user first opens this tab. */
+  void SetCookiesFile(const CString &path);
 	COptionTab8();
 	~COptionTab8();
   const char* GetTip(int id);
@@ -83,7 +86,6 @@ protected:
 	//{{AFX_MSG(COptionTab8)
 	virtual BOOL OnInitDialog();
 	afx_msg void OnCookiesFileBrowse();
-	afx_msg void OnBrowserLogin();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG

@@ -86,6 +86,7 @@ void CInsertUrl::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CInsertUrl, CDialog)
 	//{{AFX_MSG_MAP(CInsertUrl)
 	ON_BN_CLICKED(ID_capt, Oncapt)
+	ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)
 	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -101,6 +102,11 @@ BOOL CInsertUrl::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 	WhttDarkInitWindow(this);
+  haveHarvest = FALSE;
+  /* Windows 7 has no WebView2, and neither has a machine where nobody installed one.
+     GetTip() says which, because a greyed button explains nothing by itself. */
+  if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
+    GetDlgItem(IDC_browserlogin)->EnableWindow(FALSE);
   GetDlgItem(IDC_urladr)->SendMessage(EM_SETLIMITTEXT, 2000, 0);
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);
@@ -165,6 +171,13 @@ const char* CInsertUrl::GetTip(int ID)
     case IDC_urllogin:  return LANG(LANG_T12); break;
     case IDC_urlpass:   return LANG(LANG_T13); break;
     case ID_capt:       return LANG(LANG_T14); break;
+    case IDC_browserlogin:
+      if (browserLoginLoad() != BrowserLoginReady)
+        return browserLoginWhy(browserLoginLoad());
+      if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
+        return "No Microsoft Edge WebView2 runtime is installed on this computer";
+      return "Log in to the site in a browser, and crawl with the cookies and the "
+             "browser identity it was given";
     case IDOK:           return LANG(LANG_TIPOK); break;      
     case IDCANCEL:       return LANG(LANG_TIPCANCEL); break;
     //case : return ""; break;
@@ -241,6 +254,45 @@ UINT RunBackCatchServer( LPVOID pP ) {
   }
   //_this->dial.EndDialog(IDOK);
   return 0;
+}
+
+/* Opens a browser so the user can log in, and keeps what the site then answers to.
+   Nothing is written here, so a Cancel really cancels: Wid1 applies it on OK. */
+void CInsertUrl::OnBrowserLogin()
+{
+  const BrowserLoginState ready = browserLoginLoad();
+  CString typed, said;
+
+  if (ready != BrowserLoginReady) {
+    AfxMessageBox(browserLoginWhy(ready), MB_OK | MB_ICONWARNING);
+    return;
+  }
+  /* A second login replaces the first rather than adding to it. */
+  harvest.cookies.RemoveAll();
+  harvest.userAgent.Empty();
+  haveHarvest = FALSE;
+
+  GetDlgItemText(IDC_urladr, typed);
+
+  const CString home = browserLoginUserDir();
+  const WhttBrowserLoginResult result =
+    browserLoginRun(m_hWnd, browserLoginStartUrl(typed),
+                    browserLoginProfileDir(dest_path, home), harvest);
+
+  if (result != WhttBrowserLoginDone) {
+    said.Format("The browser did not open: %s.", browserLoginRunWhy(result));
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+    return;
+  }
+  if (harvest.cookies.GetSize() == 0) {
+    AfxMessageBox("The browser came back with no cookies, so nothing was kept.",
+                  MB_OK | MB_ICONINFORMATION);
+    return;
+  }
+  haveHarvest = TRUE;
+  said.Format("%d cookies were collected. They are used when you press OK.",
+              harvest.cookies.GetSize());
+  AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }
 
 void CInsertUrl::Oncapt() 
