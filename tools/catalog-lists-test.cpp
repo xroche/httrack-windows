@@ -19,6 +19,13 @@
 #define CATALOG_LINE_MAX 8000
 #define CATALOG_FLAGS (HTS_LINE_DROP_TAB | HTS_LINE_DROP_FF | HTS_LINE_DROP_NUL)
 
+/* Here for the linker alone, because this harness opens the catalogs itself and reaches
+   no path that calls fconv(). The engine's own one needs the coucal submodule CI skips. */
+extern "C" char *fconv(char *catbuff, size_t size, const char *a) {
+  snprintf(catbuff, size, "%s", a);
+  return catbuff;
+}
+
 typedef std::map<std::string, std::string> Catalog;
 
 /* LANGINTKEY() and LANGSEL() both answer "" for a key they do not hold. */
