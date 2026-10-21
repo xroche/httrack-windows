@@ -19,9 +19,8 @@
 #define CATALOG_LINE_MAX 8000
 #define CATALOG_FLAGS (HTS_LINE_DROP_TAB | HTS_LINE_DROP_FF | HTS_LINE_DROP_NUL)
 
-/* htslines.c calls fconv() on the paths that open a file by name, and this harness takes
-   none of them: it opens the catalogs itself. The real one is in the engine's htsconcat.c,
-   which reaches htscore.h and the coucal submodule CI does not check out. */
+/* Here for the linker alone, because this harness opens the catalogs itself and reaches
+   no path that calls fconv(). The engine's own one needs the coucal submodule CI skips. */
 extern "C" char *fconv(char *catbuff, size_t size, const char *a) {
   snprintf(catbuff, size, "%s", a);
   return catbuff;
