@@ -188,10 +188,24 @@ def main():
             sys.exit("applyBrowserLogin() no longer calls %s()" % name)
         checked += 1
     accepted = re.search(r"^void Wid1::Onlogin2\(\).*?^\}", wid1, re.M | re.S)
-    if accepted is None or "applyBrowserLogin(" not in accepted.group(0):
+    if accepted is None:
+        sys.exit("Wid1.cpp no longer defines Onlogin2()")
+    checked += 1
+    # Inside the accepted branch and under the flag, not merely somewhere in the
+    # function: either slip writes a cancelled login to disk, which is the whole
+    # reason the harvest is held back.
+    taken = re.search(
+        r"if \(url\.DoModal\(\) == IDOK\) \{(.*?)\n  \}", accepted.group(0), re.S
+    )
+    if taken is None:
+        sys.exit("Onlogin2() no longer has an IDOK branch to apply the harvest in")
+    checked += 1
+    if not re.search(
+        r"if \(url\.haveHarvest\)\s*\n?\s*applyBrowserLogin\(", taken.group(1)
+    ):
         sys.exit(
-            "Onlogin2() no longer applies the harvest, so a browser login would be "
-            "collected and then dropped"
+            "Onlogin2() no longer applies the harvest inside the IDOK branch and under "
+            "haveHarvest, so a cancelled login would still be written to disk"
         )
     checked += 1
 

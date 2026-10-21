@@ -46,6 +46,7 @@ extern "C" {
 #include "about.h"
 #include "InsertUrl.h"
 #include "MainTab.h"
+#include "browser-login.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW

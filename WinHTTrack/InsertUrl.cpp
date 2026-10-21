@@ -68,6 +68,7 @@ CInsertUrl::CInsertUrl(CWnd* pParent /*=NULL*/)
 	m_urlpass = _T("");
 	m_urladr = _T("");
 	//}}AFX_DATA_INIT
+  haveHarvest = FALSE;
 }
 
 
@@ -257,7 +258,9 @@ UINT RunBackCatchServer( LPVOID pP ) {
 }
 
 /* Opens a browser so the user can log in, and keeps what the site then answers to.
-   Nothing is written here, so a Cancel really cancels: Wid1 applies it on OK. */
+   Nothing of ours is written here, so Cancel leaves no cookies file and no setting.
+   The browser keeps its own profile either way, which is what makes the next login
+   quick. Wid1 applies the harvest on OK. */
 void CInsertUrl::OnBrowserLogin()
 {
   const BrowserLoginState ready = browserLoginLoad();

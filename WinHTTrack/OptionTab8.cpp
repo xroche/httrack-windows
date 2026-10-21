@@ -31,7 +31,6 @@ Please visit our Website: http://www.httrack.com
 #include "Shell.h"
 #include "OptionTab8.h"
 #include "DarkMode.h"
-#include "browser-login.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
