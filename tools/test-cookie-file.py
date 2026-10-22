@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPECTED_LINE = "cookie file ok on 104 checks"
 SWEEP_LINE = "cookie file properties ok on"
 
-# The buffer cookie_load() reads each field into. cookie_load_field() refuses at
+# The buffer cookie_load_records() reads each field into. cookie_load_field() refuses at
 # len >= sizeof, so each buffer caps one byte lower than it looks.
 LOAD_BUFFERS = {
     "domain": r"char domain\[(\d+)\];",
@@ -48,10 +48,17 @@ def read(path):
 
 
 def one(pattern, text, where):
-    m = re.search(pattern, text, re.M)
-    if m is None:
+    """The single number PATTERN names in TEXT. Two matches is an error rather than a
+    first-wins pick, because a tighter second buffer would then be read as absent."""
+    found = re.findall(pattern, text, re.M)
+    if not found:
         sys.exit("%s does not carry %s any more" % (where, pattern))
-    return int(m.group(1))
+    if len(found) > 1:
+        sys.exit(
+            "%s carries %s %d times, so which one binds is a guess"
+            % (where, pattern, len(found))
+        )
+    return int(found[0])
 
 
 def region(text, opening, closing, what):
@@ -74,9 +81,11 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     charges the name and the value to together, and what its jar leaves for the file."""
     # cookie_add() is a wrapper now, so the refusals and the record live in cookie_set().
     adding = region(bauth_c, r"\bint cookie_set\(", r"\n\}", "cookie_set()")
-    # To the end of the function, not to its first fclose(): the per-record buffers sit
-    # past the point where the file is opened, and each one matches exactly once in here.
-    loading = region(bauth_c, r"// then cookies\.txt", r"\n\}", "cookie_load()")
+    # Anchors on the function, because the old anchor was a comment that still matches
+    # after the buffers moved out from under it.
+    loading = region(
+        bauth_c, r"static int cookie_load_records\(", r"\n\}", "cookie_load_records()"
+    )
     caps = {}
     # Every buffer below caps one byte lower than it looks, and these two comparisons are
     # the whole reason. Read them, rather than resting a -1 on a comment.
@@ -92,7 +101,7 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
                 "one byte" % where
             )
     buffers = {
-        field: one(buf, loading, "cookie_load()") - 1
+        field: one(buf, loading, "cookie_load_records()") - 1
         for field, buf in LOAD_BUFFERS.items()
     }
 
@@ -110,13 +119,15 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     # The value's own buffer binds only if it ever drops under that budget.
     if pair > buffers["value"]:
         sys.exit(
-            "cookie_load()'s value buffer caps at %d, under the %d budget, so a value "
-            "the budget allows would now be refused by the buffer instead"
+            "cookie_load_records()'s value buffer caps at %d, under the %d budget, "
+            "so a value the budget allows would now be refused by the buffer instead"
             % (buffers["value"], pair)
         )
     # The name's buffer is written in terms of the same budget.
     plus = one(
-        r"char BIGSTK cook_name\[COOKIE_MAX_PAIR \+ (\d+)\];", loading, "cookie_load()"
+        r"char BIGSTK cook_name\[COOKIE_MAX_PAIR \+ (\d+)\];",
+        loading,
+        "cookie_load_records()",
     )
     caps["name"] = min(pair, pair + plus - 1)
     caps["path"] = min(
@@ -128,7 +139,9 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     caps["domain"] = min(
         buffers["domain"], one(r"char host\[(\d+)\];", adding, "cookie_set()") - 1
     )
-    caps["line"] = one(r"const size_t line_max\s*=\s*(\d+);", loading, "cookie_load()")
+    caps["line"] = one(
+        r"const size_t line_max\s*=\s*(\d+);", loading, "cookie_load_records()"
+    )
     caps["jar"] = one(r"cookie\.max_len\s*=\s*(\d+);", core_c, "the engine's htscore.c")
     # The headroom the parts[] loop keeps free on top of the record it is adding.
     caps["reserve"] = one(
@@ -214,7 +227,12 @@ def main():
             r"strlen\(path\)\s*>\s*(\d+)",
             "strlen(path) > 77",
         ),
-        ("cookie_load()'s buffer", False, r"char path\[(\d+)\];", "char path[77];"),
+        (
+            "cookie_load_records()'s buffer",
+            False,
+            r"char path\[(\d+)\];",
+            "char path[77];",
+        ),
         (
             "the COOKIE_MAX_PAIR budget",
             True,
