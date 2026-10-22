@@ -317,19 +317,13 @@ void browserLoginSweepProfiles(void) {
 }
 
 // see browser-login.h
-CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
-                                         const CString &path, CookieFileStats &stats) {
-  const CString text = cookieFileText(harvest.cookies, stats);
-
-  /* An empty write would lose a login that worked, so the file keeps what it had. */
-  if (stats.written == 0)
-    return CookieSaveNothingToWrite;
+/* Binary, because the engine reads these as bytes and a CR of ours would end up inside
+   the last field of every cookie record. */
+static CookieSaveResult writeHarvestFile(const CString &path, const CString &text) {
   if (path.IsEmpty())
     return CookieSaveNoFile;
   structcheck(path);
 
-  /* Binary, because the engine reads the file as bytes and a CR of ours would end up
-     inside the last field of every record. */
   FILE *const fp = fopen(path, "wb");
 
   if (fp == NULL)
@@ -339,4 +333,13 @@ CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
   const BOOL written = fwrite((LPCSTR) text, 1, len, fp) == len;
 
   return fclose(fp) == 0 && written ? CookieSaveWritten : CookieSaveNoFile;
+}
+
+CookieSaveResult browserLoginSaveBundle(const BrowserLoginHarvest &harvest,
+                                        const CString &path, CookieFileStats &stats) {
+  const CString records = cookieFileText(harvest.cookies, stats);
+
+  if (stats.written == 0)
+    return CookieSaveNothingToWrite;
+  return writeHarvestFile(path, browserLoginBundleText(harvest.userAgent, records));
 }

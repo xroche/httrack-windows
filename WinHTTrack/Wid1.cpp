@@ -804,19 +804,19 @@ HCURSOR Wid1::OnQueryDragIcon()
 }
 */
 
-/* Writes what a browser login brought back and points the two option pages at it. Only
-   once the Insert URL box is accepted, so Cancel leaves no file and no setting behind. */
+/* Writes what a browser login brought back as the bundle its address names. Only once
+   the Insert URL box is accepted, so Cancel leaves no file behind. */
 static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
 {
-  const CString home = browserLoginUserDir();
   const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
-  const CString file = browserLoginCookieFile(project, home);
+  const CString file =
+    browserLoginBundleFile(project, browserLoginBundleName(harvest.finalUrl));
   CookieFileStats stats;
   CString said;
 
   if (maintab == NULL)
     return;
-  switch(browserLoginSaveCookies(harvest, file, stats)) {
+  switch(browserLoginSaveBundle(harvest, file, stats)) {
   case CookieSaveNothingToWrite:
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINUNUSABLE),
                                    "The browser gave no cookies the engine can use, so "
@@ -833,10 +833,6 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
   case CookieSaveWritten:
     break;
   }
-  maintab->m_option8.SetCookiesFile(file);
-  if (!harvest.userAgent.IsEmpty())
-    maintab->m_option6.SetBrowserIdentity(harvest.userAgent);
-
   const int dropped = harvest.cookies.GetSize() - stats.written;
 
   if (dropped > 0) {
@@ -846,8 +842,8 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
                 dropped);
     AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
   }
-  /* A value the shell would refuse never reaches argv, and the mirror would then go out
-     under the engine's own identity rather than the one that logged in. */
+  /* The bundle leaves out an identity it cannot write as one line, and the mirror then
+     goes out under the engine's own rather than the one that logged in. */
   if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINBADAGENT),
                                    "The browser identity it reported cannot be used, "
