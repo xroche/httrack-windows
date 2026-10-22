@@ -25,9 +25,9 @@ SWEEP_LINE = "cookie file properties ok on"
 # The buffer cookie_load_records() reads each field into. cookie_load_field() refuses at
 # len >= sizeof, so each buffer caps one byte lower than it looks.
 LOAD_BUFFERS = {
-    "domain": r"char domain\[(\d+)\];",
-    "value": r"char BIGSTK cook_value\[(\d+)\];",
-    "path": r"char path\[(\d+)\];",
+    "domain": r"char domain\[(\w+)\];",
+    "value": r"char BIGSTK cook_value\[(\w+)\];",
+    "path": r"char path\[(\w+)\];",
 }
 
 MACROS = {
@@ -47,9 +47,12 @@ def read(path):
         return f.read()
 
 
-def one(pattern, text, where):
+def one(pattern, text, where, defines=None):
     """The single number PATTERN names in TEXT. Two matches is an error rather than a
-    first-wins pick, because a tighter second buffer would then be read as absent."""
+    first-wins pick, because a tighter second buffer would then be read as absent.
+
+    The engine is naming these caps as it goes, so a capture is a number or the macro
+    standing for one. DEFINES is the header to resolve a macro against."""
     found = re.findall(pattern, text, re.M)
     if not found:
         sys.exit("%s does not carry %s any more" % (where, pattern))
@@ -58,7 +61,17 @@ def one(pattern, text, where):
             "%s carries %s %d times, so which one binds is a guess"
             % (where, pattern, len(found))
         )
-    return int(found[0])
+    token = found[0]
+    if token.isdigit():
+        return int(token)
+    if defines is None:
+        sys.exit(
+            "%s spells %s as %s, with no header to resolve it" % (where, pattern, token)
+        )
+    named = re.search(r"^#\s*define\s+%s\s+(\d+)\s*$" % re.escape(token), defines, re.M)
+    if named is None:
+        sys.exit("%s uses %s, which the engine header does not define" % (where, token))
+    return int(named.group(1))
 
 
 def region(text, opening, closing, what):
@@ -101,7 +114,7 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
                 "one byte" % where
             )
     buffers = {
-        field: one(buf, loading, "cookie_load_records()") - 1
+        field: one(buf, loading, "cookie_load_records()", bauth_h) - 1
         for field, buf in LOAD_BUFFERS.items()
     }
 
@@ -131,23 +144,28 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     )
     caps["name"] = min(pair, pair + plus - 1)
     caps["path"] = min(
-        buffers["path"], one(r"strlen\(path\)\s*>\s*(\d+)", adding, "cookie_set()")
+        buffers["path"],
+        one(r"strlen\(path\)\s*>\s*(\w+)", adding, "cookie_set()", bauth_h),
     )
     # cookie_set() normalises the domain through cookie_host() first, which refuses a host
     # that does not fit its buffer rather than truncating it. No refusal of its own is
     # left in cookie_set(), so these two buffers are the whole gate.
     caps["domain"] = min(
-        buffers["domain"], one(r"char host\[(\d+)\];", adding, "cookie_set()") - 1
+        buffers["domain"],
+        one(r"char host\[(\w+)\];", adding, "cookie_set()", bauth_h) - 1,
     )
     caps["line"] = one(
-        r"const size_t line_max\s*=\s*(\d+);", loading, "cookie_load_records()"
+        r"const size_t line_max\s*=\s*(\w+);", loading, "cookie_load_records()", bauth_h
     )
-    caps["jar"] = one(r"cookie\.max_len\s*=\s*(\d+);", core_c, "the engine's htscore.c")
+    caps["jar"] = one(
+        r"cookie\.max_len\s*=\s*(\w+);", core_c, "the engine's htscore.c", bauth_h
+    )
     # The headroom the parts[] loop keeps free on top of the record it is adding.
     caps["reserve"] = one(
-        r"const size_t parts\[\][^;]*?(\d+)\};",
+        r"const size_t parts\[\][^;]*?(\w+)\};",
         adding.replace("\n", " "),
         "cookie_set()",
+        bauth_h,
     )
     # The stored record spends three things beyond the four fields: the separators of the
     # snprintf that assembles it, the widest word each of its two flag fields takes, and
@@ -224,13 +242,13 @@ def main():
         (
             "cookie_set()'s path refusal",
             False,
-            r"strlen\(path\)\s*>\s*(\d+)",
+            r"strlen\(path\)\s*>\s*(\w+)",
             "strlen(path) > 77",
         ),
         (
             "cookie_load_records()'s buffer",
             False,
-            r"char path\[(\d+)\];",
+            r"char path\[(\w+)\];",
             "char path[77];",
         ),
         (
