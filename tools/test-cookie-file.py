@@ -51,8 +51,7 @@ def one(pattern, text, where, defines=None):
     """The single number PATTERN names in TEXT. Two matches is an error rather than a
     first-wins pick, because a tighter second buffer would then be read as absent.
 
-    The engine is naming these caps as it goes, so a capture is a number or the macro
-    standing for one. DEFINES is the header to resolve a macro against."""
+    DEFINES, when given, resolves a macro-named capture against that header."""
     found = re.findall(pattern, text, re.M)
     if not found:
         sys.exit("%s does not carry %s any more" % (where, pattern))
@@ -68,10 +67,19 @@ def one(pattern, text, where, defines=None):
         sys.exit(
             "%s spells %s as %s, with no header to resolve it" % (where, pattern, token)
         )
-    named = re.search(r"^#\s*define\s+%s\s+(\d+)\s*$" % re.escape(token), defines, re.M)
-    if named is None:
+    named = re.findall(
+        r"^#\s*define\s+%s\s+(\d+)\s*$" % re.escape(token), defines, re.M
+    )
+    if not named:
         sys.exit("%s uses %s, which the engine header does not define" % (where, token))
-    return int(named.group(1))
+    # Two #defines means an #if picks one, and the pick is per platform. Taking the
+    # first would read the cap of whichever branch the engine wrote first.
+    if len(named) > 1:
+        sys.exit(
+            "the engine header defines %s %d times, so its value is per platform"
+            % (token, len(named))
+        )
+    return int(named[0])
 
 
 def region(text, opening, closing, what):
