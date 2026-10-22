@@ -43,10 +43,13 @@ void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
+CString browserLoginBundleName(const CString &landedUrl);
+CString browserLoginBundleFile(const CString &projectPath, const CString &name);
+CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
+CString browserLoginBundleText(const CString &userAgent, const CString &records);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
 BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
-CString browserLoginCookieFile(const CString &projectPath, const CString &localAppData);
 int browserLoginCheckCases(CString *err);
 #else
 #include "stdafx.h"
@@ -166,6 +169,100 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
   return start != landed;
 }
 
+/* Both from the engine's htsbundle.h, where a name over the cap stops the run. */
+#define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
+#define BROWSER_BUNDLE_NAME_MAX 127
+
+/* Would the engine take NAME? bundle_name_refusal() in its htsbundle.c is the rule, and
+   a name it refuses aborts the mirror. */
+static BOOL plainBundleName(const CString &name) {
+  static const char *const devices[] = { "con", "prn", "aux", "nul", NULL };
+  const int len = name.GetLength();
+
+  if (len == 0 || len > BROWSER_BUNDLE_NAME_MAX || name[0] == '.')
+    return FALSE;
+  for(int i = 0 ; i < len ; i++) {
+    const char c = name[i];
+
+    if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z')
+        && !(c >= '0' && c <= '9') && c != '.' && c != '_' && c != '-')
+      return FALSE;
+    if (c == '.' && i + 1 < len && name[i + 1] == '.')
+      return FALSE;
+  }
+
+  /* The engine measures the device name up to the first dot, so "con.example" is one. */
+  const int base = name.Find('.') < 0 ? len : name.Find('.');
+
+  if (base == 3 || base == 4) {
+    CString head;
+
+    /* Lowercased by hand for the reason comparableHost() gives. */
+    for(int i = 0 ; i < base ; i++) {
+      const char c = name[i];
+
+      head += (char) ((c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : c);
+    }
+    for(int i = 0 ; devices[i] != NULL ; i++)
+      if (base == 3 && head == devices[i])
+        return FALSE;
+    if (base == 4 && (head.Left(3) == "com" || head.Left(3) == "lpt")
+        && head[3] >= '1' && head[3] <= '9')
+      return FALSE;
+  }
+  return TRUE;
+}
+
+// see browser-login.h
+CString browserLoginBundleName(const CString &landedUrl) {
+  const CString host = comparableHost(landedUrl);
+
+  /* A name every host falls back to, because a login with nowhere to go is lost. */
+  return plainBundleName(host) ? host : CString("login");
+}
+
+// see browser-login.h
+CString browserLoginBundleFile(const CString &projectPath, const CString &name) {
+  if (projectPath.IsEmpty() || name.IsEmpty())
+    return CString();
+  return pathUnder(projectPath, name + ".hts");
+}
+
+// see browser-login.h
+CString browserLoginBundleUrl(const CString &landedUrl, const CString &name) {
+  if (landedUrl.IsEmpty() || name.IsEmpty())
+    return CString();
+  /* The engine reads the FIRST suffix and refuses a name holding another, so an address
+     already carrying one would abort the mirror. */
+  if (landedUrl.Find(BROWSER_BUNDLE_SUFFIX) >= 0)
+    return CString();
+  return landedUrl + BROWSER_BUNDLE_SUFFIX + name;
+}
+
+/* What the engine reads a bundle line into, from htsbundle.c. A longer line stops the
+   run, so the identity is dropped rather than written. */
+#define BROWSER_BUNDLE_LINE_MAX 8192
+
+// see browser-login.h
+CString browserLoginBundleText(const CString &userAgent, const CString &records) {
+  CString text = "# HTTrack bundle 1\n";
+  BOOL oneLine = !userAgent.IsEmpty()
+    && userAgent.GetLength() + 3 < BROWSER_BUNDLE_LINE_MAX;
+
+  for(int i = 0 ; oneLine && i < userAgent.GetLength() ; i++)
+    if ((unsigned char) userAgent[i] < ' ')
+      oneLine = FALSE;
+  if (oneLine) {
+    text += "ua ";
+    text += userAgent;
+    text += "\n";
+  }
+  /* The engine takes every line after this one as a jar record. */
+  text += "cookies\n";
+  text += records;
+  return text;
+}
+
 /* What a profile folder is called. The sweep reads the run back out of it. */
 #define BROWSER_PROFILE_PREFIX "profile-"
 
@@ -203,13 +300,6 @@ BOOL browserLoginStaleProfile(const CString &name, unsigned long *run) {
   }
   *run = got;
   return TRUE;
-}
-
-// see browser-login.h
-CString browserLoginCookieFile(const CString &projectPath, const CString &localAppData) {
-  if (!projectPath.IsEmpty())
-    return cookieFileInProject(projectPath);
-  return pathUnder(localAppData, "HTTrack\\browser-cookies.txt");
 }
 
 /* A login that opens the wrong page, or one project's browser reading another's jar,
@@ -399,21 +489,109 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    static const struct { const char *project, *local, *want; } files[] = {
-      /* the project's own copy, which is the one --cookies-file is given untouched */
-      { "C:\\web\\proj", "C:\\local", "C:\\web\\proj\\hts-cache\\cookies.txt" },
-      { "", "C:\\local", "C:\\local\\HTTrack\\browser-cookies.txt" },
-      { "", "", "" },
+    /* The engine ABORTS a mirror over a name it refuses. An odd name must still be one
+       it takes. */
+    static const struct { const char *landed, *name; } names[] = {
+      { "https://example.com/members/", "example.com" },
+      /* the same site is one bundle, as the moved-host warning also reads it */
+      { "https://www.example.com/", "example.com" },
+      { "https://example.com:8443/x", "example.com" },
+      { "https://EXAMPLE.com/", "example.com" },
+      /* a label the engine would read as a Windows device, up to the first dot */
+      { "https://con/", "login" },
+      { "https://CON.example/", "login" },
+      { "https://com1/", "login" },
+      /* com0 is no device, and a four-letter label is not one either */
+      { "https://com0/", "com0" },
+      { "https://conx/", "conx" },
+      /* an IPv6 literal keeps bytes no bundle name may hold */
+      { "http://[::1]:8080/", "login" },
+      /* nothing to name it after */
+      { "about:blank", "login" },
+      { "", "login" },
+      { NULL, NULL }
+    };
+
+    for(int k=0 ; names[k].landed != NULL ; k++) {
+      const CString got = browserLoginBundleName(names[k].landed);
+
+      if (got != names[k].name) {
+        snprintf(msg, sizeof(msg), "landing on '%s' names the bundle '%s', expected '%s'",
+                 names[k].landed, (LPCSTR) got, names[k].name);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    static const struct { const char *landed, *name, *want; } urls[] = {
+      { "https://example.com/x", "example.com",
+        "https://example.com/x#httrack-bundle=example.com" },
+      /* the suffix must appear once, so an address already carrying one is refused */
+      { "https://example.com/x#httrack-bundle=other", "example.com", "" },
+      { "", "example.com", "" },
+      { "https://example.com/x", "", "" },
       { NULL, NULL, NULL }
     };
 
-    for(int k=0 ; files[k].project != NULL ; k++) {
-      const CString got = browserLoginCookieFile(files[k].project, files[k].local);
+    for(int k=0 ; urls[k].landed != NULL ; k++) {
+      const CString got = browserLoginBundleUrl(urls[k].landed, urls[k].name);
 
-      if (got != files[k].want) {
-        snprintf(msg, sizeof(msg), "project '%s' saves the login to '%s', expected '%s'",
-                 files[k].project, (LPCSTR) got, files[k].want);
+      if (got != urls[k].want) {
+        snprintf(msg, sizeof(msg), "'%s' plus bundle '%s' gives '%s', expected '%s'",
+                 urls[k].landed, urls[k].name, (LPCSTR) got, urls[k].want);
         *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* The engine resolves a name against the project, so the file has to land there. */
+    if (browserLoginBundleFile("C:\\web\\proj", "example.com")
+        != "C:\\web\\proj\\example.com.hts") {
+      *err = "the bundle no longer lands in the project folder";
+      return 0;
+    }
+    nchecks++;
+    if (!browserLoginBundleFile("", "example.com").IsEmpty()) {
+      *err = "a bundle with no project got a relative path";
+      return 0;
+    }
+    nchecks++;
+  }
+  {
+    /* The engine refuses a bundle whose first line is not this, and takes every line
+       after "cookies" as a jar record, so the shape IS the contract. */
+    static const struct { const char *agent, *records, *want; } texts[] = {
+      { "Mozilla/5.0", "a\tFALSE\t/\tFALSE\t0\tn\tv\n",
+        "# HTTrack bundle 1\nua Mozilla/5.0\ncookies\na\tFALSE\t/\tFALSE\t0\tn\tv\n" },
+      /* no identity is a bundle too, because the cookies are the point */
+      { "", "a\tFALSE\t/\tFALSE\t0\tn\tv\n",
+        "# HTTrack bundle 1\ncookies\na\tFALSE\t/\tFALSE\t0\tn\tv\n" },
+      /* a byte that would forge the next line takes the identity out, not the bundle */
+      { "Mozilla\n ua evil", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
+      { "Mozilla\rx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
+      { "Mozilla\tx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
+      { NULL, NULL, NULL }
+    };
+
+    for(int k=0 ; texts[k].agent != NULL ; k++) {
+      const CString got = browserLoginBundleText(texts[k].agent, texts[k].records);
+
+      if (got != texts[k].want) {
+        snprintf(msg, sizeof(msg), "identity '%s' makes a bundle '%s', expected '%s'",
+                 texts[k].agent, (LPCSTR) got, texts[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* A line the engine cannot read stops the run, so a long identity is left out. */
+    {
+      const CString huge('x', 9000);
+
+      if (browserLoginBundleText(huge, "r\n").Find("ua ") >= 0) {
+        *err = "a bundle wrote an identity longer than the engine reads a line";
         return 0;
       }
       nchecks++;

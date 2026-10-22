@@ -71,6 +71,9 @@ struct BrowserLoginHarvest {
   /* Where the user ended up. This is the address to crawl, because navigating to it by
      hand is what the browser was opened for. */
   CString finalUrl;
+  /* The bundle this login is saved under, set once the browser closes. The address box
+     and the file must name the SAME one, so it is carried rather than derived twice. */
+  CString bundleName;
 };
 
 /* Opens the browser on URL with PARENT greyed out under it, and fills HARVEST once the
@@ -117,26 +120,41 @@ void browserLoginForgetProfile(const CString &dir);
    profile holds a signed-in session, and a crash would otherwise leave one for ever. */
 void browserLoginSweepProfiles(void);
 
-/* Where the harvest is written. The project's own cookies.txt when there is a project,
-   so the engine refreshes it at the end of every mirror; a file of the user's own while
-   there is no project, which the shell then copies into one. */
-CString browserLoginCookieFile(const CString &projectPath, const CString &localAppData);
+/* The bundle a login is saved under, taken from the host it landed on, because that is
+   what the engine already scopes a cookie to. Falls back to "login" when that host is no
+   name the engine would take, such as an IPv6 literal. Never empty. */
+CString browserLoginBundleName(const CString &landedUrl);
 
-/* The user's own data folder, which is where a login made before there is a project
-   goes. Empty when the shell will not say. */
+/* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves
+   against opt->path_log, and the GUI passes -O1 so that is the project. Empty when
+   either argument is. */
+CString browserLoginBundleFile(const CString &projectPath, const CString &name);
+
+/* LANDEDURL with the suffix the engine reads the name from, which must come last and
+   must appear once. Empty when either argument is empty, and empty when LANDEDURL
+   already carries a suffix, because a second one would abort the mirror. */
+CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
+
+/* The bundle the engine parses, over RECORDS from cookieFileText(). The identity is
+   left out when it would not survive as one line, because the engine reads a bundle a
+   line at a time. */
+CString browserLoginBundleText(const CString &userAgent, const CString &records);
+
+/* The user's own data folder, which is where a browser profile goes. Empty when the
+   shell will not say. */
 CString browserLoginUserDir(void);
 
-/* What browserLoginSaveCookies() did. */
+/* CookieSaveResult: what browserLoginSaveBundle() returns. */
 enum CookieSaveResult {
   CookieSaveWritten,
   CookieSaveNothingToWrite,  /* the engine would refuse every cookie the browser gave */
   CookieSaveNoFile           /* the folder or the file would not take it */
 };
 
-/* Writes HARVEST over PATH as one Netscape cookies.txt, making the folder first, and
-   fills STATS with what went in and what was dropped. */
-CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
-                                         const CString &path, CookieFileStats &stats);
+/* Writes HARVEST at PATH as the bundle browserLoginBundleText() renders, and fills
+   STATS with what went in and what was dropped. */
+CookieSaveResult browserLoginSaveBundle(const BrowserLoginHarvest &harvest,
+                                        const CString &path, CookieFileStats &stats);
 
 /* TRANSLATED, or ENGLISH when the catalog does not carry the key. LANGSEL() answers an
    empty string for a key it does not know, and an empty message box tells nobody

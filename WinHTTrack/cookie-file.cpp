@@ -52,14 +52,16 @@ Please visit our Website: http://www.httrack.com
    keeps the cast in expiryField() inside int64_t, which a raw double would not. */
 #define COOKIE_EXPIRY_MAX 253402300799.0
 
-/* Four bytes cannot go in a field. TAB ends a field for cookie_get(), and CR or LF ends
-   the record for hts_readline(), so any of them forges the rest of the line. A NUL cuts
-   it short instead, because the engine's readers are all strlen-based. */
+/* No control byte can go in a field. TAB ends a field for cookie_get(), CR or LF ends the
+   record for hts_readline(), and a NUL cuts it short because the engine's readers are
+   strlen-based. The rest are refused because a bundle is stricter than a cookies.txt:
+   hts_bundle_has_control() stops the whole mirror over one of them, where cookie_load()
+   only skips the record. So this matches that rule, plus TAB, which is our separator. */
 static BOOL hasUnwritableByte(const CString &field) {
   for(int i=0 ; i<field.GetLength() ; i++) {
-    const char c = field[i];
+    const unsigned char c = (unsigned char) field[i];
 
-    if (c == '\t' || c == '\r' || c == '\n' || c == '\0')
+    if (c < 0x20 || c == 0x7f)
       return TRUE;
   }
   return FALSE;
@@ -237,12 +239,19 @@ int cookieFileCheckCases(CString *err) {
       /* An empty value is legal, and is how a site clears a cookie. */
       { "SID", "", "example.com", "/", FALSE, 1700000000.0, CookieWritable,
         "example.com\tFALSE\t/\tFALSE\t1700000000\tSID\t\n" },
-      /* ';' and '=' are ordinary bytes in the value field, and so is a vertical tab:
-         cookie_load() passes hts_readline() no flags, so it drops nothing but CR. */
+      /* ';' and '=' are ordinary bytes in the value field. */
       { "SID", "a=b; c=d", "example.com", "/", FALSE, 1700000000.0, CookieWritable,
         "example.com\tFALSE\t/\tFALSE\t1700000000\tSID\ta=b; c=d\n" },
-      { "SID", "a\vb", "example.com", "/", FALSE, 1700000000.0, CookieWritable,
-        "example.com\tFALSE\t/\tFALSE\t1700000000\tSID\ta\vb\n" },
+      /* A vertical tab is not. A cookies.txt would carry it, because cookie_load()
+         only skips the record, but a bundle STOPS THE MIRROR over any control byte. */
+      { "SID", "a\vb", "example.com", "/", FALSE, 1700000000.0, CookieUnwritableByte, NULL },
+      { "SID", "a\x1f" "b", "example.com", "/", FALSE, 1700000000.0, CookieUnwritableByte, NULL },
+      { "SID", "a\x7f" "b", "example.com", "/", FALSE, 1700000000.0, CookieUnwritableByte, NULL },
+      /* and the bytes either side of the refused range stay ordinary */
+      { "SID", "a b", "example.com", "/", FALSE, 1700000000.0, CookieWritable,
+        "example.com\tFALSE\t/\tFALSE\t1700000000\tSID\ta b\n" },
+      { "SID", "a~b", "example.com", "/", FALSE, 1700000000.0, CookieWritable,
+        "example.com\tFALSE\t/\tFALSE\t1700000000\tSID\ta~b\n" },
       { "", "abc", "example.com", "/", FALSE, 1700000000.0, CookieEmptyField, NULL },
       { "SID", "abc", "", "/", FALSE, 1700000000.0, CookieEmptyField, NULL },
       /* A TAB or a newline in any field would forge a field or a whole record, and the

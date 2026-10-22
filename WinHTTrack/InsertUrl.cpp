@@ -309,6 +309,12 @@ void CInsertUrl::OnBrowserLogin()
      to go on. It stays editable, so an unwanted query string can still be trimmed.
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(harvest.finalUrl);
+  /* The suffix names the bundle written on OK, and falls back to the bare address
+     where the engine would refuse it. The box is never left empty. */
+  harvest.bundleName = browserLoginBundleName(harvest.finalUrl);
+
+  const CString named = browserLoginBundleUrl(landed, harvest.bundleName);
+  const CString shown = named.IsEmpty() ? landed : named;
 
   /* Warned, not refused: an empty box leaves the wizard with no URL at all. */
   if (browserLoginMovedHost(browserLoginStartUrl(typed), landed)) {
@@ -318,11 +324,13 @@ void CInsertUrl::OnBrowserLogin()
                 (LPCSTR) landed);
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
-  if (!landed.IsEmpty())
-    SetDlgItemTextCP(this, IDC_urladr, landed);
+  if (!shown.IsEmpty())
+    SetDlgItemTextCP(this, IDC_urladr, shown);
+  /* Saved, not used: the engine scopes a bundle to the registrable domain of the start
+     URL and drops the rest, and no front end can compute that domain to count them. */
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
-                               "%d cookies were collected. They are used when you "
-                               "press OK."),
+                               "%d cookies were collected. They are saved with the "
+                               "project when you press OK."),
               harvest.cookies.GetSize());
   AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }
