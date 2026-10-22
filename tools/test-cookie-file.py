@@ -48,10 +48,17 @@ def read(path):
 
 
 def one(pattern, text, where):
-    m = re.search(pattern, text, re.M)
-    if m is None:
+    """The single number PATTERN names in TEXT. Two matches is an error rather than a
+    first-wins pick, because a tighter second buffer would then be read as absent."""
+    found = re.findall(pattern, text, re.M)
+    if not found:
         sys.exit("%s does not carry %s any more" % (where, pattern))
-    return int(m.group(1))
+    if len(found) > 1:
+        sys.exit(
+            "%s carries %s %d times, so which one binds is a guess"
+            % (where, pattern, len(found))
+        )
+    return int(found[0])
 
 
 def region(text, opening, closing, what):
@@ -74,9 +81,8 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     charges the name and the value to together, and what its jar leaves for the file."""
     # cookie_add() is a wrapper now, so the refusals and the record live in cookie_set().
     adding = region(bauth_c, r"\bint cookie_set\(", r"\n\}", "cookie_set()")
-    # cookie_load_records() is where the per-record buffers live, and each one matches
-    # exactly once in it. Anchoring on cookie_load() instead still FINDS a region, and
-    # that region no longer holds them, so the anchor has to name this function.
+    # Anchors on the function, because the old anchor was a comment that still matches
+    # after the buffers moved out from under it.
     loading = region(
         bauth_c, r"static int cookie_load_records\(", r"\n\}", "cookie_load_records()"
     )
