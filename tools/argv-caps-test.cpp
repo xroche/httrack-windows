@@ -13,7 +13,7 @@
 int argvCapsCheckCases(CString *err, int *nskipped);
 
 /* Both callers pin the count, so a case deleted from argv-caps.cpp reds here as well. */
-#define AC_EXPECTED_CHECKS 55
+#define AC_EXPECTED_CHECKS 59
 
 int main(void) {
   CString err;

@@ -504,6 +504,7 @@ BEGIN
     EDITTEXT        IDC_urllogin,106,43,56,12,ES_AUTOHSCROLL
     EDITTEXT        IDC_urlpass,106,59,56,12,ES_PASSWORD | ES_AUTOHSCROLL
     PUSHBUTTON      "Capture URL...",ID_capt,164,85,95,14
+    PUSHBUTTON      "Log in with a browser...",IDC_browserlogin,105,103,154,14
     PUSHBUTTON      "Cancel",IDCANCEL,7,121,50,14
     DEFPUSHBUTTON   "OK",IDOK,209,121,50,14
     LTEXT           "URL:",IDC_STATIC_adr,8,8,72,10

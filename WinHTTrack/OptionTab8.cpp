@@ -127,6 +127,14 @@ void COptionTab8::OnCookiesFileBrowse()
     SetDlgItemTextCP(this, IDC_cookiesfile, dial.GetPathName());
 }
 
+// see OptionTab8.h
+void COptionTab8::SetCookiesFile(const CString &path)
+{
+  m_cookiesfile = path;
+  if (m_hWnd != NULL)
+    SetDlgItemTextCP(this, IDC_cookiesfile, path);
+}
+
 void COptionTab8::OnGateClicked() 
 {
   UpdateGatedControls();

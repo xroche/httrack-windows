@@ -53,6 +53,9 @@ public:
 	COptionTab6();
 	~COptionTab6();
   const char* GetTip(int id);
+  /* Puts AGENT in the browser identity field. Safe before the page is built, which it
+     is until the user first opens this tab. */
+  void SetBrowserIdentity(const CString &agent);
 
 // Dialog Data
 	//{{AFX_DATA(COptionTab6)

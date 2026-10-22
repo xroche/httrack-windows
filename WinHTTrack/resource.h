@@ -583,6 +583,7 @@ Please visit our Website: http://www.httrack.com
 #define IDC_STATIC_accept_object        1369
 #define IDC_accept_embed                1370
 #define IDC_STATIC_accept_embed         1371
+#define IDC_browserlogin                1372
 #define ID_MENUITEM32771                32771
 #define ID_MENUITEM32772                32772
 #define ID_EXIT                         32772
@@ -654,7 +655,7 @@ Please visit our Website: http://www.httrack.com
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        249
 #define _APS_NEXT_COMMAND_VALUE         32837
-#define _APS_NEXT_CONTROL_VALUE         1372
+#define _APS_NEXT_CONTROL_VALUE         1373
 #define _APS_NEXT_SYMED_VALUE           108
 #endif
 #endif

@@ -117,6 +117,14 @@ void COptionTab6::Onacceptopt()
   Aopt.DoModal();
 }
 
+// see OptionTab6.h
+void COptionTab6::SetBrowserIdentity(const CString &agent)
+{
+  m_user = agent;
+  if (m_hWnd != NULL)
+    SetDlgItemTextCP(this, IDC_user, agent);
+}
+
 BOOL COptionTab6::OnInitDialog() 
 {
 	CPropertyPage::OnInitDialog();

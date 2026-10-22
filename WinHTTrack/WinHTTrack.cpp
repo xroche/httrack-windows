@@ -593,6 +593,10 @@ BOOL CWinHTTrackApp::InitInstance()
 
   /* See <https://msdn.microsoft.com/library/ff919712> */
 #if (defined(_WIN32) && (!defined(_DEBUG)))
+  /* Before anything opens a browser: a crash or a kill leaves a signed-in profile
+     behind, and this is the only thing that ever removes one. */
+  browserLoginSweepProfiles();
+
   {
     /* Narrow the search to the application directory and System32; it matters most to
        the ZIP package, which people unpack into Downloads. Resolved and not imported: a
@@ -819,6 +823,24 @@ BOOL CWinHTTrackApp::InitInstance()
       printf("browser login ok on %d checks (%s)\n", nchecks,
              have ? runtime : "no WebView2 runtime");
     }
+    /* Which page the browser opens, and whose jar it opens it with. Neither needs the
+       helper, so they are checked apart from the block above. */
+    {
+      CString err;
+      const int nchecks = browserLoginCheckCases(&err);
+
+      if (nchecks == 0) {
+        fprintf(stderr, "FATAL: browser login helpers: %s\n", (LPCSTR) err);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      if (nchecks != 55) {
+        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 55\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("browser login helpers ok on %d checks\n", nchecks);
+    }
     /* A key the engine's catalog stops carrying shows the wrong label rather than
        failing, so CI reads it here. */
     {
@@ -829,6 +851,10 @@ BOOL CWinHTTrackApp::InitInstance()
            still increments. */
         { "LANG_J9", LANG(LANG_J9) },
         { "LANG_J13", LANG(LANG_J13) },
+        /* The catalogs join on the ENGLISH TEXT, so rewording this one in lang.def
+           without rewording the key line in all 30 drops the tooltip everywhere, in
+           silence. The engine is rewording it, hence the pin. */
+        { "LANG_COOKIEFILETIP", LANG(LANG_COOKIEFILETIP) },
         { NULL, NULL }
       };
       int nchecks = 0;
@@ -1526,7 +1552,7 @@ BOOL CWinHTTrackApp::InitInstance()
       CString err;
       int nskipped = 0;
       const int nchecks = argvCapsCheckCases(&err, &nskipped);
-      const int expected = 55 - nskipped;
+      const int expected = 59 - nskipped;
 
       if (nchecks == 0) {
         fprintf(stderr, "FATAL: argv caps: %s\n", (LPCSTR) err);
@@ -3226,6 +3252,11 @@ LRESULT CWinHTTrackApp::ProcessWndProcException(CException* e, const MSG* pMsg) 
 
 int CWinHTTrackApp::ExitInstance() 
 {
+  /* A browser profile holds a signed-in session, so it goes with the program. The
+     browser outlives the window it drew, so this often fails and the sweep at the next
+     startup is what finally gets it. */
+  browserLoginForgetProfile(browserLoginProfileDir(browserLoginUserDir(),
+                                                   GetCurrentProcessId()));
   LANG_DELETE();
 
   /* Uninitialize */

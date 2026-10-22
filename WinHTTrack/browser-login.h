@@ -28,7 +28,7 @@ Please visit our Website: http://www.httrack.com
 
 /* ------------------------------------------------------------ */
 /* File: WinHTTrack subroutines:                                */
-/*       loading the browser-login helper DLL                   */
+/*       the browser-login helper DLL, and the login it runs    */
 /* Author: Xavier Roche                                         */
 /* ------------------------------------------------------------ */
 
@@ -38,6 +38,9 @@ Please visit our Website: http://www.httrack.com
 /* The entry points this loader resolves. A Whtt prefix marks what crosses into the DLL,
    so everything named below stays inside the program. */
 #include "WhttBrowserLogin.h"
+
+/* CookieRecord, which is what a harvested cookie becomes on this side. */
+#include "cookie-file.h"
 
 /* Windows 7 stops at BrowserLoginNotLoadable, which is the designed answer there. */
 enum BrowserLoginState {
@@ -58,5 +61,89 @@ const char *browserLoginWhy(BrowserLoginState state);
 /* Is a WebView2 runtime installed? FALSE unless the helper is ready. VERSION, when
    given, takes the runtime's version and is never left empty on TRUE. */
 BOOL browserLoginRuntime(char *version, size_t version_size);
+
+/* What one browser login brought back. The cookies are the whole profile, not one
+   site's, because a login that crosses two hosts leaves the cookie that matters on the
+   host nobody asked about. */
+struct BrowserLoginHarvest {
+  CSimpleArray<CookieRecord> cookies;
+  CString userAgent;
+  /* Where the user ended up. This is the address to crawl, because navigating to it by
+     hand is what the browser was opened for. */
+  CString finalUrl;
+};
+
+/* Opens the browser on URL with PARENT greyed out under it, and fills HARVEST once the
+   user closes it. PROFILE is the folder the browser keeps its login in. */
+WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
+                                       const CString &profile,
+                                       BrowserLoginHarvest &harvest);
+
+/* Returns a string literal naming RESULT, for a user or for --selftest. */
+const char *browserLoginRunWhy(WhttBrowserLoginResult result);
+
+/* The page the browser opens first: the first address of URLS, given the scheme the
+   crawl would give it. Empty when URLS holds no address. */
+CString browserLoginStartUrl(const CString &urls);
+
+/* What of a landed address may be kept. The browser can finish holding a secret in the
+   URL, and the address box is saved into the project's winprofile.ini in clear. Returns
+   empty when the address must not be kept at all. */
+CString browserLoginSafeUrl(const CString &landed);
+
+/* Did the browser end up on another host than the one the login started from? A
+   leading "www." is not a difference. FALSE when either address carries no host, because
+   an empty address box asked for no particular site. */
+BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
+
+/* The folder one run's browser keeps its profile in. It holds a live signed-in session,
+   so it lives outside any project, under LOCALAPPDATA, and is deleted when the program
+   closes. RUN is the process id, which is what lets a sweep tell an abandoned profile
+   from one another copy of the program is using. Empty when LOCALAPPDATA is. */
+CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
+
+/* The folder those sit in, which is what the sweep walks. */
+CString browserLoginProfileRoot(const CString &localAppData);
+
+/* Is NAME a profile folder of ours, and which run left it? FALSE for anything else, so
+   a sweep never removes a folder it did not create. */
+BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
+
+/* Removes a profile folder, best effort. The browser process outlives the window it
+   drew, so this often fails and browserLoginSweepProfiles() is what finally gets it. */
+void browserLoginForgetProfile(const CString &dir);
+
+/* Removes every profile left by a run that is no longer going. Call it at startup: a
+   profile holds a signed-in session, and a crash would otherwise leave one for ever. */
+void browserLoginSweepProfiles(void);
+
+/* Where the harvest is written. The project's own cookies.txt when there is a project,
+   so the engine refreshes it at the end of every mirror; a file of the user's own while
+   there is no project, which the shell then copies into one. */
+CString browserLoginCookieFile(const CString &projectPath, const CString &localAppData);
+
+/* The user's own data folder, which is where a login made before there is a project
+   goes. Empty when the shell will not say. */
+CString browserLoginUserDir(void);
+
+/* What browserLoginSaveCookies() did. */
+enum CookieSaveResult {
+  CookieSaveWritten,
+  CookieSaveNothingToWrite,  /* the engine would refuse every cookie the browser gave */
+  CookieSaveNoFile           /* the folder or the file would not take it */
+};
+
+/* Writes HARVEST over PATH as one Netscape cookies.txt, making the folder first, and
+   fills STATS with what went in and what was dropped. */
+CookieSaveResult browserLoginSaveCookies(const BrowserLoginHarvest &harvest,
+                                         const CString &path, CookieFileStats &stats);
+
+/* TRANSLATED, or ENGLISH when the catalog does not carry the key. LANGSEL() answers an
+   empty string for a key it does not know, and an empty message box tells nobody
+   anything, so every call site that cannot keep its own text goes through this. */
+const char *browserLoginText(const char *translated, const char *english);
+
+/* Shared with --selftest. Returns the number of checks run, or zero with ERR set. */
+int browserLoginCheckCases(CString *err);
 
 #endif

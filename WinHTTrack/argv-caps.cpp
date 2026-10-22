@@ -77,8 +77,14 @@ static BOOL isCappedArgument(const CString &value, size_t maxBytes) {
   return isEngineArgument(value, cap);
 }
 
-// see Shell.h
+// see Shell.h. A control character is refused for the same reason it is in an Accept
+// value: the engine turns CR, LF and TAB into spaces, so the identity would go out
+// mangled, and a browser login is what first sets this field from outside.
 BOOL isUserAgentArgument(const CString &value) {
+  for(int i=0 ; i<value.GetLength() ; i++) {
+    if ((unsigned char) value[i] < ' ')
+      return FALSE;
+  }
   return isCappedArgument(value, HTS_CDLMAXSIZE);   // -F has no cap of its own
 }
 
@@ -199,6 +205,11 @@ int argvCapsCheckCases(CString *err, int *nskipped) {
       /* the user-agent has no cap of its own, only the engine's ceiling on one argument */
       { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE - 1, TRUE },
       { isUserAgentArgument, "user-agent", "x", HTS_CDLMAXSIZE, FALSE },
+      /* what a browser login can hand over, and what the engine would flatten */
+      { isUserAgentArgument, "user-agent", "Mozilla/5.0 (Windows NT 10.0)", 1, TRUE },
+      { isUserAgentArgument, "user-agent", "Mozilla/5.0\nUser-Agent: other", 1, FALSE },
+      { isUserAgentArgument, "user-agent", "Mozilla/5.0\rx", 1, FALSE },
+      { isUserAgentArgument, "user-agent", "Mozilla/5.0\tx", 1, FALSE },
       { isAcceptArgument, "accept", "text/html,image/avif,*/*;q=0.8", 1, TRUE },
       { isAcceptArgument, "accept", "*/*", 1, TRUE },
       { isAcceptArgument, "accept", "text/html, */*", 1, TRUE },   /* a space is legal */

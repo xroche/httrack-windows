@@ -45,6 +45,9 @@ class COptionTab8 : public CPropertyPage
 // Construction
 public:
   void SetLangTitle(void);
+  /* Points the cookies-file field at PATH. Safe before the page is built, which it is
+     until the user first opens this tab. */
+  void SetCookiesFile(const CString &path);
 	COptionTab8();
 	~COptionTab8();
   const char* GetTip(int id);

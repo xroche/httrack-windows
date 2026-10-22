@@ -45,6 +45,8 @@ extern "C" {
 
 #include "about.h"
 #include "InsertUrl.h"
+#include "MainTab.h"
+#include "browser-login.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -53,6 +55,7 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 extern CNewProj* dialog0;
+extern CMainTab* maintab;
 
 extern int binput(char* buff,char* s,int max);
 
@@ -801,6 +804,57 @@ HCURSOR Wid1::OnQueryDragIcon()
 }
 */
 
+/* Writes what a browser login brought back and points the two option pages at it. Only
+   once the Insert URL box is accepted, so Cancel leaves no file and no setting behind. */
+static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
+{
+  const CString home = browserLoginUserDir();
+  const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
+  const CString file = browserLoginCookieFile(project, home);
+  CookieFileStats stats;
+  CString said;
+
+  if (maintab == NULL)
+    return;
+  switch(browserLoginSaveCookies(harvest, file, stats)) {
+  case CookieSaveNothingToWrite:
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINUNUSABLE),
+                                   "The browser gave no cookies the engine can use, so "
+                                   "nothing was changed."),
+                  MB_OK | MB_ICONWARNING);
+    return;
+  case CookieSaveNoFile:
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
+                                 "The cookies could not be written to %s, so nothing "
+                                 "was changed."),
+                (LPCSTR) file);
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+    return;
+  case CookieSaveWritten:
+    break;
+  }
+  maintab->m_option8.SetCookiesFile(file);
+  if (!harvest.userAgent.IsEmpty())
+    maintab->m_option6.SetBrowserIdentity(harvest.userAgent);
+
+  const int dropped = harvest.cookies.GetSize() - stats.written;
+
+  if (dropped > 0) {
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
+                                 "%d of the browser's cookies were left out, because "
+                                 "the engine would not read them."),
+                dropped);
+    AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
+  }
+  /* A value the shell would refuse never reaches argv, and the mirror would then go out
+     under the engine's own identity rather than the one that logged in. */
+  if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINBADAGENT),
+                                   "The browser identity it reported cannot be used, "
+                                   "so the mirror will send the default one."),
+                  MB_OK | MB_ICONWARNING);
+}
+
 void Wid1::Onlogin2() 
 {
   char catbuff[CATBUFF_SIZE];
@@ -826,6 +880,8 @@ void Wid1::Onlogin2()
     }
     CleanUrls();
     OnChangeUrl();
+    if (url.haveHarvest)
+      applyBrowserLogin(url.harvest);
   }
 }
 

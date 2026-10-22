@@ -103,6 +103,10 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line);
    would overflow, and fills STATS. */
 CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStats &stats);
 
+/* Returns TAIL under BASE, with the one separator BASE may already end in. Empty when
+   BASE is, because a relative path would land wherever the program happens to sit. */
+CString pathUnder(const CString &base, const CString &tail);
+
 /* Returns the copy the GUI gives --cookies-file, inside the project's own cache. The
    engine loads a cookies.txt sitting in the project itself whether asked to or not, so a
    copy there would go on being preloaded after the user cleared the field. Empty when
