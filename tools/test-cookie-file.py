@@ -153,7 +153,7 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     caps["name"] = min(pair, pair + plus - 1)
     caps["path"] = min(
         buffers["path"],
-        one(r"strlen\(path\)\s*>\s*(\w+)", adding, "cookie_set()", bauth_h),
+        one(r"strlen\(path\)\s*>\s*(\w+)\)", adding, "cookie_set()", bauth_h),
     )
     # cookie_set() normalises the domain through cookie_host() first, which refuses a host
     # that does not fit its buffer rather than truncating it. No refusal of its own is
@@ -250,8 +250,8 @@ def main():
         (
             "cookie_set()'s path refusal",
             False,
-            r"strlen\(path\)\s*>\s*(\w+)",
-            "strlen(path) > 77",
+            r"strlen\(path\)\s*>\s*(\w+)\)",
+            "strlen(path) > 77)",
         ),
         (
             "cookie_load_records()'s buffer",
