@@ -489,8 +489,8 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* The engine ABORTS a mirror whose bundle name it refuses, so a name that is merely
-       odd must still be one it takes. */
+    /* The engine ABORTS a mirror over a name it refuses. An odd name must still be one
+       it takes. */
     static const struct { const char *landed, *name; } names[] = {
       { "https://example.com/members/", "example.com" },
       /* the same site is one bundle, as the moved-host warning also reads it */

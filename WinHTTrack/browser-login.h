@@ -71,6 +71,9 @@ struct BrowserLoginHarvest {
   /* Where the user ended up. This is the address to crawl, because navigating to it by
      hand is what the browser was opened for. */
   CString finalUrl;
+  /* The bundle this login is saved under, set once the browser closes. The address box
+     and the file must name the SAME one, so it is carried rather than derived twice. */
+  CString bundleName;
 };
 
 /* Opens the browser on URL with PARENT greyed out under it, and fills HARVEST once the
@@ -128,7 +131,8 @@ CString browserLoginBundleName(const CString &landedUrl);
 CString browserLoginBundleFile(const CString &projectPath, const CString &name);
 
 /* LANDEDURL with the suffix the engine reads the name from, which must come last and
-   must appear once. Empty when either argument is. */
+   must appear once. Empty when either argument is empty, and empty when LANDEDURL
+   already carries a suffix, because a second one would abort the mirror. */
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
 
 /* The bundle the engine parses, over RECORDS from cookieFileText(). The identity is
@@ -140,7 +144,7 @@ CString browserLoginBundleText(const CString &userAgent, const CString &records)
    shell will not say. */
 CString browserLoginUserDir(void);
 
-/* What browserLoginSaveBundle() did. */
+/* CookieSaveResult: what browserLoginSaveBundle() returns. */
 enum CookieSaveResult {
   CookieSaveWritten,
   CookieSaveNothingToWrite,  /* the engine would refuse every cookie the browser gave */

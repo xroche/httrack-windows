@@ -1316,7 +1316,7 @@ jobs:
             throw 'the rule-splitting check did not run every case'
           }
           # Same split: ubuntu pins the count, this runs it against the real CString.
-          if ("$so" -notmatch 'cookie file ok on 104 checks') {
+          if ("$so" -notmatch 'cookie file ok on 112 checks') {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the cookie-file check did not run every case'
           }

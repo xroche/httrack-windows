@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 /* Both callers pin the count, so a case deleted from cookie-file.cpp reds here as well. */
-#define CF_EXPECTED_CHECKS 104
+#define CF_EXPECTED_CHECKS 112
 
 /* How many random records the sweep below builds. */
 #define CF_RANDOM_RECORDS 200000

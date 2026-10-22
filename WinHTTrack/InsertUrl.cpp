@@ -310,9 +310,10 @@ void CInsertUrl::OnBrowserLogin()
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(harvest.finalUrl);
   /* The suffix names the bundle written on OK, and falls back to the bare address
-     where the engine would refuse it, so the box is never left empty. */
-  const CString named =
-    browserLoginBundleUrl(landed, browserLoginBundleName(harvest.finalUrl));
+     where the engine would refuse it. The box is never left empty. */
+  harvest.bundleName = browserLoginBundleName(harvest.finalUrl);
+
+  const CString named = browserLoginBundleUrl(landed, harvest.bundleName);
   const CString shown = named.IsEmpty() ? landed : named;
 
   /* Warned, not refused: an empty box leaves the wizard with no URL at all. */

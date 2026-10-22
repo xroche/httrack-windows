@@ -809,8 +809,7 @@ HCURSOR Wid1::OnQueryDragIcon()
 static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
 {
   const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
-  const CString file =
-    browserLoginBundleFile(project, browserLoginBundleName(harvest.finalUrl));
+  const CString file = browserLoginBundleFile(project, harvest.bundleName);
   CookieFileStats stats;
   CString said;
 
@@ -824,11 +823,19 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
                   MB_OK | MB_ICONWARNING);
     return;
   case CookieSaveNoFile:
-    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
-                                 "The cookies could not be written to %s, so nothing "
-                                 "was changed."),
-                (LPCSTR) file);
-    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+    /* An empty path means there is no project yet, and naming it would print a blank. */
+    if (file.IsEmpty())
+      AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNOPROJECT),
+                                     "There is no project folder to save the login in, "
+                                     "so nothing was changed."),
+                    MB_OK | MB_ICONWARNING);
+    else {
+      said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
+                                   "The login could not be written to %s, so nothing "
+                                   "was changed."),
+                  (LPCSTR) file);
+      AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+    }
     return;
   case CookieSaveWritten:
     break;
@@ -842,8 +849,8 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
                 dropped);
     AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
   }
-  /* The bundle leaves out an identity it cannot write as one line, and the mirror then
-     goes out under the engine's own rather than the one that logged in. */
+  /* The bundle leaves out an identity it cannot write as one line. The mirror then goes
+     out under the engine's own rather than the one that logged in. */
   if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINBADAGENT),
                                    "The browser identity it reported cannot be used, "
