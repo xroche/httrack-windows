@@ -120,9 +120,8 @@ void browserLoginForgetProfile(const CString &dir);
    profile holds a signed-in session, and a crash would otherwise leave one for ever. */
 void browserLoginSweepProfiles(void);
 
-/* The bundle a login is saved under, taken from the host it landed on, because that is
-   what the engine already scopes a cookie to. Falls back to "login" when that host is no
-   name the engine would take, such as an IPv6 literal. Never empty. */
+/* The bundle a login is saved under: the registrable domain of the host it landed on,
+   else that host, else "login", taking the first name the engine accepts. Never empty. */
 CString browserLoginBundleName(const CString &landedUrl);
 
 /* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves

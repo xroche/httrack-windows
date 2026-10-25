@@ -51,10 +51,18 @@ CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
 BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
 int browserLoginCheckCases(CString *err);
+extern "C" {
+  /* copied in or stubbed by tools/test-browser-login-paths.py */
+  int hts_registrable_domain(const char *host, char *out, size_t size);
+  const char *hts_bundle_name_refusal(const char *name);
+};
 #else
 #include "stdafx.h"
 #include "Shell.h"
 #include "browser-login.h"
+extern "C" {
+  #include "HTTrackInterface.h"
+};
 #endif
 
 #include <stdio.h>
@@ -108,10 +116,10 @@ CString browserLoginSafeUrl(const CString &landed) {
   return kept;
 }
 
-/* The host of URL, lowercase, with no userinfo, no port, no trailing dot and no leading
-   "www.". Empty when URL carries no host. Lowercased by hand because MakeLower() folds
-   the wrong letters under a Turkish locale. */
-static CString comparableHost(const CString &url) {
+/* The host of URL, lowercase, with no userinfo, no port and no trailing dot. Empty when
+   URL carries no host. Lowercased by hand because MakeLower() folds the wrong letters
+   under a Turkish locale. */
+static CString urlHost(const CString &url) {
   const int scheme = url.Find("://");
 
   if (scheme < 0)
@@ -154,9 +162,14 @@ static CString comparableHost(const CString &url) {
   }
   while (plain.GetLength() > 0 && plain[plain.GetLength() - 1] == '.')
     plain = plain.Left(plain.GetLength() - 1);
-  if (plain.Left(4) == "www.")
-    plain = plain.Mid(4);
   return plain;
+}
+
+/* urlHost() without a leading "www.". */
+static CString comparableHost(const CString &url) {
+  const CString host = urlHost(url);
+
+  return host.Left(4) == "www." ? host.Mid(4) : host;
 }
 
 // see browser-login.h
@@ -169,56 +182,23 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
   return start != landed;
 }
 
-/* Both from the engine's htsbundle.h, where a name over the cap stops the run. */
+/* From the engine's htsbundle.h. */
 #define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
-#define BROWSER_BUNDLE_NAME_MAX 127
-
-/* Would the engine take NAME? bundle_name_refusal() in its htsbundle.c is the rule, and
-   a name it refuses aborts the mirror. */
-static BOOL plainBundleName(const CString &name) {
-  static const char *const devices[] = { "con", "prn", "aux", "nul", NULL };
-  const int len = name.GetLength();
-
-  if (len == 0 || len > BROWSER_BUNDLE_NAME_MAX || name[0] == '.')
-    return FALSE;
-  for(int i = 0 ; i < len ; i++) {
-    const char c = name[i];
-
-    if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z')
-        && !(c >= '0' && c <= '9') && c != '.' && c != '_' && c != '-')
-      return FALSE;
-    if (c == '.' && i + 1 < len && name[i + 1] == '.')
-      return FALSE;
-  }
-
-  /* The engine measures the device name up to the first dot, so "con.example" is one. */
-  const int base = name.Find('.') < 0 ? len : name.Find('.');
-
-  if (base == 3 || base == 4) {
-    CString head;
-
-    /* Lowercased by hand for the reason comparableHost() gives. */
-    for(int i = 0 ; i < base ; i++) {
-      const char c = name[i];
-
-      head += (char) ((c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : c);
-    }
-    for(int i = 0 ; devices[i] != NULL ; i++)
-      if (base == 3 && head == devices[i])
-        return FALSE;
-    if (base == 4 && (head.Left(3) == "com" || head.Left(3) == "lpt")
-        && head[3] >= '1' && head[3] <= '9')
-      return FALSE;
-  }
-  return TRUE;
-}
 
 // see browser-login.h
 CString browserLoginBundleName(const CString &landedUrl) {
   const CString host = comparableHost(landedUrl);
+  char site[256];
 
+  /* Two hosts of one site must share a file, because overlapping bundles abort the mirror.
+     The lookup keeps the "www.", because www.blogspot.com is a site of its own. */
+  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site))
+      && hts_bundle_name_refusal(site) == NULL)
+    return CString(site);
+  if (hts_bundle_name_refusal(host) == NULL)
+    return host;
   /* A name every host falls back to, because a login with nowhere to go is lost. */
-  return plainBundleName(host) ? host : CString("login");
+  return CString("login");
 }
 
 // see browser-login.h
@@ -497,9 +477,19 @@ int browserLoginCheckCases(CString *err) {
       { "https://www.example.com/", "example.com" },
       { "https://example.com:8443/x", "example.com" },
       { "https://EXAMPLE.com/", "example.com" },
+      /* two hosts of one site are one bundle, because the engine scopes it so */
+      { "https://a.example.com/", "example.com" },
+      { "https://login.shop.example.co.uk/", "example.co.uk" },
+      /* no registrable domain, so the host names it */
+      { "https://localhost/", "localhost" },
+      /* www.github.io is a site of its own, since github.io is a public suffix */
+      { "https://www.github.io/", "www.github.io" },
+      { "http://192.168.1.10/", "192.168.1.10" },
       /* a label the engine would read as a Windows device, up to the first dot */
       { "https://con/", "login" },
       { "https://CON.example/", "login" },
+      /* a refused site still leaves the host to name it */
+      { "https://shop.con.com/", "shop.con.com" },
       { "https://com1/", "login" },
       /* com0 is no device, and a four-letter label is not one either */
       { "https://com0/", "com0" },
