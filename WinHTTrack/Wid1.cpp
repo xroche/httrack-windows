@@ -806,7 +806,8 @@ HCURSOR Wid1::OnQueryDragIcon()
 
 /* Writes what a browser login brought back as the bundle its address names. Only once
    the Insert URL box is accepted, so Cancel leaves no file behind. */
-static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
+/* Writes the harvest's bundle and says what went wrong. FALSE when no file was written. */
+static BOOL applyBrowserLogin(const BrowserLoginHarvest &harvest)
 {
   const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
   const CString file = browserLoginBundleFile(project, harvest.bundleName);
@@ -814,14 +815,14 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
   CString said;
 
   if (maintab == NULL)
-    return;
+    return FALSE;
   switch(browserLoginSaveBundle(harvest, file, stats)) {
   case CookieSaveNothingToWrite:
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINUNUSABLE),
                                    "The browser gave no cookies the engine can use, so "
                                    "nothing was changed."),
                   MB_OK | MB_ICONWARNING);
-    return;
+    return FALSE;
   case CookieSaveNoFile:
     /* An empty path means there is no project yet, and naming it would print a blank. */
     if (file.IsEmpty())
@@ -836,7 +837,7 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
                   (LPCSTR) file);
       AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     }
-    return;
+    return FALSE;
   case CookieSaveWritten:
     break;
   }
@@ -856,6 +857,7 @@ static void applyBrowserLogin(const BrowserLoginHarvest &harvest)
                                    "The browser identity it reported cannot be used, "
                                    "so the mirror will send the default one."),
                   MB_OK | MB_ICONWARNING);
+  return TRUE;
 }
 
 void Wid1::Onlogin2() 
@@ -864,6 +866,9 @@ void Wid1::Onlogin2()
   CInsertUrl url;
   url.dest_path=dialog0->GetPath();
   if (url.DoModal() == IDOK) {
+    /* The file goes first, so a login that fails to save leaves no URL naming it. */
+    if (url.haveHarvest && !applyBrowserLogin(url.harvest))
+      url.m_urladr = browserLoginUnbundledUrl(url.m_urladr, url.harvest.bundleName);
     if (url.m_urladr.Left(7)=="http://")
       url.m_urladr=url.m_urladr.Mid(7);
     CString st;
@@ -883,8 +888,6 @@ void Wid1::Onlogin2()
     }
     CleanUrls();
     OnChangeUrl();
-    if (url.haveHarvest)
-      applyBrowserLogin(url.harvest);
   }
 }
 

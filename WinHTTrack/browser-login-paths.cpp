@@ -46,6 +46,7 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginBundleName(const CString &landedUrl);
 CString browserLoginBundleFile(const CString &projectPath, const CString &name);
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
+CString browserLoginUnbundledUrl(const CString &url, const CString &name);
 CString browserLoginBundleText(const CString &userAgent, const CString &records);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
@@ -224,6 +225,16 @@ CString browserLoginBundleUrl(const CString &landedUrl, const CString &name) {
   if (landedUrl.Find(BROWSER_BUNDLE_SUFFIX) >= 0)
     return CString();
   return landedUrl + BROWSER_BUNDLE_SUFFIX + name;
+}
+
+// see browser-login.h
+CString browserLoginUnbundledUrl(const CString &url, const CString &name) {
+  const CString suffix = CString(BROWSER_BUNDLE_SUFFIX) + name;
+
+  if (name.IsEmpty() || url.GetLength() < suffix.GetLength()
+      || url.Right(suffix.GetLength()) != suffix)
+    return url;
+  return url.Left(url.GetLength() - suffix.GetLength());
 }
 
 /* What the engine reads a bundle line into, from htsbundle.c. A longer line stops the
@@ -540,6 +551,28 @@ int browserLoginCheckCases(CString *err) {
       if (got != urls[k].want) {
         snprintf(msg, sizeof(msg), "'%s' plus bundle '%s' gives '%s', expected '%s'",
                  urls[k].landed, urls[k].name, (LPCSTR) got, urls[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    static const struct { const char *url, *name, *want; } unbundled[] = {
+      { "https://example.com/x#httrack-bundle=example.com", "example.com",
+        "https://example.com/x" },
+      /* only this login's own suffix, because another one is not ours to drop */
+      { "https://example.com/x#httrack-bundle=other", "example.com",
+        "https://example.com/x#httrack-bundle=other" },
+      { "https://example.com/x", "example.com", "https://example.com/x" },
+      { "https://example.com/x#httrack-bundle=", "", "https://example.com/x#httrack-bundle=" },
+      { NULL, NULL, NULL }
+    };
+
+    for(int k=0 ; unbundled[k].url != NULL ; k++) {
+      const CString got = browserLoginUnbundledUrl(unbundled[k].url, unbundled[k].name);
+
+      if (got != unbundled[k].want) {
+        snprintf(msg, sizeof(msg), "'%s' less bundle '%s' gives '%s', expected '%s'",
+                 unbundled[k].url, unbundled[k].name, (LPCSTR) got, unbundled[k].want);
         *err = msg;
         return 0;
       }
