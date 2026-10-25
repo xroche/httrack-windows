@@ -275,10 +275,9 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(browserLoginWhy(ready), MB_OK | MB_ICONWARNING);
     return;
   }
-  /* A second login replaces the first rather than adding to it. */
-  harvest.cookies.RemoveAll();
-  harvest.userAgent.Empty();
-  haveHarvest = FALSE;
+  /* A second login replaces the first only once it succeeds, because a failed one leaves
+     the first login's bundle named in the box. */
+  BrowserLoginHarvest got;
 
   GetDlgItemText(IDC_urladr, typed);
 
@@ -287,7 +286,7 @@ void CInsertUrl::OnBrowserLogin()
      user still signed in, and nothing of it survives the program closing. */
   const WhttBrowserLoginResult result =
     browserLoginRun(m_hWnd, browserLoginStartUrl(typed),
-                    browserLoginProfileDir(home, GetCurrentProcessId()), harvest);
+                    browserLoginProfileDir(home, GetCurrentProcessId()), got);
 
   if (result != WhttBrowserLoginDone) {
     said.Format(browserLoginText(LANG(LANG_BROWSERLOGINFAILED),
@@ -296,13 +295,14 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
-  if (harvest.cookies.GetSize() == 0) {
+  if (got.cookies.GetSize() == 0) {
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
                                    "The browser came back with no cookies, so nothing "
                                    "was kept."),
                   MB_OK | MB_ICONINFORMATION);
     return;
   }
+  harvest = got;
   haveHarvest = TRUE;
   /* The address the user navigated to is the one they want crawled, and leaving the
      field empty is what made the first version of this unusable: the wizard had no URL
@@ -328,7 +328,7 @@ void CInsertUrl::OnBrowserLogin()
   }
   if (!shown.IsEmpty())
     SetDlgItemTextCP(this, IDC_urladr, shown);
-  if (!haveHarvest) {
+  if (harvest.bundleName.IsEmpty()) {
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
                                    "This site's address cannot name a saved login, so "
                                    "the cookies were not kept."),

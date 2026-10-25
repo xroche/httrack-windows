@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 83 checks"
+EXPECTED_LINE = "browser login helpers ok on 84 checks"
 
 
 def read(path):
@@ -321,6 +321,30 @@ def main():
         sys.exit(
             "OnBrowserLogin() no longer sets harvest.bundleName, so the address box and "
             "the bundle file could name different bundles"
+        )
+    checked += 1
+
+    # The user must hear that nothing is kept, before the box claiming cookies were saved.
+    if not re.search(
+        r"if \(harvest\.bundleName\.IsEmpty\(\)\) \{[^}]*LANG_BROWSERLOGINNONAME[^}]*"
+        r"return;\s*\}[\s\S]*LANG_BROWSERLOGINGOT",
+        handler.group(1),
+    ):
+        sys.exit("OnBrowserLogin() no longer warns and stops when a login has no name")
+    checked += 1
+
+    # A failed second login keeps the first, whose bundle the box still names.
+    if re.search(
+        r"^\s*harvest\.cookies\.RemoveAll\(\);", handler.group(1), re.M
+    ) or not (
+        re.search(
+            r"if \(got\.cookies\.GetSize\(\) == 0\) \{[^}]*return;\s*\}\s*"
+            r"harvest = got;\s*haveHarvest = TRUE;",
+            handler.group(1),
+        )
+    ):
+        sys.exit(
+            "OnBrowserLogin() no longer keeps the first login until a second one succeeds"
         )
     checked += 1
 

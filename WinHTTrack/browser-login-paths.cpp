@@ -185,10 +185,10 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
 /* From the engine's htsbundle.h. */
 #define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
 
-/* Returns NAME, or "_" plus NAME when only that is accepted (con.com), or empty. No
-   registry hands out a domain starting with "_", so the escape never collides. */
+/* Returns NAME, or "_" plus NAME when only that is accepted (con.com), or empty. A NAME
+   starting with "_" is refused, so only the escape makes one and it never collides. */
 static CString acceptedBundleName(const CString &name) {
-  if (name.IsEmpty())
+  if (name.IsEmpty() || name[0] == '_')
     return CString();
   if (hts_bundle_name_refusal(name) == NULL)
     return name;
@@ -476,8 +476,8 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* The engine ABORTS a mirror over a name it refuses, and two sites sharing a name
-       would share one file, so an odd name is escaped or refused. */
+    /* A refused name aborts the mirror and a shared one shares a file, so an odd name is
+       escaped or dropped. */
     static const struct { const char *landed, *name; } names[] = {
       { "https://example.com/members/", "example.com" },
       /* the same site is one bundle, as the moved-host warning also reads it */
@@ -498,6 +498,8 @@ int browserLoginCheckCases(CString *err) {
       { "https://shop.con.com/", "_con.com" },
       { "https://aux.org/", "_aux.org" },
       { "https://com1/", "_com1" },
+      /* the escape's own spelling, refused so http://con/ cannot share its file */
+      { "http://_con/", "" },
       /* com0 is no device, and a four-letter label is not one either */
       { "https://com0/", "com0" },
       { "https://conx/", "conx" },

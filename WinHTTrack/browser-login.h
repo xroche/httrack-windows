@@ -122,7 +122,7 @@ void browserLoginSweepProfiles(void);
 
 /* The bundle a login is saved under: the registrable domain of the host it landed on,
    else that host, each escaped with a leading "_" when only that makes the engine accept
-   it. Empty when neither can name it, such as an IPv6 literal. */
+   it. It is empty when neither fits, as for an IPv6 literal. */
 CString browserLoginBundleName(const CString &landedUrl);
 
 /* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves
