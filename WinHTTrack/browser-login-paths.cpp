@@ -185,20 +185,27 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
 /* From the engine's htsbundle.h. */
 #define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
 
+/* Returns NAME, or "_" plus NAME when only that is accepted (con.com), or empty. No
+   registry hands out a domain starting with "_", so the escape never collides. */
+static CString acceptedBundleName(const CString &name) {
+  if (name.IsEmpty())
+    return CString();
+  if (hts_bundle_name_refusal(name) == NULL)
+    return name;
+  if (hts_bundle_name_refusal(CString("_") + name) == NULL)
+    return CString("_") + name;
+  return CString();
+}
+
 // see browser-login.h
 CString browserLoginBundleName(const CString &landedUrl) {
-  const CString host = comparableHost(landedUrl);
   char site[256];
 
   /* Two hosts of one site must share a file, because overlapping bundles abort the mirror.
      The lookup keeps the "www.", because www.blogspot.com is a site of its own. */
-  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site))
-      && hts_bundle_name_refusal(site) == NULL)
-    return CString(site);
-  if (hts_bundle_name_refusal(host) == NULL)
-    return host;
-  /* A name every host falls back to, because a login with nowhere to go is lost. */
-  return CString("login");
+  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site)))
+    return acceptedBundleName(site);
+  return acceptedBundleName(comparableHost(landedUrl));
 }
 
 // see browser-login.h
@@ -469,8 +476,8 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* The engine ABORTS a mirror over a name it refuses. An odd name must still be one
-       it takes. */
+    /* The engine ABORTS a mirror over a name it refuses, and two sites sharing a name
+       would share one file, so an odd name is escaped or refused. */
     static const struct { const char *landed, *name; } names[] = {
       { "https://example.com/members/", "example.com" },
       /* the same site is one bundle, as the moved-host warning also reads it */
@@ -485,20 +492,20 @@ int browserLoginCheckCases(CString *err) {
       /* www.github.io is a site of its own, since github.io is a public suffix */
       { "https://www.github.io/", "www.github.io" },
       { "http://192.168.1.10/", "192.168.1.10" },
-      /* a label the engine would read as a Windows device, up to the first dot */
-      { "https://con/", "login" },
-      { "https://CON.example/", "login" },
-      /* a refused site still leaves the host to name it */
-      { "https://shop.con.com/", "shop.con.com" },
-      { "https://com1/", "login" },
+      /* a Windows device name, read up to the first dot, is escaped and stays distinct */
+      { "https://con/", "_con" },
+      { "https://CON.example/", "_con.example" },
+      { "https://shop.con.com/", "_con.com" },
+      { "https://aux.org/", "_aux.org" },
+      { "https://com1/", "_com1" },
       /* com0 is no device, and a four-letter label is not one either */
       { "https://com0/", "com0" },
       { "https://conx/", "conx" },
       /* an IPv6 literal keeps bytes no bundle name may hold */
-      { "http://[::1]:8080/", "login" },
+      { "http://[::1]:8080/", "" },
       /* nothing to name it after */
-      { "about:blank", "login" },
-      { "", "login" },
+      { "about:blank", "" },
+      { "", "" },
       { NULL, NULL }
     };
 

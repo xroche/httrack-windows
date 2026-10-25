@@ -309,9 +309,11 @@ void CInsertUrl::OnBrowserLogin()
      to go on. It stays editable, so an unwanted query string can still be trimmed.
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(harvest.finalUrl);
-  /* The suffix names the bundle written on OK, and falls back to the bare address
-     where the engine would refuse it. The box is never left empty. */
+  /* The suffix names the bundle written on OK. */
   harvest.bundleName = browserLoginBundleName(harvest.finalUrl);
+  /* Drop the login rather than share a name, because another site would replace it. */
+  if (harvest.bundleName.IsEmpty())
+    haveHarvest = FALSE;
 
   const CString named = browserLoginBundleUrl(landed, harvest.bundleName);
   const CString shown = named.IsEmpty() ? landed : named;
@@ -326,6 +328,13 @@ void CInsertUrl::OnBrowserLogin()
   }
   if (!shown.IsEmpty())
     SetDlgItemTextCP(this, IDC_urladr, shown);
+  if (!haveHarvest) {
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
+                                   "This site's address cannot name a saved login, so "
+                                   "the cookies were not kept."),
+                  MB_OK | MB_ICONWARNING);
+    return;
+  }
   /* Counts every cookie, but the engine keeps only the start URL's registrable domain. */
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are saved with the "

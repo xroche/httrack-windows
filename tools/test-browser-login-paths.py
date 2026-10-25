@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 82 checks"
+EXPECTED_LINE = "browser login helpers ok on 83 checks"
 
 
 def read(path):
@@ -321,6 +321,16 @@ def main():
         sys.exit(
             "OnBrowserLogin() no longer sets harvest.bundleName, so the address box and "
             "the bundle file could name different bundles"
+        )
+    checked += 1
+
+    # A login with no name is dropped, because a shared name lets another site replace it.
+    if not re.search(
+        r"if \(harvest\.bundleName\.IsEmpty\(\)\)\s*haveHarvest = FALSE;",
+        handler.group(1),
+    ):
+        sys.exit(
+            "OnBrowserLogin() no longer drops a login whose site cannot name a bundle"
         )
     checked += 1
 
