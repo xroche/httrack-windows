@@ -121,8 +121,7 @@ void browserLoginForgetProfile(const CString &dir);
 void browserLoginSweepProfiles(void);
 
 /* The bundle a login is saved under: the registrable domain of the host it landed on,
-   which is the scope the engine gives a bundle. Falls back to the host, then to "login"
-   when neither is a name the engine would take, such as an IPv6 literal. Never empty. */
+   else that host, else "login", taking the first name the engine accepts. Never empty. */
 CString browserLoginBundleName(const CString &landedUrl);
 
 /* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves

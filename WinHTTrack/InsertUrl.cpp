@@ -326,8 +326,7 @@ void CInsertUrl::OnBrowserLogin()
   }
   if (!shown.IsEmpty())
     SetDlgItemTextCP(this, IDC_urladr, shown);
-  /* Saved, not used: the engine scopes a bundle to the registrable domain of the start
-     URL and drops the rest. */
+  /* Counts every cookie, but the engine keeps only the start URL's registrable domain. */
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are saved with the "
                                "project when you press OK."),

@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 80 checks"
+EXPECTED_LINE = "browser login helpers ok on 82 checks"
 
 
 def read(path):
@@ -53,17 +53,26 @@ def engine_opt_function(htscoremain):
 
 
 def engine_bundle_name_rule(htsbundle_c, htsbundle_h):
-    """The engine's bundle name rule, copied out because a name it refuses aborts the
-    mirror, so the harness must judge names exactly as the crawl does."""
+    """The engine's bundle name rule, copied out so the harness refuses what the crawl
+    refuses."""
     parts = []
-    for pat in (
-        r"^#define HTS_BUNDLE_NAME_MAX \d+$",
-        r"^static hts_boolean bundle_name_is_device\(const char \*name\) \{.*?^\}$",
-        r"^static const char \*bundle_name_refusal\(const char \*name\) \{.*?^\}$",
-        r"^HTSEXT_API const char \*hts_bundle_name_refusal\(const char \*name\) "
-        r"\{.*?^\}$",
+    for source, pat in (
+        (htsbundle_h, r"^#define HTS_BUNDLE_NAME_MAX \d+$"),
+        (
+            htsbundle_c,
+            r"^static hts_boolean bundle_name_is_device\(const char \*name\) \{.*?^\}$",
+        ),
+        (
+            htsbundle_c,
+            r"^static const char \*bundle_name_refusal\(const char \*name\) \{.*?^\}$",
+        ),
+        (
+            htsbundle_c,
+            r"^HTSEXT_API const char \*hts_bundle_name_refusal\(const char \*name\) "
+            r"\{.*?^\}$",
+        ),
     ):
-        m = re.search(pat, htsbundle_h if "define" in pat else htsbundle_c, re.M | re.S)
+        m = re.search(pat, source, re.M | re.S)
         if m is None:
             sys.exit("the engine's htsbundle.c or .h no longer matches %r" % pat)
         parts.append(m.group(0))
@@ -71,7 +80,7 @@ def engine_bundle_name_rule(htsbundle_c, htsbundle_h):
 
 
 # The public suffix list stays the engine's to test, since htspsl.c needs the whole
-# engine. This stands in for it on the hosts the cases use, and on co.uk.
+# engine. This stands in for it on the hosts the cases use, with co.uk and github.io.
 REGISTRABLE_STUB = r"""
 int hts_registrable_domain(const char *host, char *out, size_t size) {
   const size_t len = strlen(host);
@@ -79,10 +88,11 @@ int hts_registrable_domain(const char *host, char *out, size_t size) {
   int labels = 2;
 
   out[0] = '\0';
-  if (strchr(host, '.') == NULL || host[0] == '[' || strcmp(host, "co.uk") == 0
-      || strspn(host, "0123456789.") == len)
+  if (host[0] == '[' || strcmp(host, "co.uk") == 0
+      || strcmp(host, "github.io") == 0 || strspn(host, "0123456789.") == len)
     return 0;
-  if (len > 6 && strcmp(host + len - 6, ".co.uk") == 0)
+  if ((len > 6 && strcmp(host + len - 6, ".co.uk") == 0)
+      || (len > 10 && strcmp(host + len - 10, ".github.io") == 0))
     labels = 3;
   for (p = host + len; p > host && reg == NULL; p--)
     if (p[-1] == '.' && --labels == 0)
@@ -363,7 +373,7 @@ def main():
         with open(gen, "w", encoding="utf-8") as f:
             f.write(
                 "/* Copied by tools/test-browser-login-paths.py out of the engine's "
-                "src/htscore.c, src/htssafe.h and src/htsbundle.c. */\n"
+                "src/htscore.c, src/htssafe.h, src/htsbundle.c and src/htsbundle.h. */\n"
                 "#include <assert.h>\n#include <ctype.h>\n#include <stddef.h>\n"
                 "#include <string.h>\n"
                 "typedef int hts_boolean;\n#define HTSEXT_API\n"

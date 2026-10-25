@@ -116,10 +116,10 @@ CString browserLoginSafeUrl(const CString &landed) {
   return kept;
 }
 
-/* The host of URL, lowercase, with no userinfo, no port, no trailing dot and no leading
-   "www.". Empty when URL carries no host. Lowercased by hand because MakeLower() folds
-   the wrong letters under a Turkish locale. */
-static CString comparableHost(const CString &url) {
+/* The host of URL, lowercase, with no userinfo, no port and no trailing dot. Empty when
+   URL carries no host. Lowercased by hand because MakeLower() folds the wrong letters
+   under a Turkish locale. */
+static CString urlHost(const CString &url) {
   const int scheme = url.Find("://");
 
   if (scheme < 0)
@@ -162,9 +162,14 @@ static CString comparableHost(const CString &url) {
   }
   while (plain.GetLength() > 0 && plain[plain.GetLength() - 1] == '.')
     plain = plain.Left(plain.GetLength() - 1);
-  if (plain.Left(4) == "www.")
-    plain = plain.Mid(4);
   return plain;
+}
+
+/* urlHost() without a leading "www.". */
+static CString comparableHost(const CString &url) {
+  const CString host = urlHost(url);
+
+  return host.Left(4) == "www." ? host.Mid(4) : host;
 }
 
 // see browser-login.h
@@ -185,12 +190,12 @@ CString browserLoginBundleName(const CString &landedUrl) {
   const CString host = comparableHost(landedUrl);
   char site[256];
 
-  /* The engine scopes a bundle to the registrable domain, so two hosts of one site must
-     share a file: two overlapping bundles with different agents abort the mirror. */
-  if (!host.IsEmpty() && hts_registrable_domain(host, site, sizeof(site))
+  /* Two hosts of one site must share a file, because overlapping bundles abort the mirror.
+     Asked with the "www." kept, because www.blogspot.com is a site of its own. */
+  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site))
       && hts_bundle_name_refusal(site) == NULL)
     return CString(site);
-  if (!host.IsEmpty() && hts_bundle_name_refusal(host) == NULL)
+  if (hts_bundle_name_refusal(host) == NULL)
     return host;
   /* A name every host falls back to, because a login with nowhere to go is lost. */
   return CString("login");
@@ -477,10 +482,14 @@ int browserLoginCheckCases(CString *err) {
       { "https://login.shop.example.co.uk/", "example.co.uk" },
       /* no registrable domain, so the host names it */
       { "https://localhost/", "localhost" },
+      /* www.github.io is a site of its own, since github.io is a public suffix */
+      { "https://www.github.io/", "www.github.io" },
       { "http://192.168.1.10/", "192.168.1.10" },
       /* a label the engine would read as a Windows device, up to the first dot */
       { "https://con/", "login" },
       { "https://CON.example/", "login" },
+      /* a refused site still leaves the host to name it */
+      { "https://shop.con.com/", "shop.con.com" },
       { "https://com1/", "login" },
       /* com0 is no device, and a four-letter label is not one either */
       { "https://com0/", "com0" },
