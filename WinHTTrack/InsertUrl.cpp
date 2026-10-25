@@ -302,21 +302,27 @@ void CInsertUrl::OnBrowserLogin()
                   MB_OK | MB_ICONINFORMATION);
     return;
   }
-  harvest = got;
-  haveHarvest = TRUE;
   /* The address the user navigated to is the one they want crawled, and leaving the
      field empty is what made the first version of this unusable: the wizard had no URL
      to go on. It stays editable, so an unwanted query string can still be trimmed.
      Sanitised first, because this field is saved into winprofile.ini in clear. */
-  const CString landed = browserLoginSafeUrl(harvest.finalUrl);
-  /* The suffix names the bundle written on OK. */
-  harvest.bundleName = browserLoginBundleName(harvest.finalUrl);
-  /* Drop the login rather than share a name, because another site would replace it. */
-  if (harvest.bundleName.IsEmpty())
-    haveHarvest = FALSE;
+  const CString landed = browserLoginSafeUrl(got.finalUrl);
+  const CString name = browserLoginBundleName(got.finalUrl);
+  /* The suffix names the bundle written on OK, so the box and the file always agree. */
+  const CString named = browserLoginBundleUrl(landed, name);
 
-  const CString named = browserLoginBundleUrl(landed, harvest.bundleName);
-  const CString shown = named.IsEmpty() ? landed : named;
+  /* Nothing changes, so an earlier login stays the one the box names. A shared name is
+     no way out, because another site would replace the file. */
+  if (named.IsEmpty()) {
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
+                                   "This site's address cannot name a saved login, so "
+                                   "the cookies were not kept."),
+                  MB_OK | MB_ICONWARNING);
+    return;
+  }
+  harvest = got;
+  harvest.bundleName = name;
+  haveHarvest = TRUE;
 
   /* Warned, not refused: an empty box leaves the wizard with no URL at all. */
   if (browserLoginMovedHost(browserLoginStartUrl(typed), landed)) {
@@ -326,15 +332,7 @@ void CInsertUrl::OnBrowserLogin()
                 (LPCSTR) landed);
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
-  if (!shown.IsEmpty())
-    SetDlgItemTextCP(this, IDC_urladr, shown);
-  if (harvest.bundleName.IsEmpty()) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
-                                   "This site's address cannot name a saved login, so "
-                                   "the cookies were not kept."),
-                  MB_OK | MB_ICONWARNING);
-    return;
-  }
+  SetDlgItemTextCP(this, IDC_urladr, named);
   /* Counts every cookie, but the engine keeps only the start URL's registrable domain. */
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are saved with the "

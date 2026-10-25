@@ -278,10 +278,10 @@ def main():
     # The address the user landed on has to reach the field, or the wizard has no URL
     # to go on and the login leads nowhere. That shipped once and Xavier hit it.
     if not re.search(
-        r"CString landed = browserLoginSafeUrl\(harvest\.finalUrl\)", handler.group(1)
-    ) or not re.search(r"SetDlgItemTextCP\([^)]*IDC_urladr, shown\)", handler.group(1)):
+        r"CString landed = browserLoginSafeUrl\(got\.finalUrl\)", handler.group(1)
+    ) or not re.search(r"SetDlgItemTextCP\([^)]*IDC_urladr, named\)", handler.group(1)):
         sys.exit(
-            "OnBrowserLogin() no longer puts a sanitised harvest.finalUrl in "
+            "OnBrowserLogin() no longer puts a sanitised landed address in "
             "IDC_urladr, so a login either leaves the address box empty or writes a "
             "token from the URL into winprofile.ini"
         )
@@ -302,9 +302,8 @@ def main():
     # Calling browserLoginBundleUrl() is not using it: the box has to get the suffixed
     # address, or the login writes a bundle whose name no URL carries.
     if not re.search(
-        r"CString named =[\s\S]{0,120}?browserLoginBundleUrl\(", handler.group(1)
-    ) or not re.search(
-        r"CString shown = named\.IsEmpty\(\) \? landed : named;", handler.group(1)
+        r"CString named =[\s\S]{0,120}?browserLoginBundleUrl\(landed, name\)",
+        handler.group(1),
     ):
         sys.exit(
             "OnBrowserLogin() no longer derives the address box from "
@@ -316,45 +315,29 @@ def main():
     # harvest for that reason, so one site setting it and the other reading it is the
     # coupling, and deriving it twice would let the two drift apart.
     if not re.search(
-        r"harvest\.bundleName = browserLoginBundleName\(", handler.group(1)
-    ):
+        r"CString name = browserLoginBundleName\(got\.finalUrl\)", handler.group(1)
+    ) or not re.search(r"harvest\.bundleName = name;", handler.group(1)):
         sys.exit(
             "OnBrowserLogin() no longer sets harvest.bundleName, so the address box and "
             "the bundle file could name different bundles"
         )
     checked += 1
 
-    # The user must hear that nothing is kept, before the box claiming cookies were saved.
-    if not re.search(
-        r"if \(harvest\.bundleName\.IsEmpty\(\)\) \{[^}]*LANG_BROWSERLOGINNONAME[^}]*"
-        r"return;\s*\}[\s\S]*LANG_BROWSERLOGINGOT",
-        handler.group(1),
-    ):
-        sys.exit("OnBrowserLogin() no longer warns and stops when a login has no name")
-    checked += 1
-
-    # A failed second login keeps the first, whose bundle the box still names.
+    # A login the box cannot name changes nothing, so an earlier one stays what the box
+    # names, and the user hears it before any box claims cookies were saved.
     if re.search(
-        r"^\s*harvest\.cookies\.RemoveAll\(\);", handler.group(1), re.M
+        r"harvest\.cookies\.RemoveAll\(\)|haveHarvest = FALSE", handler.group(1)
     ) or not (
         re.search(
-            r"if \(got\.cookies\.GetSize\(\) == 0\) \{[^}]*return;\s*\}\s*"
-            r"harvest = got;\s*haveHarvest = TRUE;",
+            r"if \(named\.IsEmpty\(\)\) \{[^}]*LANG_BROWSERLOGINNONAME[^}]*return;\s*\}\s*"
+            r"harvest = got;\s*harvest\.bundleName = name;\s*haveHarvest = TRUE;"
+            r"[\s\S]*LANG_BROWSERLOGINGOT",
             handler.group(1),
         )
     ):
         sys.exit(
-            "OnBrowserLogin() no longer keeps the first login until a second one succeeds"
-        )
-    checked += 1
-
-    # A login with no name is dropped, because a shared name lets another site replace it.
-    if not re.search(
-        r"if \(harvest\.bundleName\.IsEmpty\(\)\)\s*haveHarvest = FALSE;",
-        handler.group(1),
-    ):
-        sys.exit(
-            "OnBrowserLogin() no longer drops a login whose site cannot name a bundle"
+            "OnBrowserLogin() no longer keeps the earlier login and warns when the box "
+            "cannot name a new one"
         )
     checked += 1
 
