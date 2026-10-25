@@ -315,8 +315,8 @@ void CInsertUrl::OnBrowserLogin()
      no way out, because another site would replace the file. */
   if (named.IsEmpty()) {
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
-                                   "This site's address cannot name a saved login, so "
-                                   "the cookies were not kept."),
+                                   "A login cannot be saved for this address, so "
+                                   "nothing was kept."),
                   MB_OK | MB_ICONWARNING);
     return;
   }
