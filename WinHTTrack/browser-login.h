@@ -121,7 +121,8 @@ void browserLoginForgetProfile(const CString &dir);
 void browserLoginSweepProfiles(void);
 
 /* The bundle a login is saved under: the registrable domain of the host it landed on,
-   else that host, else "login", taking the first name the engine accepts. Never empty. */
+   else that host, each escaped with a leading "_" when only that makes the engine accept
+   it. It is empty when neither fits, as for an IPv6 literal. */
 CString browserLoginBundleName(const CString &landedUrl);
 
 /* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves
@@ -133,6 +134,10 @@ CString browserLoginBundleFile(const CString &projectPath, const CString &name);
    must appear once. Empty when either argument is empty, and empty when LANDEDURL
    already carries a suffix, because a second one would abort the mirror. */
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
+
+/* URL without the suffix naming bundle NAME when URL ends with it, trailing blanks
+   aside, else URL unchanged. */
+CString browserLoginUnbundledUrl(const CString &url, const CString &name);
 
 /* The bundle the engine parses, over RECORDS from cookieFileText(). The identity is
    left out when it would not survive as one line, because the engine reads a bundle a

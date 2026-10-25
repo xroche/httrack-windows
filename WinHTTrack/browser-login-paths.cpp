@@ -46,6 +46,7 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginBundleName(const CString &landedUrl);
 CString browserLoginBundleFile(const CString &projectPath, const CString &name);
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
+CString browserLoginUnbundledUrl(const CString &url, const CString &name);
 CString browserLoginBundleText(const CString &userAgent, const CString &records);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
@@ -185,20 +186,27 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
 /* From the engine's htsbundle.h. */
 #define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
 
+/* Returns NAME, or "_" plus NAME when only that is accepted (con.com), or empty. A NAME
+   starting with "_" is refused, so only the escape makes one and it never collides. */
+static CString acceptedBundleName(const CString &name) {
+  if (name.IsEmpty() || name[0] == '_')
+    return CString();
+  if (hts_bundle_name_refusal(name) == NULL)
+    return name;
+  if (hts_bundle_name_refusal(CString("_") + name) == NULL)
+    return CString("_") + name;
+  return CString();
+}
+
 // see browser-login.h
 CString browserLoginBundleName(const CString &landedUrl) {
-  const CString host = comparableHost(landedUrl);
   char site[256];
 
   /* Two hosts of one site must share a file, because overlapping bundles abort the mirror.
      The lookup keeps the "www.", because www.blogspot.com is a site of its own. */
-  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site))
-      && hts_bundle_name_refusal(site) == NULL)
-    return CString(site);
-  if (hts_bundle_name_refusal(host) == NULL)
-    return host;
-  /* A name every host falls back to, because a login with nowhere to go is lost. */
-  return CString("login");
+  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site)))
+    return acceptedBundleName(site);
+  return acceptedBundleName(comparableHost(landedUrl));
 }
 
 // see browser-login.h
@@ -217,6 +225,19 @@ CString browserLoginBundleUrl(const CString &landedUrl, const CString &name) {
   if (landedUrl.Find(BROWSER_BUNDLE_SUFFIX) >= 0)
     return CString();
   return landedUrl + BROWSER_BUNDLE_SUFFIX + name;
+}
+
+// see browser-login.h
+CString browserLoginUnbundledUrl(const CString &url, const CString &name) {
+  const CString suffix = CString(BROWSER_BUNDLE_SUFFIX) + name;
+  /* The box is split on blanks later, so a typed trailing space must not hide the suffix. */
+  CString trimmed = url;
+
+  trimmed.TrimRight();
+  if (name.IsEmpty() || trimmed.GetLength() < suffix.GetLength()
+      || trimmed.Right(suffix.GetLength()) != suffix)
+    return url;
+  return trimmed.Left(trimmed.GetLength() - suffix.GetLength());
 }
 
 /* What the engine reads a bundle line into, from htsbundle.c. A longer line stops the
@@ -469,8 +490,8 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* The engine ABORTS a mirror over a name it refuses. An odd name must still be one
-       it takes. */
+    /* A refused name aborts the mirror and a shared one shares a file, so an odd name is
+       escaped or dropped. */
     static const struct { const char *landed, *name; } names[] = {
       { "https://example.com/members/", "example.com" },
       /* the same site is one bundle, as the moved-host warning also reads it */
@@ -485,20 +506,22 @@ int browserLoginCheckCases(CString *err) {
       /* www.github.io is a site of its own, since github.io is a public suffix */
       { "https://www.github.io/", "www.github.io" },
       { "http://192.168.1.10/", "192.168.1.10" },
-      /* a label the engine would read as a Windows device, up to the first dot */
-      { "https://con/", "login" },
-      { "https://CON.example/", "login" },
-      /* a refused site still leaves the host to name it */
-      { "https://shop.con.com/", "shop.con.com" },
-      { "https://com1/", "login" },
+      /* a Windows device name, read up to the first dot, is escaped and stays distinct */
+      { "https://con/", "_con" },
+      { "https://CON.example/", "_con.example" },
+      { "https://shop.con.com/", "_con.com" },
+      { "https://aux.org/", "_aux.org" },
+      { "https://com1/", "_com1" },
+      /* the escape's own spelling, refused so http://con/ cannot share its file */
+      { "http://_con/", "" },
       /* com0 is no device, and a four-letter label is not one either */
       { "https://com0/", "com0" },
       { "https://conx/", "conx" },
       /* an IPv6 literal keeps bytes no bundle name may hold */
-      { "http://[::1]:8080/", "login" },
+      { "http://[::1]:8080/", "" },
       /* nothing to name it after */
-      { "about:blank", "login" },
-      { "", "login" },
+      { "about:blank", "" },
+      { "", "" },
       { NULL, NULL }
     };
 
@@ -531,6 +554,30 @@ int browserLoginCheckCases(CString *err) {
       if (got != urls[k].want) {
         snprintf(msg, sizeof(msg), "'%s' plus bundle '%s' gives '%s', expected '%s'",
                  urls[k].landed, urls[k].name, (LPCSTR) got, urls[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    static const struct { const char *url, *name, *want; } unbundled[] = {
+      { "https://example.com/x#httrack-bundle=example.com", "example.com",
+        "https://example.com/x" },
+      /* only this login's own suffix, because another one is not ours to drop */
+      { "https://example.com/x#httrack-bundle=other", "example.com",
+        "https://example.com/x#httrack-bundle=other" },
+      { "https://example.com/x#httrack-bundle=example.com  ", "example.com",
+        "https://example.com/x" },
+      { "https://example.com/x", "example.com", "https://example.com/x" },
+      { "https://example.com/x#httrack-bundle=", "", "https://example.com/x#httrack-bundle=" },
+      { NULL, NULL, NULL }
+    };
+
+    for(int k=0 ; unbundled[k].url != NULL ; k++) {
+      const CString got = browserLoginUnbundledUrl(unbundled[k].url, unbundled[k].name);
+
+      if (got != unbundled[k].want) {
+        snprintf(msg, sizeof(msg), "'%s' less bundle '%s' gives '%s', expected '%s'",
+                 unbundled[k].url, unbundled[k].name, (LPCSTR) got, unbundled[k].want);
         *err = msg;
         return 0;
       }

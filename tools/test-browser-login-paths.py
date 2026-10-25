@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 82 checks"
+EXPECTED_LINE = "browser login helpers ok on 89 checks"
 
 
 def read(path):
@@ -218,6 +218,7 @@ def main():
         "browserLoginBundleName",
         "browserLoginBundleFile",
         "browserLoginBundleUrl",
+        "browserLoginUnbundledUrl",
         "browserLoginBundleText",
     ):
         for other in others:
@@ -278,10 +279,10 @@ def main():
     # The address the user landed on has to reach the field, or the wizard has no URL
     # to go on and the login leads nowhere. That shipped once and Xavier hit it.
     if not re.search(
-        r"CString landed = browserLoginSafeUrl\(harvest\.finalUrl\)", handler.group(1)
-    ) or not re.search(r"SetDlgItemTextCP\([^)]*IDC_urladr, shown\)", handler.group(1)):
+        r"CString landed = browserLoginSafeUrl\(got\.finalUrl\)", handler.group(1)
+    ) or not re.search(r"SetDlgItemTextCP\([^)]*IDC_urladr, named\)", handler.group(1)):
         sys.exit(
-            "OnBrowserLogin() no longer puts a sanitised harvest.finalUrl in "
+            "OnBrowserLogin() no longer puts a sanitised landed address in "
             "IDC_urladr, so a login either leaves the address box empty or writes a "
             "token from the URL into winprofile.ini"
         )
@@ -302,9 +303,8 @@ def main():
     # Calling browserLoginBundleUrl() is not using it: the box has to get the suffixed
     # address, or the login writes a bundle whose name no URL carries.
     if not re.search(
-        r"CString named =[\s\S]{0,120}?browserLoginBundleUrl\(", handler.group(1)
-    ) or not re.search(
-        r"CString shown = named\.IsEmpty\(\) \? landed : named;", handler.group(1)
+        r"CString named =[\s\S]{0,120}?browserLoginBundleUrl\(landed, name\)",
+        handler.group(1),
     ):
         sys.exit(
             "OnBrowserLogin() no longer derives the address box from "
@@ -316,11 +316,29 @@ def main():
     # harvest for that reason, so one site setting it and the other reading it is the
     # coupling, and deriving it twice would let the two drift apart.
     if not re.search(
-        r"harvest\.bundleName = browserLoginBundleName\(", handler.group(1)
-    ):
+        r"CString name = browserLoginBundleName\(got\.finalUrl\)", handler.group(1)
+    ) or not re.search(r"harvest\.bundleName = name;", handler.group(1)):
         sys.exit(
             "OnBrowserLogin() no longer sets harvest.bundleName, so the address box and "
             "the bundle file could name different bundles"
+        )
+    checked += 1
+
+    # A login the box cannot name changes nothing, so an earlier one stays what the box
+    # names, and the user hears it before any box claims cookies were saved.
+    if re.search(
+        r"harvest\.cookies\.RemoveAll\(\)|haveHarvest = FALSE", handler.group(1)
+    ) or not (
+        re.search(
+            r"if \(named\.IsEmpty\(\)\) \{[^}]*LANG_BROWSERLOGINNONAME[^}]*return;\s*\}\s*"
+            r"harvest = got;\s*harvest\.bundleName = name;\s*haveHarvest = TRUE;"
+            r"[\s\S]*LANG_BROWSERLOGINGOT",
+            handler.group(1),
+        )
+    ):
+        sys.exit(
+            "OnBrowserLogin() no longer keeps the earlier login and warns when the box "
+            "cannot name a new one"
         )
     checked += 1
 
@@ -328,10 +346,16 @@ def main():
     # has to be on the OK path. Without this the login would silently do nothing.
     wid1 = read(os.path.join(ROOT, "WinHTTrack", "Wid1.cpp"))
     apply = re.search(
-        r"^static void applyBrowserLogin\(.*?\)\n\{(.*?)^\}", wid1, re.M | re.S
+        r"^static BOOL applyBrowserLogin\(.*?\)\n\{(.*?)^\}", wid1, re.M | re.S
     )
     if apply is None:
         sys.exit("Wid1.cpp no longer defines applyBrowserLogin()")
+    checked += 1
+    # TRUE only at the end, so every early exit tells Onlogin2() no file was written.
+    if apply.group(1).count("return TRUE;") != 1 or not apply.group(
+        1
+    ).rstrip().endswith("return TRUE;"):
+        sys.exit("applyBrowserLogin() can report a bundle written on a failure path")
     checked += 1
     for name in ("browserLoginBundleFile", "browserLoginSaveBundle"):
         if name + "(" not in apply.group(1):
@@ -357,12 +381,16 @@ def main():
     if taken is None:
         sys.exit("Onlogin2() no longer has an IDOK branch to apply the harvest in")
     checked += 1
+    # Written before the URL is added, so a failed save leaves no suffix naming a file.
     if not re.search(
-        r"if \(url\.haveHarvest\)\s*\n?\s*applyBrowserLogin\(", taken.group(1)
+        r"if \(url\.haveHarvest && !applyBrowserLogin\(url\.harvest\)\)\s*"
+        r"url\.m_urladr = browserLoginUnbundledUrl\(url\.m_urladr, "
+        r"url\.harvest\.bundleName\);\s*if \(url\.m_urladr\.Left",
+        taken.group(1),
     ):
         sys.exit(
-            "Onlogin2() no longer applies the harvest inside the IDOK branch and under "
-            "haveHarvest, so a cancelled login would still be written to disk"
+            "Onlogin2() no longer saves the login before adding its URL, under "
+            "haveHarvest and inside the IDOK branch, and drops the suffix on failure"
         )
     checked += 1
 
