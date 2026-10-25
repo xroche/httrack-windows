@@ -191,7 +191,7 @@ CString browserLoginBundleName(const CString &landedUrl) {
   char site[256];
 
   /* Two hosts of one site must share a file, because overlapping bundles abort the mirror.
-     Asked with the "www." kept, because www.blogspot.com is a site of its own. */
+     The lookup keeps the "www.", because www.blogspot.com is a site of its own. */
   if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site))
       && hts_bundle_name_refusal(site) == NULL)
     return CString(site);
