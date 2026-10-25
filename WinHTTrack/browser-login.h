@@ -135,7 +135,8 @@ CString browserLoginBundleFile(const CString &projectPath, const CString &name);
    already carries a suffix, because a second one would abort the mirror. */
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
 
-/* URL without the suffix naming bundle NAME when URL ends with it, else URL unchanged. */
+/* URL without the suffix naming bundle NAME when URL ends with it, trailing blanks
+   aside, else URL unchanged. */
 CString browserLoginUnbundledUrl(const CString &url, const CString &name);
 
 /* The bundle the engine parses, over RECORDS from cookieFileText(). The identity is

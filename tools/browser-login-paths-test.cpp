@@ -13,7 +13,7 @@
 int browserLoginCheckCases(CString *err);
 
 /* Both callers pin the count, so a case deleted from the unit reds here as well. */
-#define BL_EXPECTED_CHECKS 88
+#define BL_EXPECTED_CHECKS 89
 
 int main(void) {
   CString err;

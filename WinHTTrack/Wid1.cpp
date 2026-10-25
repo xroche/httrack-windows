@@ -804,9 +804,9 @@ HCURSOR Wid1::OnQueryDragIcon()
 }
 */
 
-/* Writes what a browser login brought back as the bundle its address names. Only once
-   the Insert URL box is accepted, so Cancel leaves no file behind. */
-/* Writes the harvest's bundle and says what went wrong. FALSE when no file was written. */
+/* Writes what a browser login brought back as the bundle its address names, and says
+   what went wrong. Only once the box is accepted, so Cancel leaves no file behind.
+   FALSE when no file was written. */
 static BOOL applyBrowserLogin(const BrowserLoginHarvest &harvest)
 {
   const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();

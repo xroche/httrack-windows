@@ -230,11 +230,14 @@ CString browserLoginBundleUrl(const CString &landedUrl, const CString &name) {
 // see browser-login.h
 CString browserLoginUnbundledUrl(const CString &url, const CString &name) {
   const CString suffix = CString(BROWSER_BUNDLE_SUFFIX) + name;
+  /* The box is split on blanks later, so a typed trailing space must not hide the suffix. */
+  CString trimmed = url;
 
-  if (name.IsEmpty() || url.GetLength() < suffix.GetLength()
-      || url.Right(suffix.GetLength()) != suffix)
+  trimmed.TrimRight();
+  if (name.IsEmpty() || trimmed.GetLength() < suffix.GetLength()
+      || trimmed.Right(suffix.GetLength()) != suffix)
     return url;
-  return url.Left(url.GetLength() - suffix.GetLength());
+  return trimmed.Left(trimmed.GetLength() - suffix.GetLength());
 }
 
 /* What the engine reads a bundle line into, from htsbundle.c. A longer line stops the
@@ -562,6 +565,8 @@ int browserLoginCheckCases(CString *err) {
       /* only this login's own suffix, because another one is not ours to drop */
       { "https://example.com/x#httrack-bundle=other", "example.com",
         "https://example.com/x#httrack-bundle=other" },
+      { "https://example.com/x#httrack-bundle=example.com  ", "example.com",
+        "https://example.com/x" },
       { "https://example.com/x", "example.com", "https://example.com/x" },
       { "https://example.com/x#httrack-bundle=", "", "https://example.com/x#httrack-bundle=" },
       { NULL, NULL, NULL }
