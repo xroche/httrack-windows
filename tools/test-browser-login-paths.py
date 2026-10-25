@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 89 checks"
+EXPECTED_LINE = "browser login helpers ok on 108 checks"
 
 
 def read(path):
@@ -331,14 +331,20 @@ def main():
     ) or not (
         re.search(
             r"if \(named\.IsEmpty\(\)\) \{[^}]*LANG_BROWSERLOGINNONAME[^}]*return;\s*\}\s*"
+            r"(?:/\*(?:[^*]|\*(?!/))*\*/\s*)?"
+            r"for\(int i = got\.cookies\.GetSize\(\) - 1 ; i >= 0 ; i--\)\s*"
+            r"if \(!browserLoginCookieInScope\(got\.finalUrl, got\.cookies\[i\]\.domain\)\)\s*"
+            r"got\.cookies\.RemoveAt\(i\);\s*"
+            r"if \(got\.cookies\.GetSize\(\) == 0\) \{[^}]*LANG_BROWSERLOGINUNUSABLE"
+            r"[^}]*return;\s*\}\s*"
             r"harvest = got;\s*harvest\.bundleName = name;\s*haveHarvest = TRUE;"
             r"[\s\S]*LANG_BROWSERLOGINGOT",
             handler.group(1),
         )
     ):
         sys.exit(
-            "OnBrowserLogin() no longer keeps the earlier login and warns when the box "
-            "cannot name a new one"
+            "OnBrowserLogin() no longer keeps the earlier login, warns when the box "
+            "cannot name a new one, and drops every cookie outside the bundle's scope"
         )
     checked += 1
 

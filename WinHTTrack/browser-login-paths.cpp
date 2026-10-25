@@ -44,6 +44,7 @@ CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginBundleName(const CString &landedUrl);
+BOOL browserLoginCookieInScope(const CString &landedUrl, const CString &domain);
 CString browserLoginBundleFile(const CString &projectPath, const CString &name);
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
 CString browserLoginUnbundledUrl(const CString &url, const CString &name);
@@ -117,9 +118,21 @@ CString browserLoginSafeUrl(const CString &landed) {
   return kept;
 }
 
+/* Lowercased by hand because MakeLower() folds the wrong letters under a Turkish
+   locale. */
+static CString asciiLower(const CString &text) {
+  CString plain;
+
+  for(int i = 0 ; i < text.GetLength() ; i++) {
+    const char c = text[i];
+
+    plain += (char) ((c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : c);
+  }
+  return plain;
+}
+
 /* The host of URL, lowercase, with no userinfo, no port and no trailing dot. Empty when
-   URL carries no host. Lowercased by hand because MakeLower() folds the wrong letters
-   under a Turkish locale. */
+   URL carries no host. */
 static CString urlHost(const CString &url) {
   const int scheme = url.Find("://");
 
@@ -137,7 +150,7 @@ static CString urlHost(const CString &url) {
       break;
     }
   }
-  host = host.Left(end);
+  host = asciiLower(host.Left(end));
   /* The LAST one, because that is the host the crawl would really fetch. */
   const int at = host.ReverseFind('@');
 
@@ -153,17 +166,9 @@ static CString urlHost(const CString &url) {
     if (colon >= 0)
       host = host.Left(colon);
   }
-
-  CString plain;
-
-  for(int i = 0 ; i < host.GetLength() ; i++) {
-    const char c = host[i];
-
-    plain += (char) ((c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : c);
-  }
-  while (plain.GetLength() > 0 && plain[plain.GetLength() - 1] == '.')
-    plain = plain.Left(plain.GetLength() - 1);
-  return plain;
+  while (host.GetLength() > 0 && host[host.GetLength() - 1] == '.')
+    host = host.Left(host.GetLength() - 1);
+  return host;
 }
 
 /* urlHost() without a leading "www.". */
@@ -207,6 +212,28 @@ CString browserLoginBundleName(const CString &landedUrl) {
   if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site)))
     return acceptedBundleName(site);
   return acceptedBundleName(comparableHost(landedUrl));
+}
+
+// see browser-login.h
+/* The engine's default bundle scope and its cookie_domain_match(), neither exported. */
+BOOL browserLoginCookieInScope(const CString &landedUrl, const CString &domain) {
+  const CString host = urlHost(landedUrl);
+  CString dom = asciiLower(domain);
+  char site[256];
+
+  if (dom.Left(1) == ".")
+    dom = dom.Mid(1);
+  while (dom.GetLength() > 0 && dom[dom.GetLength() - 1] == '.')
+    dom = dom.Left(dom.GetLength() - 1);
+  if (host.IsEmpty() || dom.IsEmpty())
+    return FALSE;
+  if (!hts_registrable_domain(host, site, sizeof(site)))
+    return dom == host;
+
+  const CString reg = site;
+
+  return dom == reg || (dom.GetLength() > reg.GetLength()
+                        && dom.Right(reg.GetLength() + 1) == CString(".") + reg);
 }
 
 // see browser-login.h
@@ -483,6 +510,43 @@ int browserLoginCheckCases(CString *err) {
       if (got != away[k].moved) {
         snprintf(msg, sizeof(msg), "'%s' landing on '%s' read as moved=%d, expected %d",
                  away[k].start, away[k].landed, (int) got, (int) away[k].moved);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    /* The engine drops a cookie outside the bundle's scope, so it must not be written. */
+    static const struct { const char *landed, *domain; BOOL want; } scope[] = {
+      { "https://example.com/x", "example.com", TRUE },
+      { "https://www.example.com/", ".example.com", TRUE },
+      { "https://www.example.com/", "a.example.com", TRUE },
+      { "https://example.com/", "EXAMPLE.COM.", TRUE },
+      /* a suffix that does not start a label is another site */
+      { "https://example.com/", "notexample.com", FALSE },
+      { "https://example.com/", "buecher.de", FALSE },
+      { "https://example.com/", ".com", FALSE },
+      { "https://example.com/", "", FALSE },
+      { "", "example.com", FALSE },
+      { "", "", FALSE },
+      { "https://shop.example.co.uk/", ".example.co.uk", TRUE },
+      { "https://shop.example.co.uk/", "co.uk", FALSE },
+      /* with no registrable domain, the host covers itself alone */
+      { "https://localhost/", "localhost", TRUE },
+      { "https://localhost/", ".localhost", TRUE },
+      { "https://localhost/", "a.localhost", FALSE },
+      { "http://192.168.1.10/", "192.168.1.10", TRUE },
+      { "http://192.168.1.10/", "1.10", FALSE },
+      { "https://www.github.io/", "www.github.io", TRUE },
+      { "https://www.github.io/", "github.io", FALSE },
+      { NULL, NULL, FALSE }
+    };
+
+    for(int k=0 ; scope[k].landed != NULL ; k++) {
+      if (browserLoginCookieInScope(scope[k].landed, scope[k].domain) != scope[k].want) {
+        snprintf(msg, sizeof(msg), "a login on '%s' %s a cookie for '%s'",
+                 scope[k].landed, scope[k].want ? "drops" : "keeps", scope[k].domain);
         *err = msg;
         return 0;
       }
