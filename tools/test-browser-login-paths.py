@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 76 checks"
+EXPECTED_LINE = "browser login helpers ok on 80 checks"
 
 
 def read(path):
@@ -52,6 +52,51 @@ def engine_opt_function(htscoremain):
     return m.group(0)
 
 
+def engine_bundle_name_rule(htsbundle_c, htsbundle_h):
+    """The engine's bundle name rule, copied out because a name it refuses aborts the
+    mirror, so the harness must judge names exactly as the crawl does."""
+    parts = []
+    for pat in (
+        r"^#define HTS_BUNDLE_NAME_MAX \d+$",
+        r"^static hts_boolean bundle_name_is_device\(const char \*name\) \{.*?^\}$",
+        r"^static const char \*bundle_name_refusal\(const char \*name\) \{.*?^\}$",
+        r"^HTSEXT_API const char \*hts_bundle_name_refusal\(const char \*name\) "
+        r"\{.*?^\}$",
+    ):
+        m = re.search(pat, htsbundle_h if "define" in pat else htsbundle_c, re.M | re.S)
+        if m is None:
+            sys.exit("the engine's htsbundle.c or .h no longer matches %r" % pat)
+        parts.append(m.group(0))
+    return "\n".join(parts)
+
+
+# The public suffix list stays the engine's to test, since htspsl.c needs the whole
+# engine. This stands in for it on the hosts the cases use, and on co.uk.
+REGISTRABLE_STUB = r"""
+int hts_registrable_domain(const char *host, char *out, size_t size) {
+  const size_t len = strlen(host);
+  const char *reg = NULL, *p;
+  int labels = 2;
+
+  out[0] = '\0';
+  if (strchr(host, '.') == NULL || host[0] == '[' || strcmp(host, "co.uk") == 0
+      || strspn(host, "0123456789.") == len)
+    return 0;
+  if (len > 6 && strcmp(host + len - 6, ".co.uk") == 0)
+    labels = 3;
+  for (p = host + len; p > host && reg == NULL; p--)
+    if (p[-1] == '.' && --labels == 0)
+      reg = p;
+  if (reg == NULL && labels == 1)
+    reg = host;
+  if (reg == NULL || strlen(reg) >= size)
+    return 0;
+  strcpy(out, reg);
+  return 1;
+}
+"""
+
+
 def engine_space_set(htssafe):
     """The byte set that function splits on, copied out for the same reason."""
     m = re.search(r"^#\s*define\s+HTS_REALSPACES\s+[^\n]*$", htssafe, re.M)
@@ -73,7 +118,9 @@ def main():
     htscore = os.path.join(args.engine, "src", "htscore.c")
     htscoremain = os.path.join(args.engine, "src", "htscoremain.c")
     htssafe = os.path.join(args.engine, "src", "htssafe.h")
-    for path in (htscore, htscoremain, htssafe):
+    htsbundle_c = os.path.join(args.engine, "src", "htsbundle.c")
+    htsbundle_h = os.path.join(args.engine, "src", "htsbundle.h")
+    for path in (htscore, htscoremain, htssafe, htsbundle_c, htsbundle_h):
         if not os.path.exists(path):
             sys.exit(
                 "%s: no engine source, so the token scanner cannot be the engine's. "
@@ -103,8 +150,11 @@ def main():
     want = re.search(r"browser login helpers ran %d checks, expected (\d+)", selftest)
     # The comparison as well as the message, because only the comparison stops the run
     # and the two drifted apart once.
-    guard = re.search(r"if \(nchecks != (\d+)\) \{\n\s*fprintf\(stderr,\n?\s*"
-                      r'"FATAL: browser login helpers ran', selftest)
+    guard = re.search(
+        r"if \(nchecks != (\d+)\) \{\n\s*fprintf\(stderr,\n?\s*"
+        r'"FATAL: browser login helpers ran',
+        selftest,
+    )
     if guard is None or (want is not None and guard.group(1) != want.group(1)):
         sys.exit(
             "the --selftest count it compares against and the count it reports differ, "
@@ -219,9 +269,7 @@ def main():
     # to go on and the login leads nowhere. That shipped once and Xavier hit it.
     if not re.search(
         r"CString landed = browserLoginSafeUrl\(harvest\.finalUrl\)", handler.group(1)
-    ) or not re.search(
-        r"SetDlgItemTextCP\([^)]*IDC_urladr, shown\)", handler.group(1)
-    ):
+    ) or not re.search(r"SetDlgItemTextCP\([^)]*IDC_urladr, shown\)", handler.group(1)):
         sys.exit(
             "OnBrowserLogin() no longer puts a sanitised harvest.finalUrl in "
             "IDC_urladr, so a login either leaves the address box empty or writes a "
@@ -257,7 +305,9 @@ def main():
     # The address box and the file must name the SAME bundle. The name is carried in the
     # harvest for that reason, so one site setting it and the other reading it is the
     # coupling, and deriving it twice would let the two drift apart.
-    if not re.search(r"harvest\.bundleName = browserLoginBundleName\(", handler.group(1)):
+    if not re.search(
+        r"harvest\.bundleName = browserLoginBundleName\(", handler.group(1)
+    ):
         sys.exit(
             "OnBrowserLogin() no longer sets harvest.bundleName, so the address box and "
             "the bundle file could name different bundles"
@@ -313,18 +363,26 @@ def main():
         with open(gen, "w", encoding="utf-8") as f:
             f.write(
                 "/* Copied by tools/test-browser-login-paths.py out of the engine's "
-                "src/htscore.c and src/htssafe.h. */\n"
+                "src/htscore.c, src/htssafe.h and src/htsbundle.c. */\n"
                 "#include <assert.h>\n#include <ctype.h>\n#include <stddef.h>\n"
                 "#include <string.h>\n"
                 "typedef int hts_boolean;\n#define HTSEXT_API\n"
                 "#define HTS_TRUE 1\n#define HTS_FALSE 0\n"
                 "#define assertf(x) assert(x)\n"
+                "static void strlncatbuff(char *d, const char *s, size_t size, "
+                "size_t n) {\n"
+                "  const size_t len = strlen(d);\n"
+                "  assert(n < size - len);\n  strncat(d, s, n);\n}\n"
+                "static void hts_lowcase(char *s) {\n"
+                "  for (; *s; s++) *s = (char) tolower((unsigned char) *s);\n}\n"
                 "%s\n"
-                'extern "C" {\n%s\n%s\n}\n'
+                'extern "C" {\n%s\n%s\n%s\n%s\n}\n'
                 % (
                     engine_space_set(read(htssafe)),
                     engine_token_function(read(htscore)),
                     engine_opt_function(read(htscoremain)),
+                    engine_bundle_name_rule(read(htsbundle_c), read(htsbundle_h)),
+                    REGISTRABLE_STUB,
                 )
             )
         # Built and run twice: once as the Windows build sees it, once with the
