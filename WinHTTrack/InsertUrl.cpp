@@ -320,18 +320,6 @@ void CInsertUrl::OnBrowserLogin()
                   MB_OK | MB_ICONWARNING);
     return;
   }
-  /* The rest of the profile is every other site visited this run, and the engine would
-     drop it anyway. */
-  for(int i = got.cookies.GetSize() - 1 ; i >= 0 ; i--)
-    if (!browserLoginCookieInScope(got.finalUrl, got.cookies[i].domain))
-      got.cookies.RemoveAt(i);
-  if (got.cookies.GetSize() == 0) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINUNUSABLE),
-                                   "The browser gave no cookies the engine can use, so "
-                                   "nothing was changed."),
-                  MB_OK | MB_ICONWARNING);
-    return;
-  }
   harvest = got;
   harvest.bundleName = name;
   haveHarvest = TRUE;
@@ -345,6 +333,7 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
   SetDlgItemTextCP(this, IDC_urladr, named);
+  /* Counts every cookie, but the engine keeps only the start URL's registrable domain. */
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are saved with the "
                                "project when you press OK."),

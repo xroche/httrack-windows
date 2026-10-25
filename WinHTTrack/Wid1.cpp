@@ -804,11 +804,14 @@ HCURSOR Wid1::OnQueryDragIcon()
 }
 */
 
-/* Writes what a browser login brought back as the bundle its address names, and says
-   what went wrong. Only once the box is accepted, so Cancel leaves no file behind.
-   FALSE when no file was written. */
-static BOOL applyBrowserLogin(const BrowserLoginHarvest &harvest)
+/* Writes what a browser login brought back as the bundle its address names, keeping
+   the cookies the addresses in URLS scope it to, and says what went wrong. Only once the
+   box is accepted, so Cancel leaves no file behind. FALSE when no file was written. */
+static BOOL applyBrowserLogin(const BrowserLoginHarvest &login, const CString &urls)
 {
+  BrowserLoginHarvest harvest = login;
+
+  harvest.cookies = browserLoginBundleCookies(login.cookies, urls, login.bundleName);
   const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
   const CString file = browserLoginBundleFile(project, harvest.bundleName);
   CookieFileStats stats;
@@ -866,13 +869,13 @@ void Wid1::Onlogin2()
   CInsertUrl url;
   url.dest_path=dialog0->GetPath();
   if (url.DoModal() == IDOK) {
+    CString st;
+    GetDlgItemText(IDC_URL,st);
     /* The file goes first, so a login that fails to save leaves no URL naming it. */
-    if (url.haveHarvest && !applyBrowserLogin(url.harvest))
+    if (url.haveHarvest && !applyBrowserLogin(url.harvest, st + "\r\n" + url.m_urladr))
       url.m_urladr = browserLoginUnbundledUrl(url.m_urladr, url.harvest.bundleName);
     if (url.m_urladr.Left(7)=="http://")
       url.m_urladr=url.m_urladr.Mid(7);
-    CString st;
-    GetDlgItemText(IDC_URL,st);
     if (url.m_urllogin.GetLength()==0) {
       SetDlgItemTextCP(this, IDC_URL,st+"\r\n"+url.m_urladr);
     } else {

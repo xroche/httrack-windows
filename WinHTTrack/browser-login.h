@@ -62,9 +62,9 @@ const char *browserLoginWhy(BrowserLoginState state);
    given, takes the runtime's version and is never left empty on TRUE. */
 BOOL browserLoginRuntime(char *version, size_t version_size);
 
-/* What one browser login brought back. The browser gives the whole profile, because a
-   login that crosses two hosts leaves the cookie that matters on the host nobody asked
-   about, and the login keeps the site's own. */
+/* What one browser login brought back. The cookies are the whole profile, not one
+   site's, because a login that crosses two hosts leaves the cookie that matters on the
+   host nobody asked about. */
 struct BrowserLoginHarvest {
   CSimpleArray<CookieRecord> cookies;
   CString userAgent;
@@ -125,9 +125,11 @@ void browserLoginSweepProfiles(void);
    it. It is empty when neither fits, as for an IPv6 literal. */
 CString browserLoginBundleName(const CString &landedUrl);
 
-/* Does the bundle LANDEDURL names keep a cookie set for DOMAIN? The engine drops every
-   other one, so writing it would only leave another site's cookie on disk. */
-BOOL browserLoginCookieInScope(const CString &landedUrl, const CString &domain);
+/* COOKIES less every one the engine drops from the bundle NAME, whose scope comes from
+   each address in URLS that names it. */
+CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
+                                                     const CString &urls,
+                                                     const CString &name);
 
 /* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves
    against opt->path_log, and the GUI passes -O1 so that is the project. Empty when

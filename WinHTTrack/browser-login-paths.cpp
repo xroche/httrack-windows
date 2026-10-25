@@ -44,7 +44,9 @@ CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginBundleName(const CString &landedUrl);
-BOOL browserLoginCookieInScope(const CString &landedUrl, const CString &domain);
+CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
+                                                     const CString &urls,
+                                                     const CString &name);
 CString browserLoginBundleFile(const CString &projectPath, const CString &name);
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
 CString browserLoginUnbundledUrl(const CString &url, const CString &name);
@@ -214,26 +216,62 @@ CString browserLoginBundleName(const CString &landedUrl) {
   return acceptedBundleName(comparableHost(landedUrl));
 }
 
+/* The scope the engine gives the bundle NAME: for each address in URLS that names it,
+   the host's registrable domain, else "=" and the host. */
+static void bundleScope(const CString &urls, const CString &name,
+                        CSimpleArray<CString> &scope) {
+  const CString suffix = CString(BROWSER_BUNDLE_SUFFIX) + name;
+  CSimpleArray<CString> tokens;
+
+  splitTokensInArray(tokens, urls);
+  for(int i = 0 ; i < tokens.GetSize() ; i++) {
+    const CString &url = tokens[i];
+    const int at = url.Find(BROWSER_BUNDLE_SUFFIX);
+
+    /* The engine cuts at the first suffix, so a later one names nothing. */
+    if (at < 0 || url.Mid(at) != suffix)
+      continue;
+
+    const CString host = urlHost(url.Find("://") >= 0 ? url : CString("http://") + url);
+    char site[256];
+
+    if (host.IsEmpty())
+      continue;
+    scope.Add(hts_registrable_domain(host, site, sizeof(site)) ? CString(site)
+                                                               : CString("=") + host);
+  }
+}
+
+/* The engine's cookie_domain_match(), which it does not export. */
+static BOOL scopeCovers(const CString &entry, const CString &host) {
+  if (entry.Left(1) == "=")
+    return host == entry.Mid(1);
+  return host == entry || (host.GetLength() > entry.GetLength()
+                           && host.Right(entry.GetLength() + 1) == CString(".") + entry);
+}
+
 // see browser-login.h
-/* The engine's default bundle scope and its cookie_domain_match(), neither exported. */
-BOOL browserLoginCookieInScope(const CString &landedUrl, const CString &domain) {
-  const CString host = urlHost(landedUrl);
-  CString dom = asciiLower(domain);
-  char site[256];
+CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
+                                                     const CString &urls,
+                                                     const CString &name) {
+  CSimpleArray<CString> scope;
+  CSimpleArray<CookieRecord> kept;
 
-  if (dom.Left(1) == ".")
-    dom = dom.Mid(1);
-  while (dom.GetLength() > 0 && dom[dom.GetLength() - 1] == '.')
-    dom = dom.Left(dom.GetLength() - 1);
-  if (host.IsEmpty() || dom.IsEmpty())
-    return FALSE;
-  if (!hts_registrable_domain(host, site, sizeof(site)))
-    return dom == host;
+  bundleScope(urls, name, scope);
+  for(int i = 0 ; i < cookies.GetSize() ; i++) {
+    /* Like the engine, one leading dot goes and a trailing one stays. */
+    CString host = asciiLower(cookies[i].domain);
 
-  const CString reg = site;
-
-  return dom == reg || (dom.GetLength() > reg.GetLength()
-                        && dom.Right(reg.GetLength() + 1) == CString(".") + reg);
+    if (host.Left(1) == ".")
+      host = host.Mid(1);
+    for(int k = 0 ; k < scope.GetSize() ; k++) {
+      if (scopeCovers(scope[k], host)) {
+        kept.Add(cookies[i]);
+        break;
+      }
+    }
+  }
+  return kept;
 }
 
 // see browser-login.h
@@ -517,37 +555,79 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* The engine drops a cookie outside the bundle's scope, so it must not be written. */
-    static const struct { const char *landed, *domain; BOOL want; } scope[] = {
-      { "https://example.com/x", "example.com", TRUE },
-      { "https://www.example.com/", ".example.com", TRUE },
-      { "https://www.example.com/", "a.example.com", TRUE },
-      { "https://example.com/", "EXAMPLE.COM.", TRUE },
+    /* A cookie the engine drops must not be written. */
+    static const struct { const char *urls, *name, *domain; BOOL want; } scope[] = {
+      { "https://example.com/x#httrack-bundle=example.com", "example.com", "example.com", TRUE },
+      { "https://www.example.com/#httrack-bundle=example.com", "example.com", ".example.com", TRUE },
+      { "https://www.example.com/#httrack-bundle=example.com", "example.com", "a.example.com", TRUE },
+      { "https://example.com/#httrack-bundle=example.com", "example.com", "EXAMPLE.COM", TRUE },
+      { "example.com/x#httrack-bundle=example.com", "example.com", "example.com", TRUE },
+      /* the engine keeps a trailing dot, so the domain no longer matches */
+      { "https://example.com/#httrack-bundle=example.com", "example.com", "example.com.", FALSE },
       /* a suffix that does not start a label is another site */
-      { "https://example.com/", "notexample.com", FALSE },
-      { "https://example.com/", "buecher.de", FALSE },
-      { "https://example.com/", ".com", FALSE },
-      { "https://example.com/", "", FALSE },
-      { "", "example.com", FALSE },
-      { "", "", FALSE },
-      { "https://shop.example.co.uk/", ".example.co.uk", TRUE },
-      { "https://shop.example.co.uk/", "co.uk", FALSE },
+      { "https://example.com/#httrack-bundle=example.com", "example.com", "notexample.com", FALSE },
+      { "https://example.com/#httrack-bundle=example.com", "example.com", "buecher.de", FALSE },
+      { "https://example.com/#httrack-bundle=example.com", "example.com", ".com", FALSE },
+      { "https://example.com/#httrack-bundle=example.com", "example.com", ".", FALSE },
+      { "/x#httrack-bundle=example.com", "example.com", ".", FALSE },
+      /* only an address naming this bundle gives it a scope */
+      { "https://example.com/", "example.com", "example.com", FALSE },
+      { "https://example.com/#httrack-bundle=other", "example.com", "example.com", FALSE },
+      { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "example.com", "example.com",
+        FALSE },
+      { "https://shop.example.co.uk/#httrack-bundle=example.co.uk", "example.co.uk", ".example.co.uk", TRUE },
+      { "https://shop.example.co.uk/#httrack-bundle=example.co.uk", "example.co.uk", "co.uk", FALSE },
       /* with no registrable domain, the host covers itself alone */
-      { "https://localhost/", "localhost", TRUE },
-      { "https://localhost/", ".localhost", TRUE },
-      { "https://localhost/", "a.localhost", FALSE },
-      { "http://192.168.1.10/", "192.168.1.10", TRUE },
-      { "http://192.168.1.10/", "1.10", FALSE },
-      { "https://www.github.io/", "www.github.io", TRUE },
-      { "https://www.github.io/", "github.io", FALSE },
-      { NULL, NULL, FALSE }
+      { "https://localhost/#httrack-bundle=localhost", "localhost", ".localhost", TRUE },
+      { "https://localhost/#httrack-bundle=localhost", "localhost", "a.localhost", FALSE },
+      { "http://192.168.1.10/#httrack-bundle=192.168.1.10", "192.168.1.10", "192.168.1.10", TRUE },
+      { "http://192.168.1.10/#httrack-bundle=192.168.1.10", "192.168.1.10", "1.10", FALSE },
+      { "https://www.github.io/#httrack-bundle=www.github.io", "www.github.io", "www.github.io", TRUE },
+      { "https://www.github.io/#httrack-bundle=www.github.io", "www.github.io", "github.io", FALSE },
+      /* the box is read at OK, so an address edited after the login rescopes it */
+      { "https://example.com/#httrack-bundle=idp.net", "idp.net", "example.com", TRUE },
+      /* two addresses on one site keep a cookie once */
+      { "https://a.example.com/#httrack-bundle=example.com https://example.com/#httrack-bundle=example.com",
+        "example.com", "example.com", TRUE },
+      { "https://login.idp.net/#httrack-bundle=idp.net https://example.com/#httrack-bundle=idp.net", "idp.net",
+        "example.com", TRUE },
+      { NULL, NULL, NULL, FALSE }
     };
 
-    for(int k=0 ; scope[k].landed != NULL ; k++) {
-      if (browserLoginCookieInScope(scope[k].landed, scope[k].domain) != scope[k].want) {
-        snprintf(msg, sizeof(msg), "a login on '%s' %s a cookie for '%s'",
-                 scope[k].landed, scope[k].want ? "drops" : "keeps", scope[k].domain);
+    for(int k=0 ; scope[k].urls != NULL ; k++) {
+      CSimpleArray<CookieRecord> one;
+      CookieRecord cookie;
+
+      cookie.domain = scope[k].domain;
+      one.Add(cookie);
+      if ((browserLoginBundleCookies(one, scope[k].urls, scope[k].name).GetSize() == 1)
+          != scope[k].want) {
+        snprintf(msg, sizeof(msg), "a bundle from '%s' %s a cookie for '%s'",
+                 scope[k].urls, scope[k].want ? "drops" : "keeps", scope[k].domain);
         *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* Order and the kept records themselves survive the cut. */
+    {
+      static const char *const domains[] = { "a.example.com", "buecher.de", "example.com" };
+      CSimpleArray<CookieRecord> mixed;
+
+      for(int k = 0 ; k < 3 ; k++) {
+        CookieRecord cookie;
+
+        cookie.domain = domains[k];
+        cookie.value = domains[k];
+        mixed.Add(cookie);
+      }
+      const CSimpleArray<CookieRecord> kept =
+        browserLoginBundleCookies(mixed, "https://example.com/#httrack-bundle=example.com",
+                                  "example.com");
+
+      if (kept.GetSize() != 2 || kept[0].value != "a.example.com"
+          || kept[1].value != "example.com") {
+        *err = "cutting a bundle's cookies lost or reordered the kept ones";
         return 0;
       }
       nchecks++;

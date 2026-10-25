@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 108 checks"
+EXPECTED_LINE = "browser login helpers ok on 115 checks"
 
 
 def read(path):
@@ -253,6 +253,21 @@ def main():
     # 4. The button has to reach them, so the calls have to sit inside the handler the
     #    message map names, and the harvest has to be applied when the box is accepted.
     #    Naming a function anywhere in a file proves neither.
+    # The engine scopes a bundle from the URL list it is given, so the cut must read the
+    # list at OK, edits included, and run before the file is written.
+    wid1 = read(os.path.join(ROOT, "WinHTTrack", "Wid1.cpp"))
+    if not re.search(
+        r"^static BOOL applyBrowserLogin\(const BrowserLoginHarvest &login, "
+        r"const CString &urls\)\n\{\s*BrowserLoginHarvest harvest = login;\s*"
+        r"harvest\.cookies = browserLoginBundleCookies\(login\.cookies, urls, "
+        r"login\.bundleName\);[^}]*browserLoginSaveBundle\(harvest,",
+        wid1,
+        re.M,
+    ):
+        sys.exit(
+            "Wid1.cpp no longer cuts a login's cookies to the URL list before saving"
+        )
+    checked += 1
     insert = read(os.path.join(ROOT, "WinHTTrack", "InsertUrl.cpp"))
     if "ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)" not in insert:
         sys.exit("the Log in button no longer calls OnBrowserLogin()")
@@ -331,20 +346,14 @@ def main():
     ) or not (
         re.search(
             r"if \(named\.IsEmpty\(\)\) \{[^}]*LANG_BROWSERLOGINNONAME[^}]*return;\s*\}\s*"
-            r"(?:/\*(?:[^*]|\*(?!/))*\*/\s*)?"
-            r"for\(int i = got\.cookies\.GetSize\(\) - 1 ; i >= 0 ; i--\)\s*"
-            r"if \(!browserLoginCookieInScope\(got\.finalUrl, got\.cookies\[i\]\.domain\)\)\s*"
-            r"got\.cookies\.RemoveAt\(i\);\s*"
-            r"if \(got\.cookies\.GetSize\(\) == 0\) \{[^}]*LANG_BROWSERLOGINUNUSABLE"
-            r"[^}]*return;\s*\}\s*"
             r"harvest = got;\s*harvest\.bundleName = name;\s*haveHarvest = TRUE;"
             r"[\s\S]*LANG_BROWSERLOGINGOT",
             handler.group(1),
         )
     ):
         sys.exit(
-            "OnBrowserLogin() no longer keeps the earlier login, warns when the box "
-            "cannot name a new one, and drops every cookie outside the bundle's scope"
+            "OnBrowserLogin() no longer keeps the earlier login and warns when the box "
+            "cannot name a new one"
         )
     checked += 1
 
@@ -389,7 +398,9 @@ def main():
     checked += 1
     # Written before the URL is added, so a failed save leaves no suffix naming a file.
     if not re.search(
-        r"if \(url\.haveHarvest && !applyBrowserLogin\(url\.harvest\)\)\s*"
+        r"GetDlgItemText\(IDC_URL,st\);\s*/\*[^*]*\*/\s*"
+        r"if \(url\.haveHarvest && "
+        r"!applyBrowserLogin\(url\.harvest, st \+ \"\\r\\n\" \+ url\.m_urladr\)\)\s*"
         r"url\.m_urladr = browserLoginUnbundledUrl\(url\.m_urladr, "
         r"url\.harvest\.bundleName\);\s*if \(url\.m_urladr\.Left",
         taken.group(1),
