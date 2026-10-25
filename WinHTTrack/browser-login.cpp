@@ -339,7 +339,5 @@ CookieSaveResult browserLoginSaveBundle(const BrowserLoginHarvest &harvest,
                                         const CString &path, CookieFileStats &stats) {
   const CString records = cookieFileText(harvest.cookies, stats);
 
-  if (stats.written == 0)
-    return CookieSaveNothingToWrite;
   return writeHarvestFile(path, browserLoginBundleText(harvest.userAgent, records));
 }

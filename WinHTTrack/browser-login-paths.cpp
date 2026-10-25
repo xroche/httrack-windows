@@ -258,9 +258,12 @@ CString browserLoginBundleText(const CString &userAgent, const CString &records)
     text += userAgent;
     text += "\n";
   }
-  /* The engine takes every line after this one as a jar record. */
-  text += "cookies\n";
-  text += records;
+  /* The engine takes every line after this one as a jar record. A bundle without it
+     carries no cookies, and the engine warns about no empty jar. */
+  if (!records.IsEmpty()) {
+    text += "cookies\n";
+    text += records;
+  }
   return text;
 }
 
@@ -609,6 +612,9 @@ int browserLoginCheckCases(CString *err) {
       { "Mozilla\n ua evil", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
       { "Mozilla\rx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
       { "Mozilla\tx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
+      /* a login that set no cookie still carries its identity */
+      { "Mozilla/5.0", "", "# HTTrack bundle 1\nua Mozilla/5.0\n" },
+      { "", "", "# HTTrack bundle 1\n" },
       { NULL, NULL, NULL }
     };
 

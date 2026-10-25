@@ -295,13 +295,6 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
-  if (got.cookies.GetSize() == 0) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
-                                   "The browser came back with no cookies, so nothing "
-                                   "was kept."),
-                  MB_OK | MB_ICONINFORMATION);
-    return;
-  }
   /* The address the user navigated to is the one they want crawled, and leaving the
      field empty is what made the first version of this unusable: the wizard had no URL
      to go on. It stays editable, so an unwanted query string can still be trimmed.
@@ -333,6 +326,16 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
   SetDlgItemTextCP(this, IDC_urladr, named);
+  /* No cookies is still a login: the address and the identity are what a site that
+     keys on neither needs. */
+  if (harvest.cookies.GetSize() == 0) {
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
+                                   "The browser came back with no cookies. The address "
+                                   "and the browser identity are saved with the project "
+                                   "when you press OK."),
+                  MB_OK | MB_ICONINFORMATION);
+    return;
+  }
   /* Counts every cookie, but the engine keeps only the start URL's registrable domain. */
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are saved with the "

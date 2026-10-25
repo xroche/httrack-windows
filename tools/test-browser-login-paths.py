@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 89 checks"
+EXPECTED_LINE = "browser login helpers ok on 91 checks"
 
 
 def read(path):

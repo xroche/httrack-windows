@@ -817,12 +817,6 @@ static BOOL applyBrowserLogin(const BrowserLoginHarvest &harvest)
   if (maintab == NULL)
     return FALSE;
   switch(browserLoginSaveBundle(harvest, file, stats)) {
-  case CookieSaveNothingToWrite:
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINUNUSABLE),
-                                   "The browser gave no cookies the engine can use, so "
-                                   "nothing was changed."),
-                  MB_OK | MB_ICONWARNING);
-    return FALSE;
   case CookieSaveNoFile:
     /* An empty path means there is no project yet, and naming it would print a blank. */
     if (file.IsEmpty())

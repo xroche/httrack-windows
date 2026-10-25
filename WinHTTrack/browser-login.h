@@ -151,7 +151,6 @@ CString browserLoginUserDir(void);
 /* CookieSaveResult: what browserLoginSaveBundle() returns. */
 enum CookieSaveResult {
   CookieSaveWritten,
-  CookieSaveNothingToWrite,  /* the engine would refuse every cookie the browser gave */
   CookieSaveNoFile           /* the folder or the file would not take it */
 };
 
