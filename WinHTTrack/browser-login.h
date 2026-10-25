@@ -125,11 +125,19 @@ void browserLoginSweepProfiles(void);
    it. It is empty when neither fits, as for an IPv6 literal. */
 CString browserLoginBundleName(const CString &landedUrl);
 
-/* COOKIES less every one the engine drops from the bundle NAME, whose scope comes from
-   each address in URLS that names it. */
+/* TEXT, in the ANSI codepage, as the UTF-8 the engine and the helper DLL read. */
+CString browserLoginUtf8(const CString &text);
+
+/* The addresses that name bundle NAME, as the engine reads them: from BOX, the address
+   box, and from LIST, the text of the -%L file. Pass these alone to
+   browserLoginBundleCookies(). */
+CSimpleArray<CString> browserLoginBundleUrls(const CString &box, const CString &list,
+                                             const CString &name);
+
+/* COOKIES less every one the engine drops from the bundle that URLS, from
+   browserLoginBundleUrls(), name. Empty when URLS is. */
 CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
-                                                     const CString &urls,
-                                                     const CString &name);
+                                                     const CSimpleArray<CString> &urls);
 
 /* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves
    against opt->path_log, and the GUI passes -O1 so that is the project. Empty when

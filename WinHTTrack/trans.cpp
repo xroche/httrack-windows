@@ -400,6 +400,8 @@ BOOL Ctrans::OnWizardFinish( )
   /* prise en compte des options */
   UpdateData(TRUE);         // DoDataExchange
   compute_options() ;
+  /* The addresses are final only now, so a login's cookies are cut to them here. */
+  finishBrowserLogins(ShellOptions->url, ShellOptions->filelist);
 
   // Index "top" si nécessaire!
   if (maintab->m_option3.m_windebug) {

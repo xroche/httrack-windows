@@ -144,15 +144,6 @@ static int __cdecl takeCookie(void *ctx, const WhttBrowserLoginCookie *cookie) {
   return 1;
 }
 
-/* The DLL reads and writes UTF-8, and every CString here is in the ANSI codepage. */
-static CString utf8Of(const CString &text) {
-  char *converted = strdupt_utf8(text);
-  const CString out(converted != NULL ? converted : (LPCSTR) text);
-
-  freet(converted);
-  return out;
-}
-
 // see browser-login.h
 WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
                                        const CString &profile,
@@ -163,13 +154,13 @@ WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
   char ansi[HTS_CDLMAXSIZE];
   /* The engine refuses a longer address anyway, and the field caps shorter still. */
   char landed[HTS_URLMAXSIZE * 2];
-  const CString wantUrl = utf8Of(url), wantProfile = utf8Of(profile);
+  const CString wantUrl = browserLoginUtf8(url), wantProfile = browserLoginUtf8(profile);
   /* The DLL reaches no catalog, so its window carries whatever we hand it, and an empty
      field there means it falls back to its own English. */
-  const CString wantTitle = utf8Of(LANG(LANG_BROWSERLOGINTITLE));
-  const CString wantGo = utf8Of(LANG(LANG_BROWSERLOGINGO));
-  const CString wantDone = utf8Of(LANG(LANG_BROWSERLOGINDONE));
-  const CString wantClear = utf8Of(LANG(LANG_BROWSERLOGINCLEAR));
+  const CString wantTitle = browserLoginUtf8(LANG(LANG_BROWSERLOGINTITLE));
+  const CString wantGo = browserLoginUtf8(LANG(LANG_BROWSERLOGINGO));
+  const CString wantDone = browserLoginUtf8(LANG(LANG_BROWSERLOGINDONE));
+  const CString wantClear = browserLoginUtf8(LANG(LANG_BROWSERLOGINCLEAR));
   WhttBrowserLoginRequest request;
 
   if (browserLoginLoad() != BrowserLoginReady)

@@ -44,9 +44,11 @@ CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginBundleName(const CString &landedUrl);
+CString browserLoginUtf8(const CString &text);
+CSimpleArray<CString> browserLoginBundleUrls(const CString &box, const CString &list,
+                                             const CString &name);
 CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
-                                                     const CString &urls,
-                                                     const CString &name);
+                                                     const CSimpleArray<CString> &urls);
 CString browserLoginBundleFile(const CString &projectPath, const CString &name);
 CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
 CString browserLoginUnbundledUrl(const CString &url, const CString &name);
@@ -59,7 +61,13 @@ extern "C" {
   /* copied in or stubbed by tools/test-browser-login-paths.py */
   int hts_registrable_domain(const char *host, char *out, size_t size);
   const char *hts_bundle_name_refusal(const char *name);
+  int hts_bundle_cookie_in_scope(const char *const *urls, size_t nurls,
+                                 const char *cookie_domain);
 };
+/* The harness's own, defined in tools/browser-login-paths-test.cpp. */
+char *strdupt_utf8(const char *s);
+#define calloct(n, size) calloc((n), (size))
+#define freet(p) do { free(p); (p) = NULL; } while(0)
 #else
 #include "stdafx.h"
 #include "Shell.h"
@@ -70,6 +78,8 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // see browser-login.h
 CString browserLoginStartUrl(const CString &urls) {
@@ -120,21 +130,9 @@ CString browserLoginSafeUrl(const CString &landed) {
   return kept;
 }
 
-/* Lowercased by hand because MakeLower() folds the wrong letters under a Turkish
-   locale. */
-static CString asciiLower(const CString &text) {
-  CString plain;
-
-  for(int i = 0 ; i < text.GetLength() ; i++) {
-    const char c = text[i];
-
-    plain += (char) ((c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : c);
-  }
-  return plain;
-}
-
 /* The host of URL, lowercase, with no userinfo, no port and no trailing dot. Empty when
-   URL carries no host. */
+   URL carries no host. Lowercased by hand because MakeLower() folds the wrong letters
+   under a Turkish locale. */
 static CString urlHost(const CString &url) {
   const int scheme = url.Find("://");
 
@@ -152,7 +150,7 @@ static CString urlHost(const CString &url) {
       break;
     }
   }
-  host = asciiLower(host.Left(end));
+  host = host.Left(end);
   /* The LAST one, because that is the host the crawl would really fetch. */
   const int at = host.ReverseFind('@');
 
@@ -168,9 +166,17 @@ static CString urlHost(const CString &url) {
     if (colon >= 0)
       host = host.Left(colon);
   }
-  while (host.GetLength() > 0 && host[host.GetLength() - 1] == '.')
-    host = host.Left(host.GetLength() - 1);
-  return host;
+
+  CString plain;
+
+  for(int i = 0 ; i < host.GetLength() ; i++) {
+    const char c = host[i];
+
+    plain += (char) ((c >= 'A' && c <= 'Z') ? c - 'A' + 'a' : c);
+  }
+  while (plain.GetLength() > 0 && plain[plain.GetLength() - 1] == '.')
+    plain = plain.Left(plain.GetLength() - 1);
+  return plain;
 }
 
 /* urlHost() without a leading "www.". */
@@ -216,61 +222,64 @@ CString browserLoginBundleName(const CString &landedUrl) {
   return acceptedBundleName(comparableHost(landedUrl));
 }
 
-/* The scope the engine gives the bundle NAME: for each address in URLS that names it,
-   the host's registrable domain, else "=" and the host. */
-static void bundleScope(const CString &urls, const CString &name,
-                        CSimpleArray<CString> &scope) {
-  const CString suffix = CString(BROWSER_BUNDLE_SUFFIX) + name;
-  CSimpleArray<CString> tokens;
+// see browser-login.h
+CString browserLoginUtf8(const CString &text) {
+  char *converted = strdupt_utf8(text);  // freet() nulls it, so not const
+  const CString out(converted != NULL ? converted : (LPCSTR) text);
 
-  splitTokensInArray(tokens, urls);
-  for(int i = 0 ; i < tokens.GetSize() ; i++) {
-    const CString &url = tokens[i];
-    const int at = url.Find(BROWSER_BUNDLE_SUFFIX);
-
-    /* The engine cuts at the first suffix, so a later one names nothing. */
-    if (at < 0 || url.Mid(at) != suffix)
-      continue;
-
-    const CString host = urlHost(url.Find("://") >= 0 ? url : CString("http://") + url);
-    char site[256];
-
-    if (host.IsEmpty())
-      continue;
-    scope.Add(hts_registrable_domain(host, site, sizeof(site)) ? CString(site)
-                                                               : CString("=") + host);
-  }
+  freet(converted);
+  return out;
 }
 
-/* The engine's cookie_domain_match(), which it does not export. */
-static BOOL scopeCovers(const CString &entry, const CString &host) {
-  if (entry.Left(1) == "=")
-    return host == entry.Mid(1);
-  return host == entry || (host.GetLength() > entry.GetLength()
-                           && host.Right(entry.GetLength() + 1) == CString(".") + entry);
+/* Does URL name bundle NAME? The engine reads the name after the first suffix. */
+static BOOL namesBundle(const CString &url, const CString &name) {
+  const int at = url.Find(BROWSER_BUNDLE_SUFFIX);
+
+  return !name.IsEmpty() && at >= 0
+    && url.Mid(at + (int) strlen(BROWSER_BUNDLE_SUFFIX)) == name;
+}
+
+// see browser-login.h
+CSimpleArray<CString> browserLoginBundleUrls(const CString &box, const CString &list,
+                                             const CString &name) {
+  CSimpleArray<CString> tokens, urls;
+  CString line;
+
+  splitTokensInArray(tokens, box);
+  for(int i = 0 ; i < tokens.GetSize() ; i++) {
+    /* A leading + or - makes it a filter, which names no bundle. */
+    if (tokens[i][0] != '+' && tokens[i][0] != '-' && namesBundle(tokens[i], name))
+      urls.Add(browserLoginUtf8(tokens[i]));
+  }
+  /* The engine reads the -%L file as bytes, a line each, with every CR dropped. */
+  for(int i = 0 ; i <= list.GetLength() ; i++) {
+    if (i == list.GetLength() || list[i] == '\n') {
+      if (namesBundle(line, name))
+        urls.Add(line);
+      line = CString();
+    } else if (list[i] != '\r') {
+      line += list[i];
+    }
+  }
+  return urls;
 }
 
 // see browser-login.h
 CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
-                                                     const CString &urls,
-                                                     const CString &name) {
-  CSimpleArray<CString> scope;
+                                                     const CSimpleArray<CString> &urls) {
   CSimpleArray<CookieRecord> kept;
+  const char **list;  // freet() nulls it
 
-  bundleScope(urls, name, scope);
+  if (urls.GetSize() == 0
+      || (list = (const char **) calloct((size_t) urls.GetSize(), sizeof(*list))) == NULL)
+    return kept;
+  for(int i = 0 ; i < urls.GetSize() ; i++)
+    list[i] = urls[i];
   for(int i = 0 ; i < cookies.GetSize() ; i++) {
-    /* Like the engine, one leading dot goes and a trailing one stays. */
-    CString host = asciiLower(cookies[i].domain);
-
-    if (host.Left(1) == ".")
-      host = host.Mid(1);
-    for(int k = 0 ; k < scope.GetSize() ; k++) {
-      if (scopeCovers(scope[k], host)) {
-        kept.Add(cookies[i]);
-        break;
-      }
-    }
+    if (hts_bundle_cookie_in_scope(list, (size_t) urls.GetSize(), cookies[i].domain))
+      kept.Add(cookies[i]);
   }
+  freet(list);
   return kept;
 }
 
@@ -555,53 +564,75 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* A cookie the engine drops must not be written. */
-    static const struct { const char *urls, *name, *domain; BOOL want; } scope[] = {
-      { "https://example.com/x#httrack-bundle=example.com", "example.com", "example.com", TRUE },
-      { "https://www.example.com/#httrack-bundle=example.com", "example.com", ".example.com", TRUE },
-      { "https://www.example.com/#httrack-bundle=example.com", "example.com", "a.example.com", TRUE },
-      { "https://example.com/#httrack-bundle=example.com", "example.com", "EXAMPLE.COM", TRUE },
-      { "example.com/x#httrack-bundle=example.com", "example.com", "example.com", TRUE },
-      /* the engine keeps a trailing dot, so the domain no longer matches */
-      { "https://example.com/#httrack-bundle=example.com", "example.com", "example.com.", FALSE },
-      /* a suffix that does not start a label is another site */
-      { "https://example.com/#httrack-bundle=example.com", "example.com", "notexample.com", FALSE },
-      { "https://example.com/#httrack-bundle=example.com", "example.com", "buecher.de", FALSE },
-      { "https://example.com/#httrack-bundle=example.com", "example.com", ".com", FALSE },
-      { "https://example.com/#httrack-bundle=example.com", "example.com", ".", FALSE },
-      { "/x#httrack-bundle=example.com", "example.com", ".", FALSE },
-      /* only an address naming this bundle gives it a scope */
-      { "https://example.com/", "example.com", "example.com", FALSE },
-      { "https://example.com/#httrack-bundle=other", "example.com", "example.com", FALSE },
-      { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "example.com", "example.com",
-        FALSE },
-      { "https://shop.example.co.uk/#httrack-bundle=example.co.uk", "example.co.uk", ".example.co.uk", TRUE },
-      { "https://shop.example.co.uk/#httrack-bundle=example.co.uk", "example.co.uk", "co.uk", FALSE },
-      /* with no registrable domain, the host covers itself alone */
-      { "https://localhost/#httrack-bundle=localhost", "localhost", ".localhost", TRUE },
-      { "https://localhost/#httrack-bundle=localhost", "localhost", "a.localhost", FALSE },
-      { "http://192.168.1.10/#httrack-bundle=192.168.1.10", "192.168.1.10", "192.168.1.10", TRUE },
-      { "http://192.168.1.10/#httrack-bundle=192.168.1.10", "192.168.1.10", "1.10", FALSE },
-      { "https://www.github.io/#httrack-bundle=www.github.io", "www.github.io", "www.github.io", TRUE },
-      { "https://www.github.io/#httrack-bundle=www.github.io", "www.github.io", "github.io", FALSE },
-      /* the box is read at OK, so an address edited after the login rescopes it */
-      { "https://example.com/#httrack-bundle=idp.net", "idp.net", "example.com", TRUE },
-      /* two addresses on one site keep a cookie once */
-      { "https://a.example.com/#httrack-bundle=example.com https://example.com/#httrack-bundle=example.com",
-        "example.com", "example.com", TRUE },
-      { "https://login.idp.net/#httrack-bundle=idp.net https://example.com/#httrack-bundle=idp.net", "idp.net",
-        "example.com", TRUE },
-      { NULL, NULL, NULL, FALSE }
+    /* Only an address naming this bundle, after its first suffix, reaches the engine,
+       which would put every address it is given into the one bundle. */
+    static const struct { const char *box, *list, *name, *want; } pick[] = {
+      { "https://example.com/#httrack-bundle=example.com "
+        "https://example.com/x#httrack-bundle=other", "", "example.com",
+        "https://example.com/#httrack-bundle=example.com" },
+      { "https://example.com/ https://example.com/a#httrack-bundle=example.com", "",
+        "example.com", "https://example.com/a#httrack-bundle=example.com" },
+      /* an address edited after the login still names it */
+      { "https://shop.example.org/#httrack-bundle=example.com", "", "example.com",
+        "https://shop.example.org/#httrack-bundle=example.com" },
+      { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "",
+        "example.com", "" },
+      { "https://example.com/#httrack-bundle=example.com.au", "", "example.com", "" },
+      { "+example.com/*#httrack-bundle=example.com", "", "example.com", "" },
+      { "https://example.com/#httrack-bundle=", "", "", "" },
+      { "", "https://a.example.com/#httrack-bundle=example.com\r\nhttps://b.example.com/\r\n"
+        "https://c.example.com/#httrack-bundle=example.com", "example.com",
+        "https://a.example.com/#httrack-bundle=example.com "
+        "https://c.example.com/#httrack-bundle=example.com" },
+      { "https://b.example.com/#httrack-bundle=example.com",
+        "https://a.example.com/#httrack-bundle=example.com\n", "example.com",
+        "https://b.example.com/#httrack-bundle=example.com "
+        "https://a.example.com/#httrack-bundle=example.com" },
+      { NULL, NULL, NULL, NULL }
     };
 
-    for(int k=0 ; scope[k].urls != NULL ; k++) {
+    for(int k = 0 ; pick[k].box != NULL ; k++) {
+      const CSimpleArray<CString> got = browserLoginBundleUrls(pick[k].box, pick[k].list,
+                                                               pick[k].name);
+      CString joined;
+
+      for(int i = 0 ; i < got.GetSize() ; i++) {
+        if (i > 0)
+          joined += " ";
+        joined += got[i];
+      }
+      if (joined != pick[k].want) {
+        snprintf(msg, sizeof(msg), "bundle '%s' from '%s' and '%s' took '%s', not '%s'",
+                 pick[k].name, pick[k].box, pick[k].list, (LPCSTR) joined, pick[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    /* The engine's verdict decides which cookies are written. */
+    static const struct { const char *urls, *domain; BOOL want; } scope[] = {
+      { "https://www.example.com/#httrack-bundle=example.com", ".example.com", TRUE },
+      { "https://www.example.com/#httrack-bundle=example.com", "a.example.com", TRUE },
+      { "https://www.example.com/#httrack-bundle=example.com", "buecher.de", FALSE },
+      { "https://example.com/#httrack-bundle=example.com", "notexample.com", FALSE },
+      { "https://shop.example.org/#httrack-bundle=example.com", "example.org", TRUE },
+      { "https://login.idp.net/#httrack-bundle=idp.net https://example.com/#httrack-bundle=idp.net",
+        "example.com", TRUE },
+      { "", "example.com", FALSE },
+      { NULL, NULL, FALSE }
+    };
+
+    for(int k = 0 ; scope[k].urls != NULL ; k++) {
+      CSimpleArray<CString> urls;
       CSimpleArray<CookieRecord> one;
       CookieRecord cookie;
 
+      splitTokensInArray(urls, scope[k].urls);
       cookie.domain = scope[k].domain;
       one.Add(cookie);
-      if ((browserLoginBundleCookies(one, scope[k].urls, scope[k].name).GetSize() == 1)
-          != scope[k].want) {
+      if ((browserLoginBundleCookies(one, urls).GetSize() == 1) != scope[k].want) {
         snprintf(msg, sizeof(msg), "a bundle from '%s' %s a cookie for '%s'",
                  scope[k].urls, scope[k].want ? "drops" : "keeps", scope[k].domain);
         *err = msg;
@@ -612,8 +643,10 @@ int browserLoginCheckCases(CString *err) {
     /* Order and the kept records themselves survive the cut. */
     {
       static const char *const domains[] = { "a.example.com", "buecher.de", "example.com" };
+      CSimpleArray<CString> urls;
       CSimpleArray<CookieRecord> mixed;
 
+      urls.Add("https://example.com/#httrack-bundle=example.com");
       for(int k = 0 ; k < 3 ; k++) {
         CookieRecord cookie;
 
@@ -621,13 +654,26 @@ int browserLoginCheckCases(CString *err) {
         cookie.value = domains[k];
         mixed.Add(cookie);
       }
-      const CSimpleArray<CookieRecord> kept =
-        browserLoginBundleCookies(mixed, "https://example.com/#httrack-bundle=example.com",
-                                  "example.com");
+      const CSimpleArray<CookieRecord> kept = browserLoginBundleCookies(mixed, urls);
 
       if (kept.GetSize() != 2 || kept[0].value != "a.example.com"
           || kept[1].value != "example.com") {
         *err = "cutting a bundle's cookies lost or reordered the kept ones";
+        return 0;
+      }
+      nchecks++;
+    }
+    /* Another bundle's address covers its own site, never this bundle's cookies. */
+    {
+      CSimpleArray<CookieRecord> one;
+      CookieRecord cookie;
+
+      cookie.domain = "buecher.de";
+      one.Add(cookie);
+      if (browserLoginBundleCookies(one, browserLoginBundleUrls(
+            "https://example.com/#httrack-bundle=example.com "
+            "https://buecher.de/#httrack-bundle=buecher.de", "", "example.com")).GetSize() != 0) {
+        *err = "a bundle kept a cookie that only another bundle's address covers";
         return 0;
       }
       nchecks++;

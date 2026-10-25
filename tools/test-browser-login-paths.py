@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 115 checks"
+EXPECTED_LINE = "browser login helpers ok on 107 checks"
 
 
 def read(path):
@@ -103,6 +103,46 @@ int hts_registrable_domain(const char *host, char *out, size_t size) {
     return 0;
   strcpy(out, reg);
   return 1;
+}
+"""
+
+
+# The engine's own rule is the engine's to test, and the Windows --selftest runs the
+# cases against it. This keeps a host's registrable domain, and records what it was given.
+SCOPE_STUB = r"""
+char bl_scope_seen[4][1024];
+size_t bl_scope_seen_n;
+int hts_bundle_cookie_in_scope(const char *const *urls, size_t nurls,
+                               const char *domain) {
+  char host[256], reg[256];
+  size_t i;
+
+  bl_scope_seen_n = nurls;
+  for (i = 0; i < nurls && i < 4; i++)
+    snprintf(bl_scope_seen[i], sizeof(bl_scope_seen[i]), "%s", urls[i]);
+  if (domain[0] == '.')
+    domain++;
+  for (i = 0; i < nurls; i++) {
+    const char *p = strstr(urls[i], "://");
+    const size_t len = strcspn(p = p != NULL ? p + 3 : urls[i], "/?#:");
+    const size_t d = strlen(domain);
+    size_t r;
+
+    if (len == 0 || len >= sizeof(host))
+      return 0;
+    memcpy(host, p, len);
+    host[len] = '\0';
+    if (!hts_registrable_domain(host, reg, sizeof(reg))) {
+      if (strcmp(domain, host) == 0)
+        return 1;
+      continue;
+    }
+    r = strlen(reg);
+    if (strcmp(domain, reg) == 0
+        || (d > r && domain[d - r - 1] == '.' && strcmp(domain + d - r, reg) == 0))
+      return 1;
+  }
+  return 0;
 }
 """
 
@@ -220,6 +260,9 @@ def main():
         "browserLoginBundleUrl",
         "browserLoginUnbundledUrl",
         "browserLoginBundleText",
+        "browserLoginUtf8",
+        "browserLoginBundleUrls",
+        "browserLoginBundleCookies",
     ):
         for other in others:
             if re.search(r"^\w[^;()\n]*\b%s\s*\(" % name, read(other), re.M):
@@ -227,7 +270,12 @@ def main():
                     "%s is defined in %s as well as browser-login-paths.cpp"
                     % (name, os.path.basename(other))
                 )
-        if re.search(r"^(CString|BOOL) %s\(" % name, read(unit), re.M) is None:
+        if (
+            re.search(
+                r"^(CString|BOOL|CSimpleArray<\w+>) %s\(" % name, read(unit), re.M
+            )
+            is None
+        ):
             sys.exit("browser-login-paths.cpp no longer defines %s()" % name)
         checked += 1
 
@@ -253,19 +301,54 @@ def main():
     # 4. The button has to reach them, so the calls have to sit inside the handler the
     #    message map names, and the harvest has to be applied when the box is accepted.
     #    Naming a function anywhere in a file proves neither.
-    # The engine scopes a bundle from the URL list it is given, so the cut must read the
-    # list at OK, edits included, and run before the file is written.
+    # The engine scopes a bundle from the addresses that name it, so the cut runs before
+    # the file is written, and again once the wizard finishes, edits included.
     wid1 = read(os.path.join(ROOT, "WinHTTrack", "Wid1.cpp"))
     if not re.search(
-        r"^static BOOL applyBrowserLogin\(const BrowserLoginHarvest &login, "
-        r"const CString &urls\)\n\{\s*BrowserLoginHarvest harvest = login;\s*"
-        r"harvest\.cookies = browserLoginBundleCookies\(login\.cookies, urls, "
-        r"login\.bundleName\);[^}]*browserLoginSaveBundle\(harvest,",
+        r"^static BOOL applyBrowserLogin\(const BrowserLoginHarvest &login,\s*"
+        r"const CSimpleArray<CString> &urls, BOOL again\)\n\{\s*"
+        r"BrowserLoginHarvest harvest = login;\s*"
+        r"harvest\.cookies = browserLoginBundleCookies\(login\.cookies, urls\);"
+        r"[^}]*browserLoginSaveBundle\(harvest,",
         wid1,
         re.M,
     ):
         sys.exit(
             "Wid1.cpp no longer cuts a login's cookies to the URL list before saving"
+        )
+    checked += 1
+    finish = re.search(
+        r"^void finishBrowserLogins\(const CString &urls, const CString &listFile\)\n"
+        r"\{(.*?)^\}",
+        wid1,
+        re.M | re.S,
+    )
+    if finish is None or not re.search(
+        r"const CString list = readUrlList\(listFile\);[\s\S]*"
+        r"browserLoginBundleUrls\(urls, list, heldLogins\[i\]\.bundleName\);\s*"
+        r"/\*[^*]*\*/\s*if \(named\.GetSize\(\) == 0\) \{[^}]*DeleteFileA\(file\);"
+        r"\s*\} else \{\s*applyBrowserLogin\(heldLogins\[i\], named, TRUE\);"
+        r"[\s\S]*heldLogins\.RemoveAll\(\);",
+        finish.group(1),
+    ):
+        sys.exit(
+            "finishBrowserLogins() no longer cuts each held login to the final "
+            "addresses, or no longer deletes one that no address names"
+        )
+    checked += 1
+    trans = read(os.path.join(ROOT, "WinHTTrack", "trans.cpp"))
+    done = re.search(
+        r"^BOOL Ctrans::OnWizardFinish\( \)\n\{(.*?)^\}", trans, re.M | re.S
+    )
+    if done is None or not re.search(
+        r"\n  compute_options\(\) ;\s*/\*[^*]*\*/\s*"
+        r"finishBrowserLogins\(ShellOptions->url, ShellOptions->filelist\);"
+        r"[\s\S]*Save_current_profile\(0\);[\s\S]*LaunchMirror\(\);",
+        done.group(1),
+    ):
+        sys.exit(
+            "the wizard no longer cuts its logins to the final addresses after "
+            "compute_options() and before it saves or launches the project"
         )
     checked += 1
     insert = read(os.path.join(ROOT, "WinHTTrack", "InsertUrl.cpp"))
@@ -396,13 +479,18 @@ def main():
     if taken is None:
         sys.exit("Onlogin2() no longer has an IDOK branch to apply the harvest in")
     checked += 1
-    # Written before the URL is added, so a failed save leaves no suffix naming a file.
+    # Written before the URL is added, so a failed save leaves no suffix naming a file,
+    # and held only once written, so the finish never writes a login OK refused.
     if not re.search(
-        r"GetDlgItemText\(IDC_URL,st\);\s*/\*[^*]*\*/\s*"
-        r"if \(url\.haveHarvest && "
-        r"!applyBrowserLogin\(url\.harvest, st \+ \"\\r\\n\" \+ url\.m_urladr\)\)\s*"
+        r"GetDlgItemText\(IDC_URL,st\);\s*GetDlgItemText\(IDC_filelist,listFile\);"
+        r"\s*listFile\.TrimLeft\(\); listFile\.TrimRight\(\);\s*/\*[^*]*\*/\s*"
+        r"if \(url\.haveHarvest\) \{\s*const CSimpleArray<CString> named =\s*"
+        r"browserLoginBundleUrls\(st \+ \"\\r\\n\" \+ url\.m_urladr, "
+        r"readUrlList\(listFile\),\s*url\.harvest\.bundleName\);\s*"
+        r"if \(applyBrowserLogin\(url\.harvest, named, FALSE\)\)\s*"
+        r"holdBrowserLogin\(url\.harvest\);\s*else\s*"
         r"url\.m_urladr = browserLoginUnbundledUrl\(url\.m_urladr, "
-        r"url\.harvest\.bundleName\);\s*if \(url\.m_urladr\.Left",
+        r"url\.harvest\.bundleName\);\s*\}\s*if \(url\.m_urladr\.Left",
         taken.group(1),
     ):
         sys.exit(
@@ -420,7 +508,7 @@ def main():
                 "/* Copied by tools/test-browser-login-paths.py out of the engine's "
                 "src/htscore.c, src/htssafe.h, src/htsbundle.c and src/htsbundle.h. */\n"
                 "#include <assert.h>\n#include <ctype.h>\n#include <stddef.h>\n"
-                "#include <string.h>\n"
+                "#include <stdio.h>\n#include <string.h>\n"
                 "typedef int hts_boolean;\n#define HTSEXT_API\n"
                 "#define HTS_TRUE 1\n#define HTS_FALSE 0\n"
                 "#define assertf(x) assert(x)\n"
@@ -431,13 +519,14 @@ def main():
                 "static void hts_lowcase(char *s) {\n"
                 "  for (; *s; s++) *s = (char) tolower((unsigned char) *s);\n}\n"
                 "%s\n"
-                'extern "C" {\n%s\n%s\n%s\n%s\n}\n'
+                'extern "C" {\n%s\n%s\n%s\n%s\n%s\n}\n'
                 % (
                     engine_space_set(read(htssafe)),
                     engine_token_function(read(htscore)),
                     engine_opt_function(read(htscoremain)),
                     engine_bundle_name_rule(read(htsbundle_c), read(htsbundle_h)),
                     REGISTRABLE_STUB,
+                    SCOPE_STUB,
                 )
             )
         # Built and run twice: once as the Windows build sees it, once with the

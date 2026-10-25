@@ -541,6 +541,11 @@ public:
 /* Class options */
 extern CShellOptions* ShellOptions;
 
+/* Rewrites each login this wizard accepted, cut to URLS, the address box, and to the
+   -%L file at LISTFILE, and deletes one that no address names any more. Call it once
+   the addresses are final, before the profile is saved. Defined in Wid1.cpp. */
+void finishBrowserLogins(const CString &urls, const CString &listFile);
+
 /* Append the checkbox-gated options (the WARC group, sitemap, single-file) to args.
    A field left filled under a clear box must emit nothing, since a value option
    can enable its feature by itself. Shared with --selftest. */

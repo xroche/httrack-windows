@@ -102,6 +102,9 @@ IMPLEMENT_DYNCREATE(Wid1, CPropertyPage)
 //Cfilter filter;
 CString change(CString,char);
  
+/* The logins accepted in this wizard, whole, so the finish can cut them again. */
+static CSimpleArray<BrowserLoginHarvest> heldLogins;
+
 Wid1::Wid1()
 	: CPropertyPage(Wid1::IDD)
 {
@@ -118,6 +121,7 @@ Wid1::Wid1()
 
 Wid1::~Wid1() {
   dialog1=NULL;
+  heldLogins.RemoveAll();
 }
 
 void Wid1::DoDataExchange(CDataExchange* pDX)
@@ -805,13 +809,14 @@ HCURSOR Wid1::OnQueryDragIcon()
 */
 
 /* Writes what a browser login brought back as the bundle its address names, keeping
-   the cookies the addresses in URLS scope it to, and says what went wrong. Only once the
-   box is accepted, so Cancel leaves no file behind. FALSE when no file was written. */
-static BOOL applyBrowserLogin(const BrowserLoginHarvest &login, const CString &urls)
+   the cookies URLS, the addresses naming it, scope it to, and says what went wrong.
+   AGAIN skips the notes the first write gave. FALSE when no file was written. */
+static BOOL applyBrowserLogin(const BrowserLoginHarvest &login,
+                              const CSimpleArray<CString> &urls, BOOL again)
 {
   BrowserLoginHarvest harvest = login;
 
-  harvest.cookies = browserLoginBundleCookies(login.cookies, urls, login.bundleName);
+  harvest.cookies = browserLoginBundleCookies(login.cookies, urls);
   const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
   const CString file = browserLoginBundleFile(project, harvest.bundleName);
   CookieFileStats stats;
@@ -846,7 +851,7 @@ static BOOL applyBrowserLogin(const BrowserLoginHarvest &login, const CString &u
   }
   const int dropped = harvest.cookies.GetSize() - stats.written;
 
-  if (dropped > 0) {
+  if (!again && dropped > 0) {
     said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
                                  "%d of the browser's cookies were left out, because "
                                  "the engine would not read them."),
@@ -855,12 +860,63 @@ static BOOL applyBrowserLogin(const BrowserLoginHarvest &login, const CString &u
   }
   /* The bundle leaves out an identity it cannot write as one line. The mirror then goes
      out under the engine's own rather than the one that logged in. */
-  if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
+  if (!again && !harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINBADAGENT),
                                    "The browser identity it reported cannot be used, "
                                    "so the mirror will send the default one."),
                   MB_OK | MB_ICONWARNING);
   return TRUE;
+}
+
+/* The bytes of the -%L file at PATH, empty when it cannot be read. */
+static CString readUrlList(const CString &path)
+{
+  CString text;
+  FILE *const fp = path.IsEmpty() ? NULL : fopen(path, "rb");
+  char chunk[4096];
+  size_t n;
+
+  if (fp == NULL)
+    return text;
+  while ((n = fread(chunk, 1, sizeof(chunk), fp)) > 0)
+    text += CString(chunk, (int) n);
+  fclose(fp);
+  return text;
+}
+
+/* A later login under the same name replaces the file, so it replaces the held one. */
+static void holdBrowserLogin(const BrowserLoginHarvest &login)
+{
+  for(int i = 0 ; i < heldLogins.GetSize() ; i++) {
+    if (heldLogins[i].bundleName == login.bundleName) {
+      heldLogins.RemoveAt(i);
+      break;
+    }
+  }
+  heldLogins.Add(login);
+}
+
+// see Shell.h
+void finishBrowserLogins(const CString &urls, const CString &listFile)
+{
+  const CString list = readUrlList(listFile);
+  const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
+
+  for(int i = 0 ; i < heldLogins.GetSize() ; i++) {
+    const CSimpleArray<CString> named =
+      browserLoginBundleUrls(urls, list, heldLogins[i].bundleName);
+
+    /* No address reads it any more, and it holds a live session. */
+    if (named.GetSize() == 0) {
+      const CString file = browserLoginBundleFile(project, heldLogins[i].bundleName);
+
+      if (!file.IsEmpty())
+        DeleteFileA(file);
+    } else {
+      applyBrowserLogin(heldLogins[i], named, TRUE);
+    }
+  }
+  heldLogins.RemoveAll();
 }
 
 void Wid1::Onlogin2() 
@@ -869,11 +925,21 @@ void Wid1::Onlogin2()
   CInsertUrl url;
   url.dest_path=dialog0->GetPath();
   if (url.DoModal() == IDOK) {
-    CString st;
+    CString st, listFile;
     GetDlgItemText(IDC_URL,st);
+    GetDlgItemText(IDC_filelist,listFile);
+    listFile.TrimLeft(); listFile.TrimRight();
     /* The file goes first, so a login that fails to save leaves no URL naming it. */
-    if (url.haveHarvest && !applyBrowserLogin(url.harvest, st + "\r\n" + url.m_urladr))
-      url.m_urladr = browserLoginUnbundledUrl(url.m_urladr, url.harvest.bundleName);
+    if (url.haveHarvest) {
+      const CSimpleArray<CString> named =
+        browserLoginBundleUrls(st + "\r\n" + url.m_urladr, readUrlList(listFile),
+                               url.harvest.bundleName);
+
+      if (applyBrowserLogin(url.harvest, named, FALSE))
+        holdBrowserLogin(url.harvest);
+      else
+        url.m_urladr = browserLoginUnbundledUrl(url.m_urladr, url.harvest.bundleName);
+    }
     if (url.m_urladr.Left(7)=="http://")
       url.m_urladr=url.m_urladr.Mid(7);
     if (url.m_urllogin.GetLength()==0) {
