@@ -368,14 +368,15 @@ def main():
     saves = 0
     for path in sorted(glob.glob(os.path.join(ROOT, "WinHTTrack", "*.cpp"))):
         src = read(path)
-        for m in re.finditer(r"^\s*Save_current_profile\(0\);", src, re.M):
+        for m in re.finditer(r"^\s*Save_current_profile\(\w+\);", src, re.M):
             if os.path.basename(path) == "trans.cpp":
                 continue
             if not re.search(
                 r"(if \(WriteBrowserLoginsForSave\(\)\)\s*"
-                r"|if \(dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave\(\)\)"
-                r"\s*return 0;\s*)$",
-                src[: m.start()] + m.group(0)[: -len("Save_current_profile(0);")],
+                r"|if \(dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave\(\)\) \{"
+                r"[^}]*return 0;\s*\}\s*)$",
+                src[: m.start()]
+                + re.sub(r"Save_current_profile\(\w+\);$", "", m.group(0)),
             ):
                 sys.exit(
                     "%s saves the project without writing its logins first"
@@ -384,6 +385,16 @@ def main():
             saves += 1
     if saves != 2:
         sys.exit("found %d project saves outside the wizard, expected 2" % saves)
+    # MFC deletes the chosen file when a Save As fails, so the write precedes it.
+    doc = read(os.path.join(ROOT, "WinHTTrack", "WinHTTrackDoc.cpp"))
+    if not re.search(
+        r"BOOL CWinHTTrackDoc::DoSave\(LPCTSTR lpszPathName, BOOL bReplace\)\n\{\n"
+        r"\s*if \(dialog0 && dialog1 != NULL && "
+        r"!dialog1->WriteBrowserLoginsForSave\(\)\)"
+        r"\s*return FALSE;\s*return CDocument::DoSave\(lpszPathName, bReplace\);",
+        doc,
+    ):
+        sys.exit("a failed login write in Save As reaches MFC, which deletes the file")
     if not re.search(
         r"^BOOL Wid1::WriteBrowserLoginsForSave\(\)\n\{[^}]*\}[^}]*"
         r"return WriteBrowserLogins\(dialog0->GetPath0\(\), urls, list\);\n\}",

@@ -140,6 +140,7 @@ BOOL CWinHTTrackDoc::OnSaveDocument(LPCTSTR lpszPathName)
   //AfxMessageBox(lpszPathName);
 
   if (dialog0) {
+    const CString oldName = dialog0->m_projname, oldPath = dialog0->m_projpath;
     CString PathName=lpszPathName;
     int pos=PathName.ReverseFind('.');
     if (pos>=0) {
@@ -169,12 +170,23 @@ BOOL CWinHTTrackDoc::OnSaveDocument(LPCTSTR lpszPathName)
     }
     
     /* The saved address names each login's file, so the file comes first. */
-    if (dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave())
+    if (dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave()) {
+      dialog0->m_projname = oldName;
+      dialog0->m_projpath = oldPath;
       return 0;
+    }
     Save_current_profile(0);
   }
  
   return 1;
+}
+
+// A failed Save As deletes the chosen file, so the logins are written before MFC starts.
+BOOL CWinHTTrackDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
+{
+  if (dialog0 && dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave())
+    return FALSE;
+  return CDocument::DoSave(lpszPathName, bReplace);
 }
 
 BOOL CWinHTTrackDoc::OnOpenDocument(LPCTSTR lpszPathName) 
