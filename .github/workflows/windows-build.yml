@@ -1305,7 +1305,7 @@ jobs:
           }
           # Nothing else holds the counts the binding check prints, and a loop that
           # stopped running would otherwise still exit 0.
-          if ("$so" -notmatch "winprofile bindings ok on 528 checks over 100 keys and 9 catalog lists in $nlangs languages \(11 table rows skipped\)") {
+          if ("$so" -notmatch "winprofile bindings ok on 533 checks over 101 keys and 9 catalog lists in $nlangs languages \(11 table rows skipped\)") {
             Write-Host "--- selftest stdout ---`n$so"
             throw 'the winprofile binding check did not run every loop'
           }
