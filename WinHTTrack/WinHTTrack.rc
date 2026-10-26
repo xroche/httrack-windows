@@ -316,7 +316,7 @@ CAPTION "Wizard query"
 FONT 8, "MS Shell Dlg"
 BEGIN
     PUSHBUTTON      "No",IDCANCEL,7,85,50,14
-    DEFPUSHBUTTON   "Ok",IDOK,140,85,50,14
+    DEFPUSHBUTTON   "Yes",IDOK,140,85,50,14
     LTEXT           "",IDC_question,7,7,183,72
 END
 
