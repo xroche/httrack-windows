@@ -71,8 +71,7 @@ struct BrowserLoginHarvest {
   /* Where the user ended up. This is the address to crawl, because navigating to it by
      hand is what the browser was opened for. */
   CString finalUrl;
-  /* The bundle this login is saved under, set once the browser closes. The address box
-     and the file must name the SAME one, so it is carried rather than derived twice. */
+  /* The bundle the engine names this login, in UTF-8, set once the browser closes. */
   CString bundleName;
 };
 
@@ -120,59 +119,30 @@ void browserLoginForgetProfile(const CString &dir);
    profile holds a signed-in session, and a crash would otherwise leave one for ever. */
 void browserLoginSweepProfiles(void);
 
-/* The bundle a login is saved under: the registrable domain of the host it landed on,
-   else that host, each escaped with a leading "_" when only that makes the engine accept
-   it. It is empty when neither fits, as for an IPv6 literal. */
-CString browserLoginBundleName(const CString &landedUrl);
-
-/* TEXT, in the ANSI codepage, as the UTF-8 the engine and the helper DLL read. */
+/* Returns TEXT, given in the ANSI codepage, as the UTF-8 the engine and the DLL read. */
 CString browserLoginUtf8(const CString &text);
 
-/* The addresses that name bundle NAME, as the engine reads them: from BOX, the address
-   box, and from LIST, the text of the -%L file. Pass these alone to
-   browserLoginBundleCookies(). */
-CSimpleArray<CString> browserLoginBundleUrls(const CString &box, const CString &list,
-                                             const CString &name);
-
-/* COOKIES less every one the engine drops from the bundle that URLS, from
-   browserLoginBundleUrls(), name. Empty when URLS is. */
-CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
-                                                     const CSimpleArray<CString> &urls);
-
-/* <project>/<name>.hts, which is where the engine looks a bundle name up: it resolves
-   against opt->path_log, and the GUI passes -O1 so that is the project. Empty when
-   either argument is. */
-CString browserLoginBundleFile(const CString &projectPath, const CString &name);
-
-/* LANDEDURL with the suffix the engine reads the name from, which must come last and
-   must appear once. Empty when either argument is empty, and empty when LANDEDURL
-   already carries a suffix, because a second one would abort the mirror. */
-CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
-
-/* URL without the suffix naming bundle NAME when URL ends with it, trailing blanks
-   aside, else URL unchanged. */
-CString browserLoginUnbundledUrl(const CString &url, const CString &name);
-
-/* The bundle the engine parses, over RECORDS from cookieFileText(). The identity is
-   left out when it would not survive as one line, because the engine reads a bundle a
-   line at a time. */
-CString browserLoginBundleText(const CString &userAgent, const CString &records);
+/* Returns the indexes of NAMES, bundle names in UTF-8, that an address the engine reads
+   still names. It reads BOX, the address box, and LIST, the text of the -%L file. */
+CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
+                                             const CString &box, const CString &list);
 
 /* The user's own data folder, which is where a browser profile goes. Empty when the
    shell will not say. */
 CString browserLoginUserDir(void);
 
-/* CookieSaveResult: what browserLoginSaveBundle() returns. */
-enum CookieSaveResult {
-  CookieSaveWritten,
-  CookieSaveNothingToWrite,  /* the engine would refuse every cookie the browser gave */
-  CookieSaveNoFile           /* the folder or the file would not take it */
+/* The engine fills this from a login. */
+struct BrowserLoginBundleInfo {
+  CString name;    /* in UTF-8, as the engine compares it */
+  CString url;     /* the address naming it, in the ANSI codepage */
+  CString error;   /* why it was refused, in the ANSI codepage */
+  int cookies;     /* how many it kept */
 };
 
-/* Writes HARVEST at PATH as the bundle browserLoginBundleText() renders, and fills
-   STATS with what went in and what was dropped. */
-CookieSaveResult browserLoginSaveBundle(const BrowserLoginHarvest &harvest,
-                                        const CString &path, CookieFileStats &stats);
+/* Has the engine write HARVEST as the login bundle of the address the browser landed on,
+   into FOLDER, or only check it when DRYRUN. FALSE when refused. */
+BOOL browserLoginMakeBundle(const BrowserLoginHarvest &harvest, const CString &folder,
+                            BOOL dryRun, BrowserLoginBundleInfo &info);
 
 /* TRANSLATED, or ENGLISH when the catalog does not carry the key. LANGSEL() answers an
    empty string for a key it does not know, and an empty message box tells nobody

@@ -43,30 +43,15 @@ void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
-CString browserLoginBundleName(const CString &landedUrl);
 CString browserLoginUtf8(const CString &text);
-CSimpleArray<CString> browserLoginBundleUrls(const CString &box, const CString &list,
-                                             const CString &name);
-CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
-                                                     const CSimpleArray<CString> &urls);
-CString browserLoginBundleFile(const CString &projectPath, const CString &name);
-CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
-CString browserLoginUnbundledUrl(const CString &url, const CString &name);
-CString browserLoginBundleText(const CString &userAgent, const CString &records);
+CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
+                                             const CString &box, const CString &list);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
 BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
 int browserLoginCheckCases(CString *err);
-extern "C" {
-  /* copied in or stubbed by tools/test-browser-login-paths.py */
-  int hts_registrable_domain(const char *host, char *out, size_t size);
-  const char *hts_bundle_name_refusal(const char *name);
-  int hts_bundle_cookie_in_scope(const char *const *urls, size_t nurls,
-                                 const char *cookie_domain);
-};
 /* The harness's own, defined in tools/browser-login-paths-test.cpp. */
 char *strdupt_utf8(const char *s);
-#define calloct(n, size) calloc((n), (size))
 #define freet(p) do { free(p); (p) = NULL; } while(0)
 #else
 #include "stdafx.h"
@@ -199,29 +184,6 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
 /* From the engine's htsbundle.h. */
 #define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
 
-/* Returns NAME, or "_" plus NAME when only that is accepted (con.com), or empty. A NAME
-   starting with "_" is refused, so only the escape makes one and it never collides. */
-static CString acceptedBundleName(const CString &name) {
-  if (name.IsEmpty() || name[0] == '_')
-    return CString();
-  if (hts_bundle_name_refusal(name) == NULL)
-    return name;
-  if (hts_bundle_name_refusal(CString("_") + name) == NULL)
-    return CString("_") + name;
-  return CString();
-}
-
-// see browser-login.h
-CString browserLoginBundleName(const CString &landedUrl) {
-  char site[256];
-
-  /* Two hosts of one site must share a file, because overlapping bundles abort the mirror.
-     The lookup keeps the "www.", because www.blogspot.com is a site of its own. */
-  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site)))
-    return acceptedBundleName(site);
-  return acceptedBundleName(comparableHost(landedUrl));
-}
-
 // see browser-login.h
 CString browserLoginUtf8(const CString &text) {
   char *converted = strdupt_utf8(text);  // freet() nulls it, so not const
@@ -240,102 +202,43 @@ static BOOL namesBundle(const CString &url, const CString &name) {
 }
 
 // see browser-login.h
-CSimpleArray<CString> browserLoginBundleUrls(const CString &box, const CString &list,
-                                             const CString &name) {
+CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
+                                             const CString &box, const CString &list) {
   CSimpleArray<CString> tokens, urls;
+  CSimpleArray<int> write;
   CString line;
+  BOOL nul = FALSE;
 
   splitTokensInArray(tokens, box);
   for(int i = 0 ; i < tokens.GetSize() ; i++) {
-    /* A leading + or - makes it a filter, which names no bundle. */
-    if (tokens[i][0] != '+' && tokens[i][0] != '-' && namesBundle(tokens[i], name))
-      urls.Add(browserLoginUtf8(tokens[i]));
+    const CString url = browserLoginUtf8(tokens[i]);
+
+    /* A leading + or - makes it a filter, and the engine drops a longer address. */
+    if (url[0] != '+' && url[0] != '-' && url.GetLength() < HTS_URLMAXSIZE)
+      urls.Add(url);
   }
   /* The engine reads the -%L file as bytes, a line each, with every CR dropped. */
   for(int i = 0 ; i <= list.GetLength() ; i++) {
     if (i == list.GetLength() || list[i] == '\n') {
-      if (namesBundle(line, name))
+      if (!nul && line.GetLength() < HTS_URLMAXSIZE)
         urls.Add(line);
       line = CString();
+      nul = FALSE;
+    } else if (list[i] == '\0') {
+      nul = TRUE;
     } else if (list[i] != '\r') {
       line += list[i];
     }
   }
-  return urls;
-}
-
-// see browser-login.h
-CSimpleArray<CookieRecord> browserLoginBundleCookies(const CSimpleArray<CookieRecord> &cookies,
-                                                     const CSimpleArray<CString> &urls) {
-  CSimpleArray<CookieRecord> kept;
-  const char **list;  // freet() nulls it
-
-  if (urls.GetSize() == 0
-      || (list = (const char **) calloct((size_t) urls.GetSize(), sizeof(*list))) == NULL)
-    return kept;
-  for(int i = 0 ; i < urls.GetSize() ; i++)
-    list[i] = urls[i];
-  for(int i = 0 ; i < cookies.GetSize() ; i++) {
-    if (hts_bundle_cookie_in_scope(list, (size_t) urls.GetSize(), cookies[i].domain))
-      kept.Add(cookies[i]);
+  for(int k = 0 ; k < names.GetSize() ; k++) {
+    for(int i = 0 ; i < urls.GetSize() ; i++) {
+      if (namesBundle(urls[i], names[k])) {
+        write.Add(k);
+        break;
+      }
+    }
   }
-  freet(list);
-  return kept;
-}
-
-// see browser-login.h
-CString browserLoginBundleFile(const CString &projectPath, const CString &name) {
-  if (projectPath.IsEmpty() || name.IsEmpty())
-    return CString();
-  return pathUnder(projectPath, name + ".hts");
-}
-
-// see browser-login.h
-CString browserLoginBundleUrl(const CString &landedUrl, const CString &name) {
-  if (landedUrl.IsEmpty() || name.IsEmpty())
-    return CString();
-  /* The engine reads the FIRST suffix and refuses a name holding another, so an address
-     already carrying one would abort the mirror. */
-  if (landedUrl.Find(BROWSER_BUNDLE_SUFFIX) >= 0)
-    return CString();
-  return landedUrl + BROWSER_BUNDLE_SUFFIX + name;
-}
-
-// see browser-login.h
-CString browserLoginUnbundledUrl(const CString &url, const CString &name) {
-  const CString suffix = CString(BROWSER_BUNDLE_SUFFIX) + name;
-  /* The box is split on blanks later, so a typed trailing space must not hide the suffix. */
-  CString trimmed = url;
-
-  trimmed.TrimRight();
-  if (name.IsEmpty() || trimmed.GetLength() < suffix.GetLength()
-      || trimmed.Right(suffix.GetLength()) != suffix)
-    return url;
-  return trimmed.Left(trimmed.GetLength() - suffix.GetLength());
-}
-
-/* What the engine reads a bundle line into, from htsbundle.c. A longer line stops the
-   run, so the identity is dropped rather than written. */
-#define BROWSER_BUNDLE_LINE_MAX 8192
-
-// see browser-login.h
-CString browserLoginBundleText(const CString &userAgent, const CString &records) {
-  CString text = "# HTTrack bundle 1\n";
-  BOOL oneLine = !userAgent.IsEmpty()
-    && userAgent.GetLength() + 3 < BROWSER_BUNDLE_LINE_MAX;
-
-  for(int i = 0 ; oneLine && i < userAgent.GetLength() ; i++)
-    if ((unsigned char) userAgent[i] < ' ')
-      oneLine = FALSE;
-  if (oneLine) {
-    text += "ua ";
-    text += userAgent;
-    text += "\n";
-  }
-  /* The engine takes every line after this one as a jar record. */
-  text += "cookies\n";
-  text += records;
-  return text;
+  return write;
 }
 
 /* What a profile folder is called. The sweep reads the run back out of it. */
@@ -564,261 +467,99 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* Only an address naming this bundle, after its first suffix, reaches the engine,
-       which would put every address it is given into the one bundle. */
-    static const struct { const char *box, *list, *name, *want; } pick[] = {
+    /* Which held logins the finish writes. Held: example.com, then other.org. */
+    static const struct { const char *box, *list, *want; } held[] = {
+      { "https://example.com/#httrack-bundle=example.com", "", "0" },
       { "https://example.com/#httrack-bundle=example.com "
-        "https://example.com/x#httrack-bundle=other", "", "example.com",
-        "https://example.com/#httrack-bundle=example.com" },
-      { "https://example.com/ https://example.com/a#httrack-bundle=example.com", "",
-        "example.com", "https://example.com/a#httrack-bundle=example.com" },
-      /* an address edited after the login still names it */
-      { "https://shop.example.org/#httrack-bundle=example.com", "", "example.com",
-        "https://shop.example.org/#httrack-bundle=example.com" },
-      { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "",
-        "example.com", "" },
-      { "https://example.com/#httrack-bundle=example.com.au", "", "example.com", "" },
-      { "+example.com/*#httrack-bundle=example.com", "", "example.com", "" },
-      { "https://example.com/#httrack-bundle=", "", "", "" },
-      { "", "https://a.example.com/#httrack-bundle=example.com\r\nhttps://b.example.com/\r\n"
-        "https://c.example.com/#httrack-bundle=example.com", "example.com",
-        "https://a.example.com/#httrack-bundle=example.com "
-        "https://c.example.com/#httrack-bundle=example.com" },
-      { "https://b.example.com/#httrack-bundle=example.com",
-        "https://a.example.com/#httrack-bundle=example.com\n", "example.com",
-        "https://b.example.com/#httrack-bundle=example.com "
-        "https://a.example.com/#httrack-bundle=example.com" },
-      { NULL, NULL, NULL, NULL }
+        "https://other.org/#httrack-bundle=other.org", "", "0 1" },
+      /* Back to a project whose addresses name neither */
+      { "https://elsewhere.net/", "", "" },
+      { "", "", "" },
+      /* an address edited after the login still names it, and one cut back does not */
+      { "https://shop.example.org/x#httrack-bundle=example.com", "", "0" },
+      { "https://example.com/", "", "" },
+      /* only the name after the first suffix counts */
+      { "https://example.com/#httrack-bundle=example.com.au", "", "" },
+      { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "", "" },
+      /* a filter names no bundle */
+      { "+example.com/*#httrack-bundle=example.com", "", "" },
+      /* the -%L file, CR LF or not */
+      { "", "https://a.test/\r\nhttps://other.org/#httrack-bundle=other.org\r\n", "1" },
+      /* named twice, written once */
+      { "https://example.com/#httrack-bundle=example.com",
+        "https://example.com/a#httrack-bundle=example.com\n"
+        "https://other.org/#httrack-bundle=other.org", "0 1" },
+      { NULL, NULL, NULL }
     };
+    CSimpleArray<CString> names;
 
-    for(int k = 0 ; pick[k].box != NULL ; k++) {
-      const CSimpleArray<CString> got = browserLoginBundleUrls(pick[k].box, pick[k].list,
-                                                               pick[k].name);
+    names.Add("example.com");
+    names.Add("other.org");
+    for(int k = 0 ; held[k].box != NULL ; k++) {
+      const CSimpleArray<int> got = browserLoginBundlesToWrite(names, held[k].box,
+                                                               held[k].list);
       CString joined;
 
       for(int i = 0 ; i < got.GetSize() ; i++) {
-        if (i > 0)
-          joined += " ";
-        joined += got[i];
+        char one[16];
+
+        snprintf(one, sizeof(one), i > 0 ? " %d" : "%d", got[i]);
+        joined += one;
       }
-      if (joined != pick[k].want) {
-        snprintf(msg, sizeof(msg), "bundle '%s' from '%s' and '%s' took '%s', not '%s'",
-                 pick[k].name, pick[k].box, pick[k].list, (LPCSTR) joined, pick[k].want);
+      if (joined != held[k].want) {
+        snprintf(msg, sizeof(msg), "'%s' and list '%s' write logins '%s', not '%s'",
+                 held[k].box, held[k].list, (LPCSTR) joined, held[k].want);
         *err = msg;
         return 0;
       }
       nchecks++;
     }
-  }
-  {
-    /* The engine's verdict decides which cookies are written. */
-    static const struct { const char *urls, *domain; BOOL want; } scope[] = {
-      { "https://www.example.com/#httrack-bundle=example.com", ".example.com", TRUE },
-      { "https://www.example.com/#httrack-bundle=example.com", "a.example.com", TRUE },
-      { "https://www.example.com/#httrack-bundle=example.com", "buecher.de", FALSE },
-      { "https://example.com/#httrack-bundle=example.com", "notexample.com", FALSE },
-      { "https://shop.example.org/#httrack-bundle=example.com", "example.org", TRUE },
-      { "https://login.idp.net/#httrack-bundle=idp.net https://example.com/#httrack-bundle=idp.net",
-        "example.com", TRUE },
-      { "", "example.com", FALSE },
-      { NULL, NULL, FALSE }
-    };
-
-    for(int k = 0 ; scope[k].urls != NULL ; k++) {
-      CSimpleArray<CString> urls;
-      CSimpleArray<CookieRecord> one;
-      CookieRecord cookie;
-
-      splitTokensInArray(urls, scope[k].urls);
-      cookie.domain = scope[k].domain;
-      one.Add(cookie);
-      if ((browserLoginBundleCookies(one, urls).GetSize() == 1) != scope[k].want) {
-        snprintf(msg, sizeof(msg), "a bundle from '%s' %s a cookie for '%s'",
-                 scope[k].urls, scope[k].want ? "drops" : "keeps", scope[k].domain);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-    /* Order and the kept records themselves survive the cut. */
-    {
-      static const char *const domains[] = { "a.example.com", "buecher.de", "example.com" };
-      CSimpleArray<CString> urls;
-      CSimpleArray<CookieRecord> mixed;
-
-      urls.Add("https://example.com/#httrack-bundle=example.com");
-      for(int k = 0 ; k < 3 ; k++) {
-        CookieRecord cookie;
-
-        cookie.domain = domains[k];
-        cookie.value = domains[k];
-        mixed.Add(cookie);
-      }
-      const CSimpleArray<CookieRecord> kept = browserLoginBundleCookies(mixed, urls);
-
-      if (kept.GetSize() != 2 || kept[0].value != "a.example.com"
-          || kept[1].value != "example.com") {
-        *err = "cutting a bundle's cookies lost or reordered the kept ones";
-        return 0;
-      }
-      nchecks++;
-    }
-    /* Another bundle's address covers its own site, never this bundle's cookies. */
-    {
-      CSimpleArray<CookieRecord> one;
-      CookieRecord cookie;
-
-      cookie.domain = "buecher.de";
-      one.Add(cookie);
-      if (browserLoginBundleCookies(one, browserLoginBundleUrls(
-            "https://example.com/#httrack-bundle=example.com "
-            "https://buecher.de/#httrack-bundle=buecher.de", "", "example.com")).GetSize() != 0) {
-        *err = "a bundle kept a cookie that only another bundle's address covers";
-        return 0;
-      }
-      nchecks++;
-    }
-  }
-  {
-    /* A refused name aborts the mirror and a shared one shares a file, so an odd name is
-       escaped or dropped. */
-    static const struct { const char *landed, *name; } names[] = {
-      { "https://example.com/members/", "example.com" },
-      /* the same site is one bundle, as the moved-host warning also reads it */
-      { "https://www.example.com/", "example.com" },
-      { "https://example.com:8443/x", "example.com" },
-      { "https://EXAMPLE.com/", "example.com" },
-      /* two hosts of one site are one bundle, because the engine scopes it so */
-      { "https://a.example.com/", "example.com" },
-      { "https://login.shop.example.co.uk/", "example.co.uk" },
-      /* no registrable domain, so the host names it */
-      { "https://localhost/", "localhost" },
-      /* www.github.io is a site of its own, since github.io is a public suffix */
-      { "https://www.github.io/", "www.github.io" },
-      { "http://192.168.1.10/", "192.168.1.10" },
-      /* a Windows device name, read up to the first dot, is escaped and stays distinct */
-      { "https://con/", "_con" },
-      { "https://CON.example/", "_con.example" },
-      { "https://shop.con.com/", "_con.com" },
-      { "https://aux.org/", "_aux.org" },
-      { "https://com1/", "_com1" },
-      /* the escape's own spelling, refused so http://con/ cannot share its file */
-      { "http://_con/", "" },
-      /* com0 is no device, and a four-letter label is not one either */
-      { "https://com0/", "com0" },
-      { "https://conx/", "conx" },
-      /* an IPv6 literal keeps bytes no bundle name may hold */
-      { "http://[::1]:8080/", "" },
-      /* nothing to name it after */
-      { "about:blank", "" },
-      { "", "" },
-      { NULL, NULL }
-    };
-
-    for(int k=0 ; names[k].landed != NULL ; k++) {
-      const CString got = browserLoginBundleName(names[k].landed);
-
-      if (got != names[k].name) {
-        snprintf(msg, sizeof(msg), "landing on '%s' names the bundle '%s', expected '%s'",
-                 names[k].landed, (LPCSTR) got, names[k].name);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-  }
-  {
-    static const struct { const char *landed, *name, *want; } urls[] = {
-      { "https://example.com/x", "example.com",
-        "https://example.com/x#httrack-bundle=example.com" },
-      /* the suffix must appear once, so an address already carrying one is refused */
-      { "https://example.com/x#httrack-bundle=other", "example.com", "" },
-      { "", "example.com", "" },
-      { "https://example.com/x", "", "" },
-      { NULL, NULL, NULL }
-    };
-
-    for(int k=0 ; urls[k].landed != NULL ; k++) {
-      const CString got = browserLoginBundleUrl(urls[k].landed, urls[k].name);
-
-      if (got != urls[k].want) {
-        snprintf(msg, sizeof(msg), "'%s' plus bundle '%s' gives '%s', expected '%s'",
-                 urls[k].landed, urls[k].name, (LPCSTR) got, urls[k].want);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-    static const struct { const char *url, *name, *want; } unbundled[] = {
-      { "https://example.com/x#httrack-bundle=example.com", "example.com",
-        "https://example.com/x" },
-      /* only this login's own suffix, because another one is not ours to drop */
-      { "https://example.com/x#httrack-bundle=other", "example.com",
-        "https://example.com/x#httrack-bundle=other" },
-      { "https://example.com/x#httrack-bundle=example.com  ", "example.com",
-        "https://example.com/x" },
-      { "https://example.com/x", "example.com", "https://example.com/x" },
-      { "https://example.com/x#httrack-bundle=", "", "https://example.com/x#httrack-bundle=" },
-      { NULL, NULL, NULL }
-    };
-
-    for(int k=0 ; unbundled[k].url != NULL ; k++) {
-      const CString got = browserLoginUnbundledUrl(unbundled[k].url, unbundled[k].name);
-
-      if (got != unbundled[k].want) {
-        snprintf(msg, sizeof(msg), "'%s' less bundle '%s' gives '%s', expected '%s'",
-                 unbundled[k].url, unbundled[k].name, (LPCSTR) got, unbundled[k].want);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-    /* The engine resolves a name against the project, so the file has to land there. */
-    if (browserLoginBundleFile("C:\\web\\proj", "example.com")
-        != "C:\\web\\proj\\example.com.hts") {
-      *err = "the bundle no longer lands in the project folder";
+    /* A cancelled wizard holds nothing, so it writes nothing. */
+    if (browserLoginBundlesToWrite(CSimpleArray<CString>(),
+                                   "https://example.com/#httrack-bundle=example.com",
+                                   "").GetSize() != 0) {
+      *err = "a wizard holding no login wrote one";
       return 0;
     }
     nchecks++;
-    if (!browserLoginBundleFile("", "example.com").IsEmpty()) {
-      *err = "a bundle with no project got a relative path";
-      return 0;
-    }
-    nchecks++;
-  }
-  {
-    /* The engine refuses a bundle whose first line is not this, and takes every line
-       after "cookies" as a jar record, so the shape IS the contract. */
-    static const struct { const char *agent, *records, *want; } texts[] = {
-      { "Mozilla/5.0", "a\tFALSE\t/\tFALSE\t0\tn\tv\n",
-        "# HTTrack bundle 1\nua Mozilla/5.0\ncookies\na\tFALSE\t/\tFALSE\t0\tn\tv\n" },
-      /* no identity is a bundle too, because the cookies are the point */
-      { "", "a\tFALSE\t/\tFALSE\t0\tn\tv\n",
-        "# HTTrack bundle 1\ncookies\na\tFALSE\t/\tFALSE\t0\tn\tv\n" },
-      /* a byte that would forge the next line takes the identity out, not the bundle */
-      { "Mozilla\n ua evil", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
-      { "Mozilla\rx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
-      { "Mozilla\tx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
-      { NULL, NULL, NULL }
-    };
-
-    for(int k=0 ; texts[k].agent != NULL ; k++) {
-      const CString got = browserLoginBundleText(texts[k].agent, texts[k].records);
-
-      if (got != texts[k].want) {
-        snprintf(msg, sizeof(msg), "identity '%s' makes a bundle '%s', expected '%s'",
-                 texts[k].agent, (LPCSTR) got, texts[k].want);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-    /* A line the engine cannot read stops the run, so a long identity is left out. */
+    /* The engine drops an address of HTS_URLMAXSIZE bytes or more, or one holding a NUL. */
     {
-      const CString huge('x', 9000);
+      const CString suffix = "#httrack-bundle=example.com";
+      const CString base = "https://example.com/";
+      const CString fits = base + CString('a', HTS_URLMAXSIZE - 1 - base.GetLength()
+                                           - suffix.GetLength()) + suffix;
+      const CString over = base + CString('a', HTS_URLMAXSIZE - base.GetLength()
+                                           - suffix.GetLength()) + suffix;
+      CString nul = "https://exa";
 
-      if (browserLoginBundleText(huge, "r\n").Find("ua ") >= 0) {
-        *err = "a bundle wrote an identity longer than the engine reads a line";
+      nul += '\0';
+      nul += "mple.com/";
+      nul += suffix;
+      static const struct { int which; BOOL inList; int want; } longs[] = {
+        { 0, FALSE, 1 }, { 1, FALSE, 0 }, { 0, TRUE, 1 }, { 1, TRUE, 0 }, { 2, TRUE, 0 },
+        { -1, FALSE, 0 }
+      };
+
+      for(int k = 0 ; longs[k].which >= 0 ; k++) {
+        const CString &url = longs[k].which == 0 ? fits : longs[k].which == 1 ? over : nul;
+        const int got = browserLoginBundlesToWrite(names, longs[k].inList ? "" : url,
+                                                   longs[k].inList ? url : "").GetSize();
+
+        if (got != longs[k].want) {
+          snprintf(msg, sizeof(msg), "a %d-byte address in the %s wrote %d logins, not %d",
+                   url.GetLength(), longs[k].inList ? "list" : "box", got, longs[k].want);
+          *err = msg;
+          return 0;
+        }
+        nchecks++;
+      }
+      /* A NUL spoils its own line only. */
+      CString after = nul;
+
+      after += "\nhttps://example.com/";
+      after += suffix;
+      if (browserLoginBundlesToWrite(names, "", after).GetSize() != 1) {
+        *err = "a NUL in one -%L line hid the next line";
         return 0;
       }
       nchecks++;

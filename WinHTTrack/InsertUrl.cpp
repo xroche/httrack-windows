@@ -265,7 +265,7 @@ UINT RunBackCatchServer( LPVOID pP ) {
 /* Opens a browser so the user can log in, and keeps what the site then answers to.
    Nothing of ours is written here, so Cancel leaves no cookies file and no setting.
    The browser keeps its own profile either way, which is what makes the next login
-   quick. Wid1 applies the harvest on OK. */
+   quick. Wid1 holds the harvest on OK, and the wizard's finish writes it. */
 void CInsertUrl::OnBrowserLogin()
 {
   const BrowserLoginState ready = browserLoginLoad();
@@ -307,21 +307,21 @@ void CInsertUrl::OnBrowserLogin()
      to go on. It stays editable, so an unwanted query string can still be trimmed.
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(got.finalUrl);
-  const CString name = browserLoginBundleName(got.finalUrl);
-  /* The suffix names the bundle written on OK, so the box and the file always agree. */
-  const CString named = browserLoginBundleUrl(landed, name);
+  BrowserLoginBundleInfo made;
 
-  /* Nothing changes, so an earlier login stays the one the box names. A shared name is
-     no way out, because another site would replace the file. */
-  if (named.IsEmpty()) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
-                                   "A login cannot be saved for this address, so "
-                                   "nothing was kept."),
-                  MB_OK | MB_ICONWARNING);
+  /* Nothing changes, so an earlier login stays the one the box names. */
+  // TODO: keep a login with no cookie in scope via HTS_PASTE_KEEP_EMPTY (engine #2015).
+  if (!browserLoginMakeBundle(got, CString(), TRUE, made)) {
+    said.Format("%s\r\n\r\n%s",
+                browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
+                                 "A login cannot be saved for this address, so "
+                                 "nothing was kept."),
+                (LPCSTR) made.error);
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
   harvest = got;
-  harvest.bundleName = name;
+  harvest.bundleName = made.name;
   haveHarvest = TRUE;
 
   /* Warned, not refused: an empty box leaves the wizard with no URL at all. */
@@ -332,12 +332,11 @@ void CInsertUrl::OnBrowserLogin()
                 (LPCSTR) landed);
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
-  SetDlgItemTextCP(this, IDC_urladr, named);
-  /* Counts every cookie, but the engine keeps only the start URL's registrable domain. */
+  SetDlgItemTextCP(this, IDC_urladr, made.url);
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are saved with the "
                                "project when you press OK."),
-              harvest.cookies.GetSize());
+              made.cookies);
   AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }
 

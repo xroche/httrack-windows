@@ -307,30 +307,38 @@ void browserLoginSweepProfiles(void) {
   FindClose(walk);
 }
 
-// see browser-login.h
-/* Binary, because the engine reads these as bytes and a CR of ours would end up inside
-   the last field of every cookie record. */
-static CookieSaveResult writeHarvestFile(const CString &path, const CString &text) {
-  if (path.IsEmpty())
-    return CookieSaveNoFile;
-  structcheck(path);
+/* Returns the engine's UTF-8 TEXT in the ANSI codepage. */
+static CString ansiOf(const char *text) {
+  char ansi[HTS_PASTE_URL_SIZE * 2];
 
-  FILE *const fp = fopen(path, "wb");
-
-  if (fp == NULL)
-    return CookieSaveNoFile;
-
-  const size_t len = (size_t) text.GetLength();
-  const BOOL written = fwrite((LPCSTR) text, 1, len, fp) == len;
-
-  return fclose(fp) == 0 && written ? CookieSaveWritten : CookieSaveNoFile;
+  CopyTextUTF8ToCP(ansi, sizeof(ansi), text);
+  return ansi;
 }
 
-CookieSaveResult browserLoginSaveBundle(const BrowserLoginHarvest &harvest,
-                                        const CString &path, CookieFileStats &stats) {
-  const CString records = cookieFileText(harvest.cookies, stats);
+// see browser-login.h
+BOOL browserLoginMakeBundle(const BrowserLoginHarvest &harvest, const CString &folder,
+                            BOOL dryRun, BrowserLoginBundleInfo &info) {
+  CookieFileStats stats;
+  /* The cookies are UTF-8 as the DLL gave them, and the rest is in the ANSI codepage. */
+  const CString paste = cookieFileText(harvest.cookies, stats);
+  const CString agent = browserLoginUtf8(harvest.userAgent);
+  const CString url = browserLoginUtf8(browserLoginSafeUrl(harvest.finalUrl));
+  const CString dir = browserLoginUtf8(folder);
+  hts_paste_result result;
 
-  if (stats.written == 0)
-    return CookieSaveNothingToWrite;
-  return writeHarvestFile(path, browserLoginBundleText(harvest.userAgent, records));
+  memset(&result, 0, sizeof(result));
+  result.size = sizeof(result);
+  /* The engine writes into the folder but does not create it. */
+  if (!dryRun && !dir.IsEmpty())
+    structcheck_utf8(dir + "/");
+  const BOOL made = hts_bundle_from_paste(paste, dir.IsEmpty() ? NULL : (LPCSTR) dir,
+                                          agent.IsEmpty() ? NULL : (LPCSTR) agent, url,
+                                          dryRun ? HTS_TRUE : HTS_FALSE, &result)
+    ? TRUE : FALSE;
+
+  info.name = result.name;
+  info.url = ansiOf(result.url);
+  info.error = ansiOf(result.error);
+  info.cookies = result.cookies;
+  return made;
 }

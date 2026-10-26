@@ -41,6 +41,7 @@ Please visit our Website: http://www.httrack.com
 // Wid1 dialog
 
 #include "WndLayout.h"
+#include "browser-login.h"
 
 class Wid1 : public CPropertyPage
 {
@@ -87,7 +88,14 @@ public:
 // Implementation
 public:
   void Refresh();
+  /* Writes each held login that URLS, the address box, or the -%L file at LISTFILE still
+     names into FOLDER, the final project. FALSE, once the user is told, when one fails. */
+  BOOL WriteBrowserLogins(const CString &folder, const CString &urls,
+                          const CString &listFile);
 protected:
+  /* The logins accepted in this wizard, written only when it finishes. */
+  CSimpleArray<BrowserLoginHarvest> heldLogins;
+  void HoldBrowserLogin(const BrowserLoginHarvest &login);
   void AfterInitDialog( );
   void AfterChangepathlog();
   int load_after_changes;
