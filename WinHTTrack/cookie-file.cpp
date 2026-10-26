@@ -83,13 +83,6 @@ static BOOL plainHostName(const CString &domain) {
   return TRUE;
 }
 
-/* cookie_set() charges the jar the four fields as it stores them. Our own line spells the
-   flags and the expiry more cheaply, so charging that would overrun the jar. */
-static int jarCost(const CookieRecord &c) {
-  return c.domain.GetLength() + (c.path.IsEmpty() ? 1 : c.path.GetLength())
-         + c.name.GetLength() + c.value.GetLength();
-}
-
 /* The engine parses this field and then ignores it, but curl and the user read it. */
 static int64_t expiryField(const CookieRecord &c) {
   /* NaN fails every comparison, so this spelling rather than expires <= 0.0 is what
@@ -136,38 +129,6 @@ CookieReject cookieFileLine(const CookieRecord &c, CString &line) {
   line += c.value;
   line += "\n";
   return CookieWritable;
-}
-
-// see cookie-file.h
-CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStats &stats) {
-  /* cookie_load() stops reading once the jar fills and that loop exit logs nothing, so
-     the writer stops first and counts the rest. The budget is the engine's own: every
-     record already stored, plus this record's fields, plus the reserve cookie_set() keeps
-     free on each call. */
-  const int budget = COOKIE_JAR_MAXLEN - COOKIE_JAR_RESERVE;
-  int stored = 0;
-  CString text;
-
-  stats.written = 0;
-  for(int k=0 ; k<CookieRejectCount ; k++)
-    stats.dropped[k] = 0;
-  for(int i=0 ; i<cookies.GetSize() ; i++) {
-    CString line;
-    const CookieReject why = cookieFileLine(cookies[i], line);
-
-    if (why != CookieWritable) {
-      stats.dropped[why]++;
-    } else if (stored > budget || jarCost(cookies[i]) > budget - stored) {
-      /* Room left on one side, never a sum, and the first test is what keeps the
-         subtraction in the second from going negative. */
-      stats.dropped[CookieJarFull]++;
-    } else {
-      text += line;
-      stored += jarCost(cookies[i]) + COOKIE_JAR_RECORD;
-      stats.written++;
-    }
-  }
-  return text;
 }
 
 // see cookie-file.h
@@ -498,109 +459,6 @@ int cookieFileCheckCases(CString *err) {
       }
       nchecks++;
     }
-  }
-
-  /* The whole file, where a refused cookie has to be counted rather than go missing,
-     because a login dropped in silence looks like a site that just logged us out. */
-  {
-    CSimpleArray<CookieRecord> cookies;
-    CookieFileStats stats;
-    CString text;
-    CookieRecord c = plainRecord();
-
-    cookies.Add(c);                              /* written */
-    c.domain = ".example.com";
-    cookies.Add(c);                              /* written */
-    c = plainRecord();
-    c.secure = TRUE;
-    cookies.Add(c);                              /* written */
-    c = plainRecord();
-    c.name = "";
-    cookies.Add(c);                              /* CookieEmptyField */
-    c = plainRecord();
-    c.value = "a\tb";
-    cookies.Add(c);                              /* CookieUnwritableByte */
-    c = plainRecord();
-    c.domain = "attacker.test@bank.test";
-    cookies.Add(c);                              /* CookieUntrustedDomain */
-    c = plainRecord();
-    c.value = CString('a', COOKIE_PAIR_MAXLEN);
-    cookies.Add(c);                              /* CookieFieldTooLong */
-    text = cookieFileText(cookies, stats);
-    if (stats.written != 3 || stats.dropped[CookieEmptyField] != 1
-        || stats.dropped[CookieUnwritableByte] != 1
-        || stats.dropped[CookieUntrustedDomain] != 1
-        || stats.dropped[CookieFieldTooLong] != 1
-        || stats.dropped[CookieJarFull] != 0) {
-      snprintf(msg, sizeof(msg), "7 cookies gave %d written and %d/%d/%d/%d/%d dropped",
-               stats.written, stats.dropped[CookieEmptyField],
-               stats.dropped[CookieUnwritableByte], stats.dropped[CookieUntrustedDomain],
-               stats.dropped[CookieFieldTooLong], stats.dropped[CookieJarFull]);
-      *err = msg;
-      return 0;
-    }
-    nchecks++;
-    if (text != "example.com\tFALSE\t/\tFALSE\t1700000000\tSID\tabc\n"
-                ".example.com\tTRUE\t/\tFALSE\t1700000000\tSID\tabc\n"
-                "example.com\tFALSE\t/\tTRUE\t1700000000\tSID\tabc\n") {
-      snprintf(msg, sizeof(msg), "the file came out as '%s'", (LPCSTR) text);
-      *err = msg;
-      return 0;
-    }
-    nchecks++;
-  }
-
-  /* Past the jar's budget the engine stops reading and logs nothing, so the writer stops
-     first, says how many it left out, and still packs the jar as full as it will go. */
-  {
-    const int budget = COOKIE_JAR_MAXLEN - COOKIE_JAR_RESERVE;
-    const CookieRecord base = plainRecord();
-    /* The widest value the pair budget leaves this name, so the jar fills in the fewest
-       records. Every length comes off the record itself, because a hand-counted one
-       drifts the day the baseline changes. */
-    const int wide = COOKIE_PAIR_MAXLEN - base.name.GetLength();
-    const int fields = base.domain.GetLength() + base.path.GetLength()
-                       + base.name.GetLength() + wide;
-    CSimpleArray<CookieRecord> cookies;
-    CookieFileStats stats;
-    CString text;
-
-    for(int k=0 ; k<64 ; k++) {
-      CookieRecord c = plainRecord();
-
-      c.value = CString('v', wide);
-      cookies.Add(c);
-    }
-    text = cookieFileText(cookies, stats);
-    if (stats.dropped[CookieJarFull] == 0
-        || stats.written + stats.dropped[CookieJarFull] != 64) {
-      snprintf(msg, sizeof(msg), "64 big cookies gave %d written and %d left out",
-               stats.written, stats.dropped[CookieJarFull]);
-      *err = msg;
-      return 0;
-    }
-    nchecks++;
-    /* These two hold the writer to its own budget: it fills the jar as full as that
-       budget allows, and stops there. Whether the budget is the engine's is
-       tools/test-cookie-file.py's job, which derives every byte of it. */
-    if ((stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields > budget) {
-      snprintf(msg, sizeof(msg), "%d records charge the jar %d bytes, past its %d",
-               stats.written, (stats.written - 1) * (fields + COOKIE_JAR_RECORD) + fields,
-               budget);
-      *err = msg;
-      return 0;
-    }
-    nchecks++;
-    /* And one more would have to overflow, or the writer stopped early and threw away
-       cookies the engine would have taken. */
-    if (stats.written * (fields + COOKIE_JAR_RECORD) + fields <= budget) {
-      snprintf(msg, sizeof(msg),
-               "%d records is %d jar bytes of %d, so another would still have fitted",
-               stats.written, stats.written * (fields + COOKIE_JAR_RECORD), budget);
-      *err = msg;
-      return 0;
-    }
-    nchecks++;
   }
 
   /* These are the paths the copy must land on, so the engine overwrites ours and never

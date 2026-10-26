@@ -89,8 +89,8 @@ public:
 public:
   void Refresh();
   /* Writes each held login that URLS, the address box, or the -%L file at LISTFILE still
-     names into FOLDER, the final project. Returns FALSE when one fails, once the user is
-     told. */
+     names into FOLDER, the final project. Returns FALSE when one fails or the engine
+     refuses the addresses, once the user is told. */
   BOOL WriteBrowserLogins(const CString &folder, const CString &urls,
                           const CString &listFile);
   /* WriteBrowserLogins() on the project and the addresses as a save stores them, which

@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 85 checks"
+EXPECTED_LINE = "browser login helpers ok on 70 checks"
 
 
 def read(path):
@@ -81,14 +81,6 @@ def engine_paste_flags(library):
     return ["-D%s=%s" % pair for pair in found]
 
 
-def engine_url_max(htsglobal):
-    """The engine's address cap, which decides when a long address names no bundle."""
-    m = re.search(r"^#define HTS_URLMAXSIZE (\d+)$", htsglobal, re.M)
-    if m is None:
-        sys.exit("no HTS_URLMAXSIZE in the engine's htsglobal.h")
-    return m.group(1)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -102,10 +94,9 @@ def main():
     htscore = os.path.join(args.engine, "src", "htscore.c")
     htscoremain = os.path.join(args.engine, "src", "htscoremain.c")
     htssafe = os.path.join(args.engine, "src", "htssafe.h")
-    htsglobal = os.path.join(args.engine, "src", "htsglobal.h")
     htsbundle = os.path.join(args.engine, "src", "htsbundle.c")
     library = os.path.join(args.engine, "src", "httrack-library.h")
-    for path in (htscore, htscoremain, htssafe, htsglobal, htsbundle, library):
+    for path in (htscore, htscoremain, htssafe, htsbundle, library):
         if not os.path.exists(path):
             sys.exit(
                 "%s: no engine source, so the token scanner cannot be the engine's. "
@@ -191,7 +182,6 @@ def main():
         "browserLoginSafeUrl",
         "browserLoginMovedHost",
         "browserLoginUtf8",
-        "browserLoginBundlesToWrite",
         "browserLoginWriteHeld",
         "browserLoginPasteText",
         "browserLoginPasteFlags",
@@ -329,9 +319,19 @@ def main():
         write is None
         or not re.search(
             r"HeldLoginWrite w = \{ &heldLogins, folder \};[\s\S]*"
-            r"return browserLoginWriteHeld\(names, urls, listFile, readUrlList, "
-            r"writeHeldLogin, &w\);",
+            r"if \(browserLoginWriteHeld\(names, urls, listFile,"
+            r"\s*hts_bundle_names_in_use,\s*hts_bundle_names_free,"
+            r"\s*writeHeldLogin, &w, &refused\)\)\s*"
+            r"return TRUE;\s*/\*[^*]*\*/\s*if \(!refused\.IsEmpty\(\)\)\s*"
+            r"tellLoginNotSaved\(folder, refused\);\s*return FALSE;\s*\}$",
             write.group(0),
+        )
+        or not re.search(
+            r"^static void tellLoginNotSaved\(const CString &folder, "
+            r"const CString &why\)\n\{[^}]*"
+            r"AfxMessageBox\(said \+ \"\\r\\n\\r\\n\" \+ why,",
+            wid1,
+            re.M,
         )
         or not re.search(
             r"^static BOOL writeHeldLogin\(void \*ctx, int index\)\n\{[^}]*"
@@ -343,7 +343,8 @@ def main():
     ):
         sys.exit(
             "WriteBrowserLogins() no longer writes, into the folder it is given, "
-            "the held logins browserLoginBundlesToWrite() picks"
+            "the held logins the engine's bundle names pick, or no longer stops and "
+            "tells the user when the engine refuses the addresses"
         )
     checked += 1
     trans = read(os.path.join(ROOT, "WinHTTrack", "trans.cpp"))
@@ -495,7 +496,6 @@ def main():
                     "-DBROWSER_LOGIN_PATHS_TEST",
                     "-DCOOKIE_FILE_TEST",
                     "-DRULES_SPLIT_TEST",
-                    "-DHTS_URLMAXSIZE=" + engine_url_max(read(htsglobal)),
                 ]
                 + engine_paste_flags(read(library))
                 + [

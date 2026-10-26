@@ -122,23 +122,21 @@ void browserLoginSweepProfiles(void);
 /* Returns TEXT, given in the ANSI codepage, as the UTF-8 the engine and the DLL read. */
 CString browserLoginUtf8(const CString &text);
 
-/* Returns which of NAMES, bundle names in UTF-8, the finish must write: the indexes of
-   those that an address in BOX, the address box, or in LIST, the text of the -%L file,
-   still names. The indexes come in held order. */
-CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
-                                             const CString &box, const CString &list);
-
-/* Returns the bytes of the -%L file at PATH, or empty when it cannot be read. */
-typedef CString (*BrowserLoginListReader)(const CString &path);
+/* hts_bundle_names_in_use() and hts_bundle_names_free(), as the finish calls them. */
+typedef int (*BrowserLoginNamesLister)(const char *urls, const char *list_file,
+                                       char ***names, char *error, size_t error_size);
+typedef void (*BrowserLoginNamesFree)(char **names);
 /* Writes held login INDEX, and returns FALSE when that fails. */
 typedef BOOL (*BrowserLoginWriter)(void *ctx, int index);
 
 /* Calls WRITE, in held order, for each login of NAMES that BOX or the -%L file at
-   LISTFILE still names, reading that file with READ. It stops at the first failure and
-   returns FALSE. */
+   LISTFILE still names, as LIST reports in UTF-8. LIST is not asked when NAMES is empty.
+   It returns FALSE at the first failed write, or with REFUSED set to LIST's reason when
+   LIST refuses the addresses. REFUSED is empty otherwise. */
 BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
-                           const CString &listFile, BrowserLoginListReader read,
-                           BrowserLoginWriter write, void *ctx);
+                           const CString &listFile, BrowserLoginNamesLister list,
+                           BrowserLoginNamesFree release, BrowserLoginWriter write,
+                           void *ctx, CString *refused);
 
 /* Returns COOKIES as the cookies.txt the engine reads, in order, keeping under the
    engine's paste cap. DROPPED gets the number left out. */

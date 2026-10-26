@@ -772,8 +772,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 112) {
-        fprintf(stderr, "FATAL: cookie file ran %d checks, expected 112\n", nchecks);
+      if (nchecks != 107) {
+        fprintf(stderr, "FATAL: cookie file ran %d checks, expected 107\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
@@ -834,8 +834,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 85) {
-        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 85\n", nchecks);
+      if (nchecks != 70) {
+        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 70\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

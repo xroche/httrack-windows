@@ -44,13 +44,14 @@ CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginUtf8(const CString &text);
-CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
-                                             const CString &box, const CString &list);
-typedef CString (*BrowserLoginListReader)(const CString &path);
+typedef int (*BrowserLoginNamesLister)(const char *urls, const char *list_file,
+                                       char ***names, char *error, size_t error_size);
+typedef void (*BrowserLoginNamesFree)(char **names);
 typedef BOOL (*BrowserLoginWriter)(void *ctx, int index);
 BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
-                           const CString &listFile, BrowserLoginListReader read,
-                           BrowserLoginWriter write, void *ctx);
+                           const CString &listFile, BrowserLoginNamesLister list,
+                           BrowserLoginNamesFree release, BrowserLoginWriter write,
+                           void *ctx, CString *refused);
 CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
 unsigned int browserLoginPasteFlags(BOOL dryRun);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
@@ -187,9 +188,6 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
   return start != landed;
 }
 
-/* From the engine's htsbundle.h. */
-#define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
-
 // see browser-login.h
 CString browserLoginUtf8(const CString &text) {
   char *converted = strdupt_utf8(text);  // freet() nulls it, so not const
@@ -200,61 +198,39 @@ CString browserLoginUtf8(const CString &text) {
 }
 
 // see browser-login.h
-CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
-                                             const CString &box, const CString &list) {
-  CSimpleArray<CString> tokens, urls;
-  CSimpleArray<int> write;
-  CString line;
-  BOOL nul = FALSE;
+BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
+                           const CString &listFile, BrowserLoginNamesLister list,
+                           BrowserLoginNamesFree release, BrowserLoginWriter write,
+                           void *ctx, CString *refused) {
+  char **inUse = NULL;
+  char why[256];
+  BOOL ok = TRUE;
 
-  splitTokensInArray(tokens, box);
-  for(int i = 0 ; i < tokens.GetSize() ; i++) {
-    const CString url = browserLoginUtf8(tokens[i]);
+  *refused = CString();
+  /* So a user without a browser login never meets the engine's refusal. */
+  if (names.GetSize() == 0)
+    return TRUE;
 
-    /* A leading + or - makes it a filter, and a longer token aborts the engine's run. */
-    if (url[0] != '+' && url[0] != '-' && url.GetLength() < HTS_URLMAXSIZE)
-      urls.Add(url);
+  /* The bytes argv would carry for the same box and -%L path. */
+  const CString urls = browserLoginUtf8(box);
+  const CString path = browserLoginUtf8(listFile);
+
+  why[0] = '\0';
+  if (list(urls, path.IsEmpty() ? NULL : (LPCSTR) path, &inUse, why, sizeof(why)) < 0) {
+    *refused = why[0] != '\0' ? CString(why) : CString("the addresses were refused");
+    return FALSE;
   }
-  /* The engine reads the -%L file as bytes, a line each, with every CR dropped. */
-  for(int i = 0 ; i <= list.GetLength() ; i++) {
-    if (i == list.GetLength() || list[i] == '\n') {
-      /* Its line buffer holds HTS_URLMAXSIZE bytes and the NUL, one more than the box. */
-      if (!nul && line.GetLength() <= HTS_URLMAXSIZE)
-        urls.Add(line);
-      line = CString();
-      nul = FALSE;
-    } else if (list[i] == '\0') {
-      nul = TRUE;
-    } else if (list[i] != '\r') {
-      line += list[i];
-    }
-  }
-  /* The engine reads the name after the first suffix. Held order is kept, so a later
-     login under the same name is written last and wins. */
-  for(int k = 0 ; k < names.GetSize() ; k++) {
-    for(int i = 0 ; i < urls.GetSize() ; i++) {
-      const int at = urls[i].Find(BROWSER_BUNDLE_SUFFIX);
-
-      if (at >= 0 && urls[i].Mid(at + (int) strlen(BROWSER_BUNDLE_SUFFIX)) == names[k]) {
-        write.Add(k);
+  /* Held order, so a later login under the same name is written last and wins. */
+  for(int k = 0 ; ok && k < names.GetSize() ; k++) {
+    for(int i = 0 ; inUse[i] != NULL ; i++) {
+      if (names[k] == inUse[i]) {
+        ok = write(ctx, k);
         break;
       }
     }
   }
-  return write;
-}
-
-// see browser-login.h
-BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
-                           const CString &listFile, BrowserLoginListReader read,
-                           BrowserLoginWriter write, void *ctx) {
-  const CSimpleArray<int> todo = browserLoginBundlesToWrite(names, box, read(listFile));
-
-  for(int i = 0 ; i < todo.GetSize() ; i++) {
-    if (!write(ctx, todo[i]))
-      return FALSE;
-  }
-  return TRUE;
+  release(inUse);
+  return ok;
 }
 
 /* From the engine's htsbundle.c, which refuses a paste of this many bytes or more. */
@@ -325,6 +301,66 @@ BOOL browserLoginStaleProfile(const CString &name, unsigned long *run) {
   *run = got;
   return TRUE;
 }
+
+/* The cases' stand-in for hts_bundle_names_in_use(), and what it was asked. */
+static struct {
+  const char *const *inUse;
+  const char *refuse;
+  int calls, frees;
+  CString urls, list;
+  BOOL listNull;
+} fakeNames;
+
+static void fakeNamesReset(const char *const *inUse, const char *refuse) {
+  fakeNames.inUse = inUse;
+  fakeNames.refuse = refuse;
+  fakeNames.calls = fakeNames.frees = 0;
+  fakeNames.urls = fakeNames.list = CString();
+  fakeNames.listNull = FALSE;
+}
+
+static int fakeNamesInUse(const char *urls, const char *list_file, char ***names,
+                          char *error, size_t error_size) {
+  int n = 0;
+
+  fakeNames.calls++;
+  fakeNames.urls = urls;
+  fakeNames.list = list_file != NULL ? list_file : "";
+  fakeNames.listNull = list_file == NULL;
+  *names = NULL;
+  if (fakeNames.refuse != NULL) {
+    snprintf(error, error_size, "%s", fakeNames.refuse);
+    return -1;
+  }
+  while (n < 3 && fakeNames.inUse[n] != NULL)
+    n++;
+  /* Three slots and a NULL, as the engine's array ends. */
+  static const char *list[4];
+
+  for(int i = 0 ; i < 4 ; i++)
+    list[i] = i < n ? fakeNames.inUse[i] : NULL;
+  *names = (char **) list;
+  return n;
+}
+
+static void fakeNamesFree(char **names) {
+  if (names != NULL)
+    fakeNames.frees++;
+}
+
+/* Records which held logins the finish wrote, and fails the write of FAIL. */
+struct BrowserLoginRecorder {
+  int fail;
+  CString calls;
+  static BOOL write(void *ctx, int index) {
+    BrowserLoginRecorder *const r = (BrowserLoginRecorder *) ctx;
+    char one[16];
+
+    snprintf(one, sizeof(one), r->calls.IsEmpty() ? "%d" : " %d", index);
+    r->calls += one;
+    return index != r->fail;
+  }
+};
 
 /* A login that opens the wrong page, or one project's browser reading another's jar,
    both look like a site that simply refused the login. */
@@ -513,174 +549,96 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* Which held logins the finish writes. Held: example.com, then other.org. */
-    static const struct { const char *box, *list, *want; } held[] = {
-      { "https://example.com/#httrack-bundle=example.com", "", "0" },
-      { "https://example.com/#httrack-bundle=example.com "
-        "https://other.org/#httrack-bundle=other.org", "", "0 1" },
-      /* Back to a project whose addresses name neither */
-      { "https://elsewhere.net/", "", "" },
-      { "", "", "" },
-      /* an address edited after the login still names it, and one cut back does not */
-      { "https://shop.example.org/x#httrack-bundle=example.com", "", "0" },
-      { "https://example.com/", "", "" },
-      /* only the name after the first suffix counts */
-      { "https://example.com/#httrack-bundle=example.com.au", "", "" },
-      { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "", "" },
-      /* a filter names no bundle */
-      { "+example.com/*#httrack-bundle=example.com", "", "" },
-      { "-example.com/*#httrack-bundle=example.com", "", "" },
-      /* the -%L file, CR LF or not */
-      { "", "https://a.test/\r\nhttps://other.org/#httrack-bundle=other.org\r\n", "1" },
-      /* named twice, written once */
-      { "https://example.com/#httrack-bundle=example.com",
-        "https://example.com/a#httrack-bundle=example.com\n"
-        "https://other.org/#httrack-bundle=other.org", "0 1" },
-      { NULL, NULL, NULL }
-    };
-    CSimpleArray<CString> names;
-
-    names.Add("example.com");
-    names.Add("other.org");
-    for(int k = 0 ; held[k].box != NULL ; k++) {
-      const CSimpleArray<int> got = browserLoginBundlesToWrite(names, held[k].box,
-                                                               held[k].list);
-      CString joined;
-
-      for(int i = 0 ; i < got.GetSize() ; i++) {
-        char one[16];
-
-        snprintf(one, sizeof(one), i > 0 ? " %d" : "%d", got[i]);
-        joined += one;
-      }
-      if (joined != held[k].want) {
-        snprintf(msg, sizeof(msg), "'%s' and list '%s' write logins '%s', not '%s'",
-                 held[k].box, held[k].list, (LPCSTR) joined, held[k].want);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-    /* The box is in the ANSI codepage and the -%L file is read as it is, so only the box
-       is converted to the UTF-8 the engine names a bundle in. */
-    {
-      const CString ansi = "https://caf\xE9.test/#httrack-bundle=caf\xE9.test";
-      CSimpleArray<CString> utf8;
-
-      utf8.Add(browserLoginUtf8("caf\xE9.test"));
-      if (browserLoginBundlesToWrite(utf8, ansi, "").GetSize() != 1
-          || browserLoginBundlesToWrite(utf8, "", ansi).GetSize() != 0
-          || browserLoginBundlesToWrite(utf8, "", browserLoginUtf8(ansi)).GetSize() != 1) {
-        *err = "a non-ASCII bundle name was matched in the wrong encoding";
-        return 0;
-      }
-      nchecks++;
-    }
-    /* A box address of HTS_URLMAXSIZE bytes or more names no bundle, and neither does a
-       -%L line longer than HTS_URLMAXSIZE or holding a NUL. */
-    {
-      const CString suffix = "#httrack-bundle=example.com";
-      const CString base = "https://example.com/";
-      const CString fits = base + CString('a', HTS_URLMAXSIZE - 1 - base.GetLength()
-                                           - suffix.GetLength()) + suffix;
-      const CString atCap = base + CString('a', HTS_URLMAXSIZE - base.GetLength()
-                                            - suffix.GetLength()) + suffix;
-      const CString past = base + CString('a', HTS_URLMAXSIZE + 1 - base.GetLength()
-                                           - suffix.GetLength()) + suffix;
-      CString nul = "https://exa";
-
-      nul += '\0';
-      nul += "mple.com/";
-      nul += suffix;
-      const struct { const CString *url; BOOL inList; int want; } longs[] = {
-        { &fits, FALSE, 1 }, { &atCap, FALSE, 0 },
-        { &fits, TRUE, 1 }, { &atCap, TRUE, 1 }, { &past, TRUE, 0 }, { &nul, TRUE, 0 },
-        { NULL, FALSE, 0 }
-      };
-
-      for(int k = 0 ; longs[k].url != NULL ; k++) {
-        const CString &url = *longs[k].url;
-        const int got = browserLoginBundlesToWrite(names, longs[k].inList ? CString() : url,
-                                                   longs[k].inList ? url : CString()).GetSize();
-
-        if (got != longs[k].want) {
-          snprintf(msg, sizeof(msg), "a %d-byte address in the %s wrote %d logins, not %d",
-                   url.GetLength(), longs[k].inList ? "list" : "box", got, longs[k].want);
-          *err = msg;
-          return 0;
-        }
-        nchecks++;
-      }
-      /* A NUL spoils its own line only. */
-      CString after = nul;
-
-      after += "\nhttps://example.com/";
-      after += suffix;
-      if (browserLoginBundlesToWrite(names, "", after).GetSize() != 1) {
-        *err = "a NUL in one -%L line hid the next line";
-        return 0;
-      }
-      nchecks++;
-    }
-  }
-  {
-    /* The finish writes in held order and stops at the first failure. Held twice under
-       one name, the later login is written last, so its file is the one that stays. */
-    static const struct { const char *box; int fail; const char *want; BOOL ok; } writes[] = {
-      { "https://example.com/#httrack-bundle=example.com", -1, "0 2", TRUE },
-      { "https://example.com/#httrack-bundle=example.com "
-        "https://other.org/#httrack-bundle=other.org", -1, "0 1 2", TRUE },
-      { "https://example.com/#httrack-bundle=example.com "
-        "https://other.org/#httrack-bundle=other.org", 1, "0 1", FALSE },
-      { "https://other.org/#httrack-bundle=other.org", 1, "1", FALSE },
-      { "https://elsewhere.net/", 0, "", TRUE },
-      { NULL, -1, NULL, FALSE }
-    };
-    struct Recorder {
+    /* Which held logins the finish writes, from the names the engine says are in use.
+       Held: example.com, other.org, then example.com again. */
+    static const struct {
+      const char *inUse[3], *refuse;
       int fail;
-      CString calls;
-      static BOOL write(void *ctx, int index) {
-        Recorder *const r = (Recorder *) ctx;
-        char one[16];
-
-        snprintf(one, sizeof(one), r->calls.IsEmpty() ? "%d" : " %d", index);
-        r->calls += one;
-        return index != r->fail;
-      }
-      static CString read(const CString &path) {
-        return path == "list.txt" ? CString("https://other.org/#httrack-bundle=other.org")
-                                  : CString();
-      }
+      const char *want;
+      BOOL ok;
+    } writes[] = {
+      { { "example.com" }, NULL, -1, "0 2", TRUE },
+      /* held order, not the engine's */
+      { { "other.org", "example.com" }, NULL, -1, "0 1 2", TRUE },
+      { { "elsewhere.net" }, NULL, -1, "", TRUE },
+      { { NULL }, NULL, -1, "", TRUE },
+      /* a name matches whole or not at all */
+      { { "example.com.au", "example" }, NULL, -1, "", TRUE },
+      /* the first failed write stops the finish */
+      { { "example.com", "other.org" }, NULL, 1, "0 1", FALSE },
+      { { "other.org" }, NULL, 1, "1", FALSE },
+      /* a refusal writes nothing and stops the save */
+      { { "example.com" }, "address list holds an option", -1, "", FALSE },
+      { { NULL }, NULL, -1, NULL, FALSE }
     };
     CSimpleArray<CString> names;
 
     names.Add("example.com");
     names.Add("other.org");
     names.Add("example.com");
-    for(int k = 0 ; writes[k].box != NULL ; k++) {
-      Recorder rec;
+    for(int k = 0 ; writes[k].want != NULL ; k++) {
+      BrowserLoginRecorder rec;
+      CString refused;
 
       rec.fail = writes[k].fail;
-      const BOOL ok = browserLoginWriteHeld(names, writes[k].box, "", Recorder::read,
-                                            Recorder::write, &rec);
+      fakeNamesReset(writes[k].inUse, writes[k].refuse);
+      const BOOL ok = browserLoginWriteHeld(names, "https://example.com/", "",
+                                            fakeNamesInUse, fakeNamesFree,
+                                            BrowserLoginRecorder::write, &rec, &refused);
 
-      if (ok != writes[k].ok || rec.calls != writes[k].want) {
-        snprintf(msg, sizeof(msg), "'%s' failing at %d wrote '%s' ok=%d, not '%s' ok=%d",
-                 writes[k].box, writes[k].fail, (LPCSTR) rec.calls, (int) ok,
-                 writes[k].want, (int) writes[k].ok);
+      if (ok != writes[k].ok || rec.calls != writes[k].want
+          || refused != (writes[k].refuse != NULL ? writes[k].refuse : "")
+          || fakeNames.calls != 1 || fakeNames.frees != (writes[k].refuse != NULL ? 0 : 1)) {
+        snprintf(msg, sizeof(msg), "names case %d wrote '%s' ok=%d refused '%s' asked %d "
+                 "freed %d, not '%s' ok=%d", k, (LPCSTR) rec.calls, (int) ok,
+                 (LPCSTR) refused, fakeNames.calls, fakeNames.frees, writes[k].want,
+                 (int) writes[k].ok);
         *err = msg;
         return 0;
       }
       nchecks++;
     }
-    /* The -%L file is read from the path the finish gives. */
+    /* No held login, no question, so the engine's refusal cannot block a plain save. */
     {
-      Recorder rec;
+      static const char *const none[3] = { NULL };
+      CSimpleArray<CString> noLogin;
+      BrowserLoginRecorder rec;
+      CString refused;
 
       rec.fail = -1;
-      if (!browserLoginWriteHeld(names, "", "list.txt", Recorder::read, Recorder::write,
-                                 &rec) || rec.calls != "1") {
-        *err = "the finish did not read the -%L file it was given";
+      fakeNamesReset(none, "address list holds an option");
+      if (!browserLoginWriteHeld(noLogin, "-O", "", fakeNamesInUse, fakeNamesFree,
+                                 BrowserLoginRecorder::write, &rec, &refused)
+          || fakeNames.calls != 0 || !refused.IsEmpty() || !rec.calls.IsEmpty()) {
+        *err = "a save with no held login asked the engine for bundle names";
+        return 0;
+      }
+      nchecks++;
+    }
+    /* The box and the -%L path reach the engine as the UTF-8 argv carries, and an empty
+       path as no list at all. */
+    {
+      static const char *const none[3] = { NULL };
+      const CString box = "https://caf\xE9.test/#httrack-bundle=caf\xE9.test -*.gif";
+      const CString path = "C:\\caf\xE9\\urls.txt";
+      BrowserLoginRecorder rec;
+      CString refused;
+
+      rec.fail = -1;
+      fakeNamesReset(none, NULL);
+      browserLoginWriteHeld(names, box, path, fakeNamesInUse, fakeNamesFree,
+                            BrowserLoginRecorder::write, &rec, &refused);
+      if (fakeNames.urls != browserLoginUtf8(box) || fakeNames.urls == box
+          || fakeNames.list != browserLoginUtf8(path) || fakeNames.list == path) {
+        *err = "the engine was asked about the addresses in the wrong encoding";
+        return 0;
+      }
+      nchecks++;
+      fakeNamesReset(none, NULL);
+      browserLoginWriteHeld(names, box, "", fakeNamesInUse, fakeNamesFree,
+                            BrowserLoginRecorder::write, &rec, &refused);
+      if (!fakeNames.listNull) {
+        *err = "an empty -%L path reached the engine as a file name";
         return 0;
       }
       nchecks++;
