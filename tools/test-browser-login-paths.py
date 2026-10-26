@@ -319,8 +319,10 @@ def main():
         write is None
         or not re.search(
             r"HeldLoginWrite w = \{ &heldLogins, folder \};[\s\S]*"
-            r"const CString list = GetFileAttributes\(listFile\) == "
-            r"INVALID_FILE_ATTRIBUTES \? CString\(\)\s*: listFile;\s*"
+            r"FILE \*const fp = \(GetFileAttributes\(listFile\) & "
+            r"FILE_ATTRIBUTE_DIRECTORY\) != 0 \? NULL\s*: fopen\(listFile, \"rb\"\);\s*"
+            r"const CString list = fp != NULL \? listFile : CString\(\);\s*"
+            r"if \(fp != NULL\)\s*fclose\(fp\);\s*"
             r"if \(browserLoginWriteHeld\(names, urls, list,"
             r"\s*hts_bundle_names_in_use,\s*hts_bundle_names_free,"
             r"\s*writeHeldLogin, &w, &refused\)\)\s*"

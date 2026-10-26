@@ -845,9 +845,13 @@ BOOL Wid1::WriteBrowserLogins(const CString &folder, const CString &urls,
   for(int i = 0 ; i < heldLogins.GetSize() ; i++)
     names.Add(heldLogins[i].bundleName);
   CString refused;
-  /* The crawl only logs a missing -%L file, so that file names no login. */
-  const CString list = GetFileAttributes(listFile) == INVALID_FILE_ATTRIBUTES ? CString()
-    : listFile;
+  /* The crawl only logs a -%L file it cannot open, so that file names no login. */
+  FILE *const fp = (GetFileAttributes(listFile) & FILE_ATTRIBUTE_DIRECTORY) != 0 ? NULL
+    : fopen(listFile, "rb");
+  const CString list = fp != NULL ? listFile : CString();
+
+  if (fp != NULL)
+    fclose(fp);
 
   if (browserLoginWriteHeld(names, urls, list, hts_bundle_names_in_use,
                             hts_bundle_names_free, writeHeldLogin, &w, &refused))
