@@ -138,18 +138,16 @@ def main():
             sys.exit("the witness table does not pair %s with the %s row" % (key, name))
         checked += 2
 
-    # 5. A hand-written key whose default is the engine's has to name the engine's macro.
-    #    Read_profile fills the field and Write_profile saves it, so a typed copy becomes
-    #    what every mirror and every profile sends, and it drifts in silence.
-    if "HTS_DEFAULT_USER_AGENT" not in bodies["Read_profile"]:
-        sys.exit(
-            "Read_profile does not default UserID to HTS_DEFAULT_USER_AGENT: the GUI "
-            "would send its own agent instead of the engine's"
-        )
+    # 5. The UserID default has to be the engine's macro. Match it as the argument,
+    #    because any other mention of the macro would satisfy a search of the body.
+    if not re.search(r'"UserID"\s*,\s*HTS_DEFAULT_USER_AGENT\s*\)', bodies["Read_profile"]):
+        sys.exit("Read_profile does not default UserID to HTS_DEFAULT_USER_AGENT")
     checked += 1
-    for name in ("Shell.cpp", "OptionTab6.cpp", "WinHTTrack.rc"):
+    # The two files that can put an agent on the wire. Shell.cpp builds argv and the
+    # profile default, and inprogress.cpp copies the field over a running mirror.
+    for name in ("Shell.cpp", "inprogress.cpp"):
         text = read(os.path.join(ROOT, "WinHTTrack", name))
-        if re.search(r"Mozilla[^\n\"]*HTTrack", text):
+        if re.search(r"HTTrack[^\n\"]*\+?https?://www\.httrack\.com", text):
             sys.exit("%s spells an HTTrack user agent out: use the engine macro" % name)
         checked += 1
 
