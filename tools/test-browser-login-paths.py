@@ -315,6 +315,14 @@ def main():
         )
     checked += 1
 
+    # A login with no cookie is kept, so neither the handler nor the writer may drop it.
+    login = read(os.path.join(ROOT, "WinHTTrack", "browser-login.cpp"))
+    if "HTS_PASTE_KEEP_EMPTY" not in login or "hts_bundle_from_paste(" in login:
+        sys.exit("browserLoginMakeBundle() no longer keeps a login with no cookie")
+    if re.search(r"got\.cookies\.GetSize\(\) == 0", handler.group(1)):
+        sys.exit("OnBrowserLogin() refuses a login with no cookie again")
+    checked += 1
+
     print("%d source checks pass" % checked)
 
     with tempfile.TemporaryDirectory() as tmp:

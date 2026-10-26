@@ -295,13 +295,6 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
-  if (got.cookies.GetSize() == 0) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
-                                   "The browser came back with no cookies, so nothing "
-                                   "was kept."),
-                  MB_OK | MB_ICONINFORMATION);
-    return;
-  }
   /* The address the user navigated to is the one they want crawled, and leaving the
      field empty is what made the first version of this unusable: the wizard had no URL
      to go on. It stays editable, so an unwanted query string can still be trimmed.
@@ -310,7 +303,6 @@ void CInsertUrl::OnBrowserLogin()
   BrowserLoginBundleInfo made;
 
   /* Nothing changes, so an earlier login stays the one the box names. */
-  // TODO: keep a login with no cookie in scope via HTS_PASTE_KEEP_EMPTY (engine #2015).
   if (!browserLoginMakeBundle(got, CString(), TRUE, made)) {
     said.Format("%s\r\n\r\n%s",
                 browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
@@ -333,6 +325,14 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
   SetDlgItemTextCP(this, IDC_urladr, made.url);
+  if (made.cookies == 0) {
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
+                                   "The browser came back with no cookies. The address "
+                                   "and the browser identity are saved with the project "
+                                   "when you press OK."),
+                  MB_OK | MB_ICONINFORMATION);
+    return;
+  }
   said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
                                "%d cookies were collected. They are saved with the "
                                "project when you press OK."),

@@ -331,9 +331,12 @@ BOOL browserLoginMakeBundle(const BrowserLoginHarvest &harvest, const CString &f
   /* The engine writes into the folder but does not create it. */
   if (!dryRun && !dir.IsEmpty())
     structcheck_utf8(dir + "/");
-  const BOOL made = hts_bundle_from_paste(paste, dir.IsEmpty() ? NULL : (LPCSTR) dir,
-                                          agent.IsEmpty() ? NULL : (LPCSTR) agent, url,
-                                          dryRun ? HTS_TRUE : HTS_FALSE, &result)
+  /* A login with no cookie still carries the address and the identity. */
+  const unsigned int flags = HTS_PASTE_KEEP_EMPTY | (dryRun ? HTS_PASTE_DRY_RUN : 0u);
+  const BOOL made = hts_bundle_from_paste_flags(paste.IsEmpty() ? NULL : (LPCSTR) paste,
+                                                dir.IsEmpty() ? NULL : (LPCSTR) dir,
+                                                agent.IsEmpty() ? NULL : (LPCSTR) agent,
+                                                url, flags, &result)
     ? TRUE : FALSE;
 
   info.name = result.name;
