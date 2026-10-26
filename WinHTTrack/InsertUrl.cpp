@@ -265,7 +265,7 @@ UINT RunBackCatchServer( LPVOID pP ) {
 /* Opens a browser so the user can log in, and keeps what the site then answers to.
    Nothing of ours is written here, so Cancel leaves no cookies file and no setting.
    The browser keeps its own profile either way, which is what makes the next login
-   quick. Wid1 applies the harvest on OK. */
+   quick. Wid1 holds the harvest on OK, and the wizard's finish writes it. */
 void CInsertUrl::OnBrowserLogin()
 {
   const BrowserLoginState ready = browserLoginLoad();
@@ -295,33 +295,26 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
-  if (got.cookies.GetSize() == 0) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
-                                   "The browser came back with no cookies, so nothing "
-                                   "was kept."),
-                  MB_OK | MB_ICONINFORMATION);
-    return;
-  }
   /* The address the user navigated to is the one they want crawled, and leaving the
      field empty is what made the first version of this unusable: the wizard had no URL
      to go on. It stays editable, so an unwanted query string can still be trimmed.
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(got.finalUrl);
-  const CString name = browserLoginBundleName(got.finalUrl);
-  /* The suffix names the bundle written on OK, so the box and the file always agree. */
-  const CString named = browserLoginBundleUrl(landed, name);
+  const BrowserLoginBundleInfo made = browserLoginMakeBundle(got, BrowserLoginCheckOnly,
+                                                             CString());
 
-  /* Nothing changes, so an earlier login stays the one the box names. A shared name is
-     no way out, because another site would replace the file. */
-  if (named.IsEmpty()) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
-                                   "A login cannot be saved for this address, so "
-                                   "nothing was kept."),
-                  MB_OK | MB_ICONWARNING);
+  /* Nothing changes, so an earlier login stays the one the box names. */
+  if (!made.ok) {
+    said.Format("%s\r\n\r\n%s",
+                browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
+                                 "A login cannot be saved for this address, so "
+                                 "nothing was kept."),
+                (LPCSTR) made.error);
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
   harvest = got;
-  harvest.bundleName = name;
+  harvest.bundleName = made.name;
   haveHarvest = TRUE;
 
   /* Warned, not refused: an empty box leaves the wizard with no URL at all. */
@@ -332,12 +325,26 @@ void CInsertUrl::OnBrowserLogin()
                 (LPCSTR) landed);
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
-  SetDlgItemTextCP(this, IDC_urladr, named);
-  /* Counts every cookie, but the engine keeps only the start URL's registrable domain. */
-  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
-                               "%d cookies were collected. They are saved with the "
-                               "project when you press OK."),
-              harvest.cookies.GetSize());
+  SetDlgItemTextCP(this, IDC_urladr, made.url);
+  if (made.dropped > 0) {
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
+                                 "%d of the browser's cookies were left out, because "
+                                 "the engine would not read them."),
+                made.dropped);
+    AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
+  }
+  if (made.cookies == 0) {
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
+                                   "The browser came back with no cookies. The address "
+                                   "and the browser identity are saved with the project "
+                                   "when the wizard finishes."),
+                  MB_OK | MB_ICONINFORMATION);
+    return;
+  }
+  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOTFINISH),
+                               "Cookies collected: %d. They are saved with the "
+                               "project when the wizard finishes."),
+              made.cookies);
   AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }
 

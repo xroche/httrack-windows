@@ -62,6 +62,7 @@ extern Ctrans* dialog2;
 #include "WizTab.h"
 extern CWizTab* this_CWizTab;
 extern CWizTab* this_intCWizTab2;
+extern Wid1* dialog1;
 
 /* Main splitter frame */
 #include "DialogContainer.h"
@@ -400,6 +401,10 @@ BOOL Ctrans::OnWizardFinish( )
   /* prise en compte des options */
   UpdateData(TRUE);         // DoDataExchange
   compute_options() ;
+  /* The project and the addresses are final only now. */
+  if (!dialog1->WriteBrowserLogins(ShellOptions->path, ShellOptions->url,
+                                   ShellOptions->filelist))
+    return 0;    // cancel
 
   // Index "top" si nécessaire!
   if (maintab->m_option3.m_windebug) {

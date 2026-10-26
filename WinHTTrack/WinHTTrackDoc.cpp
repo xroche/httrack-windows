@@ -45,6 +45,7 @@ extern "C" {
 /* dialog0 */
 #include "NewProj.h"
 extern CNewProj* dialog0;
+extern Wid1* dialog1;
 
 /* Main WizTab frame */
 #include "WizTab.h"
@@ -139,6 +140,7 @@ BOOL CWinHTTrackDoc::OnSaveDocument(LPCTSTR lpszPathName)
   //AfxMessageBox(lpszPathName);
 
   if (dialog0) {
+    const CString oldName = dialog0->m_projname, oldPath = dialog0->m_projpath;
     CString PathName=lpszPathName;
     int pos=PathName.ReverseFind('.');
     if (pos>=0) {
@@ -167,10 +169,41 @@ BOOL CWinHTTrackDoc::OnSaveDocument(LPCTSTR lpszPathName)
       }
     }
     
+    /* The saved address names each login's file, so the file comes first. */
+    if (dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave()) {
+      dialog0->m_projname = oldName;
+      dialog0->m_projpath = oldPath;
+      return 0;
+    }
     Save_current_profile(0);
   }
  
   return 1;
+}
+
+// MFC deletes the chosen file when a save it prompted for fails, so ours prompts.
+BOOL CWinHTTrackDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
+{
+  CString name = lpszPathName != NULL ? lpszPathName : "";
+
+  if (name.IsEmpty()) {
+    CString ext;
+
+    name = GetPathName();
+    if (bReplace && name.IsEmpty()) {
+      name = GetTitle();
+      const int bad = name.FindOneOf(":/\\");
+      if (bad >= 0)
+        name = name.Left(bad);
+      if (GetDocTemplate()->GetDocString(ext, CDocTemplate::filterExt) && !ext.IsEmpty())
+        name += ext;
+    }
+    if (!AfxGetApp()->DoPromptFileName(name, bReplace ? AFX_IDS_SAVEFILE : AFX_IDS_SAVEFILECOPY,
+                                       OFN_HIDEREADONLY | OFN_PATHMUSTEXIST, FALSE,
+                                       GetDocTemplate()))
+      return FALSE;
+  }
+  return CDocument::DoSave(name, bReplace);
 }
 
 BOOL CWinHTTrackDoc::OnOpenDocument(LPCTSTR lpszPathName) 

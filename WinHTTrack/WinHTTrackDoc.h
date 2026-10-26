@@ -59,6 +59,7 @@ public:
 	virtual BOOL OnNewDocument();
 	virtual void Serialize(CArchive& ar);
 	virtual BOOL OnSaveDocument(LPCTSTR lpszPathName);
+  virtual BOOL DoSave(LPCTSTR lpszPathName, BOOL bReplace = TRUE);
   virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);
 	virtual void OnCloseDocument();
 	//}}AFX_VIRTUAL

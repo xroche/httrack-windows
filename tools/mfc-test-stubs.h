@@ -36,6 +36,7 @@
 typedef const char *LPCTSTR;
 typedef const char *LPCSTR;
 typedef ptrdiff_t INT_PTR;
+#define small char /* rpcndr.h's, so a local named small breaks here too */
 
 /* MFC's CString answers to far more than this. What the two units use is here. */
 class CString {
@@ -172,9 +173,9 @@ static inline char *hts_convertStringSystemToUTF8(const char *s, size_t size) {
   out[j] = '\0';
   return out;
 }
+#endif
 
 /* The engine's freet() nulls what it frees, so its callers hold a non-const pointer. */
 #define freet(p) do { free(p); (p) = NULL; } while(0)
-#endif
 
 #endif

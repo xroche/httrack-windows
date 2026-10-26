@@ -43,20 +43,22 @@ void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
-CString browserLoginBundleName(const CString &landedUrl);
-CString browserLoginBundleFile(const CString &projectPath, const CString &name);
-CString browserLoginBundleUrl(const CString &landedUrl, const CString &name);
-CString browserLoginUnbundledUrl(const CString &url, const CString &name);
-CString browserLoginBundleText(const CString &userAgent, const CString &records);
+CString browserLoginUtf8(const CString &text);
+CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
+                                             const CString &box, const CString &list);
+typedef CString (*BrowserLoginListReader)(const CString &path);
+typedef BOOL (*BrowserLoginWriter)(void *ctx, int index);
+BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
+                           const CString &listFile, BrowserLoginListReader read,
+                           BrowserLoginWriter write, void *ctx);
+CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
+unsigned int browserLoginPasteFlags(BOOL dryRun);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
 BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
 int browserLoginCheckCases(CString *err);
-extern "C" {
-  /* copied in or stubbed by tools/test-browser-login-paths.py */
-  int hts_registrable_domain(const char *host, char *out, size_t size);
-  const char *hts_bundle_name_refusal(const char *name);
-};
+/* The harness's own, defined in tools/browser-login-paths-test.cpp. */
+char *strdupt_utf8(const char *s);
 #else
 #include "stdafx.h"
 #include "Shell.h"
@@ -67,6 +69,8 @@ extern "C" {
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 // see browser-login.h
 CString browserLoginStartUrl(const CString &urls) {
@@ -186,81 +190,100 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
 /* From the engine's htsbundle.h. */
 #define BROWSER_BUNDLE_SUFFIX "#httrack-bundle="
 
-/* Returns NAME, or "_" plus NAME when only that is accepted (con.com), or empty. A NAME
-   starting with "_" is refused, so only the escape makes one and it never collides. */
-static CString acceptedBundleName(const CString &name) {
-  if (name.IsEmpty() || name[0] == '_')
-    return CString();
-  if (hts_bundle_name_refusal(name) == NULL)
-    return name;
-  if (hts_bundle_name_refusal(CString("_") + name) == NULL)
-    return CString("_") + name;
-  return CString();
+// see browser-login.h
+CString browserLoginUtf8(const CString &text) {
+  char *converted = strdupt_utf8(text);  // freet() nulls it, so not const
+  const CString out(converted != NULL ? converted : (LPCSTR) text);
+
+  freet(converted);
+  return out;
 }
 
 // see browser-login.h
-CString browserLoginBundleName(const CString &landedUrl) {
-  char site[256];
+CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
+                                             const CString &box, const CString &list) {
+  CSimpleArray<CString> tokens, urls;
+  CSimpleArray<int> write;
+  CString line;
+  BOOL nul = FALSE;
 
-  /* Two hosts of one site must share a file, because overlapping bundles abort the mirror.
-     The lookup keeps the "www.", because www.blogspot.com is a site of its own. */
-  if (hts_registrable_domain(urlHost(landedUrl), site, sizeof(site)))
-    return acceptedBundleName(site);
-  return acceptedBundleName(comparableHost(landedUrl));
-}
+  splitTokensInArray(tokens, box);
+  for(int i = 0 ; i < tokens.GetSize() ; i++) {
+    const CString url = browserLoginUtf8(tokens[i]);
 
-// see browser-login.h
-CString browserLoginBundleFile(const CString &projectPath, const CString &name) {
-  if (projectPath.IsEmpty() || name.IsEmpty())
-    return CString();
-  return pathUnder(projectPath, name + ".hts");
-}
-
-// see browser-login.h
-CString browserLoginBundleUrl(const CString &landedUrl, const CString &name) {
-  if (landedUrl.IsEmpty() || name.IsEmpty())
-    return CString();
-  /* The engine reads the FIRST suffix and refuses a name holding another, so an address
-     already carrying one would abort the mirror. */
-  if (landedUrl.Find(BROWSER_BUNDLE_SUFFIX) >= 0)
-    return CString();
-  return landedUrl + BROWSER_BUNDLE_SUFFIX + name;
-}
-
-// see browser-login.h
-CString browserLoginUnbundledUrl(const CString &url, const CString &name) {
-  const CString suffix = CString(BROWSER_BUNDLE_SUFFIX) + name;
-  /* The box is split on blanks later, so a typed trailing space must not hide the suffix. */
-  CString trimmed = url;
-
-  trimmed.TrimRight();
-  if (name.IsEmpty() || trimmed.GetLength() < suffix.GetLength()
-      || trimmed.Right(suffix.GetLength()) != suffix)
-    return url;
-  return trimmed.Left(trimmed.GetLength() - suffix.GetLength());
-}
-
-/* What the engine reads a bundle line into, from htsbundle.c. A longer line stops the
-   run, so the identity is dropped rather than written. */
-#define BROWSER_BUNDLE_LINE_MAX 8192
-
-// see browser-login.h
-CString browserLoginBundleText(const CString &userAgent, const CString &records) {
-  CString text = "# HTTrack bundle 1\n";
-  BOOL oneLine = !userAgent.IsEmpty()
-    && userAgent.GetLength() + 3 < BROWSER_BUNDLE_LINE_MAX;
-
-  for(int i = 0 ; oneLine && i < userAgent.GetLength() ; i++)
-    if ((unsigned char) userAgent[i] < ' ')
-      oneLine = FALSE;
-  if (oneLine) {
-    text += "ua ";
-    text += userAgent;
-    text += "\n";
+    /* A leading + or - makes it a filter, and a longer token aborts the engine's run. */
+    if (url[0] != '+' && url[0] != '-' && url.GetLength() < HTS_URLMAXSIZE)
+      urls.Add(url);
   }
-  /* The engine takes every line after this one as a jar record. */
-  text += "cookies\n";
-  text += records;
+  /* The engine reads the -%L file as bytes, a line each, with every CR dropped. */
+  for(int i = 0 ; i <= list.GetLength() ; i++) {
+    if (i == list.GetLength() || list[i] == '\n') {
+      /* Its line buffer holds HTS_URLMAXSIZE bytes and the NUL, one more than the box. */
+      if (!nul && line.GetLength() <= HTS_URLMAXSIZE)
+        urls.Add(line);
+      line = CString();
+      nul = FALSE;
+    } else if (list[i] == '\0') {
+      nul = TRUE;
+    } else if (list[i] != '\r') {
+      line += list[i];
+    }
+  }
+  /* The engine reads the name after the first suffix. Held order is kept, so a later
+     login under the same name is written last and wins. */
+  for(int k = 0 ; k < names.GetSize() ; k++) {
+    for(int i = 0 ; i < urls.GetSize() ; i++) {
+      const int at = urls[i].Find(BROWSER_BUNDLE_SUFFIX);
+
+      if (at >= 0 && urls[i].Mid(at + (int) strlen(BROWSER_BUNDLE_SUFFIX)) == names[k]) {
+        write.Add(k);
+        break;
+      }
+    }
+  }
+  return write;
+}
+
+// see browser-login.h
+BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
+                           const CString &listFile, BrowserLoginListReader read,
+                           BrowserLoginWriter write, void *ctx) {
+  const CSimpleArray<int> todo = browserLoginBundlesToWrite(names, box, read(listFile));
+
+  for(int i = 0 ; i < todo.GetSize() ; i++) {
+    if (!write(ctx, todo[i]))
+      return FALSE;
+  }
+  return TRUE;
+}
+
+/* From the engine's htsbundle.c, which refuses a paste of this many bytes or more. */
+#define BROWSER_PASTE_MAX (256 * 1024)
+
+/* A comment first, because a paste starting with "curl" reads as a cURL command. */
+#define BROWSER_PASTE_HEAD "# Netscape HTTP Cookie File\n"
+
+// see browser-login.h
+unsigned int browserLoginPasteFlags(BOOL dryRun) {
+  /* A login with no cookie still carries the address and the identity. */
+  return HTS_PASTE_KEEP_EMPTY | (dryRun ? HTS_PASTE_DRY_RUN : 0u);
+}
+
+// see browser-login.h
+CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped) {
+  CString text = BROWSER_PASTE_HEAD;
+
+  *dropped = 0;
+  for(int i = 0 ; i < cookies.GetSize() ; i++) {
+    CString line;
+
+    /* The text stays under the cap, so the subtraction cannot go negative. */
+    if (cookieFileLine(cookies[i], line) != CookieWritable
+        || line.GetLength() >= BROWSER_PASTE_MAX - text.GetLength())
+      (*dropped)++;
+    else
+      text += line;
+  }
   return text;
 }
 
@@ -490,149 +513,316 @@ int browserLoginCheckCases(CString *err) {
     }
   }
   {
-    /* A refused name aborts the mirror and a shared one shares a file, so an odd name is
-       escaped or dropped. */
-    static const struct { const char *landed, *name; } names[] = {
-      { "https://example.com/members/", "example.com" },
-      /* the same site is one bundle, as the moved-host warning also reads it */
-      { "https://www.example.com/", "example.com" },
-      { "https://example.com:8443/x", "example.com" },
-      { "https://EXAMPLE.com/", "example.com" },
-      /* two hosts of one site are one bundle, because the engine scopes it so */
-      { "https://a.example.com/", "example.com" },
-      { "https://login.shop.example.co.uk/", "example.co.uk" },
-      /* no registrable domain, so the host names it */
-      { "https://localhost/", "localhost" },
-      /* www.github.io is a site of its own, since github.io is a public suffix */
-      { "https://www.github.io/", "www.github.io" },
-      { "http://192.168.1.10/", "192.168.1.10" },
-      /* a Windows device name, read up to the first dot, is escaped and stays distinct */
-      { "https://con/", "_con" },
-      { "https://CON.example/", "_con.example" },
-      { "https://shop.con.com/", "_con.com" },
-      { "https://aux.org/", "_aux.org" },
-      { "https://com1/", "_com1" },
-      /* the escape's own spelling, refused so http://con/ cannot share its file */
-      { "http://_con/", "" },
-      /* com0 is no device, and a four-letter label is not one either */
-      { "https://com0/", "com0" },
-      { "https://conx/", "conx" },
-      /* an IPv6 literal keeps bytes no bundle name may hold */
-      { "http://[::1]:8080/", "" },
-      /* nothing to name it after */
-      { "about:blank", "" },
-      { "", "" },
-      { NULL, NULL }
-    };
-
-    for(int k=0 ; names[k].landed != NULL ; k++) {
-      const CString got = browserLoginBundleName(names[k].landed);
-
-      if (got != names[k].name) {
-        snprintf(msg, sizeof(msg), "landing on '%s' names the bundle '%s', expected '%s'",
-                 names[k].landed, (LPCSTR) got, names[k].name);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-  }
-  {
-    static const struct { const char *landed, *name, *want; } urls[] = {
-      { "https://example.com/x", "example.com",
-        "https://example.com/x#httrack-bundle=example.com" },
-      /* the suffix must appear once, so an address already carrying one is refused */
-      { "https://example.com/x#httrack-bundle=other", "example.com", "" },
-      { "", "example.com", "" },
-      { "https://example.com/x", "", "" },
+    /* Which held logins the finish writes. Held: example.com, then other.org. */
+    static const struct { const char *box, *list, *want; } held[] = {
+      { "https://example.com/#httrack-bundle=example.com", "", "0" },
+      { "https://example.com/#httrack-bundle=example.com "
+        "https://other.org/#httrack-bundle=other.org", "", "0 1" },
+      /* Back to a project whose addresses name neither */
+      { "https://elsewhere.net/", "", "" },
+      { "", "", "" },
+      /* an address edited after the login still names it, and one cut back does not */
+      { "https://shop.example.org/x#httrack-bundle=example.com", "", "0" },
+      { "https://example.com/", "", "" },
+      /* only the name after the first suffix counts */
+      { "https://example.com/#httrack-bundle=example.com.au", "", "" },
+      { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "", "" },
+      /* a filter names no bundle */
+      { "+example.com/*#httrack-bundle=example.com", "", "" },
+      { "-example.com/*#httrack-bundle=example.com", "", "" },
+      /* the -%L file, CR LF or not */
+      { "", "https://a.test/\r\nhttps://other.org/#httrack-bundle=other.org\r\n", "1" },
+      /* named twice, written once */
+      { "https://example.com/#httrack-bundle=example.com",
+        "https://example.com/a#httrack-bundle=example.com\n"
+        "https://other.org/#httrack-bundle=other.org", "0 1" },
       { NULL, NULL, NULL }
     };
+    CSimpleArray<CString> names;
 
-    for(int k=0 ; urls[k].landed != NULL ; k++) {
-      const CString got = browserLoginBundleUrl(urls[k].landed, urls[k].name);
+    names.Add("example.com");
+    names.Add("other.org");
+    for(int k = 0 ; held[k].box != NULL ; k++) {
+      const CSimpleArray<int> got = browserLoginBundlesToWrite(names, held[k].box,
+                                                               held[k].list);
+      CString joined;
 
-      if (got != urls[k].want) {
-        snprintf(msg, sizeof(msg), "'%s' plus bundle '%s' gives '%s', expected '%s'",
-                 urls[k].landed, urls[k].name, (LPCSTR) got, urls[k].want);
+      for(int i = 0 ; i < got.GetSize() ; i++) {
+        char one[16];
+
+        snprintf(one, sizeof(one), i > 0 ? " %d" : "%d", got[i]);
+        joined += one;
+      }
+      if (joined != held[k].want) {
+        snprintf(msg, sizeof(msg), "'%s' and list '%s' write logins '%s', not '%s'",
+                 held[k].box, held[k].list, (LPCSTR) joined, held[k].want);
         *err = msg;
         return 0;
       }
       nchecks++;
     }
-    static const struct { const char *url, *name, *want; } unbundled[] = {
-      { "https://example.com/x#httrack-bundle=example.com", "example.com",
-        "https://example.com/x" },
-      /* only this login's own suffix, because another one is not ours to drop */
-      { "https://example.com/x#httrack-bundle=other", "example.com",
-        "https://example.com/x#httrack-bundle=other" },
-      { "https://example.com/x#httrack-bundle=example.com  ", "example.com",
-        "https://example.com/x" },
-      { "https://example.com/x", "example.com", "https://example.com/x" },
-      { "https://example.com/x#httrack-bundle=", "", "https://example.com/x#httrack-bundle=" },
-      { NULL, NULL, NULL }
-    };
-
-    for(int k=0 ; unbundled[k].url != NULL ; k++) {
-      const CString got = browserLoginUnbundledUrl(unbundled[k].url, unbundled[k].name);
-
-      if (got != unbundled[k].want) {
-        snprintf(msg, sizeof(msg), "'%s' less bundle '%s' gives '%s', expected '%s'",
-                 unbundled[k].url, unbundled[k].name, (LPCSTR) got, unbundled[k].want);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-    /* The engine resolves a name against the project, so the file has to land there. */
-    if (browserLoginBundleFile("C:\\web\\proj", "example.com")
-        != "C:\\web\\proj\\example.com.hts") {
-      *err = "the bundle no longer lands in the project folder";
-      return 0;
-    }
-    nchecks++;
-    if (!browserLoginBundleFile("", "example.com").IsEmpty()) {
-      *err = "a bundle with no project got a relative path";
-      return 0;
-    }
-    nchecks++;
-  }
-  {
-    /* The engine refuses a bundle whose first line is not this, and takes every line
-       after "cookies" as a jar record, so the shape IS the contract. */
-    static const struct { const char *agent, *records, *want; } texts[] = {
-      { "Mozilla/5.0", "a\tFALSE\t/\tFALSE\t0\tn\tv\n",
-        "# HTTrack bundle 1\nua Mozilla/5.0\ncookies\na\tFALSE\t/\tFALSE\t0\tn\tv\n" },
-      /* no identity is a bundle too, because the cookies are the point */
-      { "", "a\tFALSE\t/\tFALSE\t0\tn\tv\n",
-        "# HTTrack bundle 1\ncookies\na\tFALSE\t/\tFALSE\t0\tn\tv\n" },
-      /* a byte that would forge the next line takes the identity out, not the bundle */
-      { "Mozilla\n ua evil", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
-      { "Mozilla\rx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
-      { "Mozilla\tx", "r\n", "# HTTrack bundle 1\ncookies\nr\n" },
-      { NULL, NULL, NULL }
-    };
-
-    for(int k=0 ; texts[k].agent != NULL ; k++) {
-      const CString got = browserLoginBundleText(texts[k].agent, texts[k].records);
-
-      if (got != texts[k].want) {
-        snprintf(msg, sizeof(msg), "identity '%s' makes a bundle '%s', expected '%s'",
-                 texts[k].agent, (LPCSTR) got, texts[k].want);
-        *err = msg;
-        return 0;
-      }
-      nchecks++;
-    }
-    /* A line the engine cannot read stops the run, so a long identity is left out. */
+    /* The box is in the ANSI codepage and the -%L file is read as it is, so only the box
+       is converted to the UTF-8 the engine names a bundle in. */
     {
-      const CString huge('x', 9000);
+      const CString ansi = "https://caf\xE9.test/#httrack-bundle=caf\xE9.test";
+      CSimpleArray<CString> utf8;
 
-      if (browserLoginBundleText(huge, "r\n").Find("ua ") >= 0) {
-        *err = "a bundle wrote an identity longer than the engine reads a line";
+      utf8.Add(browserLoginUtf8("caf\xE9.test"));
+      if (browserLoginBundlesToWrite(utf8, ansi, "").GetSize() != 1
+          || browserLoginBundlesToWrite(utf8, "", ansi).GetSize() != 0
+          || browserLoginBundlesToWrite(utf8, "", browserLoginUtf8(ansi)).GetSize() != 1) {
+        *err = "a non-ASCII bundle name was matched in the wrong encoding";
+        return 0;
+      }
+      nchecks++;
+    }
+    /* A box address of HTS_URLMAXSIZE bytes or more names no bundle, and neither does a
+       -%L line longer than HTS_URLMAXSIZE or holding a NUL. */
+    {
+      const CString suffix = "#httrack-bundle=example.com";
+      const CString base = "https://example.com/";
+      const CString fits = base + CString('a', HTS_URLMAXSIZE - 1 - base.GetLength()
+                                           - suffix.GetLength()) + suffix;
+      const CString atCap = base + CString('a', HTS_URLMAXSIZE - base.GetLength()
+                                            - suffix.GetLength()) + suffix;
+      const CString past = base + CString('a', HTS_URLMAXSIZE + 1 - base.GetLength()
+                                           - suffix.GetLength()) + suffix;
+      CString nul = "https://exa";
+
+      nul += '\0';
+      nul += "mple.com/";
+      nul += suffix;
+      const struct { const CString *url; BOOL inList; int want; } longs[] = {
+        { &fits, FALSE, 1 }, { &atCap, FALSE, 0 },
+        { &fits, TRUE, 1 }, { &atCap, TRUE, 1 }, { &past, TRUE, 0 }, { &nul, TRUE, 0 },
+        { NULL, FALSE, 0 }
+      };
+
+      for(int k = 0 ; longs[k].url != NULL ; k++) {
+        const CString &url = *longs[k].url;
+        const int got = browserLoginBundlesToWrite(names, longs[k].inList ? CString() : url,
+                                                   longs[k].inList ? url : CString()).GetSize();
+
+        if (got != longs[k].want) {
+          snprintf(msg, sizeof(msg), "a %d-byte address in the %s wrote %d logins, not %d",
+                   url.GetLength(), longs[k].inList ? "list" : "box", got, longs[k].want);
+          *err = msg;
+          return 0;
+        }
+        nchecks++;
+      }
+      /* A NUL spoils its own line only. */
+      CString after = nul;
+
+      after += "\nhttps://example.com/";
+      after += suffix;
+      if (browserLoginBundlesToWrite(names, "", after).GetSize() != 1) {
+        *err = "a NUL in one -%L line hid the next line";
         return 0;
       }
       nchecks++;
     }
   }
+  {
+    /* The finish writes in held order and stops at the first failure. Held twice under
+       one name, the later login is written last, so its file is the one that stays. */
+    static const struct { const char *box; int fail; const char *want; BOOL ok; } writes[] = {
+      { "https://example.com/#httrack-bundle=example.com", -1, "0 2", TRUE },
+      { "https://example.com/#httrack-bundle=example.com "
+        "https://other.org/#httrack-bundle=other.org", -1, "0 1 2", TRUE },
+      { "https://example.com/#httrack-bundle=example.com "
+        "https://other.org/#httrack-bundle=other.org", 1, "0 1", FALSE },
+      { "https://other.org/#httrack-bundle=other.org", 1, "1", FALSE },
+      { "https://elsewhere.net/", 0, "", TRUE },
+      { NULL, -1, NULL, FALSE }
+    };
+    struct Recorder {
+      int fail;
+      CString calls;
+      static BOOL write(void *ctx, int index) {
+        Recorder *const r = (Recorder *) ctx;
+        char one[16];
+
+        snprintf(one, sizeof(one), r->calls.IsEmpty() ? "%d" : " %d", index);
+        r->calls += one;
+        return index != r->fail;
+      }
+      static CString read(const CString &path) {
+        return path == "list.txt" ? CString("https://other.org/#httrack-bundle=other.org")
+                                  : CString();
+      }
+    };
+    CSimpleArray<CString> names;
+
+    names.Add("example.com");
+    names.Add("other.org");
+    names.Add("example.com");
+    for(int k = 0 ; writes[k].box != NULL ; k++) {
+      Recorder rec;
+
+      rec.fail = writes[k].fail;
+      const BOOL ok = browserLoginWriteHeld(names, writes[k].box, "", Recorder::read,
+                                            Recorder::write, &rec);
+
+      if (ok != writes[k].ok || rec.calls != writes[k].want) {
+        snprintf(msg, sizeof(msg), "'%s' failing at %d wrote '%s' ok=%d, not '%s' ok=%d",
+                 writes[k].box, writes[k].fail, (LPCSTR) rec.calls, (int) ok,
+                 writes[k].want, (int) writes[k].ok);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* The -%L file is read from the path the finish gives. */
+    {
+      Recorder rec;
+
+      rec.fail = -1;
+      if (!browserLoginWriteHeld(names, "", "list.txt", Recorder::read, Recorder::write,
+                                 &rec) || rec.calls != "1") {
+        *err = "the finish did not read the -%L file it was given";
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    /* The engine scopes the paste to the site and caps its own jar, so the paste carries
+       every cookie it can, past the jar's 30000 bytes, and stops only at the paste cap. */
+    CSimpleArray<CookieRecord> few, many;
+    CookieRecord c;
+    int dropped = -1;
+
+    c.domain = ".example.com";
+    c.value = CString('v', 3000);
+    for(int i = 0 ; i < 20 ; i++) {
+      char name[16];
+
+      snprintf(name, sizeof(name), "c%d", i);
+      c.name = name;
+      few.Add(c);
+    }
+    c.name = "bad\tname";
+    few.Add(c);
+    if (browserLoginPasteText(few, &dropped).GetLength() <= COOKIE_JAR_MAXLEN
+        || dropped != 1) {
+      snprintf(msg, sizeof(msg), "a 60 KB harvest with one unwritable cookie dropped %d",
+               dropped);
+      *err = msg;
+      return 0;
+    }
+    nchecks++;
+    for(int i = 0 ; i < 100 ; i++) {
+      char name[16];
+
+      snprintf(name, sizeof(name), "c%d", i);
+      c.name = name;
+      many.Add(c);
+    }
+    const CString text = browserLoginPasteText(many, &dropped);
+
+    if (text.GetLength() >= BROWSER_PASTE_MAX || dropped == 0
+        || text.GetLength() < BROWSER_PASTE_MAX - 3100) {
+      snprintf(msg, sizeof(msg), "a 300 KB harvest gave a %d-byte paste, dropping %d",
+               text.GetLength(), dropped);
+      *err = msg;
+      return 0;
+    }
+    nchecks++;
+  }
+  {
+    /* A paste one byte under the cap fits, one at the cap drops the cookie that overflows,
+       and a later cookie that still fits is kept. */
+    CookieRecord fill, mid, tiny;
+    CString line;
+
+    fill.domain = mid.domain = tiny.domain = ".example.com";
+    fill.value = CString('f', 2000);
+    mid.name = "mid";
+    mid.value = CString('m', 50);
+    tiny.name = "t";
+    if (cookieFileLine(mid, line) != CookieWritable) {
+      *err = "the paste cap cases cannot write their own cookie";
+      return 0;
+    }
+    const int midLen = line.GetLength();
+
+    cookieFileLine(tiny, line);
+    const int tinyLen = line.GetLength();
+    CSimpleArray<CookieRecord> head;
+    int used = (int) strlen(BROWSER_PASTE_HEAD);
+
+    for(int i = 0 ; ; i++) {
+      char name[16];
+
+      snprintf(name, sizeof(name), "f%d", i);
+      fill.name = name;
+      cookieFileLine(fill, line);
+      if (used + line.GetLength() > BROWSER_PASTE_MAX - 1 - midLen - 200)
+        break;
+      head.Add(fill);
+      used += line.GetLength();
+    }
+    /* PAD tops HEAD up so the cookies through MID sum to one byte under the cap. */
+    CookieRecord pad;
+
+    pad.domain = ".example.com";
+    pad.name = "pad";
+    cookieFileLine(pad, line);
+    const int padValue = BROWSER_PASTE_MAX - 1 - used - midLen - line.GetLength();
+    const struct { int extra, after, want, dropped; } edges[] = {
+      /* EXTRA bytes on PAD, then AFTER: 1 is MID, 2 is MID MID TINY */
+      { 0, 1, BROWSER_PASTE_MAX - 1, 0 },
+      { 1, 1, BROWSER_PASTE_MAX - midLen, 1 },
+      { 1, 2, BROWSER_PASTE_MAX - midLen + tinyLen, 2 },
+      { 0, 0, 0, 0 }
+    };
+
+    for(int k = 0 ; edges[k].after != 0 ; k++) {
+      CSimpleArray<CookieRecord> all = head;
+      int dropped = -1;
+
+      pad.value = CString('p', padValue + edges[k].extra);
+      all.Add(pad);
+      all.Add(mid);
+      if (edges[k].after == 2) {
+        all.Add(mid);
+        all.Add(tiny);
+      }
+      const int got = browserLoginPasteText(all, &dropped).GetLength();
+
+      if (got != edges[k].want || dropped != edges[k].dropped) {
+        snprintf(msg, sizeof(msg), "paste cap case %d gave %d bytes dropping %d, "
+                 "expected %d dropping %d", k, got, dropped, edges[k].want, edges[k].dropped);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    /* The engine reads a paste starting with "curl" as a cURL command. */
+    CSimpleArray<CookieRecord> one;
+    CookieRecord c;
+    int dropped = -1;
+
+    c.domain = "curl";
+    c.name = "id";
+    one.Add(c);
+    const CString text = browserLoginPasteText(one, &dropped);
+
+    if (text.Left(1) != "#" || text.Find("\ncurl\t") < 0 || dropped != 0) {
+      *err = "a cookie for the host curl starts the paste, which then reads as cURL";
+      return 0;
+    }
+    nchecks++;
+  }
+  /* A check-only login must write nothing, and every login keeps one with no cookie. */
+  if (browserLoginPasteFlags(TRUE) != (HTS_PASTE_KEEP_EMPTY | HTS_PASTE_DRY_RUN)
+      || browserLoginPasteFlags(FALSE) != HTS_PASTE_KEEP_EMPTY) {
+    *err = "a login asks the engine for the wrong paste flags";
+    return 0;
+  }
+  nchecks++;
   return nchecks;
 }

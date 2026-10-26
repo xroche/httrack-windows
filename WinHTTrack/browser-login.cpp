@@ -144,15 +144,6 @@ static int __cdecl takeCookie(void *ctx, const WhttBrowserLoginCookie *cookie) {
   return 1;
 }
 
-/* The DLL reads and writes UTF-8, and every CString here is in the ANSI codepage. */
-static CString utf8Of(const CString &text) {
-  char *converted = strdupt_utf8(text);
-  const CString out(converted != NULL ? converted : (LPCSTR) text);
-
-  freet(converted);
-  return out;
-}
-
 // see browser-login.h
 WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
                                        const CString &profile,
@@ -163,13 +154,13 @@ WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
   char ansi[HTS_CDLMAXSIZE];
   /* The engine refuses a longer address anyway, and the field caps shorter still. */
   char landed[HTS_URLMAXSIZE * 2];
-  const CString wantUrl = utf8Of(url), wantProfile = utf8Of(profile);
+  const CString wantUrl = browserLoginUtf8(url), wantProfile = browserLoginUtf8(profile);
   /* The DLL reaches no catalog, so its window carries whatever we hand it, and an empty
      field there means it falls back to its own English. */
-  const CString wantTitle = utf8Of(LANG(LANG_BROWSERLOGINTITLE));
-  const CString wantGo = utf8Of(LANG(LANG_BROWSERLOGINGO));
-  const CString wantDone = utf8Of(LANG(LANG_BROWSERLOGINDONE));
-  const CString wantClear = utf8Of(LANG(LANG_BROWSERLOGINCLEAR));
+  const CString wantTitle = browserLoginUtf8(LANG(LANG_BROWSERLOGINTITLE));
+  const CString wantGo = browserLoginUtf8(LANG(LANG_BROWSERLOGINGO));
+  const CString wantDone = browserLoginUtf8(LANG(LANG_BROWSERLOGINDONE));
+  const CString wantClear = browserLoginUtf8(LANG(LANG_BROWSERLOGINCLEAR));
   WhttBrowserLoginRequest request;
 
   if (browserLoginLoad() != BrowserLoginReady)
@@ -316,30 +307,38 @@ void browserLoginSweepProfiles(void) {
   FindClose(walk);
 }
 
-// see browser-login.h
-/* Binary, because the engine reads these as bytes and a CR of ours would end up inside
-   the last field of every cookie record. */
-static CookieSaveResult writeHarvestFile(const CString &path, const CString &text) {
-  if (path.IsEmpty())
-    return CookieSaveNoFile;
-  structcheck(path);
+/* Returns the engine's UTF-8 TEXT in the ANSI codepage. */
+static CString ansiOf(const char *text) {
+  char ansi[HTS_PASTE_URL_SIZE * 2];
 
-  FILE *const fp = fopen(path, "wb");
-
-  if (fp == NULL)
-    return CookieSaveNoFile;
-
-  const size_t len = (size_t) text.GetLength();
-  const BOOL written = fwrite((LPCSTR) text, 1, len, fp) == len;
-
-  return fclose(fp) == 0 && written ? CookieSaveWritten : CookieSaveNoFile;
+  CopyTextUTF8ToCP(ansi, sizeof(ansi), text);
+  return ansi;
 }
 
-CookieSaveResult browserLoginSaveBundle(const BrowserLoginHarvest &harvest,
-                                        const CString &path, CookieFileStats &stats) {
-  const CString records = cookieFileText(harvest.cookies, stats);
+// see browser-login.h
+BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest,
+                                              BrowserLoginBundleMode mode,
+                                              const CString &folder) {
+  const BOOL dryRun = mode == BrowserLoginCheckOnly;
+  BrowserLoginBundleInfo info;
+  /* The cookies are UTF-8 as the DLL gave them, and the rest is in the ANSI codepage. */
+  const CString paste = browserLoginPasteText(harvest.cookies, &info.dropped);
+  const CString agent = browserLoginUtf8(harvest.userAgent);
+  const CString url = browserLoginUtf8(browserLoginSafeUrl(harvest.finalUrl));
+  const CString dir = dryRun ? CString() : browserLoginUtf8(folder);
+  hts_paste_result result;
 
-  if (stats.written == 0)
-    return CookieSaveNothingToWrite;
-  return writeHarvestFile(path, browserLoginBundleText(harvest.userAgent, records));
+  memset(&result, 0, sizeof(result));
+  result.size = sizeof(result);
+  /* The engine writes into the folder but does not create it. */
+  if (!dir.IsEmpty())
+    structcheck_utf8(dir + "/");
+  info.ok = hts_bundle_from_paste_flags(paste, dir, agent, url,
+                                        browserLoginPasteFlags(dryRun), &result)
+    ? TRUE : FALSE;
+  info.name = result.name;
+  info.url = ansiOf(result.url);
+  info.error = ansiOf(result.error);
+  info.cookies = result.cookies;
+  return info;
 }

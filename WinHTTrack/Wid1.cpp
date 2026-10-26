@@ -787,7 +787,8 @@ void Wid1::OnNewProject() {
 */
 
 void Wid1::OnSaveProject() {
-  Save_current_profile(0);
+  if (WriteBrowserLoginsForSave())
+    Save_current_profile(0);
 }
 
 void Wid1::Onsetopt() 
@@ -804,60 +805,72 @@ HCURSOR Wid1::OnQueryDragIcon()
 }
 */
 
-/* Writes what a browser login brought back as the bundle its address names, and says
-   what went wrong. Only once the box is accepted, so Cancel leaves no file behind.
-   FALSE when no file was written. */
-static BOOL applyBrowserLogin(const BrowserLoginHarvest &harvest)
+/* Returns the bytes of the -%L file at PATH, or empty when it cannot be read. */
+static CString readUrlList(const CString &path)
 {
-  const CString project = dialog0 != NULL ? dialog0->GetPath0() : CString();
-  const CString file = browserLoginBundleFile(project, harvest.bundleName);
-  CookieFileStats stats;
+  CString text;
+  FILE *const fp = path.IsEmpty() ? NULL : fopen(path, "rb");
+  char chunk[4096];
+  size_t n;
+
+  if (fp == NULL)
+    return text;
+  while ((n = fread(chunk, 1, sizeof(chunk), fp)) > 0)
+    text += CString(chunk, (int) n);
+  fclose(fp);
+  return text;
+}
+
+/* What writeHeldLogin() writes, and where. */
+struct HeldLoginWrite {
+  const CSimpleArray<BrowserLoginHarvest> *held;
+  CString folder;
+};
+
+/* Has the engine write held login INDEX, and tells the user when that fails. */
+static BOOL writeHeldLogin(void *ctx, int index)
+{
+  const HeldLoginWrite *const w = (const HeldLoginWrite *) ctx;
+  const BrowserLoginBundleInfo made =
+    browserLoginMakeBundle((*w->held)[index], BrowserLoginWriteFile, w->folder);
+
+  if (made.ok)
+    return TRUE;
+
   CString said;
 
-  if (maintab == NULL)
-    return FALSE;
-  switch(browserLoginSaveBundle(harvest, file, stats)) {
-  case CookieSaveNothingToWrite:
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINUNUSABLE),
-                                   "The browser gave no cookies the engine can use, so "
-                                   "nothing was changed."),
-                  MB_OK | MB_ICONWARNING);
-    return FALSE;
-  case CookieSaveNoFile:
-    /* An empty path means there is no project yet, and naming it would print a blank. */
-    if (file.IsEmpty())
-      AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNOPROJECT),
-                                     "There is no project folder to save the login in, "
-                                     "so nothing was changed."),
-                    MB_OK | MB_ICONWARNING);
-    else {
-      said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
-                                   "The login could not be written to %s, so nothing "
-                                   "was changed."),
-                  (LPCSTR) file);
-      AfxMessageBox(said, MB_OK | MB_ICONWARNING);
-    }
-    return FALSE;
-  case CookieSaveWritten:
-    break;
-  }
-  const int dropped = harvest.cookies.GetSize() - stats.written;
+  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
+                               "The login could not be written to %s."),
+              (LPCSTR) w->folder);
+  AfxMessageBox(said + "\r\n\r\n" + made.error, MB_OK | MB_ICONWARNING);
+  return FALSE;
+}
 
-  if (dropped > 0) {
-    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
-                                 "%d of the browser's cookies were left out, because "
-                                 "the engine would not read them."),
-                dropped);
-    AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
+// see Wid1.h
+BOOL Wid1::WriteBrowserLogins(const CString &folder, const CString &urls,
+                              const CString &listFile)
+{
+  CSimpleArray<CString> names;
+  HeldLoginWrite w = { &heldLogins, folder };
+
+  for(int i = 0 ; i < heldLogins.GetSize() ; i++)
+    names.Add(heldLogins[i].bundleName);
+  return browserLoginWriteHeld(names, urls, listFile, readUrlList, writeHeldLogin, &w);
+}
+
+// see Wid1.h
+BOOL Wid1::WriteBrowserLoginsForSave()
+{
+  CString urls = m_urls, list = m_filelist;
+
+  /* Write_profile() saves the controls while the page is open. */
+  if (m_hWnd != NULL) {
+    GetDlgItemText(IDC_URL, urls);
+    GetDlgItemText(IDC_filelist, list);
   }
-  /* The bundle leaves out an identity it cannot write as one line. The mirror then goes
-     out under the engine's own rather than the one that logged in. */
-  if (!harvest.userAgent.IsEmpty() && !isUserAgentArgument(harvest.userAgent))
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINBADAGENT),
-                                   "The browser identity it reported cannot be used, "
-                                   "so the mirror will send the default one."),
-                  MB_OK | MB_ICONWARNING);
-  return TRUE;
+  list.TrimLeft();
+  list.TrimRight();
+  return WriteBrowserLogins(dialog0->GetPath0(), urls, list);
 }
 
 void Wid1::Onlogin2() 
@@ -866,9 +879,8 @@ void Wid1::Onlogin2()
   CInsertUrl url;
   url.dest_path=dialog0->GetPath();
   if (url.DoModal() == IDOK) {
-    /* The file goes first, so a login that fails to save leaves no URL naming it. */
-    if (url.haveHarvest && !applyBrowserLogin(url.harvest))
-      url.m_urladr = browserLoginUnbundledUrl(url.m_urladr, url.harvest.bundleName);
+    if (url.haveHarvest)
+      heldLogins.Add(url.harvest);
     if (url.m_urladr.Left(7)=="http://")
       url.m_urladr=url.m_urladr.Mid(7);
     CString st;
