@@ -787,7 +787,8 @@ void Wid1::OnNewProject() {
 */
 
 void Wid1::OnSaveProject() {
-  Save_current_profile(0);
+  if (WriteBrowserLoginsForSave())
+    Save_current_profile(0);
 }
 
 void Wid1::Onsetopt() 
@@ -855,6 +856,21 @@ BOOL Wid1::WriteBrowserLogins(const CString &folder, const CString &urls,
   for(int i = 0 ; i < heldLogins.GetSize() ; i++)
     names.Add(heldLogins[i].bundleName);
   return browserLoginWriteHeld(names, urls, listFile, readUrlList, writeHeldLogin, &w);
+}
+
+// see Wid1.h
+BOOL Wid1::WriteBrowserLoginsForSave()
+{
+  CString urls = m_urls, list = m_filelist;
+
+  /* Write_profile() saves the controls while the page is open. */
+  if (m_hWnd != NULL) {
+    GetDlgItemText(IDC_URL, urls);
+    GetDlgItemText(IDC_filelist, list);
+  }
+  list.TrimLeft();
+  list.TrimRight();
+  return WriteBrowserLogins(dialog0->GetPath0(), urls, list);
 }
 
 void Wid1::Onlogin2() 

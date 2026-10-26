@@ -52,6 +52,7 @@ BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &bo
                            const CString &listFile, BrowserLoginListReader read,
                            BrowserLoginWriter write, void *ctx);
 CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
+unsigned int browserLoginPasteFlags(BOOL dryRun);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
 BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
@@ -210,7 +211,7 @@ CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
   for(int i = 0 ; i < tokens.GetSize() ; i++) {
     const CString url = browserLoginUtf8(tokens[i]);
 
-    /* A leading + or - makes it a filter, and the engine drops a longer address. */
+    /* A leading + or - makes it a filter, and a longer token aborts the engine's run. */
     if (url[0] != '+' && url[0] != '-' && url.GetLength() < HTS_URLMAXSIZE)
       urls.Add(url);
   }
@@ -234,8 +235,7 @@ CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
     for(int i = 0 ; i < urls.GetSize() ; i++) {
       const int at = urls[i].Find(BROWSER_BUNDLE_SUFFIX);
 
-      if (!names[k].IsEmpty() && at >= 0
-          && urls[i].Mid(at + (int) strlen(BROWSER_BUNDLE_SUFFIX)) == names[k]) {
+      if (at >= 0 && urls[i].Mid(at + (int) strlen(BROWSER_BUNDLE_SUFFIX)) == names[k]) {
         write.Add(k);
         break;
       }
@@ -260,9 +260,18 @@ BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &bo
 /* From the engine's htsbundle.c, which refuses a paste of this many bytes or more. */
 #define BROWSER_PASTE_MAX (256 * 1024)
 
+/* A comment first, because a paste starting with "curl" reads as a cURL command. */
+#define BROWSER_PASTE_HEAD "# Netscape HTTP Cookie File\n"
+
+// see browser-login.h
+unsigned int browserLoginPasteFlags(BOOL dryRun) {
+  /* A login with no cookie still carries the address and the identity. */
+  return HTS_PASTE_KEEP_EMPTY | (dryRun ? HTS_PASTE_DRY_RUN : 0u);
+}
+
 // see browser-login.h
 CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped) {
-  CString text;
+  CString text = BROWSER_PASTE_HEAD;
 
   *dropped = 0;
   for(int i = 0 ; i < cookies.GetSize() ; i++) {
@@ -567,7 +576,7 @@ int browserLoginCheckCases(CString *err) {
       }
       nchecks++;
     }
-    /* The engine drops an address of HTS_URLMAXSIZE bytes or more from the box, and a
+    /* A box address of HTS_URLMAXSIZE bytes or more names no bundle, and neither does a
        -%L line longer than HTS_URLMAXSIZE or holding a NUL. */
     {
       const CString suffix = "#httrack-bundle=example.com";
@@ -721,5 +730,99 @@ int browserLoginCheckCases(CString *err) {
     }
     nchecks++;
   }
+  {
+    /* A paste one byte under the cap fits, one at the cap drops the cookie that overflows,
+       and a later cookie that still fits is kept. */
+    CookieRecord fill, mid, tiny;
+    CString line;
+
+    fill.domain = mid.domain = tiny.domain = ".example.com";
+    fill.value = CString('f', 2000);
+    mid.name = "mid";
+    mid.value = CString('m', 50);
+    tiny.name = "t";
+    if (cookieFileLine(mid, line) != CookieWritable) {
+      *err = "the paste cap cases cannot write their own cookie";
+      return 0;
+    }
+    const int midLen = line.GetLength();
+
+    cookieFileLine(tiny, line);
+    const int tinyLen = line.GetLength();
+    CSimpleArray<CookieRecord> head;
+    int used = (int) strlen(BROWSER_PASTE_HEAD);
+
+    for(int i = 0 ; ; i++) {
+      char name[16];
+
+      snprintf(name, sizeof(name), "f%d", i);
+      fill.name = name;
+      cookieFileLine(fill, line);
+      if (used + line.GetLength() > BROWSER_PASTE_MAX - 1 - midLen - 200)
+        break;
+      head.Add(fill);
+      used += line.GetLength();
+    }
+    /* PAD tops HEAD up so the cookies through MID sum to one byte under the cap. */
+    CookieRecord pad;
+
+    pad.domain = ".example.com";
+    pad.name = "pad";
+    cookieFileLine(pad, line);
+    const int padValue = BROWSER_PASTE_MAX - 1 - used - midLen - line.GetLength();
+    const struct { int extra, after, want, dropped; } edges[] = {
+      /* EXTRA bytes on PAD, then AFTER: 1 is MID, 2 is MID MID TINY */
+      { 0, 1, BROWSER_PASTE_MAX - 1, 0 },
+      { 1, 1, BROWSER_PASTE_MAX - midLen, 1 },
+      { 1, 2, BROWSER_PASTE_MAX - midLen + tinyLen, 2 },
+      { 0, 0, 0, 0 }
+    };
+
+    for(int k = 0 ; edges[k].after != 0 ; k++) {
+      CSimpleArray<CookieRecord> all = head;
+      int dropped = -1;
+
+      pad.value = CString('p', padValue + edges[k].extra);
+      all.Add(pad);
+      all.Add(mid);
+      if (edges[k].after == 2) {
+        all.Add(mid);
+        all.Add(tiny);
+      }
+      const int got = browserLoginPasteText(all, &dropped).GetLength();
+
+      if (got != edges[k].want || dropped != edges[k].dropped) {
+        snprintf(msg, sizeof(msg), "paste cap case %d gave %d bytes dropping %d, "
+                 "expected %d dropping %d", k, got, dropped, edges[k].want, edges[k].dropped);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    /* The engine reads a paste starting with "curl" as a cURL command. */
+    CSimpleArray<CookieRecord> one;
+    CookieRecord c;
+    int dropped = -1;
+
+    c.domain = "curl";
+    c.name = "id";
+    one.Add(c);
+    const CString text = browserLoginPasteText(one, &dropped);
+
+    if (text.Left(1) != "#" || text.Find("\ncurl\t") < 0 || dropped != 0) {
+      *err = "a cookie for the host curl starts the paste, which then reads as cURL";
+      return 0;
+    }
+    nchecks++;
+  }
+  /* A check-only login must write nothing, and every login keeps one with no cookie. */
+  if (browserLoginPasteFlags(TRUE) != (HTS_PASTE_KEEP_EMPTY | HTS_PASTE_DRY_RUN)
+      || browserLoginPasteFlags(FALSE) != HTS_PASTE_KEEP_EMPTY) {
+    *err = "a login asks the engine for the wrong paste flags";
+    return 0;
+  }
+  nchecks++;
   return nchecks;
 }

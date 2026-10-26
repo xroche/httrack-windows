@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 80 checks"
+EXPECTED_LINE = "browser login helpers ok on 85 checks"
 
 
 def read(path):
@@ -60,6 +60,27 @@ def engine_space_set(htssafe):
     return m.group(0)
 
 
+def engine_curl_test(htsbundle):
+    """The engine's test for a pasted cURL command, which a paste must never pass."""
+    out = []
+    for name in ("curl_join", "paste_is_curl"):
+        m = re.search(r"^static \w+ %s\(.*?^\}$" % name, htsbundle, re.M | re.S)
+        if m is None:
+            sys.exit("no %s() in the engine's htsbundle.c" % name)
+        out.append(m.group(0))
+    return "\n".join(out)
+
+
+def engine_paste_flags(library):
+    """The engine's paste flag values, which the flag cases compare against."""
+    found = re.findall(
+        r"^#define (HTS_PASTE_(?:DRY_RUN|KEEP_EMPTY)) (\w+)$", library, re.M
+    )
+    if len(found) != 2:
+        sys.exit("no HTS_PASTE_DRY_RUN and HTS_PASTE_KEEP_EMPTY in httrack-library.h")
+    return ["-D%s=%s" % pair for pair in found]
+
+
 def engine_url_max(htsglobal):
     """The engine's address cap, which decides when a long address names no bundle."""
     m = re.search(r"^#define HTS_URLMAXSIZE (\d+)$", htsglobal, re.M)
@@ -83,7 +104,8 @@ def main():
     htssafe = os.path.join(args.engine, "src", "htssafe.h")
     htsglobal = os.path.join(args.engine, "src", "htsglobal.h")
     htsbundle = os.path.join(args.engine, "src", "htsbundle.c")
-    for path in (htscore, htscoremain, htssafe, htsglobal, htsbundle):
+    library = os.path.join(args.engine, "src", "httrack-library.h")
+    for path in (htscore, htscoremain, htssafe, htsglobal, htsbundle, library):
         if not os.path.exists(path):
             sys.exit(
                 "%s: no engine source, so the token scanner cannot be the engine's. "
@@ -172,6 +194,7 @@ def main():
         "browserLoginBundlesToWrite",
         "browserLoginWriteHeld",
         "browserLoginPasteText",
+        "browserLoginPasteFlags",
     ):
         for other in others:
             if re.search(r"^\w[^;()\n]*\b%s\s*\(" % name, read(other), re.M):
@@ -181,7 +204,9 @@ def main():
                 )
         if (
             re.search(
-                r"^(CString|BOOL|CSimpleArray<\w+>) %s\(" % name, read(unit), re.M
+                r"^(CString|BOOL|unsigned int|CSimpleArray<\w+>) %s\(" % name,
+                read(unit),
+                re.M,
             )
             is None
         ):
@@ -265,7 +290,7 @@ def main():
         r"harvest\.cookies\.RemoveAll\(\)|haveHarvest = FALSE", handler.group(1)
     ) or not re.search(
         r"const BrowserLoginBundleInfo made = "
-        r"browserLoginMakeBundle\(got, BrowserLoginCheckOnly\);\s*"
+        r"browserLoginMakeBundle\(got, BrowserLoginCheckOnly,\s*CString\(\)\);\s*"
         r"/\*[^*]*\*/\s*if \(!made\.ok\) \{"
         r"[^}]*LANG_BROWSERLOGINNONAME[^}]*made\.error[^}]*return;\s*\}\s*"
         r"harvest = got;\s*harvest\.bundleName = made\.name;\s*haveHarvest = TRUE;"
@@ -286,7 +311,7 @@ def main():
         sys.exit("OnBrowserLogin() no longer says how many cookies were left out")
     checked += 1
 
-    # The harvest is held on the OK path and written only when the wizard finishes, into
+    # The harvest is held on the OK path and written when the wizard finishes, into
     # the final project, after compute_options() and before the profile is saved.
     wid1 = read(os.path.join(ROOT, "WinHTTrack", "Wid1.cpp"))
     accepted = re.search(r"^void Wid1::Onlogin2\(\).*?^\}", wid1, re.M | re.S)
@@ -300,17 +325,21 @@ def main():
         sys.exit("Onlogin2() no longer holds the login under haveHarvest on OK")
     checked += 1
     write = re.search(r"^BOOL Wid1::WriteBrowserLogins\(.*?^\}", wid1, re.M | re.S)
-    if write is None or not re.search(
-        r"HeldLoginWrite w = \{ &heldLogins, folder \};[\s\S]*"
-        r"return browserLoginWriteHeld\(names, urls, listFile, readUrlList, "
-        r"writeHeldLogin, &w\);",
-        write.group(0),
-    ) or not re.search(
-        r"^static BOOL writeHeldLogin\(void \*ctx, int index\)\n\{[^}]*"
-        r"browserLoginMakeBundle\(\(\*w->held\)\[index\], BrowserLoginWriteFile, "
-        r"w->folder\);",
-        wid1,
-        re.M,
+    if (
+        write is None
+        or not re.search(
+            r"HeldLoginWrite w = \{ &heldLogins, folder \};[\s\S]*"
+            r"return browserLoginWriteHeld\(names, urls, listFile, readUrlList, "
+            r"writeHeldLogin, &w\);",
+            write.group(0),
+        )
+        or not re.search(
+            r"^static BOOL writeHeldLogin\(void \*ctx, int index\)\n\{[^}]*"
+            r"browserLoginMakeBundle\(\(\*w->held\)\[index\], BrowserLoginWriteFile, "
+            r"w->folder\);",
+            wid1,
+            re.M,
+        )
     ):
         sys.exit(
             "WriteBrowserLogins() no longer writes, into the folder it is given, "
@@ -334,18 +363,57 @@ def main():
         )
     checked += 1
 
+    # A saved address names a login's file, so every save writes the logins first and
+    # stops when that fails. The wizard's finish is pinned above.
+    saves = 0
+    for path in sorted(glob.glob(os.path.join(ROOT, "WinHTTrack", "*.cpp"))):
+        src = read(path)
+        for m in re.finditer(r"^\s*Save_current_profile\(0\);", src, re.M):
+            if os.path.basename(path) == "trans.cpp":
+                continue
+            if not re.search(
+                r"(if \(WriteBrowserLoginsForSave\(\)\)\s*"
+                r"|if \(dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave\(\)\)"
+                r"\s*return 0;\s*)$",
+                src[: m.start()] + m.group(0)[: -len("Save_current_profile(0);")],
+            ):
+                sys.exit(
+                    "%s saves the project without writing its logins first"
+                    % os.path.basename(path)
+                )
+            saves += 1
+    if saves != 2:
+        sys.exit("found %d project saves outside the wizard, expected 2" % saves)
+    if not re.search(
+        r"^BOOL Wid1::WriteBrowserLoginsForSave\(\)\n\{[^}]*\}[^}]*"
+        r"return WriteBrowserLogins\(dialog0->GetPath0\(\), urls, list\);\n\}",
+        wid1,
+        re.M,
+    ):
+        sys.exit("WriteBrowserLoginsForSave() no longer writes into the project folder")
+    checked += 1
+
     # A login with no cookie is kept, so neither the handler nor the writer may drop it.
+    # browserLoginPasteFlags() is what the C cases pin, so the maker has to pass it on.
     login = read(os.path.join(ROOT, "WinHTTrack", "browser-login.cpp"))
-    if "HTS_PASTE_KEEP_EMPTY" not in login or "hts_bundle_from_paste(" in login:
-        sys.exit("browserLoginMakeBundle() no longer keeps a login with no cookie")
+    if (
+        "const BOOL dryRun = mode == BrowserLoginCheckOnly;" not in login
+        or not re.search(
+            r"hts_bundle_from_paste_flags\(paste, dir, agent, url,\s*"
+            r"browserLoginPasteFlags\(dryRun\), &result\)",
+            login,
+        )
+        or "hts_bundle_from_paste(" in login
+    ):
+        sys.exit(
+            "browserLoginMakeBundle() no longer takes its flags from the tested helper"
+        )
     if re.search(r"got\.cookies\.GetSize\(\) == 0", handler.group(1)):
         sys.exit("OnBrowserLogin() refuses a login with no cookie again")
     checked += 1
 
     # The paste stops where the engine would refuse it, so the two caps must agree.
-    engine_paste = re.search(
-        r"^#define PASTE_MAX (.+)$", read(htsbundle), re.M
-    )
+    engine_paste = re.search(r"^#define PASTE_MAX (.+)$", read(htsbundle), re.M)
     ours = re.search(r"^#define BROWSER_PASTE_MAX (.+)$", read(unit), re.M)
     if engine_paste is None or ours is None or engine_paste.group(1) != ours.group(1):
         sys.exit("BROWSER_PASTE_MAX no longer matches the engine's PASTE_MAX")
@@ -358,7 +426,8 @@ def main():
         with open(gen, "w", encoding="utf-8") as f:
             f.write(
                 "/* Copied by tools/test-browser-login-paths.py out of the engine's "
-                "src/htscore.c, src/htscoremain.c and src/htssafe.h. */\n"
+                "src/htscore.c, src/htscoremain.c, src/htsbundle.c and "
+                "src/htssafe.h. */\n"
                 "#include <assert.h>\n#include <ctype.h>\n#include <stddef.h>\n"
                 "#include <string.h>\n"
                 "typedef int hts_boolean;\n#define HTSEXT_API\n"
@@ -366,10 +435,13 @@ def main():
                 "#define assertf(x) assert(x)\n"
                 "%s\n"
                 'extern "C" {\n%s\n%s\n}\n'
+                "%s\n"
+                "int engine_paste_is_curl(const char *s) { return paste_is_curl(s); }\n"
                 % (
                     engine_space_set(read(htssafe)),
                     engine_token_function(read(htscore)),
                     engine_opt_function(read(htscoremain)),
+                    engine_curl_test(read(htsbundle)),
                 )
             )
         # Built and run twice: once as the Windows build sees it, once with the
@@ -393,6 +465,9 @@ def main():
                     "-DCOOKIE_FILE_TEST",
                     "-DRULES_SPLIT_TEST",
                     "-DHTS_URLMAXSIZE=" + engine_url_max(read(htsglobal)),
+                ]
+                + engine_paste_flags(read(library))
+                + [
                     "-I" + os.path.join(ROOT, "tools"),
                     "-I" + os.path.join(ROOT, "WinHTTrack"),
                 ],

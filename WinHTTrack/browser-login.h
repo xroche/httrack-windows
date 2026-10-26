@@ -144,6 +144,9 @@ BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &bo
    engine's paste cap. DROPPED gets the number left out. */
 CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
 
+/* Returns the engine's paste flags for a login, which writes nothing when DRYRUN is set. */
+unsigned int browserLoginPasteFlags(BOOL dryRun);
+
 /* Returns the user's own data folder, where a browser profile goes, or empty when the
    shell will not say. */
 CString browserLoginUserDir(void);
@@ -167,7 +170,7 @@ enum BrowserLoginBundleMode {
    on, and write it into FOLDER in BrowserLoginWriteFile mode. */
 BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest,
                                               BrowserLoginBundleMode mode,
-                                              const CString &folder = CString());
+                                              const CString &folder);
 
 /* TRANSLATED, or ENGLISH when the catalog does not carry the key. LANGSEL() answers an
    empty string for a key it does not know, and an empty message box tells nobody

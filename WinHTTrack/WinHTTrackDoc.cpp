@@ -45,6 +45,7 @@ extern "C" {
 /* dialog0 */
 #include "NewProj.h"
 extern CNewProj* dialog0;
+extern Wid1* dialog1;
 
 /* Main WizTab frame */
 #include "WizTab.h"
@@ -167,6 +168,9 @@ BOOL CWinHTTrackDoc::OnSaveDocument(LPCTSTR lpszPathName)
       }
     }
     
+    /* The saved address names each login's file, so the file comes first. */
+    if (dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave())
+      return 0;
     Save_current_profile(0);
   }
  

@@ -9,8 +9,12 @@
    Driven by tools/test-browser-login-paths.py. */
 
 #include "mfc-test-stubs.h"
+#include "cookie-file.h"
 
 int browserLoginCheckCases(CString *err);
+CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
+/* The engine's own test, copied out of htsbundle.c by the driver. */
+int engine_paste_is_curl(const char *s);
 
 /* Latin-1 to UTF-8, so a case that skips the conversion sees different bytes. */
 char *strdupt_utf8(const char *s) {
@@ -30,7 +34,7 @@ char *strdupt_utf8(const char *s) {
 }
 
 /* Both callers pin the count, so a case deleted from the unit reds here as well. */
-#define BL_EXPECTED_CHECKS 80
+#define BL_EXPECTED_CHECKS 85
 
 int main(void) {
   CString err;
@@ -43,6 +47,18 @@ int main(void) {
   if (nchecks != BL_EXPECTED_CHECKS) {
     fprintf(stderr, "FAIL: browser login helpers ran %d checks, expected %d\n",
             nchecks, BL_EXPECTED_CHECKS);
+    return 1;
+  }
+  /* --selftest cannot reach the engine's static test, so only this run asks it. */
+  CSimpleArray<CookieRecord> one;
+  CookieRecord c;
+  int dropped = 0;
+
+  c.domain = "curl";
+  c.name = "id";
+  one.Add(c);
+  if (engine_paste_is_curl(browserLoginPasteText(one, &dropped))) {
+    fprintf(stderr, "FAIL: the engine reads a paste for the host curl as a cURL command\n");
     return 1;
   }
   printf("browser login helpers ok on %d checks\n", nchecks);

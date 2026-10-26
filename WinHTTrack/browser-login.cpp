@@ -333,10 +333,8 @@ BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest
   /* The engine writes into the folder but does not create it. */
   if (!dir.IsEmpty())
     structcheck_utf8(dir + "/");
-  /* A login with no cookie still carries the address and the identity. */
-  const unsigned int flags = HTS_PASTE_KEEP_EMPTY | (dryRun ? HTS_PASTE_DRY_RUN : 0u);
-
-  info.ok = hts_bundle_from_paste_flags(paste, dir, agent, url, flags, &result)
+  info.ok = hts_bundle_from_paste_flags(paste, dir, agent, url,
+                                        browserLoginPasteFlags(dryRun), &result)
     ? TRUE : FALSE;
   info.name = result.name;
   info.url = ansiOf(result.url);

@@ -300,7 +300,8 @@ void CInsertUrl::OnBrowserLogin()
      to go on. It stays editable, so an unwanted query string can still be trimmed.
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(got.finalUrl);
-  const BrowserLoginBundleInfo made = browserLoginMakeBundle(got, BrowserLoginCheckOnly);
+  const BrowserLoginBundleInfo made = browserLoginMakeBundle(got, BrowserLoginCheckOnly,
+                                                             CString());
 
   /* Nothing changes, so an earlier login stays the one the box names. */
   if (!made.ok) {

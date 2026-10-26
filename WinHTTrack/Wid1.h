@@ -93,9 +93,11 @@ public:
      told. */
   BOOL WriteBrowserLogins(const CString &folder, const CString &urls,
                           const CString &listFile);
+  /* WriteBrowserLogins() on the project and the addresses as a save stores them, which
+     every save calls first because the saved address names the login's file. */
+  BOOL WriteBrowserLoginsForSave();
 protected:
-  /* These are the logins accepted in this wizard, which it writes only when it
-     finishes. */
+  /* The logins accepted in this wizard, written on every save and when it finishes. */
   CSimpleArray<BrowserLoginHarvest> heldLogins;
   void AfterInitDialog( );
   void AfterChangepathlog();
