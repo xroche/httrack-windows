@@ -36,6 +36,7 @@
 typedef const char *LPCTSTR;
 typedef const char *LPCSTR;
 typedef ptrdiff_t INT_PTR;
+#define small char /* rpcndr.h's, so a local named small breaks here too */
 
 /* MFC's CString answers to far more than this. What the two units use is here. */
 class CString {

@@ -591,8 +591,8 @@ int browserLoginCheckCases(CString *err) {
 
       for(int k = 0 ; longs[k].url != NULL ; k++) {
         const CString &url = *longs[k].url;
-        const int got = browserLoginBundlesToWrite(names, longs[k].inList ? "" : url,
-                                                   longs[k].inList ? url : "").GetSize();
+        const int got = browserLoginBundlesToWrite(names, longs[k].inList ? CString() : url,
+                                                   longs[k].inList ? url : CString()).GetSize();
 
         if (got != longs[k].want) {
           snprintf(msg, sizeof(msg), "a %d-byte address in the %s wrote %d logins, not %d",
@@ -680,7 +680,7 @@ int browserLoginCheckCases(CString *err) {
   {
     /* The engine scopes the paste to the site and caps its own jar, so the paste carries
        every cookie it can, past the jar's 30000 bytes, and stops only at the paste cap. */
-    CSimpleArray<CookieRecord> small, big;
+    CSimpleArray<CookieRecord> few, many;
     CookieRecord c;
     int dropped = -1;
 
@@ -691,11 +691,11 @@ int browserLoginCheckCases(CString *err) {
 
       snprintf(name, sizeof(name), "c%d", i);
       c.name = name;
-      small.Add(c);
+      few.Add(c);
     }
     c.name = "bad\tname";
-    small.Add(c);
-    if (browserLoginPasteText(small, &dropped).GetLength() <= COOKIE_JAR_MAXLEN
+    few.Add(c);
+    if (browserLoginPasteText(few, &dropped).GetLength() <= COOKIE_JAR_MAXLEN
         || dropped != 1) {
       snprintf(msg, sizeof(msg), "a 60 KB harvest with one unwritable cookie dropped %d",
                dropped);
@@ -708,9 +708,9 @@ int browserLoginCheckCases(CString *err) {
 
       snprintf(name, sizeof(name), "c%d", i);
       c.name = name;
-      big.Add(c);
+      many.Add(c);
     }
-    const CString text = browserLoginPasteText(big, &dropped);
+    const CString text = browserLoginPasteText(many, &dropped);
 
     if (text.GetLength() >= BROWSER_PASTE_MAX || dropped == 0
         || text.GetLength() < BROWSER_PASTE_MAX - 3100) {
