@@ -34,7 +34,7 @@ char *strdupt_utf8(const char *s) {
 }
 
 /* Both callers pin the count, so a case deleted from the unit reds here as well. */
-#define BL_EXPECTED_CHECKS 70
+#define BL_EXPECTED_CHECKS 71
 
 int main(void) {
   CString err;

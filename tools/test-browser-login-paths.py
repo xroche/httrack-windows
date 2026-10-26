@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 70 checks"
+EXPECTED_LINE = "browser login helpers ok on 71 checks"
 
 
 def read(path):
@@ -319,7 +319,9 @@ def main():
         write is None
         or not re.search(
             r"HeldLoginWrite w = \{ &heldLogins, folder \};[\s\S]*"
-            r"if \(browserLoginWriteHeld\(names, urls, listFile,"
+            r"const CString list = GetFileAttributes\(listFile\) == "
+            r"INVALID_FILE_ATTRIBUTES \? CString\(\)\s*: listFile;\s*"
+            r"if \(browserLoginWriteHeld\(names, urls, list,"
             r"\s*hts_bundle_names_in_use,\s*hts_bundle_names_free,"
             r"\s*writeHeldLogin, &w, &refused\)\)\s*"
             r"return TRUE;\s*/\*[^*]*\*/\s*if \(!refused\.IsEmpty\(\)\)\s*"

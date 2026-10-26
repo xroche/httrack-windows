@@ -207,11 +207,11 @@ BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &bo
   BOOL ok = TRUE;
 
   *refused = CString();
-  /* So a user without a browser login never meets the engine's refusal. */
+  /* A user without a browser login must never meet the engine's refusal. */
   if (names.GetSize() == 0)
     return TRUE;
 
-  /* The bytes argv would carry for the same box and -%L path. */
+  /* The engine reads the bytes argv would carry for this box and -%L path. */
   const CString urls = browserLoginUtf8(box);
   const CString path = browserLoginUtf8(listFile);
 
@@ -569,6 +569,8 @@ int browserLoginCheckCases(CString *err) {
       { { "other.org" }, NULL, 1, "1", FALSE },
       /* a refusal writes nothing and stops the save */
       { { "example.com" }, "address list holds an option", -1, "", FALSE },
+      /* a refusal with no reason still says something */
+      { { "example.com" }, "", -1, "", FALSE },
       { { NULL }, NULL, -1, NULL, FALSE }
     };
     CSimpleArray<CString> names;
@@ -582,12 +584,14 @@ int browserLoginCheckCases(CString *err) {
 
       rec.fail = writes[k].fail;
       fakeNamesReset(writes[k].inUse, writes[k].refuse);
+      const char *const wantRefused = writes[k].refuse == NULL ? ""
+        : writes[k].refuse[0] != '\0' ? writes[k].refuse : "the addresses were refused";
       const BOOL ok = browserLoginWriteHeld(names, "https://example.com/", "",
                                             fakeNamesInUse, fakeNamesFree,
                                             BrowserLoginRecorder::write, &rec, &refused);
 
       if (ok != writes[k].ok || rec.calls != writes[k].want
-          || refused != (writes[k].refuse != NULL ? writes[k].refuse : "")
+          || refused != wantRefused
           || fakeNames.calls != 1 || fakeNames.frees != (writes[k].refuse != NULL ? 0 : 1)) {
         snprintf(msg, sizeof(msg), "names case %d wrote '%s' ok=%d refused '%s' asked %d "
                  "freed %d, not '%s' ok=%d", k, (LPCSTR) rec.calls, (int) ok,
