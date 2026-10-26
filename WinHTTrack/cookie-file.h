@@ -54,15 +54,9 @@ Please visit our Website: http://www.httrack.com
    record well under it, and cookieFileCheckCases() is what keeps it that way. */
 #define COOKIE_LINE_MAXLEN   8000
 
-/* The jar the engine loads into, and the headroom cookie_set() keeps free on every call.
-   cookie_load() just stops once the jar fills, logging nothing, so a file over this
-   budget loses whichever cookies sit at its end and says nothing. */
+/* The jar the engine loads into. A login's paste is not held to it, because the engine
+   scopes the paste and caps its own jar. */
 #define COOKIE_JAR_MAXLEN    30000
-#define COOKIE_JAR_RESERVE   256
-/* What the record cookie_set() stores spends beyond the four fields: its snprintf's
-   separators, the two flag words, and the latest expiry's digits. Our own line spends
-   fewer, so charging the jar our bytes would overrun it. */
-#define COOKIE_JAR_RECORD    30
 
 /* CookieRecord holds one browser cookie, every string in the engine's UTF-8. */
 struct CookieRecord {
@@ -82,26 +76,12 @@ enum CookieReject {
   CookieEmptyField,      /* no name, or no domain to scope it to */
   CookieUnwritableByte,  /* a byte that would forge a field or a record */
   CookieUntrustedDomain, /* see plainHostName() in cookie-file.cpp */
-  CookieFieldTooLong,
-  CookieJarFull,         /* the engine's jar filled up, so cookieFileText() alone */
-  CookieRejectCount
-};
-
-/* CookieFileStats counts what cookieFileText() wrote and what it left out. dropped[] is
-   indexed by the CookieReject that refused the cookie, so its CookieWritable slot stays
-   zero. */
-struct CookieFileStats {
-  int written;
-  int dropped[CookieRejectCount];
+  CookieFieldTooLong
 };
 
 /* Renders C as one Netscape cookies.txt record, its closing LF included. Returns
    CookieWritable, or says why it refused and empties LINE. */
 CookieReject cookieFileLine(const CookieRecord &c, CString &line);
-
-/* Renders every writable record of COOKIES, in order, stopping before the engine's jar
-   would overflow, and fills STATS. */
-CString cookieFileText(const CSimpleArray<CookieRecord> &cookies, CookieFileStats &stats);
 
 /* Returns TAIL under BASE, with the one separator BASE may already end in. Empty when
    BASE is, because a relative path would land wherever the program happens to sit. */

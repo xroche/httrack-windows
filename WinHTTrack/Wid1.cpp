@@ -805,20 +805,15 @@ HCURSOR Wid1::OnQueryDragIcon()
 }
 */
 
-/* Returns the bytes of the -%L file at PATH, or empty when it cannot be read. */
-static CString readUrlList(const CString &path)
+/* Tells the user the logins were not written to FOLDER, and WHY. */
+static void tellLoginNotSaved(const CString &folder, const CString &why)
 {
-  CString text;
-  FILE *const fp = path.IsEmpty() ? NULL : fopen(path, "rb");
-  char chunk[4096];
-  size_t n;
+  CString said;
 
-  if (fp == NULL)
-    return text;
-  while ((n = fread(chunk, 1, sizeof(chunk), fp)) > 0)
-    text += CString(chunk, (int) n);
-  fclose(fp);
-  return text;
+  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
+                               "The login could not be written to %s."),
+              (LPCSTR) folder);
+  AfxMessageBox(said + "\r\n\r\n" + why, MB_OK | MB_ICONWARNING);
 }
 
 /* What writeHeldLogin() writes, and where. */
@@ -836,13 +831,7 @@ static BOOL writeHeldLogin(void *ctx, int index)
 
   if (made.ok)
     return TRUE;
-
-  CString said;
-
-  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
-                               "The login could not be written to %s."),
-              (LPCSTR) w->folder);
-  AfxMessageBox(said + "\r\n\r\n" + made.error, MB_OK | MB_ICONWARNING);
+  tellLoginNotSaved(w->folder, made.error);
   return FALSE;
 }
 
@@ -855,7 +844,22 @@ BOOL Wid1::WriteBrowserLogins(const CString &folder, const CString &urls,
 
   for(int i = 0 ; i < heldLogins.GetSize() ; i++)
     names.Add(heldLogins[i].bundleName);
-  return browserLoginWriteHeld(names, urls, listFile, readUrlList, writeHeldLogin, &w);
+  CString refused;
+  /* The crawl only logs a -%L file it cannot open, so that file names no login. */
+  FILE *const fp = (GetFileAttributes(listFile) & FILE_ATTRIBUTE_DIRECTORY) != 0 ? NULL
+    : fopen(listFile, "rb");
+  const CString list = fp != NULL ? listFile : CString();
+
+  if (fp != NULL)
+    fclose(fp);
+
+  if (browserLoginWriteHeld(names, urls, list, hts_bundle_names_in_use,
+                            hts_bundle_names_free, writeHeldLogin, &w, &refused))
+    return TRUE;
+  /* A failed write has already said why. */
+  if (!refused.IsEmpty())
+    tellLoginNotSaved(folder, refused);
+  return FALSE;
 }
 
 // see Wid1.h

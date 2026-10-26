@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "cookie file ok on 112 checks"
+EXPECTED_LINE = "cookie file ok on 107 checks"
 SWEEP_LINE = "cookie file properties ok on"
 
 # The buffer cookie_load_records() reads each field into. cookie_load_field() refuses at
@@ -37,8 +37,6 @@ MACROS = {
     "path": "COOKIE_PATH_MAXLEN",
     "line": "COOKIE_LINE_MAXLEN",
     "jar": "COOKIE_JAR_MAXLEN",
-    "reserve": "COOKIE_JAR_RESERVE",
-    "record": "COOKIE_JAR_RECORD",
 }
 
 
@@ -97,9 +95,9 @@ def region(text, opening, closing, what):
     return rest[: end.start()]
 
 
-def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
+def engine_caps(bauth_c, bauth_h, core_c):
     """The longest each field may be before the engine drops the cookie, the budget it
-    charges the name and the value to together, and what its jar leaves for the file."""
+    charges the name and the value to together, and the size of its jar."""
     # cookie_add() is a wrapper now, so the refusals and the record live in cookie_set().
     adding = region(bauth_c, r"\bint cookie_set\(", r"\n\}", "cookie_set()")
     # Anchors on the function, because the old anchor was a comment that still matches
@@ -168,27 +166,6 @@ def engine_caps(bauth_c, bauth_h, core_c, expiry_max):
     caps["jar"] = one(
         r"cookie\.max_len\s*=\s*(\w+);", core_c, "the engine's htscore.c", bauth_h
     )
-    # The headroom the parts[] loop keeps free on top of the record it is adding.
-    caps["reserve"] = one(
-        r"const size_t parts\[\][^;]*?(\w+)\};",
-        adding.replace("\n", " "),
-        "cookie_set()",
-        bauth_h,
-    )
-    # The stored record spends three things beyond the four fields: the separators of the
-    # snprintf that assembles it, the widest word each of its two flag fields takes, and
-    # the digits of the latest expiry this writer emits. The separator count includes the
-    # tab of the HttpOnly field our writer never sets, so it charges one byte too many.
-    record = region(adding, r"snprintf\(cook,", r"\);", "cookie_set()'s record")
-    seps = len(re.findall(r"\\[tn]", record))
-    if seps < 7:
-        sys.exit(
-            "cookie_set()'s record carries %d separators, so its shape moved" % seps
-        )
-    flags = re.findall(r'"(TRUE|FALSE)"', record)
-    if set(flags) != {"TRUE", "FALSE"}:
-        sys.exit("cookie_set() no longer spells its flag fields TRUE and FALSE")
-    caps["record"] = seps + 2 * max(len(f) for f in flags) + len(str(expiry_max))
     return caps
 
 
@@ -225,15 +202,9 @@ def main():
     bauth_c, bauth_h, core_c = (read(p) for p in sources)
     header = read(os.path.join(ROOT, "WinHTTrack", "cookie-file.h"))
     cases = read(os.path.join(ROOT, "WinHTTrack", "cookie-file.cpp"))
-    # The record cost below counts the digits of the latest expiry this writer can emit,
-    # so that cap is read from the writer rather than assumed.
-    stamped = re.search(r"#\s*define\s+COOKIE_EXPIRY_MAX\s+([\d.]+)", cases)
-    if stamped is None:
-        sys.exit("cookie-file.cpp no longer defines COOKIE_EXPIRY_MAX")
-    expiry = int(float(stamped.group(1)))
 
     # 1. Every cap the writer enforces is the engine's own refusal point.
-    engine = engine_caps(bauth_c, bauth_h, core_c, expiry)
+    engine = engine_caps(bauth_c, bauth_h, core_c)
     ours = header_caps(header)
     if engine != ours:
         sys.exit(
@@ -271,9 +242,9 @@ def main():
         if doctored == source:
             sys.exit("%s could not be doctored, so check 1 proves nothing" % what)
         got = (
-            engine_caps(bauth_c, doctored, core_c, expiry)
+            engine_caps(bauth_c, doctored, core_c)
             if header_side
-            else engine_caps(doctored, bauth_h, core_c, expiry)
+            else engine_caps(doctored, bauth_h, core_c)
         )
         if got == ours:
             sys.exit(
