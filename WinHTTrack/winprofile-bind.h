@@ -63,6 +63,7 @@ Please visit our Website: http://www.httrack.com
   CHECKBOX("WordIndex", maintab->m_option9.m_index2, 0)                        \
   CHECKBOX("MailIndex", maintab->m_option9.m_index_mail, 0)                    \
   CHECKBOX("Log", maintab->m_option9.m_logf, 1)                                \
+  CHECKBOX("DebugMode", maintab->m_option3.m_windebug, 0)                      \
   CHECKBOX("RemoveTimeout", maintab->m_option4.m_remt, 0)                      \
   CHECKBOX("RemoveRateout", maintab->m_option4.m_rems, 0)                      \
   CHECKBOX("KeepAlive", maintab->m_option4.m_ka, 1)                            \
@@ -160,10 +161,10 @@ Please visit our Website: http://www.httrack.com
    still prints "ok". The engine's table is checked out fresh, so a row it gains for
    another front end moves WINPROFILE_SKIPPED_ROWS and reds this on purpose. The three key
    counts add up to WINPROFILE_KEY_COUNT. */
-#define WINPROFILE_BOUND_KEYS 100
+#define WINPROFILE_BOUND_KEYS 101
 #define WINPROFILE_HANDWRITTEN_KEYS 8
 #define WINPROFILE_SKIPPED_ROWS 11
-#define WINPROFILE_BINDING_CHECKS 528
+#define WINPROFILE_BINDING_CHECKS 533
 #define WINPROFILE_LIST_COMBO_COUNT 9
 
 /* The keys no binding can carry. These stay hand-written: ProfileFormat is a constant,

@@ -33,6 +33,7 @@ struct WpStub_m_option1 {
 };
 struct WpStub_m_option3 {
   int      m_cache;
+  int      m_windebug;
   int      m_filter;
   int      m_travel;
   int      m_travel2;
@@ -198,6 +199,7 @@ static const struct { const char *key, *member; } wpWitness[] = {
   { "WordIndex", "maintab->m_option9.m_index2" },
   { "MailIndex", "maintab->m_option9.m_index_mail" },
   { "Log", "maintab->m_option9.m_logf" },
+  { "DebugMode", "maintab->m_option3.m_windebug" },
   { "RemoveTimeout", "maintab->m_option4.m_remt" },
   { "RemoveRateout", "maintab->m_option4.m_rems" },
   { "KeepAlive", "maintab->m_option4.m_ka" },
