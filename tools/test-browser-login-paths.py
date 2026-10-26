@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 70 checks"
+EXPECTED_LINE = "browser login helpers ok on 80 checks"
 
 
 def read(path):
@@ -82,7 +82,8 @@ def main():
     htscoremain = os.path.join(args.engine, "src", "htscoremain.c")
     htssafe = os.path.join(args.engine, "src", "htssafe.h")
     htsglobal = os.path.join(args.engine, "src", "htsglobal.h")
-    for path in (htscore, htscoremain, htssafe, htsglobal):
+    htsbundle = os.path.join(args.engine, "src", "htsbundle.c")
+    for path in (htscore, htscoremain, htssafe, htsglobal, htsbundle):
         if not os.path.exists(path):
             sys.exit(
                 "%s: no engine source, so the token scanner cannot be the engine's. "
@@ -169,6 +170,8 @@ def main():
         "browserLoginMovedHost",
         "browserLoginUtf8",
         "browserLoginBundlesToWrite",
+        "browserLoginWriteHeld",
+        "browserLoginPasteText",
     ):
         for other in others:
             if re.search(r"^\w[^;()\n]*\b%s\s*\(" % name, read(other), re.M):
@@ -261,16 +264,26 @@ def main():
     if re.search(
         r"harvest\.cookies\.RemoveAll\(\)|haveHarvest = FALSE", handler.group(1)
     ) or not re.search(
-        r"if \(!browserLoginMakeBundle\(got, CString\(\), TRUE, made\)\) \{"
+        r"const BrowserLoginBundleInfo made = "
+        r"browserLoginMakeBundle\(got, BrowserLoginCheckOnly\);\s*"
+        r"/\*[^*]*\*/\s*if \(!made\.ok\) \{"
         r"[^}]*LANG_BROWSERLOGINNONAME[^}]*made\.error[^}]*return;\s*\}\s*"
         r"harvest = got;\s*harvest\.bundleName = made\.name;\s*haveHarvest = TRUE;"
-        r"[\s\S]*LANG_BROWSERLOGINGOT",
+        r"[\s\S]*LANG_BROWSERLOGINGOTFINISH",
         handler.group(1),
     ):
         sys.exit(
             "OnBrowserLogin() no longer asks the engine for the bundle without "
             "writing it, or no longer keeps the earlier login on a refusal"
         )
+    checked += 1
+
+    # A cookie left out before the engine sees it may be the one carrying the login.
+    if not re.search(
+        r"if \(made\.dropped > 0\) \{[^}]*LANG_BROWSERLOGINDROPPED[^}]*AfxMessageBox\(",
+        handler.group(1),
+    ):
+        sys.exit("OnBrowserLogin() no longer says how many cookies were left out")
     checked += 1
 
     # The harvest is held on the OK path and written only when the wizard finishes, into
@@ -281,17 +294,23 @@ def main():
         r"if \(url\.DoModal\(\) == IDOK\) \{(.*?)\n  \}", accepted.group(0), re.S
     )
     if not taken or not re.search(
-        r"^\s*if \(url\.haveHarvest\)\s*HoldBrowserLogin\(url\.harvest\);",
+        r"^\s*if \(url\.haveHarvest\)\s*heldLogins\.Add\(url\.harvest\);",
         taken.group(1),
     ):
         sys.exit("Onlogin2() no longer holds the login under haveHarvest on OK")
     checked += 1
     write = re.search(r"^BOOL Wid1::WriteBrowserLogins\(.*?^\}", wid1, re.M | re.S)
     if write is None or not re.search(
-        r"browserLoginBundlesToWrite\(names, urls, readUrlList\(listFile\)\)"
-        r"[\s\S]*browserLoginMakeBundle\(heldLogins\[write\[i\]\], folder, "
-        r"FALSE, made\)",
+        r"HeldLoginWrite w = \{ &heldLogins, folder \};[\s\S]*"
+        r"return browserLoginWriteHeld\(names, urls, listFile, readUrlList, "
+        r"writeHeldLogin, &w\);",
         write.group(0),
+    ) or not re.search(
+        r"^static BOOL writeHeldLogin\(void \*ctx, int index\)\n\{[^}]*"
+        r"browserLoginMakeBundle\(\(\*w->held\)\[index\], BrowserLoginWriteFile, "
+        r"w->folder\);",
+        wid1,
+        re.M,
     ):
         sys.exit(
             "WriteBrowserLogins() no longer writes, into the folder it is given, "
@@ -321,6 +340,15 @@ def main():
         sys.exit("browserLoginMakeBundle() no longer keeps a login with no cookie")
     if re.search(r"got\.cookies\.GetSize\(\) == 0", handler.group(1)):
         sys.exit("OnBrowserLogin() refuses a login with no cookie again")
+    checked += 1
+
+    # The paste stops where the engine would refuse it, so the two caps must agree.
+    engine_paste = re.search(
+        r"^#define PASTE_MAX (.+)$", read(htsbundle), re.M
+    )
+    ours = re.search(r"^#define BROWSER_PASTE_MAX (.+)$", read(unit), re.M)
+    if engine_paste is None or ours is None or engine_paste.group(1) != ours.group(1):
+        sys.exit("BROWSER_PASTE_MAX no longer matches the engine's PASTE_MAX")
     checked += 1
 
     print("%d source checks pass" % checked)

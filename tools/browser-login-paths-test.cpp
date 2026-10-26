@@ -12,13 +12,25 @@
 
 int browserLoginCheckCases(CString *err);
 
-/* The cases are ASCII, where the conversion is the identity. */
+/* Latin-1 to UTF-8, so a case that skips the conversion sees different bytes. */
 char *strdupt_utf8(const char *s) {
-  return strdup(s);
+  char *const out = (char *) malloc(strlen(s) * 2 + 1);
+  char *o = out;
+
+  for(const unsigned char *p = (const unsigned char *) s ; *p != '\0' ; p++) {
+    if (*p < 0x80) {
+      *o++ = (char) *p;
+    } else {
+      *o++ = (char) (0xC0 | (*p >> 6));
+      *o++ = (char) (0x80 | (*p & 0x3F));
+    }
+  }
+  *o = '\0';
+  return out;
 }
 
 /* Both callers pin the count, so a case deleted from the unit reds here as well. */
-#define BL_EXPECTED_CHECKS 70
+#define BL_EXPECTED_CHECKS 80
 
 int main(void) {
   CString err;

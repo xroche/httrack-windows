@@ -172,9 +172,9 @@ static inline char *hts_convertStringSystemToUTF8(const char *s, size_t size) {
   out[j] = '\0';
   return out;
 }
+#endif
 
 /* The engine's freet() nulls what it frees, so its callers hold a non-const pointer. */
 #define freet(p) do { free(p); (p) = NULL; } while(0)
-#endif
 
 #endif

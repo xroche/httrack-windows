@@ -122,27 +122,52 @@ void browserLoginSweepProfiles(void);
 /* Returns TEXT, given in the ANSI codepage, as the UTF-8 the engine and the DLL read. */
 CString browserLoginUtf8(const CString &text);
 
-/* Returns the indexes of NAMES, bundle names in UTF-8, that an address the engine reads
-   still names. It reads BOX, the address box, and LIST, the text of the -%L file. */
+/* Returns which of NAMES, bundle names in UTF-8, the finish must write: the indexes of
+   those that an address in BOX, the address box, or in LIST, the text of the -%L file,
+   still names. The indexes come in held order. */
 CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
                                              const CString &box, const CString &list);
 
-/* The user's own data folder, which is where a browser profile goes. Empty when the
+/* Returns the bytes of the -%L file at PATH, or empty when it cannot be read. */
+typedef CString (*BrowserLoginListReader)(const CString &path);
+/* Writes held login INDEX, and returns FALSE when that fails. */
+typedef BOOL (*BrowserLoginWriter)(void *ctx, int index);
+
+/* Calls WRITE, in held order, for each login of NAMES that BOX or the -%L file at
+   LISTFILE still names, reading that file with READ. It stops at the first failure and
+   returns FALSE. */
+BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
+                           const CString &listFile, BrowserLoginListReader read,
+                           BrowserLoginWriter write, void *ctx);
+
+/* Returns COOKIES as the cookies.txt the engine reads, in order, keeping under the
+   engine's paste cap. DROPPED gets the number left out. */
+CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
+
+/* Returns the user's own data folder, where a browser profile goes, or empty when the
    shell will not say. */
 CString browserLoginUserDir(void);
 
-/* The engine fills this from a login. */
+/* The engine fills this in from a login. Strings are in the ANSI codepage unless said. */
 struct BrowserLoginBundleInfo {
-  CString name;    /* in UTF-8, as the engine compares it */
-  CString url;     /* the address naming it, in the ANSI codepage */
-  CString error;   /* why it was refused, in the ANSI codepage */
-  int cookies;     /* how many it kept */
+  BOOL ok;         /* FALSE when the engine refused the login, and ERROR says why */
+  CString name;    /* UTF-8, as the engine compares it */
+  CString url;     /* the address naming the bundle */
+  CString error;
+  int cookies;     /* the number the engine kept */
+  int dropped;     /* the number left out before the engine saw them */
 };
 
-/* Has the engine write HARVEST as the login bundle of the address the browser landed on,
-   into FOLDER, or only check it when DRYRUN. FALSE when refused. */
-BOOL browserLoginMakeBundle(const BrowserLoginHarvest &harvest, const CString &folder,
-                            BOOL dryRun, BrowserLoginBundleInfo &info);
+enum BrowserLoginBundleMode {
+  BrowserLoginCheckOnly,  /* nothing is written, and FOLDER is not read */
+  BrowserLoginWriteFile
+};
+
+/* Has the engine make the login bundle of HARVEST for the address the browser landed
+   on, and write it into FOLDER in BrowserLoginWriteFile mode. */
+BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest,
+                                              BrowserLoginBundleMode mode,
+                                              const CString &folder = CString());
 
 /* TRANSLATED, or ENGLISH when the catalog does not carry the key. LANGSEL() answers an
    empty string for a key it does not know, and an empty message box tells nobody

@@ -300,10 +300,10 @@ void CInsertUrl::OnBrowserLogin()
      to go on. It stays editable, so an unwanted query string can still be trimmed.
      Sanitised first, because this field is saved into winprofile.ini in clear. */
   const CString landed = browserLoginSafeUrl(got.finalUrl);
-  BrowserLoginBundleInfo made;
+  const BrowserLoginBundleInfo made = browserLoginMakeBundle(got, BrowserLoginCheckOnly);
 
   /* Nothing changes, so an earlier login stays the one the box names. */
-  if (!browserLoginMakeBundle(got, CString(), TRUE, made)) {
+  if (!made.ok) {
     said.Format("%s\r\n\r\n%s",
                 browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
                                  "A login cannot be saved for this address, so "
@@ -325,17 +325,24 @@ void CInsertUrl::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
   SetDlgItemTextCP(this, IDC_urladr, made.url);
+  if (made.dropped > 0) {
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
+                                 "%d of the browser's cookies were left out, because "
+                                 "the engine would not read them."),
+                made.dropped);
+    AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
+  }
   if (made.cookies == 0) {
     AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
                                    "The browser came back with no cookies. The address "
                                    "and the browser identity are saved with the project "
-                                   "when you press OK."),
+                                   "when the wizard finishes."),
                   MB_OK | MB_ICONINFORMATION);
     return;
   }
-  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOT),
-                               "%d cookies were collected. They are saved with the "
-                               "project when you press OK."),
+  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOTFINISH),
+                               "Cookies collected: %d. They are saved with the "
+                               "project when the wizard finishes."),
               made.cookies);
   AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }

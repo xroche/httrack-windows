@@ -316,32 +316,31 @@ static CString ansiOf(const char *text) {
 }
 
 // see browser-login.h
-BOOL browserLoginMakeBundle(const BrowserLoginHarvest &harvest, const CString &folder,
-                            BOOL dryRun, BrowserLoginBundleInfo &info) {
-  CookieFileStats stats;
+BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest,
+                                              BrowserLoginBundleMode mode,
+                                              const CString &folder) {
+  const BOOL dryRun = mode == BrowserLoginCheckOnly;
+  BrowserLoginBundleInfo info;
   /* The cookies are UTF-8 as the DLL gave them, and the rest is in the ANSI codepage. */
-  const CString paste = cookieFileText(harvest.cookies, stats);
+  const CString paste = browserLoginPasteText(harvest.cookies, &info.dropped);
   const CString agent = browserLoginUtf8(harvest.userAgent);
   const CString url = browserLoginUtf8(browserLoginSafeUrl(harvest.finalUrl));
-  const CString dir = browserLoginUtf8(folder);
+  const CString dir = dryRun ? CString() : browserLoginUtf8(folder);
   hts_paste_result result;
 
   memset(&result, 0, sizeof(result));
   result.size = sizeof(result);
   /* The engine writes into the folder but does not create it. */
-  if (!dryRun && !dir.IsEmpty())
+  if (!dir.IsEmpty())
     structcheck_utf8(dir + "/");
   /* A login with no cookie still carries the address and the identity. */
   const unsigned int flags = HTS_PASTE_KEEP_EMPTY | (dryRun ? HTS_PASTE_DRY_RUN : 0u);
-  const BOOL made = hts_bundle_from_paste_flags(paste.IsEmpty() ? NULL : (LPCSTR) paste,
-                                                dir.IsEmpty() ? NULL : (LPCSTR) dir,
-                                                agent.IsEmpty() ? NULL : (LPCSTR) agent,
-                                                url, flags, &result)
-    ? TRUE : FALSE;
 
+  info.ok = hts_bundle_from_paste_flags(paste, dir, agent, url, flags, &result)
+    ? TRUE : FALSE;
   info.name = result.name;
   info.url = ansiOf(result.url);
   info.error = ansiOf(result.error);
   info.cookies = result.cookies;
-  return made;
+  return info;
 }

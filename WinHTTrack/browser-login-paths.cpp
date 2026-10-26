@@ -46,13 +46,18 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginUtf8(const CString &text);
 CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
                                              const CString &box, const CString &list);
+typedef CString (*BrowserLoginListReader)(const CString &path);
+typedef BOOL (*BrowserLoginWriter)(void *ctx, int index);
+BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
+                           const CString &listFile, BrowserLoginListReader read,
+                           BrowserLoginWriter write, void *ctx);
+CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
 CString browserLoginProfileDir(const CString &localAppData, unsigned long run);
 CString browserLoginProfileRoot(const CString &localAppData);
 BOOL browserLoginStaleProfile(const CString &name, unsigned long *run);
 int browserLoginCheckCases(CString *err);
 /* The harness's own, defined in tools/browser-login-paths-test.cpp. */
 char *strdupt_utf8(const char *s);
-#define freet(p) do { free(p); (p) = NULL; } while(0)
 #else
 #include "stdafx.h"
 #include "Shell.h"
@@ -193,14 +198,6 @@ CString browserLoginUtf8(const CString &text) {
   return out;
 }
 
-/* Does URL name bundle NAME? The engine reads the name after the first suffix. */
-static BOOL namesBundle(const CString &url, const CString &name) {
-  const int at = url.Find(BROWSER_BUNDLE_SUFFIX);
-
-  return !name.IsEmpty() && at >= 0
-    && url.Mid(at + (int) strlen(BROWSER_BUNDLE_SUFFIX)) == name;
-}
-
 // see browser-login.h
 CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
                                              const CString &box, const CString &list) {
@@ -220,7 +217,8 @@ CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
   /* The engine reads the -%L file as bytes, a line each, with every CR dropped. */
   for(int i = 0 ; i <= list.GetLength() ; i++) {
     if (i == list.GetLength() || list[i] == '\n') {
-      if (!nul && line.GetLength() < HTS_URLMAXSIZE)
+      /* Its line buffer holds HTS_URLMAXSIZE bytes and the NUL, one more than the box. */
+      if (!nul && line.GetLength() <= HTS_URLMAXSIZE)
         urls.Add(line);
       line = CString();
       nul = FALSE;
@@ -230,15 +228,54 @@ CSimpleArray<int> browserLoginBundlesToWrite(const CSimpleArray<CString> &names,
       line += list[i];
     }
   }
+  /* The engine reads the name after the first suffix. Held order is kept, so a later
+     login under the same name is written last and wins. */
   for(int k = 0 ; k < names.GetSize() ; k++) {
     for(int i = 0 ; i < urls.GetSize() ; i++) {
-      if (namesBundle(urls[i], names[k])) {
+      const int at = urls[i].Find(BROWSER_BUNDLE_SUFFIX);
+
+      if (!names[k].IsEmpty() && at >= 0
+          && urls[i].Mid(at + (int) strlen(BROWSER_BUNDLE_SUFFIX)) == names[k]) {
         write.Add(k);
         break;
       }
     }
   }
   return write;
+}
+
+// see browser-login.h
+BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &box,
+                           const CString &listFile, BrowserLoginListReader read,
+                           BrowserLoginWriter write, void *ctx) {
+  const CSimpleArray<int> todo = browserLoginBundlesToWrite(names, box, read(listFile));
+
+  for(int i = 0 ; i < todo.GetSize() ; i++) {
+    if (!write(ctx, todo[i]))
+      return FALSE;
+  }
+  return TRUE;
+}
+
+/* From the engine's htsbundle.c, which refuses a paste of this many bytes or more. */
+#define BROWSER_PASTE_MAX (256 * 1024)
+
+// see browser-login.h
+CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped) {
+  CString text;
+
+  *dropped = 0;
+  for(int i = 0 ; i < cookies.GetSize() ; i++) {
+    CString line;
+
+    /* The text stays under the cap, so the subtraction cannot go negative. */
+    if (cookieFileLine(cookies[i], line) != CookieWritable
+        || line.GetLength() >= BROWSER_PASTE_MAX - text.GetLength())
+      (*dropped)++;
+    else
+      text += line;
+  }
+  return text;
 }
 
 /* What a profile folder is called. The sweep reads the run back out of it. */
@@ -483,6 +520,7 @@ int browserLoginCheckCases(CString *err) {
       { "https://example.com/#httrack-bundle=x#httrack-bundle=example.com", "", "" },
       /* a filter names no bundle */
       { "+example.com/*#httrack-bundle=example.com", "", "" },
+      { "-example.com/*#httrack-bundle=example.com", "", "" },
       /* the -%L file, CR LF or not */
       { "", "https://a.test/\r\nhttps://other.org/#httrack-bundle=other.org\r\n", "1" },
       /* named twice, written once */
@@ -514,34 +552,45 @@ int browserLoginCheckCases(CString *err) {
       }
       nchecks++;
     }
-    /* A cancelled wizard holds nothing, so it writes nothing. */
-    if (browserLoginBundlesToWrite(CSimpleArray<CString>(),
-                                   "https://example.com/#httrack-bundle=example.com",
-                                   "").GetSize() != 0) {
-      *err = "a wizard holding no login wrote one";
-      return 0;
+    /* The box is in the ANSI codepage and the -%L file is read as it is, so only the box
+       is converted to the UTF-8 the engine names a bundle in. */
+    {
+      const CString ansi = "https://caf\xE9.test/#httrack-bundle=caf\xE9.test";
+      CSimpleArray<CString> utf8;
+
+      utf8.Add(browserLoginUtf8("caf\xE9.test"));
+      if (browserLoginBundlesToWrite(utf8, ansi, "").GetSize() != 1
+          || browserLoginBundlesToWrite(utf8, "", ansi).GetSize() != 0
+          || browserLoginBundlesToWrite(utf8, "", browserLoginUtf8(ansi)).GetSize() != 1) {
+        *err = "a non-ASCII bundle name was matched in the wrong encoding";
+        return 0;
+      }
+      nchecks++;
     }
-    nchecks++;
-    /* The engine drops an address of HTS_URLMAXSIZE bytes or more, or one holding a NUL. */
+    /* The engine drops an address of HTS_URLMAXSIZE bytes or more from the box, and a
+       -%L line longer than HTS_URLMAXSIZE or holding a NUL. */
     {
       const CString suffix = "#httrack-bundle=example.com";
       const CString base = "https://example.com/";
       const CString fits = base + CString('a', HTS_URLMAXSIZE - 1 - base.GetLength()
                                            - suffix.GetLength()) + suffix;
-      const CString over = base + CString('a', HTS_URLMAXSIZE - base.GetLength()
+      const CString atCap = base + CString('a', HTS_URLMAXSIZE - base.GetLength()
+                                            - suffix.GetLength()) + suffix;
+      const CString past = base + CString('a', HTS_URLMAXSIZE + 1 - base.GetLength()
                                            - suffix.GetLength()) + suffix;
       CString nul = "https://exa";
 
       nul += '\0';
       nul += "mple.com/";
       nul += suffix;
-      static const struct { int which; BOOL inList; int want; } longs[] = {
-        { 0, FALSE, 1 }, { 1, FALSE, 0 }, { 0, TRUE, 1 }, { 1, TRUE, 0 }, { 2, TRUE, 0 },
-        { -1, FALSE, 0 }
+      const struct { const CString *url; BOOL inList; int want; } longs[] = {
+        { &fits, FALSE, 1 }, { &atCap, FALSE, 0 },
+        { &fits, TRUE, 1 }, { &atCap, TRUE, 1 }, { &past, TRUE, 0 }, { &nul, TRUE, 0 },
+        { NULL, FALSE, 0 }
       };
 
-      for(int k = 0 ; longs[k].which >= 0 ; k++) {
-        const CString &url = longs[k].which == 0 ? fits : longs[k].which == 1 ? over : nul;
+      for(int k = 0 ; longs[k].url != NULL ; k++) {
+        const CString &url = *longs[k].url;
         const int got = browserLoginBundlesToWrite(names, longs[k].inList ? "" : url,
                                                    longs[k].inList ? url : "").GetSize();
 
@@ -564,6 +613,113 @@ int browserLoginCheckCases(CString *err) {
       }
       nchecks++;
     }
+  }
+  {
+    /* The finish writes in held order and stops at the first failure. Held twice under
+       one name, the later login is written last, so its file is the one that stays. */
+    static const struct { const char *box; int fail; const char *want; BOOL ok; } writes[] = {
+      { "https://example.com/#httrack-bundle=example.com", -1, "0 2", TRUE },
+      { "https://example.com/#httrack-bundle=example.com "
+        "https://other.org/#httrack-bundle=other.org", -1, "0 1 2", TRUE },
+      { "https://example.com/#httrack-bundle=example.com "
+        "https://other.org/#httrack-bundle=other.org", 1, "0 1", FALSE },
+      { "https://other.org/#httrack-bundle=other.org", 1, "1", FALSE },
+      { "https://elsewhere.net/", 0, "", TRUE },
+      { NULL, -1, NULL, FALSE }
+    };
+    struct Recorder {
+      int fail;
+      CString calls;
+      static BOOL write(void *ctx, int index) {
+        Recorder *const r = (Recorder *) ctx;
+        char one[16];
+
+        snprintf(one, sizeof(one), r->calls.IsEmpty() ? "%d" : " %d", index);
+        r->calls += one;
+        return index != r->fail;
+      }
+      static CString read(const CString &path) {
+        return path == "list.txt" ? CString("https://other.org/#httrack-bundle=other.org")
+                                  : CString();
+      }
+    };
+    CSimpleArray<CString> names;
+
+    names.Add("example.com");
+    names.Add("other.org");
+    names.Add("example.com");
+    for(int k = 0 ; writes[k].box != NULL ; k++) {
+      Recorder rec;
+
+      rec.fail = writes[k].fail;
+      const BOOL ok = browserLoginWriteHeld(names, writes[k].box, "", Recorder::read,
+                                            Recorder::write, &rec);
+
+      if (ok != writes[k].ok || rec.calls != writes[k].want) {
+        snprintf(msg, sizeof(msg), "'%s' failing at %d wrote '%s' ok=%d, not '%s' ok=%d",
+                 writes[k].box, writes[k].fail, (LPCSTR) rec.calls, (int) ok,
+                 writes[k].want, (int) writes[k].ok);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+    /* The -%L file is read from the path the finish gives. */
+    {
+      Recorder rec;
+
+      rec.fail = -1;
+      if (!browserLoginWriteHeld(names, "", "list.txt", Recorder::read, Recorder::write,
+                                 &rec) || rec.calls != "1") {
+        *err = "the finish did not read the -%L file it was given";
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    /* The engine scopes the paste to the site and caps its own jar, so the paste carries
+       every cookie it can, past the jar's 30000 bytes, and stops only at the paste cap. */
+    CSimpleArray<CookieRecord> small, big;
+    CookieRecord c;
+    int dropped = -1;
+
+    c.domain = ".example.com";
+    c.value = CString('v', 3000);
+    for(int i = 0 ; i < 20 ; i++) {
+      char name[16];
+
+      snprintf(name, sizeof(name), "c%d", i);
+      c.name = name;
+      small.Add(c);
+    }
+    c.name = "bad\tname";
+    small.Add(c);
+    if (browserLoginPasteText(small, &dropped).GetLength() <= COOKIE_JAR_MAXLEN
+        || dropped != 1) {
+      snprintf(msg, sizeof(msg), "a 60 KB harvest with one unwritable cookie dropped %d",
+               dropped);
+      *err = msg;
+      return 0;
+    }
+    nchecks++;
+    for(int i = 0 ; i < 100 ; i++) {
+      char name[16];
+
+      snprintf(name, sizeof(name), "c%d", i);
+      c.name = name;
+      big.Add(c);
+    }
+    const CString text = browserLoginPasteText(big, &dropped);
+
+    if (text.GetLength() >= BROWSER_PASTE_MAX || dropped == 0
+        || text.GetLength() < BROWSER_PASTE_MAX - 3100) {
+      snprintf(msg, sizeof(msg), "a 300 KB harvest gave a %d-byte paste, dropping %d",
+               text.GetLength(), dropped);
+      *err = msg;
+      return 0;
+    }
+    nchecks++;
   }
   return nchecks;
 }

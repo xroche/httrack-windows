@@ -834,8 +834,8 @@ BOOL CWinHTTrackApp::InitInstance()
         fflush(stderr);
         ExitProcess(3);
       }
-      if (nchecks != 70) {
-        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 70\n", nchecks);
+      if (nchecks != 80) {
+        fprintf(stderr, "FATAL: browser login helpers ran %d checks, expected 80\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }

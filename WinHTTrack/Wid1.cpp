@@ -820,16 +820,29 @@ static CString readUrlList(const CString &path)
   return text;
 }
 
-/* A later login under the same name replaces the file, so it replaces the held one. */
-void Wid1::HoldBrowserLogin(const BrowserLoginHarvest &login)
+/* What writeHeldLogin() writes, and where. */
+struct HeldLoginWrite {
+  const CSimpleArray<BrowserLoginHarvest> *held;
+  CString folder;
+};
+
+/* Has the engine write held login INDEX, and tells the user when that fails. */
+static BOOL writeHeldLogin(void *ctx, int index)
 {
-  for(int i = 0 ; i < heldLogins.GetSize() ; i++) {
-    if (heldLogins[i].bundleName == login.bundleName) {
-      heldLogins.RemoveAt(i);
-      break;
-    }
-  }
-  heldLogins.Add(login);
+  const HeldLoginWrite *const w = (const HeldLoginWrite *) ctx;
+  const BrowserLoginBundleInfo made =
+    browserLoginMakeBundle((*w->held)[index], BrowserLoginWriteFile, w->folder);
+
+  if (made.ok)
+    return TRUE;
+
+  CString said;
+
+  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
+                               "The login could not be written to %s."),
+              (LPCSTR) w->folder);
+  AfxMessageBox(said + "\r\n\r\n" + made.error, MB_OK | MB_ICONWARNING);
+  return FALSE;
 }
 
 // see Wid1.h
@@ -837,28 +850,11 @@ BOOL Wid1::WriteBrowserLogins(const CString &folder, const CString &urls,
                               const CString &listFile)
 {
   CSimpleArray<CString> names;
+  HeldLoginWrite w = { &heldLogins, folder };
 
   for(int i = 0 ; i < heldLogins.GetSize() ; i++)
     names.Add(heldLogins[i].bundleName);
-
-  const CSimpleArray<int> write =
-    browserLoginBundlesToWrite(names, urls, readUrlList(listFile));
-
-  for(int i = 0 ; i < write.GetSize() ; i++) {
-    BrowserLoginBundleInfo made;
-
-    if (!browserLoginMakeBundle(heldLogins[write[i]], folder, FALSE, made)) {
-      CString said;
-
-      said.Format(browserLoginText(LANG(LANG_BROWSERLOGINNOTSAVED),
-                                   "The login could not be written to %s, so nothing "
-                                   "was changed."),
-                  (LPCSTR) folder);
-      AfxMessageBox(said + "\r\n\r\n" + made.error, MB_OK | MB_ICONWARNING);
-      return FALSE;
-    }
-  }
-  return TRUE;
+  return browserLoginWriteHeld(names, urls, listFile, readUrlList, writeHeldLogin, &w);
 }
 
 void Wid1::Onlogin2() 
@@ -868,7 +864,7 @@ void Wid1::Onlogin2()
   url.dest_path=dialog0->GetPath();
   if (url.DoModal() == IDOK) {
     if (url.haveHarvest)
-      HoldBrowserLogin(url.harvest);
+      heldLogins.Add(url.harvest);
     if (url.m_urladr.Left(7)=="http://")
       url.m_urladr=url.m_urladr.Mid(7);
     CString st;
