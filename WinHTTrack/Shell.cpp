@@ -2934,7 +2934,7 @@ void Read_profile(CString path,int load_path) {
   maintab->m_option2.m_iso9660   = ((MyGetProfileInt(path,strSection, "Dos",0) & 2)>>1);
   dialog0->m_projcateg           = MyGetProfileString(path,strSection, "Category");
   maintab->m_option6.m_user      = MyGetProfileString(path,strSection, "UserID",
-                                     "Mozilla/5.0 (compatible; HTTrack; +https://www.httrack.com/)");
+                                     HTS_DEFAULT_USER_AGENT);
   maintab->m_option6.m_accept_language =
                                    MyGetProfileString(path,strSection, "AcceptLanguage", default_lang);
 
