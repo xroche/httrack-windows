@@ -195,8 +195,7 @@ BOOL CWinHTTrackDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
       const int bad = name.FindOneOf(":/\\");
       if (bad >= 0)
         name = name.Left(bad);
-      if (GetDocTemplate()->GetDocString(ext, CDocTemplate::filterExt) && !ext.IsEmpty()
-          && name.Find('.') < 0)
+      if (GetDocTemplate()->GetDocString(ext, CDocTemplate::filterExt) && !ext.IsEmpty())
         name += ext;
     }
     if (!AfxGetApp()->DoPromptFileName(name, bReplace ? AFX_IDS_SAVEFILE : AFX_IDS_SAVEFILECOPY,

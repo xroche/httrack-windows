@@ -395,7 +395,12 @@ def main():
     )
     if (
         not dosave
-        or "if (!AfxGetApp()->DoPromptFileName(name," not in dosave.group(1)
+        or not re.match(
+            r"\s*CString name = lpszPathName != NULL \? lpszPathName : \"\";\s*"
+            r"if \(name\.IsEmpty\(\)\) \{[^}]*\}[\s\S]*"
+            r"if \(!AfxGetApp\(\)->DoPromptFileName\(name,",
+            dosave.group(1),
+        )
         or not re.search(
             r"return FALSE;\s*\}\s*return CDocument::DoSave\(name, bReplace\);$",
             dosave.group(1),
