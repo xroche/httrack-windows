@@ -385,16 +385,31 @@ def main():
             saves += 1
     if saves != 2:
         sys.exit("found %d project saves outside the wizard, expected 2" % saves)
-    # MFC deletes the chosen file when a Save As fails, so the write precedes it.
+    # MFC deletes the chosen file when a save it prompted for fails, so ours prompts.
     doc = read(os.path.join(ROOT, "WinHTTrack", "WinHTTrackDoc.cpp"))
+    dosave = re.search(
+        r"^BOOL CWinHTTrackDoc::DoSave\(LPCTSTR lpszPathName, BOOL bReplace\)\n"
+        r"\{\n([\s\S]*?)\n\}\n",
+        doc,
+        re.M,
+    )
+    if (
+        not dosave
+        or "if (!AfxGetApp()->DoPromptFileName(name," not in dosave.group(1)
+        or not re.search(
+            r"return FALSE;\s*\}\s*return CDocument::DoSave\(name, bReplace\);$",
+            dosave.group(1),
+        )
+    ):
+        sys.exit(
+            "a failed save can reach MFC with no file name, which deletes the file"
+        )
     if not re.search(
-        r"BOOL CWinHTTrackDoc::DoSave\(LPCTSTR lpszPathName, BOOL bReplace\)\n\{\n"
-        r"\s*if \(dialog0 && dialog1 != NULL && "
-        r"!dialog1->WriteBrowserLoginsForSave\(\)\)"
-        r"\s*return FALSE;\s*return CDocument::DoSave\(lpszPathName, bReplace\);",
+        r"WriteBrowserLoginsForSave\(\)\) \{\s*dialog0->m_projname = oldName;"
+        r"\s*dialog0->m_projpath = oldPath;\s*return 0;",
         doc,
     ):
-        sys.exit("a failed login write in Save As reaches MFC, which deletes the file")
+        sys.exit("a failed save keeps the project's new name and folder")
     if not re.search(
         r"^BOOL Wid1::WriteBrowserLoginsForSave\(\)\n\{[^}]*\}[^}]*"
         r"return WriteBrowserLogins\(dialog0->GetPath0\(\), urls, list\);\n\}",

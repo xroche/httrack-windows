@@ -181,12 +181,30 @@ BOOL CWinHTTrackDoc::OnSaveDocument(LPCTSTR lpszPathName)
   return 1;
 }
 
-// A failed Save As deletes the chosen file, so the logins are written before MFC starts.
+// MFC deletes the chosen file when a save it prompted for fails, so ours prompts.
 BOOL CWinHTTrackDoc::DoSave(LPCTSTR lpszPathName, BOOL bReplace)
 {
-  if (dialog0 && dialog1 != NULL && !dialog1->WriteBrowserLoginsForSave())
-    return FALSE;
-  return CDocument::DoSave(lpszPathName, bReplace);
+  CString name = lpszPathName != NULL ? lpszPathName : "";
+
+  if (name.IsEmpty()) {
+    CString ext;
+
+    name = GetPathName();
+    if (bReplace && name.IsEmpty()) {
+      name = GetTitle();
+      const int bad = name.FindOneOf(":/\\");
+      if (bad >= 0)
+        name = name.Left(bad);
+      if (GetDocTemplate()->GetDocString(ext, CDocTemplate::filterExt) && !ext.IsEmpty()
+          && name.Find('.') < 0)
+        name += ext;
+    }
+    if (!AfxGetApp()->DoPromptFileName(name, bReplace ? AFX_IDS_SAVEFILE : AFX_IDS_SAVEFILECOPY,
+                                       OFN_HIDEREADONLY | OFN_PATHMUSTEXIST, FALSE,
+                                       GetDocTemplate()))
+      return FALSE;
+  }
+  return CDocument::DoSave(name, bReplace);
 }
 
 BOOL CWinHTTrackDoc::OnOpenDocument(LPCTSTR lpszPathName) 
