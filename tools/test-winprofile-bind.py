@@ -138,7 +138,20 @@ def main():
             sys.exit("the witness table does not pair %s with the %s row" % (key, name))
         checked += 2
 
-    # 5. Every catalog list has to be named here, or tools/catalog-lists-test.cpp never
+    # 5. The UserID default has to be the engine's macro. Match it as the argument,
+    #    because any other mention of the macro would satisfy a search of the body.
+    if not re.search(r'"UserID"\s*,\s*HTS_DEFAULT_USER_AGENT\s*\)', bodies["Read_profile"]):
+        sys.exit("Read_profile does not default UserID to HTS_DEFAULT_USER_AGENT")
+    checked += 1
+    # The two files that can put an agent on the wire. Shell.cpp builds argv and the
+    # profile default, and inprogress.cpp copies the field over a running mirror.
+    for name in ("Shell.cpp", "inprogress.cpp"):
+        text = read(os.path.join(ROOT, "WinHTTrack", name))
+        if re.search(r"HTTrack[^\n\"]*\+?https?://www\.httrack\.com", text):
+            sys.exit("%s spells an HTTrack user agent out: use the engine macro" % name)
+        checked += 1
+
+    # 6. Every catalog list has to be named here, or tools/catalog-lists-test.cpp never
     #    counts it. The count itself needs the engine's line reader, so it is checked there.
     combos = re.findall(r'COMBO\("([A-Za-z0-9]+)",\s*(LISTDEF_\d+)\)', bind)
     if len(combos) < 9:
@@ -149,7 +162,7 @@ def main():
         % (checked, len(bound), len(hand), len(combos))
     )
 
-    # 6. Compile the real writer against the stubs and run it, then the catalog lists.
+    # 7. Compile the real writer against the stubs and run it, then the catalog lists.
     with tempfile.TemporaryDirectory() as tmp:
         gen = os.path.join(tmp, "winprofile-engine-macros.h")
         with open(gen, "w", encoding="utf-8") as f:
