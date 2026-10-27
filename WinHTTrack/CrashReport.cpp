@@ -42,6 +42,7 @@ Please visit our Website: http://www.httrack.com
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mbstring.h>
 
 #include "htsglobal.h"
 
@@ -489,13 +490,69 @@ void CrashReportReport(const char* msg, const char* file, int line) {
   CrashReportReportEx(msg, file, line, trace);
 }
 
-// Which fault, and where: the record is all a top-level filter is ever told. The buffer is
-// static so the stack-overflow path spends none of the stack it has left on it.
-static const char *ExceptionLine(const EXCEPTION_RECORD *const record) {
-  static char msg[80];
+// Contract in CrashReport.h. A fault inside another vendor's DLL can only be reported to
+// them with its version, and the stack names the module without one.
+const char *CrashReportModuleOf(const void *addr) {
+  static char line[MAX_PATH + 64];
+  static BYTE info[65536];
+  CHAR path[MAX_PATH];
+  HMODULE mod = NULL;
+  DWORD len;
 
-  _snprintf_s(msg, sizeof(msg), _TRUNCATE, "Top-level exception 0x%08lX at 0x%p",
-              (unsigned long) record->ExceptionCode, record->ExceptionAddress);
+  line[0] = '\0';
+  // A NULL name asks for the EXE, which would blame it for a call through a NULL pointer.
+  if (addr == NULL
+      || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                          | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR) addr, &mod)
+      || (len = GetModuleFileNameA(mod, path, sizeof(path))) == 0 || len >= sizeof(path))
+    return line;
+  // The folder can hold the user name, and the file name is what identifies the module.
+  const char *const slash = (const char *) _mbsrchr((const unsigned char *) path, '\\');
+  _snprintf_s(line, sizeof(line), _TRUNCATE, " in %s", slash != NULL ? slash + 1 : path);
+
+  // Loaded by hand, as everything else here is, so the EXE gains no import.
+  HMODULE version = LoadLibraryA("version");
+  if (version == NULL)
+    return line;
+  union {
+    FARPROC ptr[3];
+    struct {
+      DWORD (WINAPI *GetFileVersionInfoSizeA)(LPCSTR, LPDWORD);
+      BOOL (WINAPI *GetFileVersionInfoA)(LPCSTR, DWORD, DWORD, LPVOID);
+      BOOL (WINAPI *VerQueryValueA)(LPCVOID, LPCSTR, LPVOID *, PUINT);
+    } fun;
+  } ver = {
+    GetProcAddress(version, "GetFileVersionInfoSizeA"),
+    GetProcAddress(version, "GetFileVersionInfoA"),
+    GetProcAddress(version, "VerQueryValueA")
+  };
+  if (ver.ptr[0] != NULL && ver.ptr[1] != NULL && ver.ptr[2] != NULL) {
+    DWORD unused;
+    VS_FIXEDFILEINFO *fixed = NULL;
+    UINT fixedlen = 0;
+    const DWORD size = ver.fun.GetFileVersionInfoSizeA(path, &unused);
+
+    if (size != 0 && size <= sizeof(info) && ver.fun.GetFileVersionInfoA(path, 0, size, info)
+        && ver.fun.VerQueryValueA(info, "\\", (LPVOID *) &fixed, &fixedlen)
+        && fixed != NULL && fixedlen >= sizeof(*fixed)) {
+      const size_t used = strlen(line);
+      _snprintf_s(line + used, sizeof(line) - used, _TRUNCATE, " %u.%u.%u.%u",
+                  HIWORD(fixed->dwFileVersionMS), LOWORD(fixed->dwFileVersionMS),
+                  HIWORD(fixed->dwFileVersionLS), LOWORD(fixed->dwFileVersionLS));
+    }
+  }
+  FreeLibrary(version);
+  return line;
+}
+
+// Which fault, and where: the record is all a top-level filter is ever told. The buffer is
+// static so the stack-overflow path spends none of the stack it has left on it. WHERE is
+// appended as is.
+static const char *ExceptionLine(const EXCEPTION_RECORD *const record, const char *where) {
+  static char msg[MAX_PATH + 128];
+
+  _snprintf_s(msg, sizeof(msg), _TRUNCATE, "Top-level exception 0x%08lX at 0x%p%s",
+              (unsigned long) record->ExceptionCode, record->ExceptionAddress, where);
   return msg;
 }
 
@@ -506,7 +563,7 @@ static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
     case EXCEPTION_STACK_OVERFLOW:
       // Symbol-walking would re-fault on the stack that has just run out. Only the record is
       // written: this path raises no dialog and writes no CRASH.TXT.
-      AppendExceptionReport("died on", ExceptionLine(record), NULL, FALSE);
+      AppendExceptionReport("died on", ExceptionLine(record, ""), NULL, FALSE);
       return EXCEPTION_CONTINUE_SEARCH;
     case EXCEPTION_ACCESS_VIOLATION:
     case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
@@ -515,7 +572,10 @@ static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
     case EXCEPTION_IN_PAGE_ERROR:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
-      CrashReportReport(ExceptionLine(record), "unknown", 0);
+      // A paging fault can mean the module's file is gone, and reading its version would wait on it.
+      CrashReportReport(ExceptionLine(record, record->ExceptionCode == EXCEPTION_IN_PAGE_ERROR
+                                                ? "" : CrashReportModuleOf(record->ExceptionAddress)),
+                        "unknown", 0);
       return EXCEPTION_CONTINUE_SEARCH;
     default:
       return EXCEPTION_CONTINUE_SEARCH;
