@@ -34,6 +34,10 @@ Please visit our Website: http://www.httrack.com
 // The line every report opens with: the GUI version and architecture, then the engine's.
 const char *CrashReportHeader(void);
 
+// " in NAME VERSION" for the module holding ADDR, or "" when no module does. NAME is the file
+// name without its folder. Returns a static buffer, so one caller at a time.
+const char *CrashReportModuleOf(const void *addr);
+
 // Initialize crash reporter.
 void CrashReportInit(void);
 

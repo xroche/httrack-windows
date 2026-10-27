@@ -397,6 +397,9 @@ runs:
         if ("$so" -notmatch 'crash report header ok on 3 checks') {
           throw "selftest did not check the crash report header"
         }
+        if ("$so" -notmatch 'crash report module ok on 3 checks') {
+          throw "selftest did not check the faulting module line"
+        }
 
         # The New Folder dialog cannot be opened from here, so its length rules are pinned instead.
         if ("$so" -notmatch 'folder names ok on 7 checks') {

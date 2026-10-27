@@ -2137,6 +2137,42 @@ BOOL CWinHTTrackApp::InitInstance()
       }
       printf("crash report header ok on %d checks\n", nchecks);
     }
+    /* A fault names its module and that module's version, which is what a WebView2 runtime
+       bug has to be reported with. */
+    {
+      const int onstack = 0;
+      const struct { const char *what; const void *addr; const char *want; } mods[] = {
+        { "this program", (const void *) CrashReportHeader,
+          " in WinHTTrack.exe " WINHTTRACK_VERSIONID },
+        /* a system DLL, whose version is not ours to pin, so only the name is checked */
+        { "kernel32", (const void *) GetProcAddress(GetModuleHandleA("kernel32"), "Sleep"),
+          " in KERNEL32.DLL " },
+        /* no module holds the stack */
+        { "the stack", (const void *) &onstack, "" }
+      };
+      int nchecks = 0;
+
+      for(int k=0 ; k < (int) (sizeof(mods)/sizeof(mods[0])) ; k++) {
+        const char *const got = CrashReportModuleOf(mods[k].addr);
+        const size_t wantlen = strlen(mods[k].want);
+        const BOOL prefix = wantlen != 0 && mods[k].want[wantlen - 1] == ' ';
+
+        if (prefix ? _strnicmp(got, mods[k].want, wantlen) != 0 || strlen(got) == wantlen
+                   : strcmp(got, mods[k].want) != 0) {
+          fprintf(stderr, "FATAL: a fault in %s reads '%s', expected '%s'%s\n", mods[k].what,
+                  got, mods[k].want, prefix ? " and a version" : "");
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+      }
+      if (nchecks != 3) {
+        fprintf(stderr, "FATAL: crash report module ran %d checks, expected 3\n", nchecks);
+        fflush(stderr);
+        ExitProcess(3);
+      }
+      printf("crash report module ok on %d checks\n", nchecks);
+    }
     /* A real logoff is the only way to reach the session-end path, so pin it here: it
        asks for the stop once, only while a mirror runs, and never waits for it. */
     {
