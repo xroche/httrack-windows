@@ -494,6 +494,12 @@ int main(int argc, char **argv) {
       { "K=caf\xc3\xa9\r\nCharset=utf8\r\n", "caf\xe9" },
       { "Charset=ISO-8859-1\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
       { "Charset=\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      /* the engine reads the key in any case, and only its first line */
+      { "CHARSET=utf-8\r\nK=caf\xc3\xa9\r\n", "caf\xe9" },
+      { "Charset=latin1\r\nCharset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      { "XCharset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      /* other keys keep their exact spelling */
+      { "Charset=UTF-8\r\nk=caf\xc3\xa9\r\n", "d\xc3\xa9" },
       /* a missing key keeps the caller's default, which is already ANSI */
       { "Charset=UTF-8\r\n", "d\xc3\xa9" },
       { NULL, NULL }
@@ -529,7 +535,7 @@ int main(int argc, char **argv) {
       else
         n++;
     }
-    if (n == 15)
+    if (n == 19)
       printf("Charset= picks the value encoding on %d cases\n", n);
   }
 

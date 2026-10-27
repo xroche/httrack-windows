@@ -147,6 +147,7 @@ static inline int linput(FILE *fp, char *s, int max) {
 }
 
 #define strcatbuff(a, b) strcat(a, b)
+#define _strnicmp strncasecmp
 
 #ifdef ARGV_CAPS_TEST
 /* A legacy codepage, which is what makes the accented case decidable, and what the

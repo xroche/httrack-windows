@@ -146,7 +146,8 @@ int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
   } else return value;
 }
 // TRUE with the decoded value of NAME in FP put in *ST, as stored. FALSE when no line has it.
-static BOOL profileFileValue(FILE* fp,CString name,CString *st) {
+// ANYCASE matches the key the way the engine reads Charset.
+static BOOL profileFileValue(FILE* fp,CString name,BOOL anycase,CString *st) {
   if (fp) {
     char srch[256];
     fseek(fp,0,SEEK_SET);
@@ -157,7 +158,7 @@ static BOOL profileFileValue(FILE* fp,CString name,CString *st) {
       linput(fp,s,32000);
       if (strlen(s)==0)     // EOF
         return FALSE;
-      if (strncmp(s,srch,strlen(srch)) == 0) {    // ligne reconnue
+      if ((anycase ? _strnicmp(s,srch,strlen(srch)) : strncmp(s,srch,strlen(srch))) == 0) {
         *st = profile_decode(s+strlen(srch));
         return TRUE;
       }
@@ -171,9 +172,9 @@ BOOL profileCharsetIsUtf8(const char* charset) {
 }
 CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
   CString st, charset;
-  if (!profileFileValue(fp,name,&st))
+  if (!profileFileValue(fp,name,FALSE,&st))
     return value;
-  if (profileFileValue(fp,"Charset",&charset) && profileCharsetIsUtf8(charset)) {
+  if (profileFileValue(fp,"Charset",TRUE,&charset) && profileCharsetIsUtf8(charset)) {
     // freet() nulls its argument, so not const.
     char *cp = hts_convertStringUTF8ToSystem(st, st.GetLength());
     // On failure the raw bytes beat losing the value.
