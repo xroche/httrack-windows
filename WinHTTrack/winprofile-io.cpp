@@ -177,7 +177,7 @@ CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value
   if (profileFileValue(fp,"Charset",TRUE,&charset) && profileCharsetIsUtf8(charset)) {
     // freet() nulls its argument, so not const.
     char *cp = hts_convertStringUTF8ToSystem(st, st.GetLength());
-    // On failure the raw bytes beat losing the value.
+    // NULL only when memory runs out. A byte the codepage lacks reads as '?'.
     if (cp != NULL)
       st = cp;
     freet(cp);

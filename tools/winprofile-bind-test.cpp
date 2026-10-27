@@ -498,6 +498,9 @@ int main(int argc, char **argv) {
       { "CHARSET=utf-8\r\nK=caf\xc3\xa9\r\n", "caf\xe9" },
       { "Charset=latin1\r\nCharset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
       { "XCharset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      /* the escapes are undone before the conversion, and ASCII is left alone */
+      { "Charset=UTF-8\r\nK=a%3db\xc3\xa9\r\n", "a=b\xe9" },
+      { "Charset=UTF-8\r\nK=plain\r\n", "plain" },
       /* other keys keep their exact spelling */
       { "Charset=UTF-8\r\nk=caf\xc3\xa9\r\n", "d\xc3\xa9" },
       /* a missing key keeps the caller's default, which is already ANSI */
@@ -525,7 +528,7 @@ int main(int argc, char **argv) {
       got = MyGetProfileStringFile(fp, "", "K", "d\xc3\xa9");
       fclose(fp);
       if (got != cs[k].want)
-        fail("charset", cs[k].file, cs[k].want);
+        fail(cs[k].file, (const char *) got, cs[k].want);
       else
         n++;
     }
@@ -535,7 +538,7 @@ int main(int argc, char **argv) {
       else
         n++;
     }
-    if (n == 19)
+    if (n == 21)
       printf("Charset= picks the value encoding on %d cases\n", n);
   }
 
