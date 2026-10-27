@@ -28,6 +28,9 @@ OSV_REPOS = {
     "zlib": "https://github.com/madler/zlib",
     "zstd": "https://github.com/facebook/zstd",
 }
+# A version each port is known to be affected at, so a clean answer can be told apart
+# from OSV no longer recognising the repository.
+OSV_CANARY = {"brotli": "1.0.9", "zlib": "1.2.3", "zstd": "1.4.9"}
 UNGATED = ("webview2",)
 
 
@@ -101,7 +104,9 @@ def osv_query(port, version):
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             doc = json.load(r)
-    except Exception as e:
+    # Transport and decode failures only. A wider catch would report a bug in here as
+    # an OSV outage.
+    except (OSError, ValueError) as e:
         sys.exit(f"FATAL: OSV query for {port} {version} failed: {e}")
     if not isinstance(doc.get("vulns", []), list):
         sys.exit(f"FATAL: OSV answered {port} {version} with no vulns list")
@@ -239,15 +244,20 @@ def main():
     scanned = {"openssl": ossl}
     osv_blocking = []
     if args.installed:
-        # Every gated port ships, so a missing SBOM means the extraction broke or a
-        # dependency went away. Skipping it would scan nothing and print clean.
+        # Skipping a port scans nothing and prints clean, so an absent one is fatal.
+        # If the engine really did drop it, take it out of OSV_REPOS in the same change.
         missing = sorted(set(OSV_REPOS) - set(versions))
         if missing:
-            sys.exit(f"FATAL: no SBOM resolved for {', '.join(missing)} -- "
-                     f"a shipped dependency would go unscanned")
+            sys.exit(f"FATAL: no SBOM resolved for {', '.join(missing)} -- they would "
+                     f"go unscanned; drop them from OSV_REPOS if they no longer ship")
         for port in sorted(OSV_REPOS):
             scanned[port] = versions[port]
             found = osv_query(port, versions[port])
+            # Only an empty answer can be vacuous, so this costs a request just there.
+            if not found and not osv_query(port, OSV_CANARY[port]):
+                sys.exit(f"FATAL: OSV reports nothing for {port} {versions[port]} and "
+                         f"nothing for {OSV_CANARY[port]} either, so it does not know "
+                         f"{OSV_REPOS[port]} -- the clean answer proves nothing")
             print(f"  osv {port} {versions[port]}: {len(found)} record(s)")
             for vuln in found:
                 ident = osv_id(vuln)
@@ -292,8 +302,6 @@ def main():
         print(f"::error::{port} {pver} affected by {ident}")
 
     # An ID that stops matching vanishes from the output; nothing marks the acceptance spent.
-    # Only a scanned port can judge its entries, or the OpenSSL-only weekly watch would
-    # call every zlib one spent.
     stale = sorted((p, i) for p in scanned
                    for i in accepted.get(p, set()) - matched.get(p, set()))
     for port, ident in stale:

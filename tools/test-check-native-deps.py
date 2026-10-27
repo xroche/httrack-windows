@@ -203,11 +203,21 @@ def record(ident, aliases=None, withdrawn=None):
     return v
 
 
-def run_installed(tree_versions, osv, accept):
-    """(exit status, output, the ports OSV was asked about). Status is None on success."""
+def run_installed(tree_versions, osv, accept, canary=True):
+    """(exit status, output, the ports asked about at their installed version).
+
+    Status is None on success. canary=False makes OSV answer nothing for the canary
+    versions too, which is how a repository that moved away looks.
+    """
     asked = []
 
     def stub(port, version):
+        if version == check.OSV_CANARY.get(port):
+            # Only an empty answer can be vacuous, so a port with records must not pay
+            # for a canary. Raising here surfaces as a reported failure.
+            if osv.get(port):
+                raise AssertionError(f"canary queried for {port} despite its records")
+            return [record("CVE-2026-00001")] if canary else []
         asked.append(port)
         return osv.get(port, [])
 
@@ -300,8 +310,16 @@ if len(OSV_CASES) != 11:
     print(f"FAIL expected 11 OSV cases, table has {len(OSV_CASES)}")
     bad += 1
 
-# A gated port whose SBOM never turned up was scanned by nobody and still read as
-# clean, which is how zlib and brotli could both be dropped from a green run.
+# A canary that answers nothing means OSV no longer knows the repository, so the
+# clean answer for the installed version proves nothing.
+status, out, asked = run_installed(INSTALLED, osv={}, accept="", canary=False)
+if "the clean answer proves nothing" not in str(status):
+    print(f"FAIL a silent OSV is fatal: status {status!r}\n{out}")
+    bad += 1
+else:
+    print("ok   a silent OSV is fatal")
+
+# zlib and brotli were both droppable from a green run.
 status, out, asked = run_installed({"openssl": "3.6.5", "zstd": "1.5.7"}, osv={}, accept="")
 if ("no SBOM resolved for brotli, zlib" not in str(status)
         or "clean at >=" in out or asked):
@@ -400,7 +418,6 @@ if len(QUERIES) != 7:
     bad += 1
 
 
-# A port no scanner knows is fatal, so a typo cannot sit in the list accepting nothing.
 status, out, asked = run_installed(INSTALLED, osv={}, accept="libpng=CVE-2026-1")
 if "names port(s) nothing scans: libpng" not in str(status):
     print(f"FAIL a port nothing scans is fatal: status {status!r}\n{out}")
@@ -433,7 +450,7 @@ if len(IDS) != 6:
     print(f"FAIL expected 6 id cases, table has {len(IDS)}")
     bad += 1
 
-# The 4 is the checks outside the tables; drop one and this total lies.
-total = len(CASES) + len(TREES) + len(OSV_CASES) + len(QUERIES) + len(IDS) + 4
+# The 5 is the checks outside the tables; drop one and this total lies.
+total = len(CASES) + len(TREES) + len(OSV_CASES) + len(QUERIES) + len(IDS) + 5
 print(f"{total} cases, {bad} failed")
 sys.exit(1 if bad else 0)
