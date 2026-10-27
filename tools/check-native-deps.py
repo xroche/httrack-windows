@@ -109,8 +109,7 @@ def osv_query(port, version):
 
 
 def parse_accept(spec):
-    """port -> accepted advisory ids. A bare id belongs to openssl, the only port
-    the list could name before OSV gating arrived."""
+    """port -> accepted advisory ids. A bare id belongs to openssl."""
     out = {}
     for item in spec.split(","):
         item = item.strip()
@@ -204,7 +203,8 @@ def main():
                      help="vcpkg_installed directories to scan")
     src.add_argument("--openssl-version",
                      help="check this OpenSSL version directly, without a build")
-    ap.add_argument("--min-severity", default="moderate", choices=RANK)
+    ap.add_argument("--min-severity", default="moderate", choices=RANK,
+                    help="OpenSSL floor; the OSV-gated ports block on any hit")
     ap.add_argument("--expect-openssl",
                     help="version the pinned baseline promised; mismatch is fatal")
     ap.add_argument("--accept", default="",
@@ -234,13 +234,19 @@ def main():
     if unknown:
         sys.exit(f"FATAL: --accept names port(s) nothing scans: {', '.join(unknown)}")
     matched = {}
-    scanned = {"openssl"}
+    # port -> the version judged. A port this run cannot judge stays out, or the
+    # OpenSSL-only weekly watch would call every zlib entry spent.
+    scanned = {"openssl": ossl}
     osv_blocking = []
     if args.installed:
+        # Every gated port ships, so a missing SBOM means the extraction broke or a
+        # dependency went away. Skipping it would scan nothing and print clean.
+        missing = sorted(set(OSV_REPOS) - set(versions))
+        if missing:
+            sys.exit(f"FATAL: no SBOM resolved for {', '.join(missing)} -- "
+                     f"a shipped dependency would go unscanned")
         for port in sorted(OSV_REPOS):
-            if port not in versions:
-                continue
-            scanned.add(port)
+            scanned[port] = versions[port]
             found = osv_query(port, versions[port])
             print(f"  osv {port} {versions[port]}: {len(found)} record(s)")
             for vuln in found:
@@ -291,8 +297,8 @@ def main():
     stale = sorted((p, i) for p in scanned
                    for i in accepted.get(p, set()) - matched.get(p, set()))
     for port, ident in stale:
-        print(f"::error::{ident} is accepted but no longer applies to {port}; "
-              f"drop it from SECURITY_ACCEPTED_CVES")
+        print(f"::error::{ident} is accepted but no longer applies to {port} "
+              f"{scanned[port]}; drop it from SECURITY_ACCEPTED_CVES")
 
     if blocking or osv_blocking or stale:
         why = []
