@@ -42,6 +42,7 @@ Please visit our Website: http://www.httrack.com
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mbstring.h>
 
 #include "htsglobal.h"
 
@@ -499,12 +500,14 @@ const char *CrashReportModuleOf(const void *addr) {
   DWORD len;
 
   line[0] = '\0';
-  if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+  // A NULL name asks for the EXE, which would blame it for a call through a NULL pointer.
+  if (addr == NULL
+      || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
                           | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR) addr, &mod)
       || (len = GetModuleFileNameA(mod, path, sizeof(path))) == 0 || len >= sizeof(path))
     return line;
   // The folder can hold the user name, and the file name is what identifies the module.
-  const char *const slash = strrchr(path, '\\');
+  const char *const slash = (const char *) _mbsrchr((const unsigned char *) path, '\\');
   _snprintf_s(line, sizeof(line), _TRUNCATE, " in %s", slash != NULL ? slash + 1 : path);
 
   // Loaded by hand, as everything else here is, so the EXE gains no import.
@@ -569,7 +572,9 @@ static LONG WINAPI GlobalExceptionHandler(PEXCEPTION_POINTERS pExceptPtrs) {
     case EXCEPTION_IN_PAGE_ERROR:
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
     case EXCEPTION_PRIV_INSTRUCTION:
-      CrashReportReport(ExceptionLine(record, CrashReportModuleOf(record->ExceptionAddress)),
+      // A paging fault can mean the module's file is gone, and reading its version would wait on it.
+      CrashReportReport(ExceptionLine(record, record->ExceptionCode == EXCEPTION_IN_PAGE_ERROR
+                                                ? "" : CrashReportModuleOf(record->ExceptionAddress)),
                         "unknown", 0);
       return EXCEPTION_CONTINUE_SEARCH;
     default:

@@ -2140,15 +2140,16 @@ BOOL CWinHTTrackApp::InitInstance()
     /* A fault names its module and that module's version, which is what a WebView2 runtime
        bug has to be reported with. */
     {
-      const int onstack = 0;
+      volatile int onstack = 0;
       const struct { const char *what; const void *addr; const char *want; } mods[] = {
         { "this program", (const void *) CrashReportHeader,
           " in WinHTTrack.exe " WINHTTRACK_VERSIONID },
         /* a system DLL, whose version is not ours to pin, so only the name is checked */
-        { "kernel32", (const void *) GetProcAddress(GetModuleHandleA("kernel32"), "Sleep"),
-          " in KERNEL32.DLL " },
+        { "kernel32", (const void *) GetModuleHandleA("kernel32"), " in KERNEL32.DLL " },
         /* no module holds the stack */
-        { "the stack", (const void *) &onstack, "" }
+        { "the stack", (const void *) &onstack, "" },
+        /* a call through a NULL pointer faults at 0 */
+        { "address 0", NULL, "" }
       };
       int nchecks = 0;
 
@@ -2166,8 +2167,8 @@ BOOL CWinHTTrackApp::InitInstance()
         } else
           nchecks++;
       }
-      if (nchecks != 3) {
-        fprintf(stderr, "FATAL: crash report module ran %d checks, expected 3\n", nchecks);
+      if (nchecks != 4) {
+        fprintf(stderr, "FATAL: crash report module ran %d checks, expected 4\n", nchecks);
         fflush(stderr);
         ExitProcess(3);
       }
