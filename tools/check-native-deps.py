@@ -4,10 +4,12 @@
 Reads the resolved versions out of vcpkg's SPDX SBOMs, then checks OpenSSL's own
 CVE-5.x feed. Exits non-zero on an advisory at or above --min-severity.
 
-Only OpenSSL is checked against a CVE feed: no equivalent per-version machine-
-readable feed exists for zlib, brotli, zstd or webview2 (see
-findings/vcpkg-staleness-guard.md). Those are reported for human review,
-never gated.
+zlib, brotli and zstd go through OSV instead, which answers per-version when asked
+for their upstream git repo. Every hit there blocks, because OSV carries CVSS vectors
+rather than the severity words --min-severity ranks.
+
+webview2 is only reported, because it is a Microsoft binary drop with no upstream
+repo OSV can key on.
 """
 import argparse
 import json
@@ -18,8 +20,15 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 FEED = "https://openssl-library.org/news/secjson/"
+OSV = "https://api.osv.dev/v1/query"
 RANK = {"low": 1, "moderate": 2, "high": 3, "critical": 4}
-UNGATED = ("zlib", "brotli", "zstd", "webview2")
+# Upstream repo per source port. OSV's GIT ecosystem does the version matching.
+OSV_REPOS = {
+    "brotli": "https://github.com/google/brotli",
+    "zlib": "https://github.com/madler/zlib",
+    "zstd": "https://github.com/facebook/zstd",
+}
+UNGATED = ("webview2",)
 
 
 def get(url):
@@ -81,6 +90,42 @@ def resolved_versions(installed_dirs):
         if n == 0:
             sys.exit(f"FATAL: no SBOMs under '{root}' -- extraction is broken, not clean")
     return found
+
+
+def osv_query(port, version):
+    """Every OSV record affecting port at version, withdrawn ones dropped."""
+    body = json.dumps({"version": version,
+                       "package": {"name": OSV_REPOS[port], "ecosystem": "GIT"}}).encode()
+    req = urllib.request.Request(OSV, data=body,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            doc = json.load(r)
+    except Exception as e:
+        sys.exit(f"FATAL: OSV query for {port} {version} failed: {e}")
+    if not isinstance(doc.get("vulns", []), list):
+        sys.exit(f"FATAL: OSV answered {port} {version} with no vulns list")
+    return [v for v in doc.get("vulns", []) if not v.get("withdrawn")]
+
+
+def parse_accept(spec):
+    """port -> accepted advisory ids. A bare id belongs to openssl, the only port
+    the list could name before OSV gating arrived."""
+    out = {}
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        port, _, ident = item.rpartition("=")
+        out.setdefault(port.strip().lower() or "openssl", set()).add(ident.strip().upper())
+    return out
+
+
+def osv_id(vuln):
+    """The CVE a record is known by, or OSV's own id when it carries none."""
+    ids = [vuln.get("id", "")] + list(vuln.get("aliases") or [])
+    cves = sorted(i for i in ids if i.upper().startswith("CVE-"))
+    return (cves[0] if cves else vuln.get("id", "")).upper()
 
 
 def advisories():
@@ -162,7 +207,8 @@ def main():
     ap.add_argument("--min-severity", default="moderate", choices=RANK)
     ap.add_argument("--expect-openssl",
                     help="version the pinned baseline promised; mismatch is fatal")
-    ap.add_argument("--accept", default="", help="comma-separated CVE IDs to accept")
+    ap.add_argument("--accept", default="",
+                    help="comma-separated port=ID acceptances; a bare ID means openssl")
     args = ap.parse_args()
 
     if args.openssl_version:
@@ -182,19 +228,38 @@ def main():
         sys.exit(f"FATAL: baseline promised openssl {args.expect_openssl}, "
                  f"installed tree has {ossl}")
 
+    accepted = parse_accept(args.accept)
+    # A misspelt port would otherwise sit in the list forever, accepting nothing.
+    unknown = sorted(set(accepted) - {"openssl"} - set(OSV_REPOS))
+    if unknown:
+        sys.exit(f"FATAL: --accept names port(s) nothing scans: {', '.join(unknown)}")
+    matched = {}
+    scanned = {"openssl"}
+    osv_blocking = []
     if args.installed:
+        for port in sorted(OSV_REPOS):
+            if port not in versions:
+                continue
+            scanned.add(port)
+            found = osv_query(port, versions[port])
+            print(f"  osv {port} {versions[port]}: {len(found)} record(s)")
+            for vuln in found:
+                ident = osv_id(vuln)
+                if ident in accepted.get(port, ()):
+                    matched.setdefault(port, set()).add(ident)
+                    print(f"::warning::{ident} ({port}) accepted by policy")
+                else:
+                    osv_blocking.append((ident, port, versions[port]))
         for port in UNGATED:
             if port in versions:
                 print(f"::notice::{port} {versions[port]} is not CVE-checked "
-                      f"(no machine-readable upstream feed); review manually")
+                      f"(no upstream repo OSV can key on); review manually")
 
     ver = vkey(ossl)
     if ver is None:
         sys.exit(f"FATAL: cannot parse openssl version {ossl!r}")
     ver_branch = (ver[0], ver[1])
 
-    accepted = {c.strip().upper() for c in args.accept.split(",") if c.strip()}
-    matched = set()
     floor = RANK[args.min_severity]
     blocking, noted = [], []
     for doc in advisories():
@@ -202,8 +267,8 @@ def main():
         if not h:
             continue
         cve, sev = h
-        if cve.upper() in accepted:
-            matched.add(cve.upper())
+        if cve.upper() in accepted.get("openssl", ()):
+            matched.setdefault("openssl", set()).add(cve.upper())
             print(f"::warning::{cve} ({sev}) accepted by policy")
         # A severity this table cannot rank is not a low one. Missing, misspelt and
         # merely new all block, because scoring an unknown string as 0 puts it below
@@ -217,22 +282,30 @@ def main():
         print(f"::warning::openssl {ossl} affected by {cve} ({sev}), below threshold")
     for cve, sev in sorted(blocking):
         print(f"::error::openssl {ossl} affected by {cve} ({sev})")
+    for ident, port, pver in sorted(osv_blocking):
+        print(f"::error::{port} {pver} affected by {ident}")
 
     # An ID that stops matching vanishes from the output; nothing marks the acceptance spent.
-    stale = sorted(accepted - matched)
-    for cve in stale:
-        print(f"::error::{cve} is accepted but no longer applies to openssl {ossl}; "
+    # Only a scanned port can judge its entries, or the OpenSSL-only weekly watch would
+    # call every zlib one spent.
+    stale = sorted((p, i) for p in scanned
+                   for i in accepted.get(p, set()) - matched.get(p, set()))
+    for port, ident in stale:
+        print(f"::error::{ident} is accepted but no longer applies to {port}; "
               f"drop it from SECURITY_ACCEPTED_CVES")
 
-    if blocking or stale:
+    if blocking or osv_blocking or stale:
         why = []
         if blocking:
             why.append(f"{len(blocking)} advisory(ies) at or above {args.min_severity}")
+        if osv_blocking:
+            why.append(f"{len(osv_blocking)} OSV advisory(ies)")
         if stale:
             why.append(f"{len(stale)} spent acceptance(s)")
         sys.exit(", ".join(why))
     print(f"openssl {ossl}: clean at >= {args.min_severity} "
-          f"({len(noted)} below threshold, {len(matched)} accepted)")
+          f"({len(noted)} below threshold, "
+          f"{sum(len(v) for v in matched.values())} accepted)")
 
 
 if __name__ == "__main__":

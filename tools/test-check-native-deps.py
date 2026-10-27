@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Table test for the accept/stale logic in check-native-deps.py.
 
-Stubs the advisory feed, so it needs no network and no vcpkg tree.
+Stubs both feeds, so it needs no network and no vcpkg tree.
 """
 import contextlib
 import importlib.util
 import io
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -183,5 +184,228 @@ if len(TREES) != 3:
     print(f"FAIL expected 3 tree cases, table has {len(TREES)}")
     bad += 1
 
-print(f"{len(CASES) + len(TREES)} cases, {bad} failed")
+
+def record(ident, aliases=None, withdrawn=None):
+    v = {"id": ident}
+    if aliases:
+        v["aliases"] = aliases
+    if withdrawn:
+        v["withdrawn"] = withdrawn
+    return v
+
+
+def run_installed(tree_versions, osv, accept):
+    """(exit status, output, the ports OSV was asked about). Status is None on success."""
+    asked = []
+
+    def stub(port, version):
+        asked.append(port)
+        return osv.get(port, [])
+
+    real_osv, real_adv, real_argv = check.osv_query, check.advisories, sys.argv
+    out, status = io.StringIO(), None
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        for port, ver in tree_versions.items():
+            d = root / "vcpkg_installed" / "x64-windows" / "x64-windows" / "share" / port
+            d.mkdir(parents=True)
+            (d / "vcpkg.spdx.json").write_text(
+                '{"packages":[{"SPDXID":"SPDXRef-port","versionInfo":"%s"}]}' % ver,
+                encoding="utf-8")
+        argv = ["check-native-deps.py", "--installed", str(root / "vcpkg_installed")]
+        if accept:
+            argv += ["--accept", accept]
+        try:
+            check.osv_query, check.advisories, sys.argv = stub, lambda: [], argv
+            with contextlib.redirect_stdout(out):
+                try:
+                    check.main()
+                except SystemExit as e:
+                    status = e.code
+        finally:
+            check.osv_query, check.advisories, sys.argv = real_osv, real_adv, real_argv
+    return status, out.getvalue(), asked
+
+
+TREE = {"openssl": "3.6.5", "zlib": "1.3.2", "brotli": "1.2.1", "zstd": "1.5.7"}
+HIT = {"brotli": [record("CVE-2026-111497")]}
+# zstd's real record carries no CVE, so the accept list has to take an OSV id too.
+NOCVE = {"zstd": [record("OSV-2022-15")]}
+# OSV keys the record on its own id and lists the CVE as an alias for some ecosystems.
+ALIASED = {"zlib": [record("GHSA-xxxx-yyyy-zzzz", ["CVE-2026-76844", "PYSEC-2026-1"])]}
+
+OSV_CASES = [
+    # (name, osv, accept, want_status, want_in_output, want_not_in_output)
+    ("an OSV hit blocks", HIT, "", "1 OSV advisory(ies)",
+     "::error::brotli 1.2.1 affected by CVE-2026-111497", "accepted by policy"),
+    ("an accepted OSV hit passes", HIT, "brotli=CVE-2026-111497", None,
+     "::warning::CVE-2026-111497 (brotli) accepted by policy", "::error::"),
+    ("a record with no CVE blocks under its OSV id", NOCVE, "", "1 OSV advisory(ies)",
+     "::error::zstd 1.5.7 affected by OSV-2022-15", None),
+    ("a record with no CVE is acceptable by that id", NOCVE, "zstd=OSV-2022-15", None,
+     "OSV-2022-15 (zstd) accepted by policy", "::error::"),
+    # Keying the acceptance on the record id would make the CVE in the list read as spent.
+    ("an aliased record answers to its CVE", ALIASED, "zlib=CVE-2026-76844", None,
+     "CVE-2026-76844 (zlib) accepted by policy", "::error::"),
+    # A bare id means openssl, so it must not quietly waive another port's finding.
+    ("a bare id does not accept a brotli finding", HIT, "CVE-2026-111497",
+     "1 OSV advisory(ies)", "::error::brotli 1.2.1 affected by CVE-2026-111497", None),
+    ("an acceptance for the wrong port does not apply", HIT, "zlib=CVE-2026-111497",
+     "1 OSV advisory(ies)", "::error::brotli 1.2.1 affected by CVE-2026-111497", None),
+    ("no records at all passes", {}, "", None, "clean at >=", "::error::"),
+    # An acceptance for a port OSV no longer flags is spent, same as for OpenSSL.
+    ("a spent OSV acceptance fails", {}, "brotli=CVE-2026-111497", "1 spent acceptance(s)",
+     "CVE-2026-111497 is accepted but no longer applies to brotli", None),
+]
+
+for name, osv, accept, want_status, want_in, want_not in OSV_CASES:
+    status, out, asked = run_installed(TREE, osv, accept)
+    problems = []
+    if (status not in (None, 0)) != (want_status is not None):
+        problems.append(f"expected {'failure' if want_status else 'success'}, got {status!r}")
+    elif want_status and want_status not in str(status):
+        problems.append(f"exit reason {str(status)!r} lacks {want_status!r}")
+    if want_in not in out:
+        problems.append(f"missing {want_in!r}")
+    if want_not and want_not in out:
+        problems.append(f"unexpected {want_not!r}")
+    # Dropping a port from OSV_REPOS would leave every case above green.
+    if sorted(asked) != ["brotli", "zlib", "zstd"]:
+        problems.append(f"queried {sorted(asked)}, expected brotli, zlib and zstd")
+    if problems:
+        bad += 1
+        print(f"FAIL {name}: {'; '.join(problems)}\n{out}")
+    else:
+        print(f"ok   {name}")
+
+if len(OSV_CASES) != 9:
+    print(f"FAIL expected 9 OSV cases, table has {len(OSV_CASES)}")
+    bad += 1
+
+# A port the installed tree does not carry must not be queried at all, or a missing
+# SBOM would be scanned as whatever version the previous port resolved to.
+status, out, asked = run_installed({"openssl": "3.6.5", "brotli": "1.2.1"}, {}, "")
+if sorted(asked) != ["brotli"]:
+    print(f"FAIL only the ports present are queried: asked {sorted(asked)}")
+    bad += 1
+else:
+    print("ok   only the ports present are queried")
+
+# webview2 has no OSV coverage, so it must be reported and never gated.
+status, out, asked = run_installed({"openssl": "3.6.5", "webview2": "1.0.4191.47"}, {}, "")
+if "::notice::webview2 1.0.4191.47 is not CVE-checked" not in out or status not in (None, 0):
+    print(f"FAIL webview2 is noted and not gated: status {status!r}\n{out}")
+    bad += 1
+else:
+    print("ok   webview2 is noted and not gated")
+
+
+def query(payload):
+    """(records, exit reason) from osv_query over a stubbed OSV response."""
+    class Response:
+        def read(self):
+            return json.dumps(payload).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    real = check.urllib.request.urlopen
+    try:
+        check.urllib.request.urlopen = lambda *a, **k: Response()
+        try:
+            return check.osv_query("brotli", "1.2.0"), None
+        except SystemExit as e:
+            return None, str(e.code)
+    finally:
+        check.urllib.request.urlopen = real
+
+
+LIVE = record("CVE-2026-111497")
+DEAD = record("CVE-2026-99999", withdrawn="2026-10-25T00:00:00Z")
+
+QUERIES = [
+    ("a live record is returned", {"vulns": [LIVE]}, ["CVE-2026-111497"], None),
+    ("a withdrawn record is dropped", {"vulns": [DEAD]}, [], None),
+    ("a withdrawn record beside a live one drops alone",
+     {"vulns": [LIVE, DEAD]}, ["CVE-2026-111497"], None),
+    ("an answer with no vulns key is empty", {}, [], None),
+    ("a vulns key that is not a list is fatal", {"vulns": {}}, None, "no vulns list"),
+]
+
+for name, payload, want_ids, want_reason in QUERIES:
+    got, reason = query(payload)
+    problems = []
+    if want_reason:
+        if reason is None:
+            problems.append(f"expected a fatal exit, got {got!r}")
+        elif want_reason not in reason:
+            problems.append(f"exit reason {reason!r} lacks {want_reason!r}")
+    elif reason is not None:
+        problems.append(f"unexpected fatal exit: {reason!r}")
+    elif [v["id"] for v in got] != want_ids:
+        problems.append(f"returned {[v['id'] for v in got]}, expected {want_ids}")
+    if problems:
+        bad += 1
+        print(f"FAIL {name}: {'; '.join(problems)}")
+    else:
+        print(f"ok   {name}")
+
+if len(QUERIES) != 5:
+    print(f"FAIL expected 5 query cases, table has {len(QUERIES)}")
+    bad += 1
+
+
+# A port no scanner knows is fatal, so a typo cannot sit in the list accepting nothing.
+status, out, asked = run_installed(TREE, {}, "libpng=CVE-2026-1")
+if "names port(s) nothing scans: libpng" not in str(status):
+    print(f"FAIL a port nothing scans is fatal: status {status!r}\n{out}")
+    bad += 1
+else:
+    print("ok   a port nothing scans is fatal")
+
+# The weekly watch runs --openssl-version and shares the one accept list, so an entry
+# for a port it cannot see must not read as spent. This failed before the list was scoped.
+status, out, calls = run([MISSES], "zlib=CVE-2026-76844")
+if status not in (None, 0) or "no longer applies" in out:
+    print(f"FAIL a zlib acceptance is not spent in the openssl-only scan: {status!r}\n{out}")
+    bad += 1
+else:
+    print("ok   a zlib acceptance is not spent in the openssl-only scan")
+
+# And the openssl half of that same list must still be judged.
+status, out, calls = run([MISSES], "zlib=CVE-2026-76844,CVE-2026-22222")
+if "CVE-2026-22222 is accepted but no longer applies to openssl" not in out:
+    print(f"FAIL the openssl half is still judged: {status!r}\n{out}")
+    bad += 1
+else:
+    print("ok   the openssl half of a mixed list is still judged")
+
+
+IDS = [
+    ("a bare CVE record", {"id": "CVE-2026-111497"}, "CVE-2026-111497"),
+    ("an OSV id with no CVE", {"id": "OSV-2022-15"}, "OSV-2022-15"),
+    ("a CVE alias wins over the record id",
+     {"id": "GHSA-a", "aliases": ["PYSEC-1", "CVE-2026-1"]}, "CVE-2026-1"),
+    ("two CVE aliases resolve the same way every run",
+     {"id": "GHSA-a", "aliases": ["CVE-2026-9", "CVE-2026-1"]}, "CVE-2026-1"),
+    ("a lowercase id is normalised", {"id": "cve-2026-1"}, "CVE-2026-1"),
+]
+
+for name, vuln, want in IDS:
+    got = check.osv_id(vuln)
+    if got != want:
+        print(f"FAIL {name}: osv_id gave {got!r}, expected {want!r}")
+        bad += 1
+    else:
+        print(f"ok   {name}")
+
+if len(IDS) != 5:
+    print(f"FAIL expected 5 id cases, table has {len(IDS)}")
+    bad += 1
+
+total = len(CASES) + len(TREES) + len(OSV_CASES) + len(QUERIES) + len(IDS) + 5
+print(f"{total} cases, {bad} failed")
 sys.exit(1 if bad else 0)
