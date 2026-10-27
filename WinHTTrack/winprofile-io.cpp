@@ -145,7 +145,8 @@ int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
     return value;
   } else return value;
 }
-CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
+// TRUE with the decoded value of NAME in FP put in *ST, as stored. FALSE when no line has it.
+static BOOL profileFileValue(FILE* fp,CString name,CString *st) {
   if (fp) {
     char srch[256];
     fseek(fp,0,SEEK_SET);
@@ -155,13 +156,32 @@ CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value
       char s[32768]; s[0]='\0';
       linput(fp,s,32000);
       if (strlen(s)==0)     // EOF
-        return value;
+        return FALSE;
       if (strncmp(s,srch,strlen(srch)) == 0) {    // ligne reconnue
-        return profile_decode(s+strlen(srch));
+        *st = profile_decode(s+strlen(srch));
+        return TRUE;
       }
     }
+  }
+  return FALSE;
+}
+// Contract in Shell.h.
+BOOL profileCharsetIsUtf8(const char* charset) {
+  return CString(charset).CompareNoCase("UTF-8") == 0 || CString(charset).CompareNoCase("utf8") == 0;
+}
+CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
+  CString st, charset;
+  if (!profileFileValue(fp,name,&st))
     return value;
-  } else return value;
+  if (profileFileValue(fp,"Charset",&charset) && profileCharsetIsUtf8(charset)) {
+    // freet() nulls its argument, so not const.
+    char *cp = hts_convertStringUTF8ToSystem(st, st.GetLength());
+    // On failure the raw bytes beat losing the value.
+    if (cp != NULL)
+      st = cp;
+    freet(cp);
+  }
+  return st;
 }
 /* VALUE when the shared table offers KEY that entry, DFLT otherwise. Another front end, or
    a catalog short enough for DDX to store -1, can put an index in the file no combo has. */

@@ -296,7 +296,11 @@ int MyGetProfileInt(CString path,CString dummy,CString name,int value);
 int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 int MyWriteProfileString(CString path,CString dummy,CString name,CString value);
 int MyWriteProfileStringFile(FILE* fp,CString dummy,CString name,CString value);
+/* A file declaring Charset=UTF-8 holds UTF-8 values, which this reads into the ANSI
+   codepage. Without the key, or with any other value, the file is in that codepage already. */
 CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value);
+/* Is CHARSET, a Charset= value, the UTF-8 declaration? Case-blind, and "utf8" counts. */
+BOOL profileCharsetIsUtf8(const char* charset);
 CString MyGetProfileString(CString path,CString dummy,CString name,CString value="");
 void Write_profile(CString path,int load_path);
 void Read_profile(CString path,int load_path);

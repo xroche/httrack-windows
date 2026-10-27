@@ -161,6 +161,7 @@ int MyWriteProfileStringFile(FILE* fp,CString dummy,CString name,CString value);
 int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value);
 CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value);
 CString profile_code(const char* from);
+BOOL profileCharsetIsUtf8(const char* charset);
 int winprofileCheckBindings(CString *err, int *nskipped);
 
 static int failures = 0;
@@ -482,6 +483,54 @@ int main(int argc, char **argv) {
     }
     if (n == 4)
       printf("escaping writes the expected bytes on %d values\n", n);
+  }
+
+  /* 6. Charset=UTF-8 turns a value into the ANSI codepage; anything else leaves the bytes. */
+  {
+    static const struct { const char *file; const char *want; } cs[] = {
+      { "K=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      { "Charset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xe9" },
+      /* the declaration may come after the key */
+      { "K=caf\xc3\xa9\r\nCharset=utf8\r\n", "caf\xe9" },
+      { "Charset=ISO-8859-1\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      { "Charset=\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      /* a missing key keeps the caller's default, which is already ANSI */
+      { "Charset=UTF-8\r\n", "d\xc3\xa9" },
+      { NULL, NULL }
+    };
+    static const struct { const char *value; BOOL want; } decl[] = {
+      { "UTF-8", TRUE }, { "utf-8", TRUE }, { "Utf8", TRUE }, { "UTF8", TRUE },
+      { "", FALSE }, { "UTF-16", FALSE }, { "utf", FALSE }, { "UTF-8 ", FALSE },
+      { "windows-1252", FALSE }, { NULL, FALSE }
+    };
+    int n = 0;
+
+    for(int k=0 ; cs[k].file != NULL ; k++) {
+      FILE *fp = fopen(tmp, "wb");
+      CString got;
+
+      if (fp == NULL)
+        return 2;
+      fputs(cs[k].file, fp);
+      fclose(fp);
+      fp = fopen(tmp, "rb");
+      if (fp == NULL)
+        return 2;
+      got = MyGetProfileStringFile(fp, "", "K", "d\xc3\xa9");
+      fclose(fp);
+      if (got != cs[k].want)
+        fail("charset", cs[k].file, cs[k].want);
+      else
+        n++;
+    }
+    for(int k=0 ; decl[k].value != NULL ; k++) {
+      if (profileCharsetIsUtf8(decl[k].value) != decl[k].want)
+        fail("charset declaration", decl[k].value, decl[k].want ? "UTF-8" : "legacy");
+      else
+        n++;
+    }
+    if (n == 15)
+      printf("Charset= picks the value encoding on %d cases\n", n);
   }
 
   remove(tmp);
