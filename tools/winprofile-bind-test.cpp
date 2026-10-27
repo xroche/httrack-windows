@@ -498,7 +498,7 @@ int main(int argc, char **argv) {
       { "CHARSET=utf-8\r\nK=caf\xc3\xa9\r\n", "caf\xe9" },
       { "Charset=latin1\r\nCharset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
       { "XCharset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
-      /* the escapes are undone before the conversion, and ASCII is left alone */
+      /* an escaped value is decoded too, and ASCII is left alone */
       { "Charset=UTF-8\r\nK=a%3db\xc3\xa9\r\n", "a=b\xe9" },
       { "Charset=UTF-8\r\nK=plain\r\n", "plain" },
       /* other keys keep their exact spelling */
