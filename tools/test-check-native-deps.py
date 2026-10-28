@@ -206,16 +206,16 @@ def record(ident, aliases=None, withdrawn=None):
 def run_installed(tree_versions, osv, accept, canary=True):
     """(exit status, output, the ports asked about at their installed version).
 
-    Status is None on success. osv is keyed by port, or by "port/ECOSYSTEM" for an
-    answer only that package gives. canary=False makes OSV answer nothing for the
-    canary versions too, which is how a repository that moved away looks. A package
-    other than the GIT repo shows up in asked as "port/ECOSYSTEM".
+    Status is None on success. osv and asked key the GIT answer by port, and any
+    other package's by "port/ECOSYSTEM". canary=False makes OSV answer nothing for the
+    canary versions too, which is how a repository that moved away looks.
     """
     asked = []
 
-    def stub(port, version, package=None):
-        key = f"{port}/{package['ecosystem']}" if package else port
-        recs = osv.get(key, osv.get(port, []))
+    def stub(port, version, package):
+        eco = package["ecosystem"]
+        key = port if eco == "GIT" else f"{port}/{eco}"
+        recs = osv.get(key, [])
         if version == check.OSV_CANARY.get(port):
             # Only an empty answer can be vacuous, so a port with records must not pay
             # for a canary. Raising here surfaces as a reported failure.
@@ -372,7 +372,7 @@ def query(payload, raises=None):
     try:
         check.urllib.request.urlopen = fake
         try:
-            return check.osv_query("brotli", "1.2.0"), None, sent
+            return check.osv_query("brotli", "1.2.0", check.osv_packages("brotli")[0]), None, sent
         except SystemExit as e:
             return None, str(e.code), sent
         except Exception as e:
@@ -438,11 +438,17 @@ if len(QUERIES) != 7:
     bad += 1
 
 sent = []
+
+
+def fake_urlopen(req, *a, **k):
+    sent.append(req)
+    return io.BytesIO(b'{"vulns": []}')
+
+
 real = check.urllib.request.urlopen
 try:
-    check.urllib.request.urlopen = lambda req, *a, **k: (
-        sent.append(req) or io.BytesIO(b'{"vulns": []}'))
-    check.osv_query("brotli", "1.2.0", check.OSV_ALSO["brotli"][0])
+    check.urllib.request.urlopen = fake_urlopen
+    check.osv_query("brotli", "1.2.0", {"name": "brotli", "ecosystem": "PyPI"})
 finally:
     check.urllib.request.urlopen = real
 package = json.loads(sent[0].data)["package"] if len(sent) == 1 else None

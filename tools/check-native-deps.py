@@ -98,12 +98,13 @@ def resolved_versions(installed_dirs):
     return found
 
 
-def osv_query(port, version, package=None):
-    """Every OSV record affecting port at version, withdrawn ones dropped.
+def osv_packages(port):
+    """The OSV packages to ask about port: its upstream repo first, then OSV_ALSO."""
+    return [{"name": OSV_REPOS[port], "ecosystem": "GIT"}] + OSV_ALSO.get(port, [])
 
-    package defaults to the port's upstream repo in the GIT ecosystem.
-    """
-    package = package or {"name": OSV_REPOS[port], "ecosystem": "GIT"}
+
+def osv_query(port, version, package):
+    """Every OSV record affecting port at version in package, withdrawn ones dropped."""
     body = json.dumps({"version": version, "package": package}).encode()
     req = urllib.request.Request(OSV, data=body,
                                  headers={"Content-Type": "application/json"})
@@ -260,14 +261,14 @@ def main():
             scanned[port] = versions[port]
             # One CVE filed under two packages counts once.
             by_id = {}
-            for pkg in [None] + OSV_ALSO.get(port, []):
+            for pkg in osv_packages(port):
                 recs = osv_query(port, versions[port], pkg)
                 # Only an empty answer can be vacuous, so this costs a request just there.
                 if not recs and not osv_query(port, OSV_CANARY[port], pkg):
-                    name = pkg["name"] + " on " + pkg["ecosystem"] if pkg else OSV_REPOS[port]
                     sys.exit(f"FATAL: OSV reports nothing for {port} {versions[port]} and "
                              f"nothing for {OSV_CANARY[port]} either, so it does not know "
-                             f"{name} -- the clean answer proves nothing")
+                             f"{pkg['name']} on {pkg['ecosystem']} -- the clean answer "
+                             f"proves nothing")
                 for vuln in recs:
                     by_id.setdefault(osv_id(vuln), vuln)
             found = list(by_id.values())
