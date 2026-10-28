@@ -206,20 +206,24 @@ def record(ident, aliases=None, withdrawn=None):
 def run_installed(tree_versions, osv, accept, canary=True):
     """(exit status, output, the ports asked about at their installed version).
 
-    Status is None on success. canary=False makes OSV answer nothing for the canary
-    versions too, which is how a repository that moved away looks.
+    Status is None on success. osv is keyed by port, or by "port/ECOSYSTEM" for an
+    answer only that package gives. canary=False makes OSV answer nothing for the
+    canary versions too, which is how a repository that moved away looks. A package
+    other than the GIT repo shows up in asked as "port/ECOSYSTEM".
     """
     asked = []
 
-    def stub(port, version):
+    def stub(port, version, package=None):
+        key = f"{port}/{package['ecosystem']}" if package else port
+        recs = osv.get(key, osv.get(port, []))
         if version == check.OSV_CANARY.get(port):
             # Only an empty answer can be vacuous, so a port with records must not pay
             # for a canary. Raising here surfaces as a reported failure.
-            if osv.get(port):
-                raise AssertionError(f"canary queried for {port} despite its records")
+            if recs:
+                raise AssertionError(f"canary queried for {key} despite its records")
             return [record("CVE-2026-00001")] if canary else []
-        asked.append(port)
-        return osv.get(port, [])
+        asked.append(key)
+        return recs
 
     real_osv, real_adv, real_argv = check.osv_query, check.advisories, sys.argv
     out, status = io.StringIO(), None
@@ -254,6 +258,9 @@ BROTLI_HIT = {"brotli": [record("CVE-2026-111497")]}
 NOCVE = {"zstd": [record("OSV-2022-15")]}
 # OSV keys the record on its own id and lists the CVE as an alias for some ecosystems.
 ALIASED = {"zlib": [record("GHSA-xxxx-yyyy-zzzz", ["CVE-2026-76844", "PYSEC-2026-1"])]}
+# The real CVE-2026-111497 record is filed under PyPI brotli only.
+PYPI_ONLY = {"brotli/PyPI": [record("GHSA-9v8h-qqgm-4m35", ["CVE-2026-111497"])]}
+BOTH_PACKAGES = dict(BROTLI_HIT, **PYPI_ONLY)
 # zlib really does carry two, which is what the accept list holds the day this lands.
 ZLIB_PAIR = {"zlib": [record("CVE-2026-76844"), record("CVE-2026-85091")]}
 
@@ -280,6 +287,10 @@ OSV_CASES = [
      "clean at >= moderate (0 below threshold, 2 accepted)", "::error::"),
     ("a port name is matched case-insensitively", BROTLI_HIT, " BroTLi = cve-2026-111497 ",
      None, "CVE-2026-111497 (brotli) accepted by policy", "::error::"),
+    ("a record filed under PyPI only blocks", PYPI_ONLY, "", "1 OSV advisory(ies)",
+     "::error::brotli 1.2.1 affected by CVE-2026-111497", None),
+    ("one CVE under both packages counts once", BOTH_PACKAGES, "", "1 OSV advisory(ies)",
+     "::error::brotli 1.2.1 affected by CVE-2026-111497", None),
     ("no records at all passes", {}, "", None, "clean at >=", "::error::"),
     # An acceptance for a port OSV no longer flags is spent, same as for OpenSSL.
     ("a spent OSV acceptance fails", {}, "brotli=CVE-2026-111497", "1 spent acceptance(s)",
@@ -298,16 +309,16 @@ for name, osv, accept, want_status, want_in, want_not in OSV_CASES:
     if want_not and want_not in out:
         problems.append(f"unexpected {want_not!r}")
     # Dropping a port from OSV_REPOS would leave every case above green.
-    if sorted(asked) != ["brotli", "zlib", "zstd"]:
-        problems.append(f"queried {sorted(asked)}, expected brotli, zlib and zstd")
+    if sorted(asked) != ["brotli", "brotli/PyPI", "zlib", "zstd"]:
+        problems.append(f"queried {sorted(asked)}, expected brotli twice, zlib and zstd")
     if problems:
         bad += 1
         print(f"FAIL {name}: {'; '.join(problems)}\n{out}")
     else:
         print(f"ok   {name}")
 
-if len(OSV_CASES) != 11:
-    print(f"FAIL expected 11 OSV cases, table has {len(OSV_CASES)}")
+if len(OSV_CASES) != 13:
+    print(f"FAIL expected 13 OSV cases, table has {len(OSV_CASES)}")
     bad += 1
 
 # A canary that answers nothing means OSV no longer knows the repository, so the
@@ -318,6 +329,15 @@ if "the clean answer proves nothing" not in str(status):
     bad += 1
 else:
     print("ok   a silent OSV is fatal")
+
+# A PyPI answer can go silent while the GIT one still has records.
+status, out, asked = run_installed(
+    INSTALLED, osv=dict(BROTLI_HIT, **{"brotli/PyPI": []}), accept="", canary=False)
+if "does not know brotli on PyPI" not in str(status):
+    print(f"FAIL a silent second package is fatal: status {status!r}\n{out}")
+    bad += 1
+else:
+    print("ok   a silent second package is fatal")
 
 # zlib and brotli were both droppable from a green run.
 status, out, asked = run_installed({"openssl": "3.6.5", "zstd": "1.5.7"}, osv={}, accept="")
@@ -417,6 +437,21 @@ if len(QUERIES) != 7:
     print(f"FAIL expected 7 query cases, table has {len(QUERIES)}")
     bad += 1
 
+sent = []
+real = check.urllib.request.urlopen
+try:
+    check.urllib.request.urlopen = lambda req, *a, **k: (
+        sent.append(req) or io.BytesIO(b'{"vulns": []}'))
+    check.osv_query("brotli", "1.2.0", check.OSV_ALSO["brotli"][0])
+finally:
+    check.urllib.request.urlopen = real
+package = json.loads(sent[0].data)["package"] if len(sent) == 1 else None
+if package != {"name": "brotli", "ecosystem": "PyPI"}:
+    print(f"FAIL a second package is the one asked about: sent {package!r}")
+    bad += 1
+else:
+    print("ok   a second package is the one asked about")
+
 
 status, out, asked = run_installed(INSTALLED, osv={}, accept="libpng=CVE-2026-1")
 if "names port(s) nothing scans: libpng" not in str(status):
@@ -450,7 +485,7 @@ if len(IDS) != 6:
     print(f"FAIL expected 6 id cases, table has {len(IDS)}")
     bad += 1
 
-# The 5 is the checks outside the tables; drop one and this total lies.
-total = len(CASES) + len(TREES) + len(OSV_CASES) + len(QUERIES) + len(IDS) + 5
+# The 6 is the checks outside the tables; drop one and this total lies.
+total = len(CASES) + len(TREES) + len(OSV_CASES) + len(QUERIES) + len(IDS) + 6
 print(f"{total} cases, {bad} failed")
 sys.exit(1 if bad else 0)
