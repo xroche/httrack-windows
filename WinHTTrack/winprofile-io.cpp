@@ -124,6 +124,13 @@ int MyWriteProfileStringFile(FILE* fp,CString dummy,CString name,CString value) 
   }
   return 0;
 }
+// linput(), then drop the rest of an over-long line as the engine does, so its tail never reads as a key.
+static void profileLine(FILE* fp,char* s,int max) {
+  if (linput(fp,s,max) == max - 1) {
+    int c;
+    while((c = fgetc(fp)) != EOF && c != '\n') {}
+  }
+}
 int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
   if (fp) {
     char srch[256];
@@ -131,7 +138,7 @@ int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
     sprintf(srch,"%s=",(LPCTSTR)name);
     while(!feof(fp)) {
       char s[2048]; s[0]='\0';
-      linput(fp,s,2000);
+      profileLine(fp,s,2000);
       if (strlen(s)==0)     // EOF
         return value;
       if (strncmp(s,srch,strlen(srch)) == 0) {    // ligne reconnue
@@ -155,7 +162,7 @@ static BOOL profileFileValue(FILE* fp,CString name,BOOL anycase,CString *st) {
     strcatbuff(srch,"=");
     while(!feof(fp)) {
       char s[32768]; s[0]='\0';
-      linput(fp,s,32000);
+      profileLine(fp,s,32000);
       if (strlen(s)==0)     // EOF
         return FALSE;
       if ((anycase ? _strnicmp(s,srch,strlen(srch)) : strncmp(s,srch,strlen(srch))) == 0) {

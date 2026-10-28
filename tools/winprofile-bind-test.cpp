@@ -538,7 +538,52 @@ int main(int argc, char **argv) {
       else
         n++;
     }
-    if (n == 21)
+    /* an over-long line ends at its LF, so its tail is not a line of its own */
+    const CString pad = "X=" + CString(std::string(31997, 'x').c_str());
+    static const struct { const char *what, *head, *tail, *want; } longLine[] = {
+      { "a declaration in the tail of a long line", "", "Charset=UTF-8\r\nK=caf\xc3\xa9\r\n", "caf\xc3\xa9" },
+      { "a key after a 31999-byte line", "Charset=UTF-8\r\n", "\r\nK=caf\xc3\xa9\r\n", "caf\xe9" },
+      { NULL, NULL, NULL, NULL }
+    };
+    for(int k=0 ; longLine[k].head != NULL ; k++) {
+      FILE *fp = fopen(tmp, "wb");
+      CString got;
+
+      if (fp == NULL)
+        return 2;
+      fputs(longLine[k].head, fp);
+      fputs(pad, fp);
+      fputs(longLine[k].tail, fp);
+      fclose(fp);
+      fp = fopen(tmp, "rb");
+      if (fp == NULL)
+        return 2;
+      got = MyGetProfileStringFile(fp, "", "K", "d\xc3\xa9");
+      fclose(fp);
+      if (got != longLine[k].want)
+        fail(longLine[k].what, (const char *) got, longLine[k].want);
+      else
+        n++;
+    }
+    {
+      FILE *fp = fopen(tmp, "wb");
+      int got;
+
+      if (fp == NULL)
+        return 2;
+      fprintf(fp, "X=%s\r\nN=7\r\n", std::string(1997, 'x').c_str());
+      fclose(fp);
+      fp = fopen(tmp, "rb");
+      if (fp == NULL)
+        return 2;
+      got = MyGetProfileIntFile(fp, "", "N", 3);
+      fclose(fp);
+      if (got != 7)
+        fail("an int after a 1999-byte line", got == 3 ? "3" : "other", "7");
+      else
+        n++;
+    }
+    if (n == 24)
       printf("Charset= picks the value encoding on %d cases\n", n);
   }
 
