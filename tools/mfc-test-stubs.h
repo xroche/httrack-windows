@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,7 @@ public:
   operator const char*() const { return s.c_str(); }
   int GetLength() const { return (int) s.size(); }
   bool IsEmpty() const { return s.empty(); }
+  int CompareNoCase(const char *p) const { return strcasecmp(s.c_str(), p); }
   void Format(const char *f, int n) { char b[32]; sprintf(b, f, n); s = b; }
   int Find(char c) const {
     const size_t i = s.find(c);
@@ -145,6 +147,7 @@ static inline int linput(FILE *fp, char *s, int max) {
 }
 
 #define strcatbuff(a, b) strcat(a, b)
+#define _strnicmp strncasecmp
 
 #ifdef ARGV_CAPS_TEST
 /* A legacy codepage, which is what makes the accented case decidable, and what the
@@ -168,6 +171,28 @@ static inline char *hts_convertStringSystemToUTF8(const char *s, size_t size) {
     } else {
       out[j++] = (char) (0xc0 | (c >> 6));
       out[j++] = (char) (0x80 | (c & 0x3f));
+    }
+  }
+  out[j] = '\0';
+  return out;
+}
+#endif
+
+#ifdef WINPROFILE_IO_TEST
+/* The engine's UTF-8 to CP1252 converter, over the Latin-1 range only. */
+static inline char *hts_convertStringUTF8ToSystem(const char *s, size_t size) {
+  char *const out = (char *) malloc(size + 1);
+  size_t j = 0;
+
+  if (out == NULL)
+    return NULL;
+  for(size_t i = 0 ; i < size ; i++) {
+    const unsigned char c = (unsigned char) s[i];
+
+    if (c >= 0xc0 && c <= 0xc3 && i + 1 < size) {
+      out[j++] = (char) (((c & 0x03) << 6) | ((unsigned char) s[++i] & 0x3f));
+    } else {
+      out[j++] = (char) c;
     }
   }
   out[j] = '\0';

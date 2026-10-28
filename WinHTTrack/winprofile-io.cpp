@@ -124,6 +124,13 @@ int MyWriteProfileStringFile(FILE* fp,CString dummy,CString name,CString value) 
   }
   return 0;
 }
+// linput(), then drop the rest of an over-long line as the engine does, so its tail never reads as a key.
+static void profileLine(FILE* fp,char* s,int max) {
+  if (linput(fp,s,max) == max - 1) {
+    int c;
+    while((c = fgetc(fp)) != EOF && c != '\n') {}
+  }
+}
 int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
   if (fp) {
     char srch[256];
@@ -131,7 +138,7 @@ int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
     sprintf(srch,"%s=",(LPCTSTR)name);
     while(!feof(fp)) {
       char s[2048]; s[0]='\0';
-      linput(fp,s,2000);
+      profileLine(fp,s,2000);
       if (strlen(s)==0)     // EOF
         return value;
       if (strncmp(s,srch,strlen(srch)) == 0) {    // ligne reconnue
@@ -145,7 +152,9 @@ int MyGetProfileIntFile(FILE* fp,CString dummy,CString name,int value) {
     return value;
   } else return value;
 }
-CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
+// TRUE with the decoded value of NAME in FP put in *ST, as stored. FALSE when no line has it.
+// ANYCASE matches the key the way the engine reads Charset.
+static BOOL profileFileValue(FILE* fp,CString name,BOOL anycase,CString *st) {
   if (fp) {
     char srch[256];
     fseek(fp,0,SEEK_SET);
@@ -153,15 +162,34 @@ CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value
     strcatbuff(srch,"=");
     while(!feof(fp)) {
       char s[32768]; s[0]='\0';
-      linput(fp,s,32000);
+      profileLine(fp,s,32000);
       if (strlen(s)==0)     // EOF
-        return value;
-      if (strncmp(s,srch,strlen(srch)) == 0) {    // ligne reconnue
-        return profile_decode(s+strlen(srch));
+        return FALSE;
+      if ((anycase ? _strnicmp(s,srch,strlen(srch)) : strncmp(s,srch,strlen(srch))) == 0) {
+        *st = profile_decode(s+strlen(srch));
+        return TRUE;
       }
     }
+  }
+  return FALSE;
+}
+// Contract in Shell.h.
+BOOL profileCharsetIsUtf8(const char* charset) {
+  return CString(charset).CompareNoCase("UTF-8") == 0 || CString(charset).CompareNoCase("utf8") == 0;
+}
+CString MyGetProfileStringFile(FILE* fp,CString dummy,CString name,CString value) {
+  CString st, charset;
+  if (!profileFileValue(fp,name,FALSE,&st))
     return value;
-  } else return value;
+  if (profileFileValue(fp,"Charset",TRUE,&charset) && profileCharsetIsUtf8(charset)) {
+    // freet() nulls its argument, so not const.
+    char *cp = hts_convertStringUTF8ToSystem(st, st.GetLength());
+    // NULL only when memory runs out. A byte the codepage lacks reads as '?'.
+    if (cp != NULL)
+      st = cp;
+    freet(cp);
+  }
+  return st;
 }
 /* VALUE when the shared table offers KEY that entry, DFLT otherwise. Another front end, or
    a catalog short enough for DDX to store -1, can put an index in the file no combo has. */
