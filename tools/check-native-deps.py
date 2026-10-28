@@ -5,8 +5,8 @@ Reads the resolved versions out of vcpkg's SPDX SBOMs, then checks OpenSSL's own
 CVE-5.x feed. Exits non-zero on an advisory at or above --min-severity.
 
 zlib, brotli and zstd go through OSV instead, which answers per-version when asked
-for their upstream git repo. Every hit there blocks, because OSV carries CVSS vectors
-rather than the severity words --min-severity ranks.
+for their upstream git repo, and for brotli also under PyPI. Every hit there blocks,
+because OSV carries CVSS vectors rather than the severity words --min-severity ranks.
 
 webview2 is only reported, because it is a Microsoft binary drop with no upstream
 repo OSV can key on.
@@ -28,9 +28,12 @@ OSV_REPOS = {
     "zlib": "https://github.com/madler/zlib",
     "zstd": "https://github.com/facebook/zstd",
 }
-# A version each port is known to be affected at, so a clean answer can be told apart
-# from OSV no longer recognising the repository.
-OSV_CANARY = {"brotli": "1.0.9", "zlib": "1.2.3", "zstd": "1.4.9"}
+# Packages a port's advisories are also filed under, with upstream's version numbers.
+# CVE-2026-111497 reached OSV for PyPI brotli only, so the GIT answer missed it.
+OSV_ALSO = {"brotli": [{"name": "brotli", "ecosystem": "PyPI"}]}
+# A version each port is known to be affected at in every package it is asked under,
+# so a clean answer can be told apart from OSV no longer recognising the package.
+OSV_CANARY = {"brotli": "1.0.7", "zlib": "1.2.3", "zstd": "1.4.9"}
 UNGATED = ("webview2",)
 
 
@@ -95,10 +98,14 @@ def resolved_versions(installed_dirs):
     return found
 
 
-def osv_query(port, version):
-    """Every OSV record affecting port at version, withdrawn ones dropped."""
-    body = json.dumps({"version": version,
-                       "package": {"name": OSV_REPOS[port], "ecosystem": "GIT"}}).encode()
+def osv_packages(port):
+    """The OSV packages to ask about port: its upstream repo first, then OSV_ALSO."""
+    return [{"name": OSV_REPOS[port], "ecosystem": "GIT"}] + OSV_ALSO.get(port, [])
+
+
+def osv_query(port, version, package):
+    """Every OSV record affecting port at version in package, withdrawn ones dropped."""
+    body = json.dumps({"version": version, "package": package}).encode()
     req = urllib.request.Request(OSV, data=body,
                                  headers={"Content-Type": "application/json"})
     try:
@@ -252,12 +259,19 @@ def main():
                      f"go unscanned; drop them from OSV_REPOS if they no longer ship")
         for port in sorted(OSV_REPOS):
             scanned[port] = versions[port]
-            found = osv_query(port, versions[port])
-            # Only an empty answer can be vacuous, so this costs a request just there.
-            if not found and not osv_query(port, OSV_CANARY[port]):
-                sys.exit(f"FATAL: OSV reports nothing for {port} {versions[port]} and "
-                         f"nothing for {OSV_CANARY[port]} either, so it does not know "
-                         f"{OSV_REPOS[port]} -- the clean answer proves nothing")
+            # One CVE filed under two packages counts once.
+            by_id = {}
+            for pkg in osv_packages(port):
+                recs = osv_query(port, versions[port], pkg)
+                # Only an empty answer can be vacuous, so this costs a request just there.
+                if not recs and not osv_query(port, OSV_CANARY[port], pkg):
+                    sys.exit(f"FATAL: OSV reports nothing for {port} {versions[port]} and "
+                             f"nothing for {OSV_CANARY[port]} either, so it does not know "
+                             f"{pkg['name']} on {pkg['ecosystem']} -- the clean answer "
+                             f"proves nothing")
+                for vuln in recs:
+                    by_id.setdefault(osv_id(vuln), vuln)
+            found = list(by_id.values())
             print(f"  osv {port} {versions[port]}: {len(found)} record(s)")
             for vuln in found:
                 ident = osv_id(vuln)
