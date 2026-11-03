@@ -337,8 +337,13 @@ def accept_box(sheet, pid, ids, shots, page):
     """The Accept headers box, which the Browser ID page opens because its twelve rows do
     not fit that page. Each row offers the browser values hts_accept_preset() returns, so
     an empty list means the box lost its engine, which no shot of the page would show."""
+    before = set(top_level_windows(pid))
     click(find(sheet, control_id=ids["IDC_acceptopt"], class_name="Button"))
-    box = wait(lambda: window_titled(pid, "Accept headers"), "the Accept headers box", 15)
+    # Found by a row rather than by its title, because the title translates.
+    box = wait(lambda: next((h for h in top_level_windows(pid) if h not in before
+                             and find(h, control_id=ids["IDC_accept_default"]) is not None),
+                            None),
+               "the Accept headers box", 15)
     for row in ACCEPT_ROWS:
         combo = find(box, control_id=ids["IDC_accept_" + row], class_name="ComboBox")
         if combo is None:
