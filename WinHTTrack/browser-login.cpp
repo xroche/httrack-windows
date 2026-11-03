@@ -144,6 +144,12 @@ static int __cdecl takeCookie(void *ctx, const WhttBrowserLoginCookie *cookie) {
   return 1;
 }
 
+/* Takes the scheme, host and port of one site that answered the browser. */
+static int __cdecl takePage(void *ctx, const char *url) {
+  ((BrowserLoginHarvest *) ctx)->pages.Add(CString(url));
+  return 1;
+}
+
 // see browser-login.h
 WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
                                        const CString &profile,
@@ -182,6 +188,8 @@ WhttBrowserLoginResult browserLoginRun(HWND parent, const CString &url,
   request.userAgentSize = sizeof(agent);
   request.finalUrl = landed;
   request.finalUrlSize = sizeof(landed);
+  request.onPage = takePage;
+  request.onPageCtx = &harvest;
 
   /* The DLL empties the buffer before it does anything else, so a run that stops early
      leaves no stale agent behind. */
@@ -326,6 +334,7 @@ BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest
   const CString agent = browserLoginUtf8(harvest.userAgent);
   const CString url = browserLoginUtf8(browserLoginSafeUrl(harvest.finalUrl));
   const CString dir = dryRun ? CString() : browserLoginUtf8(folder);
+  const CString hosts = browserLoginHostList(harvest.pages);
   hts_paste_result result;
 
   memset(&result, 0, sizeof(result));
@@ -333,12 +342,13 @@ BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest
   /* The engine writes into the folder but does not create it. */
   if (!dir.IsEmpty())
     structcheck_utf8(dir + "/");
-  info.ok = hts_bundle_from_paste_flags(paste, dir, agent, url,
+  info.ok = hts_bundle_from_paste_hosts(paste, dir, agent, url, hosts,
                                         browserLoginPasteFlags(dryRun), &result)
     ? TRUE : FALSE;
   info.name = result.name;
   info.url = ansiOf(result.url);
   info.error = ansiOf(result.error);
   info.cookies = result.cookies;
+  info.dropped += result.dropped;
   return info;
 }

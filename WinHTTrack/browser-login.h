@@ -71,6 +71,10 @@ struct BrowserLoginHarvest {
   /* Where the user ended up. This is the address to crawl, because navigating to it by
      hand is what the browser was opened for. */
   CString finalUrl;
+  /* The scheme, host and port of every site that answered the browser, in UTF-8. The
+     cookies of these sites go in the bundle too, because a login often signs in on
+     another site. */
+  CSimpleArray<CString> pages;
   /* The bundle the engine names this login, in UTF-8, set once the browser closes. */
   CString bundleName;
 };
@@ -147,6 +151,10 @@ BOOL browserLoginWriteHeld(const CSimpleArray<CString> &names, const CString &bo
                            BrowserLoginNamesFree release, BrowserLoginWriter write,
                            void *ctx, CString *refused);
 
+/* Returns the hosts of the http and https PAGES, in order, without repeats and
+   comma-separated, as the engine takes them. PAGES and the result are UTF-8. */
+CString browserLoginHostList(const CSimpleArray<CString> &pages);
+
 /* Returns COOKIES as the cookies.txt the engine reads, in order, keeping under the
    engine's paste cap. DROPPED gets the number left out. */
 CString browserLoginPasteText(const CSimpleArray<CookieRecord> &cookies, int *dropped);
@@ -165,7 +173,7 @@ struct BrowserLoginBundleInfo {
   CString url;     /* the address naming the bundle */
   CString error;
   int cookies;     /* the number the engine kept */
-  int dropped;     /* the number left out before the engine saw them */
+  int dropped;     /* the number left out, by us or by the engine */
 };
 
 enum BrowserLoginBundleMode {
