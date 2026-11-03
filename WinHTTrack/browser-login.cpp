@@ -144,7 +144,7 @@ static int __cdecl takeCookie(void *ctx, const WhttBrowserLoginCookie *cookie) {
   return 1;
 }
 
-/* Takes the scheme and host of one site that answered the browser. */
+/* Takes the scheme, host and port of one site that answered the browser. */
 static int __cdecl takePage(void *ctx, const char *url) {
   ((BrowserLoginHarvest *) ctx)->pages.Add(CString(url));
   return 1;

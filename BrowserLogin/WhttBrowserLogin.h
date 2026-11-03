@@ -73,7 +73,7 @@ typedef struct WhttBrowserLoginCookie {
    closed, so it may do whatever the caller likes. Returning zero takes no more. */
 typedef int (__cdecl *WhttBrowserLoginCookieFn)(void *ctx, const WhttBrowserLoginCookie *cookie);
 
-/* Takes the scheme and host of one http or https site that answered the window, in
+/* Takes the scheme, host and port of one http or https site that answered the window, in
    UTF-8, redirects included, once each, in order. Called before the cookies, under the
    same rules as them. */
 typedef int (__cdecl *WhttBrowserLoginPageFn)(void *ctx, const char *url);

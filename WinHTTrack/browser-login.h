@@ -71,8 +71,9 @@ struct BrowserLoginHarvest {
   /* Where the user ended up. This is the address to crawl, because navigating to it by
      hand is what the browser was opened for. */
   CString finalUrl;
-  /* The scheme and host of every site that answered the browser, in UTF-8. The cookies of their sites go in the bundle
-     too, because a login often signs in on another site. */
+  /* The scheme, host and port of every site that answered the browser, in UTF-8. The
+     cookies of these sites go in the bundle too, because a login often signs in on
+     another site. */
   CSimpleArray<CString> pages;
   /* The bundle the engine names this login, in UTF-8, set once the browser closes. */
   CString bundleName;

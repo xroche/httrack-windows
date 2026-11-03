@@ -174,8 +174,8 @@ static std::string takeString(LPWSTR owned) {
   return out;
 }
 
-/* The scheme and host of an http or https URI, which is all the caller reads, or "" for
-   any other. Cutting the rest keeps sign-in tokens out of memory and bounds the list. */
+/* The scheme, host and port of an http or https URI, which is all the caller reads,
+   or "" for any other. Dropping the rest keeps no sign-in token or password. */
 static std::string siteOf(const std::string &uri) {
   const size_t colon = uri.find("://");
 
@@ -183,7 +183,13 @@ static std::string siteOf(const std::string &uri) {
       || (_stricmp(uri.substr(0, colon).c_str(), "http") != 0
           && _stricmp(uri.substr(0, colon).c_str(), "https") != 0))
     return std::string();
-  return uri.substr(0, uri.find_first_of("/?#\\", colon + 3));
+
+  const size_t end = uri.find_first_of("/?#\\", colon + 3);
+  const std::string authority = uri.substr(colon + 3, end == std::string::npos
+                                                      ? std::string::npos
+                                                      : end - colon - 3);
+
+  return uri.substr(0, colon + 3) + authority.substr(authority.rfind('@') + 1);
 }
 
 /* Adds SITE to the ones the caller gets, unless it is empty or already there. */
@@ -585,7 +591,8 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                   }).Get(), &token);
               /* A site counts once it answered: a redirect hop did, and so did a page
                  that loaded. One that never answered set no cookie in this login, and
-                 recording it would take the ones an earlier login left. */
+                 recording it would take the ones an earlier login left. A page from the
+                 cache still counts, because nothing tells it apart. */
               win->webview->add_NavigationStarting(
                 Callback<ICoreWebView2NavigationStartingEventHandler>(
                   [state](ICoreWebView2 *, ICoreWebView2NavigationStartingEventArgs *args) -> HRESULT {
