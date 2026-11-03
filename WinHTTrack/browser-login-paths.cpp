@@ -101,11 +101,6 @@ CString browserLoginStartUrl(const CString &urls) {
   return CString();
 }
 
-/* The engine's HTS_REALSPACES, the bytes hts_scan_token() splits on. */
-static BOOL isEngineSpace(char c) {
-  return c != '\0' && strchr(" \n\r\t\f\v", c) != NULL;
-}
-
 // see browser-login.h
 CString browserLoginPickAddress(const CString &box, int caret, int *begin, int *end) {
   CString source(box), scratch, first;
@@ -116,15 +111,13 @@ CString browserLoginPickAddress(const CString &box, int caret, int *begin, int *
   /* As long as the whole box, so hts_scan_token() never truncates a token. */
   char *const token = scratch.GetBufferSetLength(box.GetLength());
   while (*cur != '\0') {
-    /* Leading blanks come back as an empty token, so a word starts where the scan does. */
+    /* Leading blanks come back as an empty token, and a token is its raw bytes. */
     const int b = (int) (cur - base);
 
     (void) hts_scan_token(&cur, token, (size_t) box.GetLength() + 1);
+    const int e = b + (int) strlen(token);
     const CString start = tokenStartUrl(token);
-    int e = (int) (cur - base);
 
-    while (e > b && isEngineSpace(base[e - 1]))
-      e--;
     if (start.IsEmpty())
       continue;
     /* The caret can sit at the end of the word. */
@@ -499,6 +492,7 @@ int browserLoginCheckCases(CString *err) {
   {
     static const struct { const char *box; int begin, end; const char *want; } splices[] = {
       { "a.test\r\nb.test", 8, 14, "a.test\r\nL" },
+      { "a.test\r\nb.test", 0, 6, "L\r\nb.test" },
       /* nothing picked: a line of its own, and no blank line before it */
       { "", 0, 0, "L" },
       { "-*.gif", 6, 6, "-*.gif\r\nL" },
