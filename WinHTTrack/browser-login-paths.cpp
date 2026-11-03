@@ -245,6 +245,7 @@ CString browserLoginHostList(const CSimpleArray<CString> &pages) {
   CString list;
 
   for(int i = 0 ; i < pages.GetSize() ; i++) {
+    /* No "://" leaves the scheme empty. */
     const CString scheme = pages[i].Left(pages[i].Find("://"));
 
     if (scheme.CompareNoCase("http") != 0 && scheme.CompareNoCase("https") != 0)
@@ -695,11 +696,11 @@ int browserLoginCheckCases(CString *err) {
       /* a host that only starts like an earlier one is another site */
       { "https://a.test.b/ https://a.test/", "a.test.b,a.test" },
       { "HTTP://a.test/ HTTPS://b.test/", "a.test,b.test" },
-      { "about:blank data:text/html,x edge://settings file:///c:/x", "" },
+      { "about:blank data:text/html,x edge://settings file:///c:/x httpx://a.test/", "" },
       { "https://a.test/ https://a,b.test/ http:///path", "a.test" },
       { "https://evil.test\\@bank.test/ https://me:pw@c.test/ http://[::1]:8080/",
         "evil.test,c.test,[::1]" },
-      { "", "" },
+      { "https://b.a.test/ https://a.test/", "b.a.test,a.test" },
       { NULL, NULL }
     };
 

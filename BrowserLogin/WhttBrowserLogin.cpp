@@ -36,6 +36,8 @@ Please visit our Website: http://www.httrack.com
 #include <objbase.h>
 #include <string.h>
 
+#include <algorithm>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -128,7 +130,8 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   int result = WhttBrowserLoginDone;
   std::string userAgent;
   std::string finalUrl;
-  std::vector<std::string> pages;  /* every page navigated to, for each site's cookies */
+  std::vector<std::string> pages;  /* siteOf() each page that answered, once each */
+  std::map<UINT64, std::string> opening;  /* siteOf() each navigation still under way */
   std::vector<HarvestedCookie> cookies;
 };
 
@@ -169,6 +172,24 @@ static std::string takeString(LPWSTR owned) {
   if (owned != NULL)
     CoTaskMemFree(owned);
   return out;
+}
+
+/* The scheme and host of an http or https URI, which is all the caller reads, or "" for
+   any other. Cutting the rest keeps sign-in tokens out of memory and bounds the list. */
+static std::string siteOf(const std::string &uri) {
+  const size_t colon = uri.find("://");
+
+  if (colon == std::string::npos
+      || (_stricmp(uri.substr(0, colon).c_str(), "http") != 0
+          && _stricmp(uri.substr(0, colon).c_str(), "https") != 0))
+    return std::string();
+  return uri.substr(0, uri.find_first_of("/?#\\", colon + 3));
+}
+
+/* Adds SITE to the ones the caller gets, unless it is empty or already there. */
+static void keepSite(LoginWindow *s, const std::string &site) {
+  if (!site.empty() && std::find(s->pages.begin(), s->pages.end(), site) == s->pages.end())
+    s->pages.push_back(site);
 }
 
 /* The caller's caption, or ours when it gave none. Call .c_str() on it at the call site:
@@ -562,20 +583,41 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                     requestFinish(state.get());
                     return S_OK;
                   }).Get(), &token);
-              /* Fires for each redirect too, which is where a sign-in site sets its
-                 cookie without the page ever showing. */
+              /* A site counts once it answered: a redirect hop did, and so did a page
+                 that loaded. One that never answered set no cookie in this login, and
+                 recording it would take the ones an earlier login left. */
               win->webview->add_NavigationStarting(
                 Callback<ICoreWebView2NavigationStartingEventHandler>(
                   [state](ICoreWebView2 *, ICoreWebView2NavigationStartingEventArgs *args) -> HRESULT {
+                    UINT64 id = 0;
+                    BOOL redirected = FALSE;
                     LPWSTR uri = NULL;
 
-                    if (SUCCEEDED(args->get_Uri(&uri))) {
-                      const std::string page = takeString(uri);
+                    if (FAILED(args->get_NavigationId(&id)))
+                      return S_OK;
+                    if (SUCCEEDED(args->get_IsRedirected(&redirected)) && redirected)
+                      keepSite(state.get(), state->opening[id]);
+                    if (SUCCEEDED(args->get_Uri(&uri)))
+                      state->opening[id] = siteOf(takeString(uri));
+                    return S_OK;
+                  }).Get(), &token);
+              /* An HTTP error page still came from the site, so it counts. */
+              win->webview->add_NavigationCompleted(
+                Callback<ICoreWebView2NavigationCompletedEventHandler>(
+                  [state](ICoreWebView2 *, ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
+                    ComPtr<ICoreWebView2NavigationCompletedEventArgs2> withStatus;
+                    UINT64 id = 0;
+                    BOOL success = FALSE;
+                    int status = 0;
 
-                      if (!page.empty()
-                          && (state->pages.empty() || state->pages.back() != page))
-                        state->pages.push_back(page);
-                    }
+                    if (FAILED(args->get_NavigationId(&id)))
+                      return S_OK;
+                    args->get_IsSuccess(&success);
+                    if (SUCCEEDED(args->QueryInterface(IID_PPV_ARGS(&withStatus))))
+                      withStatus->get_HttpStatusCode(&status);
+                    if (success || status > 0)
+                      keepSite(state.get(), state->opening[id]);
+                    state->opening.erase(id);
                     return S_OK;
                   }).Get(), &token);
               win->webview->add_SourceChanged(Callback<ICoreWebView2SourceChangedEventHandler>(

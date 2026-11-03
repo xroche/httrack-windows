@@ -432,8 +432,7 @@ def main():
     if (
         "const BOOL dryRun = mode == BrowserLoginCheckOnly;" not in login
         or not re.search(
-            r"hts_bundle_from_paste_hosts\(paste, dir, agent, url,\s*"
-            r"hosts\.IsEmpty\(\) \? NULL : \(LPCSTR\) hosts,\s*"
+            r"hts_bundle_from_paste_hosts\(paste, dir, agent, url, hosts,\s*"
             r"browserLoginPasteFlags\(dryRun\), &result\)",
             login,
         )
@@ -453,6 +452,20 @@ def main():
         sys.exit("BROWSER_PASTE_MAX no longer matches the engine's PASTE_MAX")
     checked += 1
 
+    # The sites a login went through reach the engine only through these three lines.
+    dll = read(os.path.join(ROOT, "BrowserLogin", "WhttBrowserLogin.cpp"))
+    for needle, where, text in (
+        ("request.onPage = takePage;", "browserLoginRun()", login),
+        (
+            "const CString hosts = browserLoginHostList(harvest.pages);",
+            "browserLoginMakeBundle()",
+            login,
+        ),
+        ("request->onPage(request->onPageCtx, ", "the DLL", dll),
+    ):
+        if needle not in text:
+            sys.exit("%s no longer passes on the login's sites" % where)
+        checked += 1
     print("%d source checks pass" % checked)
 
     with tempfile.TemporaryDirectory() as tmp:

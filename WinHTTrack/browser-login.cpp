@@ -144,7 +144,7 @@ static int __cdecl takeCookie(void *ctx, const WhttBrowserLoginCookie *cookie) {
   return 1;
 }
 
-/* Takes the address of one page the browser navigated to. */
+/* Takes the scheme and host of one site that answered the browser. */
 static int __cdecl takePage(void *ctx, const char *url) {
   ((BrowserLoginHarvest *) ctx)->pages.Add(CString(url));
   return 1;
@@ -342,8 +342,7 @@ BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest
   /* The engine writes into the folder but does not create it. */
   if (!dir.IsEmpty())
     structcheck_utf8(dir + "/");
-  info.ok = hts_bundle_from_paste_hosts(paste, dir, agent, url,
-                                        hosts.IsEmpty() ? NULL : (LPCSTR) hosts,
+  info.ok = hts_bundle_from_paste_hosts(paste, dir, agent, url, hosts,
                                         browserLoginPasteFlags(dryRun), &result)
     ? TRUE : FALSE;
   info.name = result.name;
