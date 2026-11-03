@@ -115,6 +115,7 @@ protected:
 	afx_msg BOOL OnHelpInfo(HELPINFO* dummy);
 	afx_msg void Onsetopt();
 	afx_msg void Onlogin2();
+	afx_msg void OnBrowserLogin();
 	afx_msg void Onbr();
 	afx_msg void OnChangefilelist();
 	afx_msg void OnSize(UINT nType, int cx, int cy);

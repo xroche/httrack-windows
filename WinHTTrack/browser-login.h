@@ -88,6 +88,11 @@ const char *browserLoginRunWhy(WhttBrowserLoginResult result);
    crawl would give it. Empty when URLS holds no address. */
 CString browserLoginStartUrl(const CString &urls);
 
+/* The address in the box BOX that a login starts from and then replaces: the one under
+   CARET, or else the first one. Sets [*begin, *end) to it. FALSE when BOX names no
+   address, and both are then the end of BOX, where the landed address is appended. */
+BOOL browserLoginPickAddress(const CString &box, int caret, int *begin, int *end);
+
 /* What of a landed address may be kept. The browser can finish holding a secret in the
    URL, and the address box is saved into the project's winprofile.ini in clear. Returns
    empty when the address must not be kept at all. */

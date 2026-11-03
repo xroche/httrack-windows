@@ -47,7 +47,6 @@ extern "C" {
 }
 
 #include "CatchUrl.h"
-#include "browser-login.h"
 
 /////////////////////////////////////////////////////////////////////////////
 // CInsertUrl dialog
@@ -62,10 +61,6 @@ public:
   CString dest_path;
   //
   CCatchUrl dial;
-  /* What a browser login brought back, kept until OK: writing it when the browser
-     closes would survive a Cancel that is supposed to undo everything. */
-  BrowserLoginHarvest harvest;
-  BOOL haveHarvest;
   T_SOC soc;
   char adr_prox[1024];
   int port_prox;
@@ -94,7 +89,6 @@ protected:
 	//{{AFX_MSG(CInsertUrl)
 	virtual BOOL OnInitDialog();
 	afx_msg void Oncapt();
-	afx_msg void OnBrowserLogin();
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	//}}AFX_MSG
   afx_msg BOOL OnHelpInfo(HELPINFO* dummy);

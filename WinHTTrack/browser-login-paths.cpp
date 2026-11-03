@@ -41,6 +41,7 @@ Please visit our Website: http://www.httrack.com
    header and every Windows type that comes with it. */
 void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
+BOOL browserLoginPickAddress(const CString &box, int caret, int *begin, int *end);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginUtf8(const CString &text);
@@ -91,6 +92,43 @@ CString browserLoginStartUrl(const CString &urls) {
     return one;
   }
   return CString();
+}
+
+static BOOL isBoxBlank(char c) {
+  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+// see browser-login.h
+BOOL browserLoginPickAddress(const CString &box, int caret, int *begin, int *end) {
+  const int n = box.GetLength();
+  BOOL found = FALSE;
+
+  *begin = *end = n;
+  for(int b = 0 ; b < n ; ) {
+    int e = b;
+
+    if (isBoxBlank(box[b])) {
+      b++;
+      continue;
+    }
+    while(e < n && !isBoxBlank(box[e]))
+      e++;
+    if (!browserLoginStartUrl(box.Mid(b, e - b)).IsEmpty()) {
+      /* The caret sits just past a word the user has finished typing. */
+      if (b <= caret && caret <= e) {
+        *begin = b;
+        *end = e;
+        return TRUE;
+      }
+      if (!found) {
+        *begin = b;
+        *end = e;
+        found = TRUE;
+      }
+    }
+    b = e;
+  }
+  return found;
 }
 
 // see browser-login.h
@@ -368,6 +406,39 @@ int browserLoginCheckCases(CString *err) {
   char msg[1024];
   int nchecks = 0;
 
+  {
+    static const struct { const char *box; int caret; BOOL found; int begin, end; } picks[] = {
+      /* the caret at the end of what was just typed */
+      { "httrack.com", 11, TRUE, 0, 11 },
+      { "a.test b.test", 13, TRUE, 7, 13 },
+      /* the address under the caret wins over the first one */
+      { "a.test\r\nb.test\r\n", 10, TRUE, 8, 14 },
+      { "a.test\r\nb.test", 2, TRUE, 0, 6 },
+      /* a caret on a blank line, or on a rule, falls back to the first address */
+      { "a.test\r\n\r\nb.test", 8, TRUE, 0, 6 },
+      { "+*.css a.test", 3, TRUE, 7, 13 },
+      /* two addresses on one line: only the one under the caret is replaced */
+      { "a.test b.test", 9, TRUE, 7, 13 },
+      /* nothing to start from, so the landed address goes at the end */
+      { "", 0, FALSE, 0, 0 },
+      { "-*.gif\r\n", 0, FALSE, 8, 8 },
+      { NULL, 0, FALSE, 0, 0 }
+    };
+
+    for(int k=0 ; picks[k].box != NULL ; k++) {
+      int b = -1, e = -1;
+      const BOOL got = browserLoginPickAddress(picks[k].box, picks[k].caret, &b, &e);
+
+      if (got != picks[k].found || b != picks[k].begin || e != picks[k].end) {
+        snprintf(msg, sizeof(msg), "caret %d in '%s' picked %d [%d,%d), expected %d [%d,%d)",
+                 picks[k].caret, picks[k].box, got, b, e, picks[k].found,
+                 picks[k].begin, picks[k].end);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
   {
     static const struct { const char *urls, *want; } starts[] = {
       { "http://example.com/", "http://example.com/" },

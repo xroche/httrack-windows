@@ -68,7 +68,6 @@ CInsertUrl::CInsertUrl(CWnd* pParent /*=NULL*/)
 	m_urlpass = _T("");
 	m_urladr = _T("");
 	//}}AFX_DATA_INIT
-  haveHarvest = FALSE;
 }
 
 
@@ -87,7 +86,6 @@ void CInsertUrl::DoDataExchange(CDataExchange* pDX)
 BEGIN_MESSAGE_MAP(CInsertUrl, CDialog)
 	//{{AFX_MSG_MAP(CInsertUrl)
 	ON_BN_CLICKED(ID_capt, Oncapt)
-	ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)
 	ON_WM_CTLCOLOR()
 	//}}AFX_MSG_MAP
   ON_COMMAND(ID_HELP_FINDER,OnHelpInfo2)
@@ -103,11 +101,6 @@ BOOL CInsertUrl::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 	WhttDarkInitWindow(this);
-  haveHarvest = FALSE;
-  /* Windows 7 has no WebView2, and neither has a machine where nobody installed one.
-     GetTip() says which, because a greyed button explains nothing by itself. */
-  if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
-    GetDlgItem(IDC_browserlogin)->EnableWindow(FALSE);
   GetDlgItem(IDC_urladr)->SendMessage(EM_SETLIMITTEXT, 2000, 0);
   SetIcon(httrack_icon,false);
   SetIcon(httrack_icon,true);
@@ -122,8 +115,6 @@ BOOL CInsertUrl::OnInitDialog()
     SetDlgItemTextCP(this, IDC_STATIC_pass,LANG(LANG_T6));
     SetDlgItemTextCP(this, IDC_STATIC_capt,LANG(LANG_T7));
     SetDlgItemTextCP(this, ID_capt,LANG(LANG_T8));
-    /* Lang, not CP: an empty key keeps the English caption the .rc already carries. */
-    SetDlgItemTextLang(this, IDC_browserlogin,LANG(LANG_BROWSERLOGIN));
     SetDlgItemTextCP(this, IDOK,LANG(LANG_OK));
     SetDlgItemTextCP(this, IDCANCEL,LANG(LANG_CANCEL));
   }
@@ -174,16 +165,6 @@ const char* CInsertUrl::GetTip(int ID)
     case IDC_urllogin:  return LANG(LANG_T12); break;
     case IDC_urlpass:   return LANG(LANG_T13); break;
     case ID_capt:       return LANG(LANG_T14); break;
-    case IDC_browserlogin:
-      if (browserLoginLoad() != BrowserLoginReady)
-        return browserLoginWhy(browserLoginLoad());
-      if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
-        return browserLoginText(LANG(LANG_BROWSERLOGINNORUNTIME),
-                                "No Microsoft Edge WebView2 runtime is installed on "
-                                "this computer");
-      return browserLoginText(LANG(LANG_BROWSERLOGINTIP),
-                              "Log in to the site in a browser, and crawl with the "
-                              "cookies and the browser identity it was given");
     case IDOK:           return LANG(LANG_TIPOK); break;      
     case IDCANCEL:       return LANG(LANG_TIPCANCEL); break;
     //case : return ""; break;
@@ -260,92 +241,6 @@ UINT RunBackCatchServer( LPVOID pP ) {
   }
   //_this->dial.EndDialog(IDOK);
   return 0;
-}
-
-/* Opens a browser so the user can log in, and keeps what the site then answers to.
-   Nothing of ours is written here, so Cancel leaves no cookies file and no setting.
-   The browser keeps its own profile either way, which is what makes the next login
-   quick. Wid1 holds the harvest on OK, and the wizard's finish writes it. */
-void CInsertUrl::OnBrowserLogin()
-{
-  const BrowserLoginState ready = browserLoginLoad();
-  CString typed, said;
-
-  if (ready != BrowserLoginReady) {
-    AfxMessageBox(browserLoginWhy(ready), MB_OK | MB_ICONWARNING);
-    return;
-  }
-  /* A second login replaces the first only once it succeeds, because a failed one leaves
-     the first login's bundle named in the box. */
-  BrowserLoginHarvest got;
-
-  GetDlgItemText(IDC_urladr, typed);
-
-  const CString home = browserLoginUserDir();
-  /* One profile per run of the program, so a second login in this session finds the
-     user still signed in, and nothing of it survives the program closing. */
-  const WhttBrowserLoginResult result =
-    browserLoginRun(m_hWnd, browserLoginStartUrl(typed),
-                    browserLoginProfileDir(home, GetCurrentProcessId()), got);
-
-  if (result != WhttBrowserLoginDone) {
-    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINFAILED),
-                                 "The browser did not open: %s."),
-                browserLoginRunWhy(result));
-    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
-    return;
-  }
-  /* The address the user navigated to is the one they want crawled, and leaving the
-     field empty is what made the first version of this unusable: the wizard had no URL
-     to go on. It stays editable, so an unwanted query string can still be trimmed.
-     Sanitised first, because this field is saved into winprofile.ini in clear. */
-  const CString landed = browserLoginSafeUrl(got.finalUrl);
-  const BrowserLoginBundleInfo made = browserLoginMakeBundle(got, BrowserLoginCheckOnly,
-                                                             CString());
-
-  /* Nothing changes, so an earlier login stays the one the box names. */
-  if (!made.ok) {
-    said.Format("%s\r\n\r\n%s",
-                browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
-                                 "A login cannot be saved for this address, so "
-                                 "nothing was kept."),
-                (LPCSTR) made.error);
-    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
-    return;
-  }
-  harvest = got;
-  harvest.bundleName = made.name;
-  haveHarvest = TRUE;
-
-  /* Warned, not refused: an empty box leaves the wizard with no URL at all. */
-  if (browserLoginMovedHost(browserLoginStartUrl(typed), landed)) {
-    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINMOVED),
-                                 "The browser finished on %s, not on the site you "
-                                 "started from. Check the address before you go on."),
-                (LPCSTR) landed);
-    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
-  }
-  SetDlgItemTextCP(this, IDC_urladr, made.url);
-  if (made.dropped > 0) {
-    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
-                                 "%d of the browser's cookies were left out, because "
-                                 "the engine would not read them."),
-                made.dropped);
-    AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
-  }
-  if (made.cookies == 0) {
-    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
-                                   "The browser came back with no cookies. The address "
-                                   "and the browser identity are saved with the project "
-                                   "when the wizard finishes."),
-                  MB_OK | MB_ICONINFORMATION);
-    return;
-  }
-  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOTFINISH),
-                               "Cookies collected: %d. They are saved with the "
-                               "project when the wizard finishes."),
-              made.cookies);
-  AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
 }
 
 void CInsertUrl::Oncapt() 

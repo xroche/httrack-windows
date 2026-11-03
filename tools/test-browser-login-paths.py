@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 71 checks"
+EXPECTED_LINE = "browser login helpers ok on 80 checks"
 
 
 def read(path):
@@ -176,6 +176,7 @@ def main():
         sys.exit("found %d other units: this check would prove nothing" % len(others))
     for name in (
         "browserLoginStartUrl",
+        "browserLoginPickAddress",
         "browserLoginProfileDir",
         "browserLoginProfileRoot",
         "browserLoginStaleProfile",
@@ -223,19 +224,23 @@ def main():
     checked += 1
 
     # 4. The button has to reach them, so the calls have to sit inside the handler the
-    #    message map names, and the harvest has to be held when the box is accepted.
+    #    message map names, and the harvest has to be held once the engine names it.
     #    Naming a function anywhere in a file proves neither.
-    insert = read(os.path.join(ROOT, "WinHTTrack", "InsertUrl.cpp"))
-    if "ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)" not in insert:
+    wid1 = read(os.path.join(ROOT, "WinHTTrack", "Wid1.cpp"))
+    if "ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)" not in wid1:
         sys.exit("the Log in button no longer calls OnBrowserLogin()")
     checked += 1
+    if "IDC_browserlogin" in read(os.path.join(ROOT, "WinHTTrack", "InsertUrl.cpp")):
+        sys.exit("the Add URL box has a Log in button again, next to the main page's")
+    checked += 1
     handler = re.search(
-        r"^void CInsertUrl::OnBrowserLogin\(\)\n\{(.*?)^\}", insert, re.M | re.S
+        r"^void Wid1::OnBrowserLogin\(\)\n\{(.*?)^\}", wid1, re.M | re.S
     )
     if handler is None:
-        sys.exit("InsertUrl.cpp no longer defines OnBrowserLogin()")
+        sys.exit("Wid1.cpp no longer defines OnBrowserLogin()")
     checked += 1
     for name in (
+        "browserLoginPickAddress",
         "browserLoginStartUrl",
         "browserLoginProfileDir",
         "browserLoginRun",
@@ -248,17 +253,19 @@ def main():
                 % name
             )
         checked += 1
-    # The address the user landed on has to reach the field, or the wizard has no URL
-    # to go on and the login leads nowhere. That shipped once and Xavier hit it.
+    # The address the user landed on has to reach the box in place of the one the
+    # browser opened, or the wizard crawls the wrong page, or both. The first version
+    # left the box empty and Xavier hit it.
     if not re.search(
         r"CString landed = browserLoginSafeUrl\(got\.finalUrl\)", handler.group(1)
     ) or not re.search(
-        r"SetDlgItemTextCP\([^)]*IDC_urladr, made\.url\)", handler.group(1)
+        r"if \(picked\)\s*box = box\.Left\(begin\) \+ made\.url \+ box\.Mid\(end\);"
+        r"[\s\S]*SetDlgItemTextCP\(this, IDC_URL, box\);",
+        handler.group(1),
     ):
         sys.exit(
-            "OnBrowserLogin() no longer puts a sanitised landed address in "
-            "IDC_urladr, so a login either leaves the address box empty or writes a "
-            "token from the URL into winprofile.ini"
+            "OnBrowserLogin() no longer puts the sanitised landed address in IDC_URL "
+            "in place of the address it started from"
         )
     checked += 1
 
@@ -277,13 +284,13 @@ def main():
     # The engine names the bundle without writing it, and a refusal keeps the earlier
     # login, so the box and the held login name the same bundle or nothing changes.
     if re.search(
-        r"harvest\.cookies\.RemoveAll\(\)|haveHarvest = FALSE", handler.group(1)
+        r"heldLogins\.RemoveAll\(\)|got\.cookies\.RemoveAll\(\)", handler.group(1)
     ) or not re.search(
         r"const BrowserLoginBundleInfo made = "
         r"browserLoginMakeBundle\(got, BrowserLoginCheckOnly,\s*CString\(\)\);\s*"
         r"/\*[^*]*\*/\s*if \(!made\.ok\) \{"
         r"[^}]*LANG_BROWSERLOGINNONAME[^}]*made\.error[^}]*return;\s*\}\s*"
-        r"harvest = got;\s*harvest\.bundleName = made\.name;\s*haveHarvest = TRUE;"
+        r"got\.bundleName = made\.name;\s*heldLogins\.Add\(got\);"
         r"[\s\S]*LANG_BROWSERLOGINGOTFINISH",
         handler.group(1),
     ):
@@ -301,19 +308,8 @@ def main():
         sys.exit("OnBrowserLogin() no longer says how many cookies were left out")
     checked += 1
 
-    # The harvest is held on the OK path and written when the wizard finishes, into
-    # the final project, after compute_options() and before the profile is saved.
-    wid1 = read(os.path.join(ROOT, "WinHTTrack", "Wid1.cpp"))
-    accepted = re.search(r"^void Wid1::Onlogin2\(\).*?^\}", wid1, re.M | re.S)
-    taken = accepted and re.search(
-        r"if \(url\.DoModal\(\) == IDOK\) \{(.*?)\n  \}", accepted.group(0), re.S
-    )
-    if not taken or not re.search(
-        r"^\s*if \(url\.haveHarvest\)\s*heldLogins\.Add\(url\.harvest\);",
-        taken.group(1),
-    ):
-        sys.exit("Onlogin2() no longer holds the login under haveHarvest on OK")
-    checked += 1
+    # The held login is written when the wizard finishes, into the final project,
+    # after compute_options() and before the profile is saved.
     write = re.search(r"^BOOL Wid1::WriteBrowserLogins\(.*?^\}", wid1, re.M | re.S)
     if (
         write is None

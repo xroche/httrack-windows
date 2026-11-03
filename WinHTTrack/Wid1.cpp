@@ -144,6 +144,7 @@ BEGIN_MESSAGE_MAP(Wid1, CPropertyPage)
 	ON_WM_HELPINFO()
 	ON_BN_CLICKED(ID_setopt, Onsetopt)
 	ON_BN_CLICKED(IDC_login2, Onlogin2)
+	ON_BN_CLICKED(IDC_browserlogin, OnBrowserLogin)
 	ON_BN_CLICKED(IDC_br, Onbr)
   ON_WM_DROPFILES()
 	ON_WM_DRAWITEM()
@@ -179,6 +180,10 @@ BOOL Wid1::OnInitDialog( ) {
   // The URL list has no CEdit member; bound it by handle.
   GetDlgItem(IDC_URL)->SendMessage(EM_SETLIMITTEXT, 32000, 0);
   GetDlgItem(IDC_filelist)->SendMessage(EM_SETLIMITTEXT, 2000, 0);
+  /* Windows 7 has no WebView2, and neither has a machine where nobody installed one.
+     GetTip() says which, because a greyed button explains nothing by itself. */
+  if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
+    GetDlgItem(IDC_browserlogin)->EnableWindow(FALSE);
   EnableToolTips(true);     // TOOL TIPS
 
   // inits après affichage
@@ -211,6 +216,8 @@ BOOL Wid1::OnInitDialog( ) {
     SetDlgItemTextCP(this, ID_setopt,LANG(LANG_G40)); // "Définir les options..");
     //SetDlgItemTextCP(this, IDC_mirtitle2,LANG(LANG_G42)); // "Nom du projet");
     SetDlgItemTextCP(this, IDC_login2,LANG_G43);
+    /* Lang, not CP: an empty key keeps the English caption the .rc already carries. */
+    SetDlgItemTextLang(this, IDC_browserlogin,LANG(LANG_BROWSERLOGIN));
     //SetDlgItemTextCP(this, IDC_urls,LANG_G44);
     SetDlgItemTextCP(this, IDC_STATIC_webaddr,LANG_G44);
     SetDlgItemTextLang(this, IDC_STATIC_filelist,LANG(LANG_URLLIST));
@@ -586,6 +593,16 @@ const char* Wid1::GetTip(int ID)
     case IDC_avant:     return LANG_TIPPREV; break;
     case ID_setopt:    return LANG(LANG_G24); break; // "Click to define option","Clic pour définir les options"); break;
     case IDC_login2:   return LANG_G24b; break;
+    case IDC_browserlogin:
+      if (browserLoginLoad() != BrowserLoginReady)
+        return browserLoginWhy(browserLoginLoad());
+      if (!browserLoginRuntime(NULL /* the version is not wanted here */, 0))
+        return browserLoginText(LANG(LANG_BROWSERLOGINNORUNTIME),
+                                "No Microsoft Edge WebView2 runtime is installed on "
+                                "this computer");
+      return browserLoginText(LANG(LANG_BROWSERLOGINTIP),
+                              "Log in to the site in a browser, and crawl with the "
+                              "cookies and the browser identity it was given");
     case IDC_filelist: return LANG_G24c; break;
     //case : return ""; break;
   }
@@ -877,14 +894,101 @@ BOOL Wid1::WriteBrowserLoginsForSave()
   return WriteBrowserLogins(dialog0->GetPath0(), urls, list);
 }
 
+/* Opens a browser so the user can log in. Only the wizard's finish and a save write the
+   held login, so quitting the wizard leaves no cookies file. */
+void Wid1::OnBrowserLogin()
+{
+  const BrowserLoginState ready = browserLoginLoad();
+  CString box, said;
+  int begin, end, caret, caretEnd;
+
+  if (ready != BrowserLoginReady) {
+    AfxMessageBox(browserLoginWhy(ready), MB_OK | MB_ICONWARNING);
+    return;
+  }
+  GetDlgItemText(IDC_URL, box);
+  ((CEdit *) GetDlgItem(IDC_URL))->GetSel(caret, caretEnd);
+  const BOOL picked = browserLoginPickAddress(box, caret, &begin, &end);
+  const CString typed = picked ? browserLoginStartUrl(box.Mid(begin, end - begin))
+    : CString();
+
+  BrowserLoginHarvest got;
+  /* One profile per run of the program, so a second login in this session finds the
+     user still signed in, and nothing of it survives the program closing. */
+  const WhttBrowserLoginResult result =
+    browserLoginRun(m_hWnd, typed,
+                    browserLoginProfileDir(browserLoginUserDir(), GetCurrentProcessId()),
+                    got);
+
+  if (result != WhttBrowserLoginDone) {
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINFAILED),
+                                 "The browser did not open: %s."),
+                browserLoginRunWhy(result));
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+    return;
+  }
+  /* The landed address replaces the one the browser opened. Sanitised, because the box
+     is saved into winprofile.ini in clear. */
+  const CString landed = browserLoginSafeUrl(got.finalUrl);
+  const BrowserLoginBundleInfo made = browserLoginMakeBundle(got, BrowserLoginCheckOnly,
+                                                             CString());
+
+  /* Nothing changes, so an earlier login stays the one the box names. */
+  if (!made.ok) {
+    said.Format("%s\r\n\r\n%s",
+                browserLoginText(LANG(LANG_BROWSERLOGINNONAME),
+                                 "A login cannot be saved for this address, so "
+                                 "nothing was kept."),
+                (LPCSTR) made.error);
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+    return;
+  }
+  got.bundleName = made.name;
+  heldLogins.Add(got);
+
+  /* Warned, not refused: an empty box leaves the wizard with no URL at all. */
+  if (browserLoginMovedHost(typed, landed)) {
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINMOVED),
+                                 "The browser finished on %s, not on the site you "
+                                 "started from. Check the address before you go on."),
+                (LPCSTR) landed);
+    AfxMessageBox(said, MB_OK | MB_ICONWARNING);
+  }
+  if (picked)
+    box = box.Left(begin) + made.url + box.Mid(end);
+  else if (box.IsEmpty() || box.Right(1) == "\n")
+    box += made.url;
+  else
+    box += "\r\n" + made.url;
+  SetDlgItemTextCP(this, IDC_URL, box);
+  if (made.dropped > 0) {
+    said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
+                                 "%d of the browser's cookies were left out, because "
+                                 "the engine would not read them."),
+                made.dropped);
+    AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
+  }
+  if (made.cookies == 0) {
+    AfxMessageBox(browserLoginText(LANG(LANG_BROWSERLOGINNONE),
+                                   "The browser came back with no cookies. The address "
+                                   "and the browser identity are saved with the project "
+                                   "when the wizard finishes."),
+                  MB_OK | MB_ICONINFORMATION);
+    return;
+  }
+  said.Format(browserLoginText(LANG(LANG_BROWSERLOGINGOTFINISH),
+                               "Cookies collected: %d. They are saved with the "
+                               "project when the wizard finishes."),
+              made.cookies);
+  AfxMessageBox(said, MB_OK | MB_ICONINFORMATION);
+}
+
 void Wid1::Onlogin2() 
 {
   char catbuff[CATBUFF_SIZE];
   CInsertUrl url;
   url.dest_path=dialog0->GetPath();
   if (url.DoModal() == IDOK) {
-    if (url.haveHarvest)
-      heldLogins.Add(url.harvest);
     if (url.m_urladr.Left(7)=="http://")
       url.m_urladr=url.m_urladr.Mid(7);
     CString st;
@@ -989,6 +1093,7 @@ void Wid1::BuildLayout()
   m_layout.AddId(this, IDC_todo, 0, 100);
   m_layout.AddId(this, IDC_login2, 100, 0);
   m_layout.AddId(this, IDC_URL, 0, 100, 0, 100);
+  m_layout.AddId(this, IDC_browserlogin, 100, 0, 100, 0);
   m_layout.AddId(this, IDC_STATIC_filelist, 0, 0, 100, 0);
   m_layout.AddId(this, IDC_filelist, 0, 100, 100, 0);
   m_layout.AddId(this, IDC_br, 100, 0, 100, 0);
