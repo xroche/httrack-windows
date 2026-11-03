@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 92 checks"
+EXPECTED_LINE = "browser login helpers ok on 99 checks"
 
 
 def read(path):
@@ -432,7 +432,8 @@ def main():
     if (
         "const BOOL dryRun = mode == BrowserLoginCheckOnly;" not in login
         or not re.search(
-            r"hts_bundle_from_paste_flags\(paste, dir, agent, url,\s*"
+            r"hts_bundle_from_paste_hosts\(paste, dir, agent, url,\s*"
+            r"hosts\.IsEmpty\(\) \? NULL : \(LPCSTR\) hosts,\s*"
             r"browserLoginPasteFlags\(dryRun\), &result\)",
             login,
         )

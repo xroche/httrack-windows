@@ -46,6 +46,7 @@ CString browserLoginSplice(const CString &box, int begin, int end, const CString
 extern "C" int hts_scan_token(char **ptr, char *dest, size_t destsize);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
+CString browserLoginHostList(const CSimpleArray<CString> &pages);
 CString browserLoginUtf8(const CString &text);
 typedef int (*BrowserLoginNamesLister)(const char *urls, const char *list_file,
                                        char ***names, char *error, size_t error_size);
@@ -236,6 +237,27 @@ BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl) {
   if (start.IsEmpty() || landed.IsEmpty())
     return FALSE;
   return start != landed;
+}
+
+// see browser-login.h
+CString browserLoginHostList(const CSimpleArray<CString> &pages) {
+  CString list;
+
+  for(int i = 0 ; i < pages.GetSize() ; i++) {
+    const CString scheme = pages[i].Left(pages[i].Find("://"));
+
+    if (scheme.CompareNoCase("http") != 0 && scheme.CompareNoCase("https") != 0)
+      continue;
+
+    const CString host = urlHost(pages[i]);
+
+    /* A comma would split one host into two in the engine's list. */
+    if (host.IsEmpty() || host.Find(',') >= 0
+        || ("," + list + ",").Find("," + host + ",") >= 0)
+      continue;
+    list += (list.IsEmpty() ? "" : ",") + host;
+  }
+  return list;
 }
 
 // see browser-login.h
@@ -657,6 +679,37 @@ int browserLoginCheckCases(CString *err) {
       if (got != away[k].moved) {
         snprintf(msg, sizeof(msg), "'%s' landing on '%s' read as moved=%d, expected %d",
                  away[k].start, away[k].landed, (int) got, (int) away[k].moved);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    static const struct { const char *pages, *want; } lists[] = {
+      { "https://a.test/login https://idp.test/u?x=1 https://a.test/home",
+        "a.test,idp.test" },
+      /* the host as urlHost() reads it, so these are one site */
+      { "http://A.test:8080/ https://me@a.test./", "a.test" },
+      /* a host that only starts like an earlier one is another site */
+      { "https://a.test.b/ https://a.test/", "a.test.b,a.test" },
+      { "HTTP://a.test/ HTTPS://b.test/", "a.test,b.test" },
+      { "about:blank data:text/html,x edge://settings file:///c:/x", "" },
+      { "https://a.test/ https://a,b.test/ http:///path", "a.test" },
+      { "", "" },
+      { NULL, NULL }
+    };
+
+    for(int k=0 ; lists[k].pages != NULL ; k++) {
+      CSimpleArray<CString> pages;
+
+      splitTokensInArray(pages, lists[k].pages);
+
+      const CString got = browserLoginHostList(pages);
+
+      if (got != lists[k].want) {
+        snprintf(msg, sizeof(msg), "pages '%s' listed hosts '%s', expected '%s'",
+                 lists[k].pages, (LPCSTR) got, lists[k].want);
         *err = msg;
         return 0;
       }

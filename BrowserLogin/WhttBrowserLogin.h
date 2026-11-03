@@ -42,7 +42,7 @@ Please visit our Website: http://www.httrack.com
    loader that does it is WinHTTrack/browser-login.cpp. */
 
 /* Bump on any change below, because the GUI refuses a DLL answering another number. */
-#define WHTT_BROWSER_LOGIN_ABI 3
+#define WHTT_BROWSER_LOGIN_ABI 4
 
 /* Fits any version WhttBrowserLoginAvailable() reports, with room to spare. */
 #define WHTT_BROWSER_LOGIN_VERSION_MAX 64
@@ -73,6 +73,10 @@ typedef struct WhttBrowserLoginCookie {
    closed, so it may do whatever the caller likes. Returning zero takes no more. */
 typedef int (__cdecl *WhttBrowserLoginCookieFn)(void *ctx, const WhttBrowserLoginCookie *cookie);
 
+/* Takes the UTF-8 address of one page the window loaded, redirects included, in the
+   order they loaded. Called before the cookies, under the same rules as them. */
+typedef int (__cdecl *WhttBrowserLoginPageFn)(void *ctx, const char *url);
+
 typedef struct WhttBrowserLoginRequest {
   /* sizeof(WhttBrowserLoginRequest). WhttBrowserLoginRun() refuses any other value, which
      is what catches a build whose struct moved under an ABI number that did not. */
@@ -94,6 +98,8 @@ typedef struct WhttBrowserLoginRequest {
      crawls: the user navigated here by hand, which is the point of opening a browser. */
   char *finalUrl;
   size_t finalUrlSize;
+  WhttBrowserLoginPageFn onPage;      /* may be NULL */
+  void *onPageCtx;
 } WhttBrowserLoginRequest;
 
 /* What WhttBrowserLoginRun() answers. Everything but WhttBrowserLoginDone means the user

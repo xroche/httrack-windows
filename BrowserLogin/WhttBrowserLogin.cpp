@@ -128,6 +128,7 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   int result = WhttBrowserLoginDone;
   std::string userAgent;
   std::string finalUrl;
+  std::vector<std::string> pages;  /* every page loaded, for the cookies of each site */
   std::vector<HarvestedCookie> cookies;
 };
 
@@ -561,6 +562,22 @@ static HRESULT startBrowser(const std::shared_ptr<LoginWindow> &state) {
                     requestFinish(state.get());
                     return S_OK;
                   }).Get(), &token);
+              /* Fires for each redirect too, which is where a sign-in site sets its
+                 cookie without the page ever showing. */
+              win->webview->add_NavigationStarting(
+                Callback<ICoreWebView2NavigationStartingEventHandler>(
+                  [state](ICoreWebView2 *, ICoreWebView2NavigationStartingEventArgs *args) -> HRESULT {
+                    LPWSTR uri = NULL;
+
+                    if (SUCCEEDED(args->get_Uri(&uri))) {
+                      const std::string page = takeString(uri);
+
+                      if (!page.empty()
+                          && (state->pages.empty() || state->pages.back() != page))
+                        state->pages.push_back(page);
+                    }
+                    return S_OK;
+                  }).Get(), &token);
               win->webview->add_SourceChanged(Callback<ICoreWebView2SourceChangedEventHandler>(
                 [state](ICoreWebView2 *sender, ICoreWebView2SourceChangedEventArgs *) -> HRESULT {
                   LPWSTR uri = NULL;
@@ -610,6 +627,10 @@ static void reportHarvest(LoginWindow *s) {
     strncpy_s(request->userAgent, request->userAgentSize, s->userAgent.c_str(), _TRUNCATE);
   if (request->finalUrl != NULL && request->finalUrlSize != 0)
     strncpy_s(request->finalUrl, request->finalUrlSize, s->finalUrl.c_str(), _TRUNCATE);
+  for(size_t i = 0 ; request->onPage != NULL && i < s->pages.size() ; i++) {
+    if (!request->onPage(request->onPageCtx, s->pages[i].c_str()))
+      break;
+  }
   if (request->onCookie == NULL)
     return;
 
