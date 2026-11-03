@@ -128,7 +128,7 @@ struct LoginWindow : std::enable_shared_from_this<LoginWindow> {
   int result = WhttBrowserLoginDone;
   std::string userAgent;
   std::string finalUrl;
-  std::vector<std::string> pages;  /* every page loaded, for the cookies of each site */
+  std::vector<std::string> pages;  /* every page navigated to, for each site's cookies */
   std::vector<HarvestedCookie> cookies;
 };
 

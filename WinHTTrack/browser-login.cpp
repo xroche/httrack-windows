@@ -144,7 +144,7 @@ static int __cdecl takeCookie(void *ctx, const WhttBrowserLoginCookie *cookie) {
   return 1;
 }
 
-/* Takes the address of one page the browser loaded. */
+/* Takes the address of one page the browser navigated to. */
 static int __cdecl takePage(void *ctx, const char *url) {
   ((BrowserLoginHarvest *) ctx)->pages.Add(CString(url));
   return 1;

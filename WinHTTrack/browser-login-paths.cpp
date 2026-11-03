@@ -188,7 +188,8 @@ static CString urlHost(const CString &url) {
   for(int i = 0 ; i < host.GetLength() ; i++) {
     const char c = host[i];
 
-    if (c == '/' || c == '?' || c == '#') {
+    /* A backslash ends it too, as it does for the engine and the browser. */
+    if (c == '/' || c == '?' || c == '#' || c == '\\') {
       end = i;
       break;
     }
@@ -696,6 +697,8 @@ int browserLoginCheckCases(CString *err) {
       { "HTTP://a.test/ HTTPS://b.test/", "a.test,b.test" },
       { "about:blank data:text/html,x edge://settings file:///c:/x", "" },
       { "https://a.test/ https://a,b.test/ http:///path", "a.test" },
+      { "https://evil.test\\@bank.test/ https://me:pw@c.test/ http://[::1]:8080/",
+        "evil.test,c.test,[::1]" },
       { "", "" },
       { NULL, NULL }
     };
