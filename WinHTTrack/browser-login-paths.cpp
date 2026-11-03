@@ -41,7 +41,9 @@ Please visit our Website: http://www.httrack.com
    header and every Windows type that comes with it. */
 void splitTokensInArray(CSimpleArray<CString> &args, const CString &str);
 CString browserLoginStartUrl(const CString &urls);
-BOOL browserLoginPickAddress(const CString &box, int caret, int *begin, int *end);
+CString browserLoginPickAddress(const CString &box, int caret, int *begin, int *end);
+CString browserLoginSplice(const CString &box, int begin, int end, const CString &url);
+extern "C" int hts_scan_token(char **ptr, char *dest, size_t destsize);
 CString browserLoginSafeUrl(const CString &landed);
 BOOL browserLoginMovedHost(const CString &startUrl, const CString &landedUrl);
 CString browserLoginUtf8(const CString &text);
@@ -74,61 +76,78 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+/* The page one box token opens, or empty for a rule, which is no page. */
+static CString tokenStartUrl(const CString &token) {
+  if (token.IsEmpty() || token.Left(1) == "+" || token.Left(1) == "-")
+    return CString();
+  /* The same test the crawl applies to that box, so the browser opens the address the
+     crawl would fetch. One slash, because file:/x carries a scheme too. */
+  if (token.Find(":/") < 0)
+    return "http://" + token;
+  return token;
+}
+
 // see browser-login.h
 CString browserLoginStartUrl(const CString &urls) {
   CSimpleArray<CString> tokens;
 
   splitTokensInArray(tokens, urls);
   for(int i = 0 ; i < tokens.GetSize() ; i++) {
-    CString one = tokens[i];
+    const CString one = tokenStartUrl(tokens[i]);
 
-    /* A filter rule in the address box is no page anyone can log in to. */
-    if (one.Left(1) == "+" || one.Left(1) == "-")
-      continue;
-    /* The same test the crawl applies to that box, so the browser opens the address the
-       crawl would fetch. One slash, because file:/x carries a scheme too. */
-    if (one.Find(":/") < 0)
-      one = "http://" + one;
-    return one;
+    if (!one.IsEmpty())
+      return one;
   }
   return CString();
 }
 
-static BOOL isBoxBlank(char c) {
-  return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+/* The engine's HTS_REALSPACES, the bytes hts_scan_token() splits on. */
+static BOOL isEngineSpace(char c) {
+  return c != '\0' && strchr(" \n\r\t\f\v", c) != NULL;
 }
 
 // see browser-login.h
-BOOL browserLoginPickAddress(const CString &box, int caret, int *begin, int *end) {
-  const int n = box.GetLength();
-  BOOL found = FALSE;
+CString browserLoginPickAddress(const CString &box, int caret, int *begin, int *end) {
+  CString source(box), scratch, first;
+  char *const base = source.GetBuffer();
+  char *cur = base;
 
-  *begin = *end = n;
-  for(int b = 0 ; b < n ; ) {
-    int e = b;
+  *begin = *end = box.GetLength();
+  /* As long as the whole box, so hts_scan_token() never truncates a token. */
+  char *const token = scratch.GetBufferSetLength(box.GetLength());
+  while (*cur != '\0') {
+    /* Leading blanks come back as an empty token, so a word starts where the scan does. */
+    const int b = (int) (cur - base);
 
-    if (isBoxBlank(box[b])) {
-      b++;
+    (void) hts_scan_token(&cur, token, (size_t) box.GetLength() + 1);
+    const CString start = tokenStartUrl(token);
+    int e = (int) (cur - base);
+
+    while (e > b && isEngineSpace(base[e - 1]))
+      e--;
+    if (start.IsEmpty())
       continue;
+    /* The caret can sit at the end of the word. */
+    if (b <= caret && caret <= e) {
+      *begin = b;
+      *end = e;
+      return start;
     }
-    while(e < n && !isBoxBlank(box[e]))
-      e++;
-    if (!browserLoginStartUrl(box.Mid(b, e - b)).IsEmpty()) {
-      /* The caret sits just past a word the user has finished typing. */
-      if (b <= caret && caret <= e) {
-        *begin = b;
-        *end = e;
-        return TRUE;
-      }
-      if (!found) {
-        *begin = b;
-        *end = e;
-        found = TRUE;
-      }
+    if (first.IsEmpty()) {
+      first = start;
+      *begin = b;
+      *end = e;
     }
-    b = e;
   }
-  return found;
+  return first;
+}
+
+// see browser-login.h
+CString browserLoginSplice(const CString &box, int begin, int end, const CString &url) {
+  /* Nothing to replace, so the address goes on a line of its own. */
+  const BOOL ownLine = begin == end && !box.IsEmpty() && box.Right(1) != "\n";
+
+  return box.Left(begin) + (ownLine ? "\r\n" : "") + url + box.Mid(end);
 }
 
 // see browser-login.h
@@ -407,31 +426,39 @@ int browserLoginCheckCases(CString *err) {
   int nchecks = 0;
 
   {
-    static const struct { const char *box; int caret; BOOL found; int begin, end; } picks[] = {
-      /* the caret at the end of what was just typed */
-      { "httrack.com", 11, TRUE, 0, 11 },
-      { "a.test b.test", 13, TRUE, 7, 13 },
+    static const struct { const char *box; int caret; const char *want; int begin, end; } picks[] = {
+      /* the caret at either end of a word */
+      { "httrack.com", 11, "http://httrack.com", 0, 11 },
+      { "a.test b.test", 13, "http://b.test", 7, 13 },
+      { "a.test b.test", 7, "http://b.test", 7, 13 },
       /* the address under the caret wins over the first one */
-      { "a.test\r\nb.test\r\n", 10, TRUE, 8, 14 },
-      { "a.test\r\nb.test", 2, TRUE, 0, 6 },
+      { "a.test\r\nb.test\r\n", 10, "http://b.test", 8, 14 },
+      { "a.test\r\nb.test", 2, "http://a.test", 0, 6 },
       /* a caret on a blank line, or on a rule, falls back to the first address */
-      { "a.test\r\n\r\nb.test", 8, TRUE, 0, 6 },
-      { "+*.css a.test", 3, TRUE, 7, 13 },
-      /* two addresses on one line: only the one under the caret is replaced */
-      { "a.test b.test", 9, TRUE, 7, 13 },
-      /* nothing to start from, so the landed address goes at the end */
-      { "", 0, FALSE, 0, 0 },
-      { "-*.gif\r\n", 0, FALSE, 8, 8 },
-      { NULL, 0, FALSE, 0, 0 }
+      { "a.test\r\n\r\nb.test", 8, "http://a.test", 0, 6 },
+      { "+*.css a.test", 3, "http://a.test", 7, 13 },
+      /* a caret between two blanks is under no word */
+      { "a.test  b.test", 7, "http://a.test", 0, 6 },
+      { " a.test", 0, "http://a.test", 1, 7 },
+      /* every byte the engine splits on ends a word */
+      { "a.test\tb.test", 13, "http://b.test", 7, 13 },
+      { "a.test\t", 7, "http://a.test", 0, 6 },
+      { "a.test\f", 7, "http://a.test", 0, 6 },
+      { "a.test\vb.test", 0, "http://a.test", 0, 6 },
+      { "a.test\fb.test", 13, "http://b.test", 7, 13 },
+      /* nothing to start from */
+      { "", 0, "", 0, 0 },
+      { "-*.gif\r\n", 0, "", 8, 8 },
+      { NULL, 0, NULL, 0, 0 }
     };
 
     for(int k=0 ; picks[k].box != NULL ; k++) {
       int b = -1, e = -1;
-      const BOOL got = browserLoginPickAddress(picks[k].box, picks[k].caret, &b, &e);
+      const CString got = browserLoginPickAddress(picks[k].box, picks[k].caret, &b, &e);
 
-      if (got != picks[k].found || b != picks[k].begin || e != picks[k].end) {
-        snprintf(msg, sizeof(msg), "caret %d in '%s' picked %d [%d,%d), expected %d [%d,%d)",
-                 picks[k].caret, picks[k].box, got, b, e, picks[k].found,
+      if (got != picks[k].want || b != picks[k].begin || e != picks[k].end) {
+        snprintf(msg, sizeof(msg), "caret %d in '%s' picked '%s' [%d,%d), expected '%s' [%d,%d)",
+                 picks[k].caret, picks[k].box, (LPCSTR) got, b, e, picks[k].want,
                  picks[k].begin, picks[k].end);
         *err = msg;
         return 0;
@@ -463,6 +490,29 @@ int browserLoginCheckCases(CString *err) {
       if (got != starts[k].want) {
         snprintf(msg, sizeof(msg), "address box '%s' opens '%s', expected '%s'",
                  starts[k].urls, (LPCSTR) got, starts[k].want);
+        *err = msg;
+        return 0;
+      }
+      nchecks++;
+    }
+  }
+  {
+    static const struct { const char *box; int begin, end; const char *want; } splices[] = {
+      { "a.test\r\nb.test", 8, 14, "a.test\r\nL" },
+      /* nothing picked: a line of its own, and no blank line before it */
+      { "", 0, 0, "L" },
+      { "-*.gif", 6, 6, "-*.gif\r\nL" },
+      { "-*.gif\r\n", 8, 8, "-*.gif\r\nL" },
+      { NULL, 0, 0, NULL }
+    };
+
+    for(int k=0 ; splices[k].box != NULL ; k++) {
+      const CString got = browserLoginSplice(splices[k].box, splices[k].begin,
+                                             splices[k].end, "L");
+
+      if (got != splices[k].want) {
+        snprintf(msg, sizeof(msg), "splicing into '%s' gave '%s', expected '%s'",
+                 splices[k].box, (LPCSTR) got, splices[k].want);
         *err = msg;
         return 0;
       }

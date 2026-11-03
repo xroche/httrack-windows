@@ -894,8 +894,8 @@ BOOL Wid1::WriteBrowserLoginsForSave()
   return WriteBrowserLogins(dialog0->GetPath0(), urls, list);
 }
 
-/* Opens a browser so the user can log in. Only the wizard's finish and a save write the
-   held login, so quitting the wizard leaves no cookies file. */
+/* Opens a browser so the user can log in. Nothing is written until the wizard finishes or
+   saves, so quitting leaves no cookies file. */
 void Wid1::OnBrowserLogin()
 {
   const BrowserLoginState ready = browserLoginLoad();
@@ -908,15 +908,14 @@ void Wid1::OnBrowserLogin()
   }
   GetDlgItemText(IDC_URL, box);
   ((CEdit *) GetDlgItem(IDC_URL))->GetSel(caret, caretEnd);
-  const BOOL picked = browserLoginPickAddress(box, caret, &begin, &end);
-  const CString typed = picked ? browserLoginStartUrl(box.Mid(begin, end - begin))
-    : CString();
+  const CString typed = browserLoginPickAddress(box, caret, &begin, &end);
 
   BrowserLoginHarvest got;
-  /* One profile per run of the program, so a second login in this session finds the
+  /* The top-level window, so the wizard cannot move on or switch project meanwhile.
+     One profile per run of the program, so a second login in this session finds the
      user still signed in, and nothing of it survives the program closing. */
   const WhttBrowserLoginResult result =
-    browserLoginRun(m_hWnd, typed,
+    browserLoginRun(GetTopLevelParent()->m_hWnd, typed,
                     browserLoginProfileDir(browserLoginUserDir(), GetCurrentProcessId()),
                     got);
 
@@ -927,8 +926,7 @@ void Wid1::OnBrowserLogin()
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
     return;
   }
-  /* The landed address replaces the one the browser opened. Sanitised, because the box
-     is saved into winprofile.ini in clear. */
+  /* The box is saved in clear, so keep only the safe part of the landed address. */
   const CString landed = browserLoginSafeUrl(got.finalUrl);
   const BrowserLoginBundleInfo made = browserLoginMakeBundle(got, BrowserLoginCheckOnly,
                                                              CString());
@@ -954,13 +952,7 @@ void Wid1::OnBrowserLogin()
                 (LPCSTR) landed);
     AfxMessageBox(said, MB_OK | MB_ICONWARNING);
   }
-  if (picked)
-    box = box.Left(begin) + made.url + box.Mid(end);
-  else if (box.IsEmpty() || box.Right(1) == "\n")
-    box += made.url;
-  else
-    box += "\r\n" + made.url;
-  SetDlgItemTextCP(this, IDC_URL, box);
+  SetDlgItemTextCP(this, IDC_URL, browserLoginSplice(box, begin, end, made.url));
   if (made.dropped > 0) {
     said.Format(browserLoginText(LANG(LANG_BROWSERLOGINDROPPED),
                                  "%d of the browser's cookies were left out, because "

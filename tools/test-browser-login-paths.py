@@ -21,7 +21,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-EXPECTED_LINE = "browser login helpers ok on 80 checks"
+EXPECTED_LINE = "browser login helpers ok on 91 checks"
 
 
 def read(path):
@@ -177,6 +177,7 @@ def main():
     for name in (
         "browserLoginStartUrl",
         "browserLoginPickAddress",
+        "browserLoginSplice",
         "browserLoginProfileDir",
         "browserLoginProfileRoot",
         "browserLoginStaleProfile",
@@ -241,7 +242,6 @@ def main():
     checked += 1
     for name in (
         "browserLoginPickAddress",
-        "browserLoginStartUrl",
         "browserLoginProfileDir",
         "browserLoginRun",
         "browserLoginMovedHost",
@@ -259,8 +259,9 @@ def main():
     if not re.search(
         r"CString landed = browserLoginSafeUrl\(got\.finalUrl\)", handler.group(1)
     ) or not re.search(
-        r"if \(picked\)\s*box = box\.Left\(begin\) \+ made\.url \+ box\.Mid\(end\);"
-        r"[\s\S]*SetDlgItemTextCP\(this, IDC_URL, box\);",
+        r"const CString typed = browserLoginPickAddress\(box, caret, &begin, &end\);"
+        r"[\s\S]*SetDlgItemTextCP\(this, IDC_URL, "
+        r"browserLoginSplice\(box, begin, end, made\.url\)\);",
         handler.group(1),
     ):
         sys.exit(
