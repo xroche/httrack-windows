@@ -337,8 +337,13 @@ def accept_box(sheet, pid, ids, shots, page):
     """The Accept headers box, which the Browser ID page opens because its twelve rows do
     not fit that page. Each row offers the browser values hts_accept_preset() returns, so
     an empty list means the box lost its engine, which no shot of the page would show."""
+    before = set(top_level_windows(pid))
     click(find(sheet, control_id=ids["IDC_acceptopt"], class_name="Button"))
-    box = wait(lambda: window_titled(pid, "Accept headers"), "the Accept headers box", 15)
+    # Found by a row rather than by its title, because the title translates.
+    box = wait(lambda: next((h for h in top_level_windows(pid) if h not in before
+                             and find(h, control_id=ids["IDC_accept_default"]) is not None),
+                            None),
+               "the Accept headers box", 15)
     for row in ACCEPT_ROWS:
         combo = find(box, control_id=ids["IDC_accept_" + row], class_name="ComboBox")
         if combo is None:
@@ -368,9 +373,27 @@ def accept_box(sheet, pid, ids, shots, page):
     print(f"  the Accept headers box carries {len(ACCEPT_ROWS)} rows")
 
 
+def browser_login_button(main, ids):
+    """The browser-login button on the URL pane, under the address box."""
+    login = find(main, control_id=ids["IDC_browserlogin"], class_name="Button")
+    if login is None or not win32gui.IsWindowVisible(login):
+        raise RuntimeError("the URL pane has no visible browser-login button")
+    # Hit-tested in its own pane: a point that resolves to the pane itself means the
+    # button hangs off the client area, and one that resolves to a sibling means
+    # something covers it.
+    pane_hwnd = win32gui.GetParent(login)
+    left, top, right, bottom = win32gui.GetWindowRect(login)
+    middle = win32gui.ScreenToClient(pane_hwnd, ((left + right) // 2, (top + bottom) // 2))
+    hit = win32gui.ChildWindowFromPointEx(pane_hwnd, middle, CWP_SKIPINVISIBLE)
+    if hit != login:
+        raise RuntimeError(f"the browser-login button is covered by {hit:#x}")
+    state = "available" if win32gui.IsWindowEnabled(login) else "greyed, no WebView2 runtime"
+    print(f"  browser login: {win32gui.GetWindowText(login)!r}, {state}")
+
+
 def insert_url_box(main, pid, ids, shots):
-    """The Insert URL box the URL pane opens, where the browser-login button lives. It is
-    found by the address field rather than by its caption, because the caption translates."""
+    """The Insert URL box the URL pane opens. It is found by the address field rather
+    than by its caption, because the caption translates."""
     before = set(top_level_windows(pid))
     # resource.h gives the progress pane's SKIP button the same 1099, and the wizard keeps
     # every pane alive, so visibility is what tells the two apart.
@@ -378,19 +401,8 @@ def insert_url_box(main, pid, ids, shots):
     box = wait(lambda: next((h for h in top_level_windows(pid) if h not in before
                              and find(h, control_id=ids["IDC_urladr"]) is not None), None),
                "the Insert URL box", 30)
-    login = find(box, control_id=ids["IDC_browserlogin"], class_name="Button")
-    if login is None:
-        raise RuntimeError("the Insert URL box has no browser-login button")
-    # It went into the gap above OK and Cancel, so hit-test it: a point that resolves to
-    # the box itself means the button hangs off the client area, and one that resolves to
-    # a sibling means something covers it.
-    left, top, right, bottom = win32gui.GetWindowRect(login)
-    middle = win32gui.ScreenToClient(box, ((left + right) // 2, (top + bottom) // 2))
-    hit = win32gui.ChildWindowFromPointEx(box, middle, CWP_SKIPINVISIBLE)
-    if hit != login:
-        raise RuntimeError(f"the browser-login button is covered by {hit:#x}")
-    state = "available" if win32gui.IsWindowEnabled(login) else "greyed, no WebView2 runtime"
-    print(f"  browser login: {win32gui.GetWindowText(login)!r}, {state}")
+    if find(box, control_id=ids["IDC_browserlogin"], class_name="Button") is not None:
+        raise RuntimeError("the Insert URL box has a browser-login button again")
     shots.take(box, "03b_insert_url")
     click(find(box, control_id=IDCANCEL, class_name="Button"))
     wait(lambda: box not in top_level_windows(pid), "the Insert URL box to close", 15)
@@ -476,6 +488,7 @@ def run(pid, ids, shots, url, base_path, language):
 
     pane(main, ids["IDC_URL"], "the URL pane")
     set_text(find(main, control_id=ids["IDC_URL"]), url)
+    browser_login_button(main, ids)
     shots.take(main, "03_project_setup")
     insert_url_box(main, pid, ids, shots)
 
