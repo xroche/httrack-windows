@@ -98,8 +98,8 @@ def region(text, opening, closing, what):
 def engine_caps(bauth_c, bauth_h, core_c):
     """The longest each field may be before the engine drops the cookie, the budget it
     charges the name and the value to together, and the size of its jar."""
-    # cookie_add() is a wrapper now, so the refusals and the record live in cookie_set().
-    adding = region(bauth_c, r"\bint cookie_set\(", r"\n\}", "cookie_set()")
+    # The refusals and the record live in cookie_set_impl(), or in cookie_set() before it.
+    adding = region(bauth_c, r"\bint cookie_set(?:_impl)?\(", r"\n\}", "cookie_set()")
     # Anchors on the function, because the old anchor was a comment that still matches
     # after the buffers moved out from under it.
     loading = region(
