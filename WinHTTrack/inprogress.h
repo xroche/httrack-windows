@@ -39,6 +39,9 @@ Please visit our Website: http://www.httrack.com
 #include "WndLayout.h"
 
 
+/* A ticked "No purge" or "No error pages" box turns its flag off, as -X0 and -o0 do. */
+void SetMidCrawlNoFlags(httrackp *opt, const COptionTab2 &page);
+
 /////////////////////////////////////////////////////////////////////////////
 // Cinprogress dialog
 

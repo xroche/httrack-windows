@@ -53,11 +53,14 @@ def engine_opt_function(htscoremain):
 
 
 def engine_space_set(htssafe):
-    """The byte set that function splits on, copied out for the same reason."""
-    m = re.search(r"^#\s*define\s+HTS_REALSPACES\s+[^\n]*$", htssafe, re.M)
-    if m is None:
-        sys.exit("no HTS_REALSPACES in the engine's htssafe.h")
-    return m.group(0)
+    """The byte sets those functions split on, copied out for the same reason."""
+    out = []
+    for name in ("HTS_REALSPACES", "HTS_BLANKS"):
+        m = re.search(r"^#\s*define\s+%s\s+[^\n]*$" % name, htssafe, re.M)
+        if m is None:
+            sys.exit("no %s in the engine's htssafe.h" % name)
+        out.append(m.group(0))
+    return "\n".join(out)
 
 
 def engine_curl_test(htsbundle):

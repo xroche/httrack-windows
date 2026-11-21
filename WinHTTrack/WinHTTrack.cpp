@@ -684,6 +684,33 @@ BOOL CWinHTTrackApp::InitInstance()
         printf("MBCS->UTF-8 ok on %d checks\n", nchecks);
       }
     }
+    /* A ticked "No purge" or "No error pages" box must turn its flag off mid-crawl. */
+    {
+      static const struct { BOOL nopurge, noerrpage; int delete_old, errpage; } rows[] = {
+        { FALSE, FALSE, HTS_TRUE,  HTS_TRUE  },
+        { TRUE,  FALSE, HTS_FALSE, HTS_TRUE  },
+        { FALSE, TRUE,  HTS_TRUE,  HTS_FALSE },
+        { TRUE,  TRUE,  HTS_FALSE, HTS_FALSE }
+      };
+      int nchecks = 0;
+      for(int k = 0 ; k < (int) (sizeof(rows) / sizeof(rows[0])) ; k++) {
+        COptionTab2 page;
+        page.m_nopurge = rows[k].nopurge;
+        page.m_errpage = rows[k].noerrpage;
+        httrackp *const opt = hts_create_opt();
+        opt->delete_old = opt->errpage = -1;   /* as OnModifyOpt hands it over */
+        SetMidCrawlNoFlags(opt, page);
+        if (opt->delete_old != rows[k].delete_old || opt->errpage != rows[k].errpage) {
+          fprintf(stderr, "FATAL: no-purge=%d no-error-pages=%d gave delete_old=%d errpage=%d\n",
+                  rows[k].nopurge, rows[k].noerrpage, opt->delete_old, opt->errpage);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+        hts_free_opt(opt);
+      }
+      printf("mid-crawl no-flags ok on %d checks\n", nchecks);
+    }
     LANG_SELFTEST_DECODE();
     LANG_SELFTEST_ESCAPE_ORDER();
     /* An unescaped space truncates the path, and an unescaped '#' names a file rather
