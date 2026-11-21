@@ -122,6 +122,8 @@ private:
   std::vector<CString> v_;
 };
 
+/* A harness that links the engine's htslines.c takes its linput() instead. */
+#ifndef HTSLINES_DEFH
 /* The engine's htslib.c reader: CR, TAB and FF go, LF ends the line. Dropping a raw TAB
    is why the writer escapes one. */
 static inline int linput(FILE *fp, char *s, int max) {
@@ -145,6 +147,7 @@ static inline int linput(FILE *fp, char *s, int max) {
   s[j] = '\0';
   return j;
 }
+#endif
 
 #define strcatbuff(a, b) strcat(a, b)
 #define _strnicmp strncasecmp
