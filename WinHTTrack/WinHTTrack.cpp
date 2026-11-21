@@ -684,6 +684,24 @@ BOOL CWinHTTrackApp::InitInstance()
         printf("MBCS->UTF-8 ok on %d checks\n", nchecks);
       }
     }
+    /* Each "No ..." box must turn its flag off mid-crawl, as the first command line does. */
+    {
+      int nchecks = 0;
+      for(int k = 0 ; k < 4 ; k++) {
+        const BOOL nopurge = (k & 1) != 0, noerrpage = (k & 2) != 0;
+        httrackp *const opt = hts_create_opt();
+        SetMidCrawlNoFlags(opt, nopurge, noerrpage);
+        if (opt->delete_old != (nopurge ? 0 : 1) || opt->errpage != (noerrpage ? 0 : 1)) {
+          fprintf(stderr, "FATAL: no-purge=%d no-error-pages=%d gave delete_old=%d errpage=%d\n",
+                  nopurge, noerrpage, opt->delete_old, opt->errpage);
+          fflush(stderr);
+          ExitProcess(3);
+        } else
+          nchecks++;
+        hts_free_opt(opt);
+      }
+      printf("mid-crawl no-flags ok on %d checks\n", nchecks);
+    }
     LANG_SELFTEST_DECODE();
     LANG_SELFTEST_ESCAPE_ORDER();
     /* An unescaped space truncates the path, and an unescaped '#' names a file rather

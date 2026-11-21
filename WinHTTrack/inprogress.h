@@ -39,6 +39,10 @@ Please visit our Website: http://www.httrack.com
 #include "WndLayout.h"
 
 
+/* Copies the "No purge" and "No error pages" boxes onto a mid-crawl opt. A ticked box
+   turns its engine flag off, as -X0 and -o0 do on the first command line. */
+void SetMidCrawlNoFlags(httrackp *opt, BOOL nopurge, BOOL noerrpage);
+
 /////////////////////////////////////////////////////////////////////////////
 // Cinprogress dialog
 

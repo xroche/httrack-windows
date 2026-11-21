@@ -748,6 +748,11 @@ void Cinprogress::OnPause()
 }
 
 // modif options
+void SetMidCrawlNoFlags(httrackp *opt, BOOL nopurge, BOOL noerrpage) {
+  opt->delete_old = nopurge ? 0 : 1;   /* -X0 on the command line */
+  opt->errpage = noerrpage ? 0 : 1;    /* -o0 */
+}
+
 void Cinprogress::OnModifyOpt() 
 {
   //
@@ -794,7 +799,6 @@ void Cinprogress::OnModifyOpt()
     opt->external = -1;
     opt->delete_old=-1;
     opt->parseall=-1;
-    opt->delete_old=-1;
 
     opt->travel=0;         // NOTE: NE SERA PRIS EN COMPTE QUE LE BIT 8
     if(maintab->m_option1.m_testall)
@@ -811,20 +815,12 @@ void Cinprogress::OnModifyOpt()
     else
       opt->nearlink=0;
 
-    if (maintab->m_option2.m_errpage)
-      opt->errpage=1;
-    else
-      opt->errpage=0;
+    SetMidCrawlNoFlags(opt, maintab->m_option2.m_nopurge, maintab->m_option2.m_errpage);
 
     if (maintab->m_option2.m_external)
       opt->external=1;
     else
       opt->external=0;
-
-    if (maintab->m_option2.m_nopurge)
-      opt->delete_old=1;
-    else
-      opt->delete_old=0;
 
 
     // host control
