@@ -698,6 +698,7 @@ BOOL CWinHTTrackApp::InitInstance()
         page.m_nopurge = rows[k].nopurge;
         page.m_errpage = rows[k].noerrpage;
         httrackp *const opt = hts_create_opt();
+        opt->delete_old = opt->errpage = -1;   /* as OnModifyOpt hands it over */
         SetMidCrawlNoFlags(opt, page);
         if (opt->delete_old != rows[k].delete_old || opt->errpage != rows[k].errpage) {
           fprintf(stderr, "FATAL: no-purge=%d no-error-pages=%d gave delete_old=%d errpage=%d\n",
