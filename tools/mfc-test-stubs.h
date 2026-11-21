@@ -122,7 +122,7 @@ private:
   std::vector<CString> v_;
 };
 
-/* A harness that links the engine's htslines.c takes its linput() instead. */
+/* A harness that includes htslines.h first links the engine's linput() instead. */
 #ifndef HTSLINES_DEFH
 /* The engine's htslib.c reader: CR, TAB and FF go, LF ends the line. Dropping a raw TAB
    is why the writer escapes one. */
