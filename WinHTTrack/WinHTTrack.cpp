@@ -684,16 +684,24 @@ BOOL CWinHTTrackApp::InitInstance()
         printf("MBCS->UTF-8 ok on %d checks\n", nchecks);
       }
     }
-    /* Each "No ..." box must turn its flag off mid-crawl, as the first command line does. */
+    /* A ticked "No purge" or "No error pages" box must turn its flag off mid-crawl. */
     {
+      static const struct { BOOL nopurge, noerrpage; int delete_old, errpage; } rows[] = {
+        { FALSE, FALSE, HTS_TRUE,  HTS_TRUE  },
+        { TRUE,  FALSE, HTS_FALSE, HTS_TRUE  },
+        { FALSE, TRUE,  HTS_TRUE,  HTS_FALSE },
+        { TRUE,  TRUE,  HTS_FALSE, HTS_FALSE }
+      };
       int nchecks = 0;
-      for(int k = 0 ; k < 4 ; k++) {
-        const BOOL nopurge = (k & 1) != 0, noerrpage = (k & 2) != 0;
+      for(int k = 0 ; k < (int) (sizeof(rows) / sizeof(rows[0])) ; k++) {
+        COptionTab2 page;
+        page.m_nopurge = rows[k].nopurge;
+        page.m_errpage = rows[k].noerrpage;
         httrackp *const opt = hts_create_opt();
-        SetMidCrawlNoFlags(opt, nopurge, noerrpage);
-        if (opt->delete_old != (nopurge ? 0 : 1) || opt->errpage != (noerrpage ? 0 : 1)) {
+        SetMidCrawlNoFlags(opt, page);
+        if (opt->delete_old != rows[k].delete_old || opt->errpage != rows[k].errpage) {
           fprintf(stderr, "FATAL: no-purge=%d no-error-pages=%d gave delete_old=%d errpage=%d\n",
-                  nopurge, noerrpage, opt->delete_old, opt->errpage);
+                  rows[k].nopurge, rows[k].noerrpage, opt->delete_old, opt->errpage);
           fflush(stderr);
           ExitProcess(3);
         } else

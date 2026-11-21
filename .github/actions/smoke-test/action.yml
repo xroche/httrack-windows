@@ -292,7 +292,7 @@ runs:
         if ("$so" -notmatch 'help URLs ok on 5 checks') {
           throw "selftest did not check the help URLs"
         }
-        # A ticked "No purge" once sent the engine "purge" mid-crawl.
+        # Mid-crawl, a ticked "No purge" or "No error pages" must turn its flag off.
         if ("$so" -notmatch 'mid-crawl no-flags ok on 4 checks') {
           throw "selftest did not check the mid-crawl no-purge and no-error-pages boxes"
         }

@@ -747,12 +747,12 @@ void Cinprogress::OnPause()
   //}
 }
 
-// modif options
-void SetMidCrawlNoFlags(httrackp *opt, BOOL nopurge, BOOL noerrpage) {
-  opt->delete_old = nopurge ? 0 : 1;   /* -X0 on the command line */
-  opt->errpage = noerrpage ? 0 : 1;    /* -o0 */
+void SetMidCrawlNoFlags(httrackp *opt, const COptionTab2 &page) {
+  opt->delete_old = page.m_nopurge ? 0 : 1;
+  opt->errpage = page.m_errpage ? 0 : 1;
 }
 
+// modif options
 void Cinprogress::OnModifyOpt() 
 {
   //
@@ -815,7 +815,7 @@ void Cinprogress::OnModifyOpt()
     else
       opt->nearlink=0;
 
-    SetMidCrawlNoFlags(opt, maintab->m_option2.m_nopurge, maintab->m_option2.m_errpage);
+    SetMidCrawlNoFlags(opt, maintab->m_option2);
 
     if (maintab->m_option2.m_external)
       opt->external=1;
