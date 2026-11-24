@@ -95,7 +95,7 @@ def region(text, opening, closing, what):
     return rest[: end.start()]
 
 
-def engine_caps(bauth_c, bauth_h, core_c):
+def engine_caps(bauth_c, bauth_h, core_c, buf_h):
     """The longest each field may be before the engine drops the cookie, the budget it
     charges the name and the value to together, and the size of its jar."""
     # The refusals and the record live in cookie_set_impl(), or in cookie_set() before it.
@@ -108,13 +108,23 @@ def engine_caps(bauth_c, bauth_h, core_c):
     caps = {}
     # Every buffer below caps one byte lower than it looks, and these two comparisons are
     # the whole reason. Read them, rather than resting a -1 on a comment.
-    for where, opening in (
-        ("cookie_load_field()", r"cookie_load_field\(httrackp"),
-        ("cookie_host()", r"hts_boolean cookie_host\("),
+    field = region(
+        bauth_c, r"cookie_load_field\(httrackp", r"\n\}", "cookie_load_field()"
+    )
+    # cookie_host() refuses through hts_buf_put_span(), so its comparison is read there.
+    host = region(bauth_c, r"hts_boolean cookie_host\(", r"\n\}", "cookie_host()")
+    put = region(
+        buf_h, r"hts_buf_put_span\(hts_buf b, hts_span s\)", r"\n\}", "htsbuf.h"
+    )
+    for where, refuses in (
+        ("cookie_load_field()", re.search(r"len\s*>=\s*dst_size", field)),
+        (
+            "cookie_host()",
+            re.search(r"hts_buf_put_span\(hts_buf_at\(dst,\s*dst_size\)", host)
+            and re.search(r"s\.len\s*>=\s*b\.size", put),
+        ),
     ):
-        if not re.search(
-            r"len\s*>=\s*dst_size", region(bauth_c, opening, r"\n\}", where)
-        ):
+        if not refuses:
             sys.exit(
                 "%s no longer refuses at len >= dst_size, so every cap it bounds moved "
                 "one byte" % where
@@ -189,7 +199,7 @@ def main():
 
     sources = [
         os.path.join(args.engine, "src", n)
-        for n in ("htsbauth.c", "htsbauth.h", "htscore.c")
+        for n in ("htsbauth.c", "htsbauth.h", "htscore.c", "htsbuf.h")
     ]
     for path in sources:
         if not os.path.exists(path):
@@ -199,12 +209,12 @@ def main():
             )
 
     checked = 0
-    bauth_c, bauth_h, core_c = (read(p) for p in sources)
+    bauth_c, bauth_h, core_c, buf_h = (read(p) for p in sources)
     header = read(os.path.join(ROOT, "WinHTTrack", "cookie-file.h"))
     cases = read(os.path.join(ROOT, "WinHTTrack", "cookie-file.cpp"))
 
     # 1. Every cap the writer enforces is the engine's own refusal point.
-    engine = engine_caps(bauth_c, bauth_h, core_c)
+    engine = engine_caps(bauth_c, bauth_h, core_c, buf_h)
     ours = header_caps(header)
     if engine != ours:
         sys.exit(
@@ -242,9 +252,9 @@ def main():
         if doctored == source:
             sys.exit("%s could not be doctored, so check 1 proves nothing" % what)
         got = (
-            engine_caps(bauth_c, doctored, core_c)
+            engine_caps(bauth_c, doctored, core_c, buf_h)
             if header_side
-            else engine_caps(doctored, bauth_h, core_c)
+            else engine_caps(doctored, bauth_h, core_c, buf_h)
         )
         if got == ours:
             sys.exit(
