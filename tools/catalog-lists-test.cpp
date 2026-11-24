@@ -46,7 +46,7 @@ static bool catalogLines(const std::string &path, std::vector<std::string> &out)
   if (fp == NULL)
     return false;
   while (!feof(fp)) {
-    hts_readline_cpp(fp, line, CATALOG_LINE_MAX, CATALOG_FLAGS);
+    hts_readline_cpp(fp, hts_buf_at(line, CATALOG_LINE_MAX), CATALOG_FLAGS);
     out.push_back(line);
   }
   fclose(fp);
