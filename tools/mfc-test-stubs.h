@@ -149,7 +149,10 @@ static inline int linput(FILE *fp, char *s, int max) {
 }
 #endif
 
+/* The engine's ones win when its headers came first. */
+#ifndef strcatbuff
 #define strcatbuff(a, b) strcat(a, b)
+#endif
 #define _strnicmp strncasecmp
 
 #ifdef ARGV_CAPS_TEST
@@ -204,6 +207,8 @@ static inline char *hts_convertStringUTF8ToSystem(const char *s, size_t size) {
 #endif
 
 /* The engine's freet() nulls what it frees, so its callers hold a non-const pointer. */
+#ifndef freet
 #define freet(p) do { free(p); (p) = NULL; } while(0)
+#endif
 
 #endif

@@ -483,6 +483,7 @@ def main():
                 "typedef int hts_boolean;\n#define HTSEXT_API\n"
                 "#define HTS_TRUE 1\n#define HTS_FALSE 0\n"
                 "#define assertf(x) assert(x)\n"
+                '#include "engine-span-shim.h"\n'
                 "%s\n"
                 'extern "C" {\n%s\n%s\n}\n'
                 "%s\n"
