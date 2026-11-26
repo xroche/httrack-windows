@@ -1099,7 +1099,7 @@ LRESULT Cinprogress::DragDropText(WPARAM wParam,LPARAM lParam) {
         {
           WhttOptGuard guard;
           httrackp *const opt = guard.live();
-          if (opt != NULL && hts_addurl(opt, tab)) {
+          if (tab != NULL && opt != NULL && hts_addurl(opt, tab)) {
             added=TRUE;
             if (pause=hts_setpause(opt, -1))
               hts_setpause(opt, 0);      // enlever pause
@@ -1138,7 +1138,8 @@ LRESULT Cinprogress::DragDropText(WPARAM wParam,LPARAM lParam) {
         } else {
           AfxMessageBox(LANG(LANG_DIAL13));
         }
-        CEasyDropTarget::ReleaseStringToArray(tab);
+        if (tab != NULL)
+          CEasyDropTarget::ReleaseStringToArray(tab);
         tab=NULL;
       }
     }
