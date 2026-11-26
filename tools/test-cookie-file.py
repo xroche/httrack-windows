@@ -117,7 +117,7 @@ def engine_caps(bauth_c, bauth_h, core_c, buf_h):
         buf_h, r"hts_buf_put_span\(hts_buf b, hts_span s\)", r"\n\}", "htsbuf.h"
     )
     for where, refuses in (
-        ("cookie_load_field()", re.search(r"len\s*>=\s*dst_size", field)),
+        ("cookie_load_field()", re.search(r"len\s*>=\s*dst[._]size", field)),
         (
             "cookie_host()",
             re.search(r"hts_buf_put_span\(hts_buf_at\(dst,\s*dst_size\)", host)
