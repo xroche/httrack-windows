@@ -134,7 +134,7 @@ const char* ToStatuscode(int statuscode) {
   } else {
     static char msg[1024];
     msg[0]='\0';
-    infostatuscode(msg,statuscode);
+    infostatuscode_sized(msg, sizeof(msg), statuscode);
     return msg;
   }
 }

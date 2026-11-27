@@ -192,7 +192,8 @@ UINT RunBackCatchServer( LPVOID pP ) {
   char url[HTS_URLMAXSIZE*2]; url[0]='\0';
   char method[32]; method[0]='\0';
   char data[32768]; data[0]='\0';
-  if (catch_url(_this->soc,url,method,data)) {
+  if (catch_url_sized(_this->soc, url, sizeof(url), method, sizeof(method),
+                      data, sizeof(data))) {
     if (_this->m_hWnd) {
       char dest[HTS_URLMAXSIZE*2];
       int i=0;
@@ -248,7 +249,7 @@ void CInsertUrl::Oncapt()
   // Demander un port d'écoute
   adr_prox[0]='\0';
   port_prox=0;
-  soc=catch_url_init_std(&port_prox,adr_prox);
+  soc=catch_url_init_std_sized(&port_prox, adr_prox, sizeof(adr_prox));
   if (soc != INVALID_SOCKET) {
     //
     char s[8192];
