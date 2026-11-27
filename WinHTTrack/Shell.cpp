@@ -341,8 +341,11 @@ BOOL LaunchMirror() {
   WHTT_LOCK();
   //hts_resetvar();
   WHTT_UNLOCK();
-  hts_newthread(RunBackMirror, NULL);
-  return 0;
+  if (hts_newthread_checked(RunBackMirror, NULL) != 0) {
+    AfxMessageBox("The engine thread could not be started.", MB_ICONSTOP);
+    return FALSE;
+  }
+  return TRUE;
 }
 
 /* The Cancel button's stop, minus its confirmation. */
@@ -2477,7 +2480,7 @@ void lance(void) {
     /* One per mirror, so a thread that outlived its bounded wait cannot raise the next
        mirror's event. */
     al.resultsReady = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (hts_newthread( RunBackRobot, (void*) &al) != 0) {
+    if (hts_newthread_checked(RunBackRobot, (void*) &al) != 0) {
       /* Nothing would ever raise the wait below, so end the mirror here. */
       freeEngineArgv(argv);
       WHTT_LOCK();

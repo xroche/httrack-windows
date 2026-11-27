@@ -324,7 +324,7 @@ def main():
             r"const CString list = fp != NULL \? listFile : CString\(\);\s*"
             r"if \(fp != NULL\)\s*fclose\(fp\);\s*"
             r"if \(browserLoginWriteHeld\(names, urls, list,"
-            r"\s*hts_bundle_names_in_use,\s*hts_bundle_names_free,"
+            r"\s*hts_bundle_names_in_use_checked,\s*hts_bundle_names_free,"
             r"\s*writeHeldLogin, &w, &refused\)\)\s*"
             r"return TRUE;\s*/\*[^*]*\*/\s*if \(!refused\.IsEmpty\(\)\)\s*"
             r"tellLoginNotSaved\(folder, refused\);\s*return FALSE;\s*\}$",
@@ -435,8 +435,8 @@ def main():
     if (
         "const BOOL dryRun = mode == BrowserLoginCheckOnly;" not in login
         or not re.search(
-            r"hts_bundle_from_paste_hosts\(paste, dir, agent, url, hosts,\s*"
-            r"browserLoginPasteFlags\(dryRun\), &result\)",
+            r"hts_bundle_from_paste_hosts_checked\(paste, dir, agent, url, hosts,\s*"
+            r"browserLoginPasteFlags\(dryRun\),\s*&result\)",
             login,
         )
         or "hts_bundle_from_paste(" in login
