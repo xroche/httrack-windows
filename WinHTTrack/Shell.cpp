@@ -1413,7 +1413,7 @@ int __cdecl httrackengine_loop(t_hts_callbackarg *carg, httrackp *opt,
                     }
                     else if ((back[i].r.statuscode>=100) && (back[i].r.statuscode<=599)) {
                       char tempo[256]; tempo[0]='\0';
-                      infostatuscode(tempo,back[i].r.statuscode);
+                      infostatuscode_sized(tempo, sizeof(tempo), back[i].r.statuscode);
                       strcpybuff(StatsBuffer[index].etat,tempo); ok=1;
                     }
                     else {
@@ -1577,7 +1577,7 @@ int inprogress_refresh() {
         
         if (SInfo.stat_time>0) {
           char s[256];
-          qsec2str(s,(TStamp) SInfo.stat_time);
+          qsec2str_sized(s, sizeof(s), (TStamp) SInfo.stat_time);
           SetDlgItemTextUTF8(inprogress, IDC_i1 ,s);  // time
         } else
           SetDlgItemTextUTF8(inprogress, IDC_i1 , _SN(SInfo.stat_time) );  // time
