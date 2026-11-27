@@ -1238,15 +1238,15 @@ BOOL CWinHTTrackApp::InitInstance()
          "no limit" marker would make it lie. Retries, Retry-After and external depth
          take 0, which means none of them rather than no limit. */
       const struct { const char *what; double value; double minimum; } shown[] = {
-        { "IDC_connexion", defaults->maxsoc, 1 },
-        { "IDC_timeout", defaults->timeout, 1 },
-        { "IDC_retry", defaults->retry, 0 },
-        { "IDC_maxretryafter", defaults->max_retry_after, 0 },
-        { "IDC_depth", defaults->depth, 1 },
-        { "IDC_depth2", defaults->extdepth, 0 },
-        { "IDC_maxrate", defaults->maxrate, 1 },
+        { "IDC_connexion", (double) defaults->maxsoc, 1 },
+        { "IDC_timeout", (double) defaults->timeout, 1 },
+        { "IDC_retry", (double) defaults->retry, 0 },
+        { "IDC_maxretryafter", (double) defaults->max_retry_after, 0 },
+        { "IDC_depth", (double) defaults->depth, 1 },
+        { "IDC_depth2", (double) defaults->extdepth, 0 },
+        { "IDC_maxrate", (double) defaults->maxrate, 1 },
         { "IDC_maxconn", defaults->maxconn, 1 },
-        { "IDC_maxlinks", defaults->maxlink, 1 },
+        { "IDC_maxlinks", (double) defaults->maxlink, 1 },
         { NULL, 0, 0 }
       };
       int nwritten = 0, ndefaults = 0;
