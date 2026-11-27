@@ -342,8 +342,9 @@ BrowserLoginBundleInfo browserLoginMakeBundle(const BrowserLoginHarvest &harvest
   /* The engine writes into the folder but does not create it. */
   if (!dir.IsEmpty())
     structcheck_utf8(dir + "/");
-  info.ok = hts_bundle_from_paste_hosts(paste, dir, agent, url, hosts,
-                                        browserLoginPasteFlags(dryRun), &result)
+  info.ok = hts_bundle_from_paste_hosts_checked(paste, dir, agent, url, hosts,
+                                                browserLoginPasteFlags(dryRun),
+                                                &result)
     ? TRUE : FALSE;
   info.name = result.name;
   info.url = ansiOf(result.url);

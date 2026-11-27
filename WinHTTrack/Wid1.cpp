@@ -870,7 +870,7 @@ BOOL Wid1::WriteBrowserLogins(const CString &folder, const CString &urls,
   if (fp != NULL)
     fclose(fp);
 
-  if (browserLoginWriteHeld(names, urls, list, hts_bundle_names_in_use,
+  if (browserLoginWriteHeld(names, urls, list, hts_bundle_names_in_use_checked,
                             hts_bundle_names_free, writeHeldLogin, &w, &refused))
     return TRUE;
   /* A failed write has already said why. */
